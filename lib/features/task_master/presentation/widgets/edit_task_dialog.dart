@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../data/models/task_model.dart';
+import 'package:intl/intl.dart'; // Digunakan untuk memformat objek DateTime ke string YYYY-MM-DD
 
 class EditTaskDialog extends StatefulWidget {
   final TaskItem task;
@@ -58,6 +59,33 @@ class _EditTaskDialogState extends State<EditTaskDialog> {
     super.dispose();
   }
 
+  // === FUNGSI UTK MEMBUKA DATE PICKER YANG MUDAH ===
+  Future<void> _selectDate(BuildContext context) async {
+    DateTime initialDate = DateTime.now();
+
+    // Jika data date sebelumnya valid, gunakan sebagai initial date picker
+    if (_dateController.text.isNotEmpty) {
+      try {
+        initialDate = DateTime.parse(_dateController.text);
+      } catch (_) {}
+    }
+
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2101),
+    );
+
+    if (picked != null) {
+      setState(() {
+        // Format otomatis ke format YYYY-MM-DD
+        _dateController.text =
+            "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
@@ -94,12 +122,22 @@ class _EditTaskDialogState extends State<EditTaskDialog> {
                 decoration: const InputDecoration(labelText: 'Target Hari Ini'),
                 keyboardType: TextInputType.number,
               ),
+              // === INPUT DATE YANG DIUBAH MENJADI DATE PICKER KALENDER ===
               TextFormField(
                 controller: _dateController,
-                decoration: const InputDecoration(
+                readOnly: true, // Menghindari keyboard muncul saat ditekan
+                decoration: InputDecoration(
                   labelText: 'Tanggal (YYYY-MM-DD)',
-                  hintText: 'Kosongkan jika tidak ada',
+                  hintText: 'Pilih Tanggal',
+                  suffixIcon: _dateController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () =>
+                              setState(() => _dateController.clear()),
+                        )
+                      : const Icon(Icons.calendar_today),
                 ),
+                onTap: () => _selectDate(context),
               ),
             ],
           ),

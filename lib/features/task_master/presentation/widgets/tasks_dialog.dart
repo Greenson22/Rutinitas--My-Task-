@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../data/models/task_model.dart';
-import 'edit_task_dialog.dart'; // Import dialog edit detail baru
+import 'edit_task_dialog.dart';
 
 class TasksDialog extends StatelessWidget {
   final TaskCategory category;
-  final Function(TaskItem) onIncrementTask;
+  final Future<bool> Function(TaskItem)
+  onIncrementTask; // <--- UBAH DI SINI MENJADI FUTURE<BOOL>
   final Function(TaskItem, int) onUpdateTargetToday;
-  // Tambahkan callback untuk edit detail dan hapus tugas
   final Function(TaskItem, String, int, int, int, int, String?)
   onEditTaskDetail;
   final Function(TaskItem) onDeleteTask;
@@ -20,44 +20,6 @@ class TasksDialog extends StatelessWidget {
     required this.onDeleteTask,
   });
 
-  void _showTargetInputDialog(
-    BuildContext context,
-    TaskItem task,
-    StateSetter setDialogState,
-  ) {
-    final controller = TextEditingController(
-      text: task.targetCountToday.toString(),
-    );
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Set Target Hari Ini (${task.name})'),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(labelText: 'Jumlah Target'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Batal'),
-          ),
-          TextButton(
-            onPressed: () {
-              final newTarget =
-                  int.tryParse(controller.text) ?? task.targetCountToday;
-              onUpdateTargetToday(task, newTarget);
-              setDialogState(() {});
-              Navigator.pop(ctx);
-            },
-            child: const Text('Simpan'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Fungsi untuk menampilkan form edit detail tugas lengkap
   void _showEditTaskDetailDialog(
     BuildContext context,
     TaskItem task,
@@ -85,9 +47,7 @@ class TasksDialog extends StatelessWidget {
                 newTargetCountToday,
                 newDate,
               );
-              setDialogState(
-                () {},
-              ); // Memicu re-render UI dialog tugas secara instan
+              setDialogState(() {});
             },
       ),
     );
@@ -148,9 +108,14 @@ class TasksDialog extends StatelessWidget {
                                 color: Colors.blue,
                                 size: 28,
                               ),
-                              onPressed: () {
-                                onIncrementTask(task);
-                                setDialogState(() {});
+                              // === TAMBAHKAN ASYNC/AWAIT DI SINI ===
+                              onPressed: () async {
+                                bool isUpdated = await onIncrementTask(task);
+                                if (isUpdated) {
+                                  setDialogState(
+                                    () {},
+                                  ); // Hanya re-render jika user menekan tombol 'Tambah'
+                                }
                               },
                             ),
                             title: Text(
@@ -160,22 +125,13 @@ class TasksDialog extends StatelessWidget {
                                 fontSize: 15,
                               ),
                             ),
-                            subtitle: InkWell(
-                              onTap: () => _showTargetInputDialog(
-                                context,
-                                task,
-                                setDialogState,
-                              ),
-                              child: Text(
-                                subtitleText,
-                                style: const TextStyle(
-                                  color: Colors.blueGrey,
-                                  fontSize: 11,
-                                  decoration: TextDecoration.underline,
-                                ),
+                            subtitle: Text(
+                              subtitleText,
+                              style: const TextStyle(
+                                color: Colors.blueGrey,
+                                fontSize: 11,
                               ),
                             ),
-                            // === UBAH TOMBOL TITIK TIGA MENJADI POPUP MENU ===
                             trailing: PopupMenuButton<String>(
                               icon: const Icon(
                                 Icons.more_vert,
@@ -191,9 +147,7 @@ class TasksDialog extends StatelessWidget {
                                   );
                                 } else if (value == 'delete_task') {
                                   onDeleteTask(task);
-                                  setDialogState(
-                                    () {},
-                                  ); // Menghapus item dari list view dialog
+                                  setDialogState(() {});
                                 }
                               },
                               itemBuilder: (BuildContext context) => [

@@ -140,15 +140,43 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // === FUNGSI AKSI TOMBOL TAMBAH PADA TUGAS ===
-  Future<void> _incrementTaskCount(TaskItem task) async {
-    setState(() {
-      task.count += 1;
-      task.countToday += 1;
-      task.date =
-          _getTodayDateString(); // Mengubah tanggal otomatis ke hari ini
-    });
-    await _saveAllCategoriesToFile();
+  // === FUNGSI AKSI TOMBOL TAMBAH PADA TUGAS (DENGAN RETURN VALUE) ===
+  Future<bool> _incrementTaskCount(TaskItem task) async {
+    bool? confirmIncrement = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Tambah Count'),
+        content: Text(
+          'Apakah Anda yakin ingin menambah hitungan untuk tugas "${task.name}"?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'Tambah',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmIncrement == true) {
+      setState(() {
+        task.count += 1;
+        task.countToday += 1;
+        task.date =
+            _getTodayDateString(); // Mengubah tanggal otomatis ke hari ini
+      });
+      await _saveAllCategoriesToFile();
+      return true; // Berhasil ditambah
+    }
+
+    return false; // Dibatalkan
   }
 
   // === FUNGSI AKSI UPDATE TARGET HARIAN TUGAS ===
@@ -164,9 +192,7 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (context) => TasksDialog(
         category: category,
-        onIncrementTask: (task) {
-          _incrementTaskCount(task);
-        },
+        onIncrementTask: (task) => _incrementTaskCount(task),
         onUpdateTargetToday: (task, newTarget) {
           _updateTaskTargetToday(task, newTarget);
         },
