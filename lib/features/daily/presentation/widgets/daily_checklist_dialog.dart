@@ -1,6 +1,7 @@
 // lib/features/daily/presentation/widgets/daily_checklist_dialog.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../data/models/daily_model.dart';
 
 class DailyChecklistDialog extends StatefulWidget {
@@ -18,9 +19,134 @@ class DailyChecklistDialog extends StatefulWidget {
 }
 
 class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
+  final TextEditingController _singleInputController = TextEditingController();
+
+  @override
+  void dispose() {
+    _singleInputController.dispose();
+    super.dispose();
+  }
+
+  // Fungsi konfirmasi umum
+  Future<bool> _showConfirmDialog({
+    required String title,
+    required String content,
+  }) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(title),
+            content: Text(content),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Batal'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Konfirmasi'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
+  // Fungsi untuk menambah 1 sub-materi secara manual dengan konfirmasi
+  Future<void> _addSingleSubMateri() async {
+    final text = _singleInputController.text.trim();
+    if (text.isEmpty) return;
+
+    final confirm = await _showConfirmDialog(
+      title: 'Tambah Sub-Materi',
+      content: 'Apakah Anda yakin ingin menambahkan sub-materi "$text"?',
+    );
+
+    if (!confirm) return;
+
+    setState(() {
+      widget.subject.subMateri.add(
+        SubMateriItem(namaMateri: text, progress: 'belum'),
+      );
+      _singleInputController.clear();
+    });
+    _updateSubjectOverallProgress();
+    widget.onDataChanged();
+  }
+
+  // Fungsi untuk menempel banyak sub-materi dari clipboard dengan konfirmasi
+  Future<void> _pasteSubMateriFromClipboard() async {
+    ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain);
+    if (data == null || data.text == null || data.text!.trim().isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Clipboard kosong atau tidak valid')),
+        );
+      }
+      return;
+    }
+
+    List<String> lines = data.text!
+        .split(RegExp(r'\r?\n'))
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+
+    if (lines.isEmpty) return;
+
+    final confirm = await _showConfirmDialog(
+      title: 'Tambah Banyak Sub-Materi',
+      content:
+          'Apakah Anda yakin ingin menambahkan ${lines.length} sub-materi dari clipboard?',
+    );
+
+    if (!confirm) return;
+
+    setState(() {
+      for (var line in lines) {
+        widget.subject.subMateri.add(
+          SubMateriItem(namaMateri: line, progress: 'belum'),
+        );
+      }
+    });
+
+    _updateSubjectOverallProgress();
+    widget.onDataChanged();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Berhasil menambahkan ${lines.length} sub-materi'),
+        ),
+      );
+    }
+  }
+
+  // Fungsi untuk menghapus sub-materi dengan konfirmasi
+  Future<void> _deleteSubMateri(SubMateriItem item) async {
+    final confirm = await _showConfirmDialog(
+      title: 'Hapus Sub-Materi',
+      content: 'Apakah Anda yakin ingin menghapus "${item.namaMateri}"?',
+    );
+
+    if (!confirm) return;
+
+    setState(() {
+      widget.subject.subMateri.remove(item);
+    });
+
+    _updateSubjectOverallProgress();
+    widget.onDataChanged();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sub-materi berhasil dihapus')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Memisahkan list secara visual menggunakan filtering (.where) tanpa mengacaukan susunan array asli
     final belumSelesaiList = widget.subject.subMateri
         .where((item) => item.progress != 'selesai')
         .toList();
@@ -53,6 +179,45 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
               ),
             ),
           ),
+
+          // PANEL INPUT: Tambah Sub-Materi & Paste dari Clipboard
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _singleInputController,
+                    decoration: const InputDecoration(
+                      hintText: 'Tambah sub-materi baru...',
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(
+                        vertical: 10,
+                        horizontal: 12,
+                      ),
+                      border: OutlineInputBorder(),
+                    ),
+                    onSubmitted: (_) => _addSingleSubMateri(),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                IconButton(
+                  icon: const Icon(Icons.add_box, color: Colors.teal),
+                  tooltip: 'Tambah',
+                  onPressed: _addSingleSubMateri,
+                ),
+                IconButton(
+                  icon: const Icon(
+                    Icons.assignment_turned_in_rounded,
+                    color: Colors.indigo,
+                  ),
+                  tooltip: 'Paste Banyak (Baris Baru)',
+                  onPressed: _pasteSubMateriFromClipboard,
+                ),
+              ],
+            ),
+          ),
+          const Divider(),
 
           // Konten List Item Checklist
           Flexible(
@@ -118,9 +283,15 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 TextButton.icon(
-                  onPressed: () {
+                  onPressed: () async {
+                    final confirm = await _showConfirmDialog(
+                      title: 'Reset Semua Progress',
+                      content:
+                          'Apakah Anda yakin ingin mereset progress semua sub-materi kembali ke semula?',
+                    );
+                    if (!confirm) return;
+
                     setState(() {
-                      // RESET SEMUA KEMBALI KE POSISI SEMULA (PROGRESS: BELUM)
                       for (var item in widget.subject.subMateri) {
                         item.progress = 'belum';
                         item.finishedDate = null;
@@ -155,36 +326,51 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
   Widget _buildChecklistTile(SubMateriItem item) {
     bool isChecked = item.progress == 'selesai';
 
-    return CheckboxListTile(
-      title: Text(
-        item.namaMateri,
-        style: TextStyle(
-          fontSize: 14,
-          decoration: isChecked ? TextDecoration.lineThrough : null,
-          color: isChecked ? Colors.grey : Colors.black87,
+    return Row(
+      children: [
+        Expanded(
+          child: CheckboxListTile(
+            title: Text(
+              item.namaMateri,
+              style: TextStyle(
+                fontSize: 14,
+                decoration: isChecked ? TextDecoration.lineThrough : null,
+                color: isChecked ? Colors.grey : Colors.black87,
+              ),
+            ),
+            value: isChecked,
+            activeColor: Colors.teal,
+            controlAffinity: ListTileControlAffinity.leading,
+            dense: true,
+            contentPadding: EdgeInsets
+                .zero, // Mengurangi padding bawaan agar muat dengan tombol hapus
+            onChanged: (bool? checked) {
+              setState(() {
+                if (checked == true) {
+                  item.progress = 'selesai';
+                  final now = DateTime.now();
+                  item.finishedDate =
+                      "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
+                } else {
+                  item.progress = 'belum';
+                  item.finishedDate = null;
+                }
+                _updateSubjectOverallProgress();
+              });
+              widget.onDataChanged();
+            },
+          ),
         ),
-      ),
-      value: isChecked,
-      activeColor: Colors.teal,
-      controlAffinity: ListTileControlAffinity.leading,
-      dense: true,
-      onChanged: (bool? checked) {
-        setState(() {
-          if (checked == true) {
-            item.progress = 'selesai';
-            final now = DateTime.now();
-            item.finishedDate =
-                "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
-          } else {
-            item.progress = 'belum';
-            item.finishedDate = null;
-          }
-
-          // Update Status Progress Utama Subject
-          _updateSubjectOverallProgress();
-        });
-        widget.onDataChanged();
-      },
+        IconButton(
+          icon: const Icon(
+            Icons.delete_outline,
+            color: Colors.redAccent,
+            size: 20,
+          ),
+          tooltip: 'Hapus Sub-materi',
+          onPressed: () => _deleteSubMateri(item),
+        ),
+      ],
     );
   }
 
