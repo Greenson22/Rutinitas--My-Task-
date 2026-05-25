@@ -266,18 +266,26 @@ class _DailyScreenState extends State<DailyScreen> {
             .length;
         bool isAllDone = totalSub > 0 && totalSub == selesaiSub;
 
+        // KODE BARU (Sudah Diperbaiki)
         String topListText = "Tidak ada list";
         Color topListColor = Colors.grey[600]!;
         TextDecoration? topListDecoration;
 
         if (subject.subMateri.isNotEmpty) {
-          final firstItem = subject.subMateri.first;
-          topListText = firstItem.namaMateri;
-          if (firstItem.progress == 'selesai') {
-            topListColor = Colors.green[700]!;
-            topListDecoration = TextDecoration.lineThrough;
-          } else {
+          // MENCARI SUB-MATERI PERTAMA YANG BELUM SELESAI
+          final firstUnfinishedItem = subject.subMateri.firstWhere(
+            (sm) => sm.progress != 'selesai',
+            orElse: () => SubMateriItem(namaMateri: '', progress: 'selesai'),
+          );
+
+          if (firstUnfinishedItem.namaMateri.isNotEmpty) {
+            // Jika ketemu yang belum selesai, tampilkan materi tersebut
+            topListText = firstUnfinishedItem.namaMateri;
             topListColor = Colors.black87;
+          } else {
+            // Jika tidak ada yang belum selesai (artinya semua sudah selesai)
+            topListText = "Semua Selesai!";
+            topListColor = Colors.green[700]!;
           }
         }
 
