@@ -227,6 +227,7 @@ class _HomeScreenState extends State<HomeScreen> {
             task.targetCountToday = tct;
             task.date = d;
             task.isActive = active;
+            // Variabel `task.type` sudah otomatis ter-update dari pemicu di dalam `tasks_dialog.dart`
           });
           await _saveAllCategoriesToFile();
         },

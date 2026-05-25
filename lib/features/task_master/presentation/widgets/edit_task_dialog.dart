@@ -12,7 +12,8 @@ class EditTaskDialog extends StatefulWidget {
     required int newTargetCount,
     required int newTargetCountToday,
     required String? newDate,
-    required bool newIsActive, // <--- PARAMETER BARU
+    required bool newIsActive,
+    required int newType, // <--- TAMBAHAN PARAMETER BARU
   })
   onSave;
 
@@ -30,7 +31,8 @@ class _EditTaskDialogState extends State<EditTaskDialog> {
   late TextEditingController _targetCountController;
   late TextEditingController _targetCountTodayController;
   late TextEditingController _dateController;
-  late bool _isActive; // <--- STATE BARU
+  late bool _isActive;
+  late int _selectedType;
 
   @override
   void initState() {
@@ -49,7 +51,8 @@ class _EditTaskDialogState extends State<EditTaskDialog> {
       text: widget.task.targetCountToday.toString(),
     );
     _dateController = TextEditingController(text: widget.task.date ?? '');
-    _isActive = widget.task.isActive; // <--- INISIALISASI STATUS AKTIF
+    _isActive = widget.task.isActive;
+    _selectedType = widget.task.type;
   }
 
   @override
@@ -95,16 +98,63 @@ class _EditTaskDialogState extends State<EditTaskDialog> {
           key: _formKey,
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               TextFormField(
                 controller: _nameController,
-                decoration: const InputDecoration(labelText: 'Nama Tugas'),
+                decoration: const InputDecoration(
+                  labelText: 'Nama Tugas',
+                  icon: Icon(Icons.task_alt),
+                ),
                 validator: (v) =>
                     v!.trim().isEmpty ? 'Tidak boleh kosong' : null,
               ),
+              const SizedBox(height: 12),
+
+              // DROPDOWN DENGAN IKON YANG VALID
+              DropdownButtonFormField<int>(
+                value: _selectedType,
+                decoration: const InputDecoration(
+                  labelText: 'Tipe Tugas',
+                  icon: Icon(
+                    Icons.stacked_line_chart,
+                  ), // <--- PERBAIKAN TYPO HURUF ASING
+                ),
+                items: const [
+                  DropdownMenuItem(value: 0, child: Text('Tugas Biasa')),
+                  DropdownMenuItem(
+                    value: 1,
+                    child: Text('Tugas Progress (Ada Progress Bar)'),
+                  ),
+                ],
+                onChanged: (val) {
+                  if (val != null) {
+                    setState(() {
+                      _selectedType = val;
+                    });
+                  }
+                },
+              ),
+              const SizedBox(height: 16),
+
+              const Divider(),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 4.0),
+                child: Text(
+                  'Hitungan & Statistik Progress:',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.indigo,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+
               TextFormField(
                 controller: _countController,
-                decoration: const InputDecoration(labelText: 'Total Count'),
+                decoration: const InputDecoration(
+                  labelText: 'Total Count Saat Ini',
+                ),
                 keyboardType: TextInputType.number,
               ),
               TextFormField(
@@ -114,7 +164,18 @@ class _EditTaskDialogState extends State<EditTaskDialog> {
               ),
               TextFormField(
                 controller: _targetCountController,
-                decoration: const InputDecoration(labelText: 'Target Total'),
+                decoration: InputDecoration(
+                  labelText: 'Target Total Progress',
+                  hintText: 'Contoh: 1000',
+                  labelStyle: TextStyle(
+                    color: _selectedType == 1
+                        ? Colors.indigo[700]
+                        : Colors.black54,
+                    fontWeight: _selectedType == 1
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                  ),
+                ),
                 keyboardType: TextInputType.number,
               ),
               TextFormField(
@@ -122,26 +183,35 @@ class _EditTaskDialogState extends State<EditTaskDialog> {
                 decoration: const InputDecoration(labelText: 'Target Hari Ini'),
                 keyboardType: TextInputType.number,
               ),
+              const SizedBox(height: 12),
+
+              const Divider(),
+
               TextFormField(
                 controller: _dateController,
                 readOnly: true,
                 decoration: InputDecoration(
-                  labelText: 'Tanggal (YYYY-MM-DD)',
+                  labelText: 'Tanggal Terakhir Update (YYYY-MM-DD)',
                   hintText: 'Pilih Tanggal',
+                  icon: const Icon(Icons.calendar_today, size: 20),
                   suffixIcon: _dateController.text.isNotEmpty
                       ? IconButton(
-                          icon: const Icon(Icons.clear),
+                          icon: const Icon(Icons.clear, size: 18),
                           onPressed: () =>
                               setState(() => _dateController.clear()),
                         )
-                      : const Icon(Icons.calendar_today),
+                      : null,
                 ),
                 onTap: () => _selectDate(context),
               ),
               const SizedBox(height: 10),
-              // === INPUT BARU STATUS AKTIF ===
+
               SwitchListTile(
                 title: const Text('Status Tugas Aktif'),
+                subtitle: const Text(
+                  'Jika mati, tidak dihitung di ringkasan',
+                  style: TextStyle(fontSize: 11),
+                ),
                 value: _isActive,
                 activeColor: Colors.indigo,
                 contentPadding: EdgeInsets.zero,
@@ -163,6 +233,7 @@ class _EditTaskDialogState extends State<EditTaskDialog> {
         ElevatedButton(
           onPressed: () {
             if (_formKey.currentState!.validate()) {
+              // Kirim seluruh perubahan data melalui callback terstruktur
               widget.onSave(
                 newName: _nameController.text.trim(),
                 newCount:
@@ -179,12 +250,14 @@ class _EditTaskDialogState extends State<EditTaskDialog> {
                 newDate: _dateController.text.trim().isEmpty
                     ? null
                     : _dateController.text.trim(),
-                newIsActive: _isActive, // <--- PASS DATA STATUS TERBARU
+                newIsActive: _isActive,
+                newType: _selectedType, // <--- SALURKAN NILAI BARU KE SINI
               );
               Navigator.pop(context);
             }
           },
-          child: const Text('Simpan'),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
+          child: const Text('Simpan', style: TextStyle(color: Colors.white)),
         ),
       ],
     );

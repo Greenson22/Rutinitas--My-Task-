@@ -46,9 +46,9 @@ class TaskItem {
   int countToday;
   final String lastUpdated;
   int targetCountToday;
-  final int type;
+  int type; // <--- PERBAIKAN: Hapus kata kunci 'final' agar tidak imutabel
   int targetCount;
-  bool isActive; // <--- TAMBAHAN FIELD BARU
+  bool isActive;
 
   TaskItem({
     required this.id,
@@ -61,7 +61,7 @@ class TaskItem {
     required this.targetCountToday,
     required this.type,
     required this.targetCount,
-    this.isActive = true, // <--- DEFAULT VALUES TRUE
+    this.isActive = true,
   });
 
   factory TaskItem.fromJson(Map<String, dynamic> json) {
@@ -76,7 +76,7 @@ class TaskItem {
       targetCountToday: json['targetCountToday'] ?? 0,
       type: json['type'] ?? 0,
       targetCount: json['targetCount'] ?? 0,
-      isActive: json['isActive'] ?? true, // <--- PARSING DARI JSON
+      isActive: json['isActive'] ?? true,
     );
   }
 
@@ -92,7 +92,7 @@ class TaskItem {
       'targetCountToday': targetCountToday,
       'type': type,
       'targetCount': targetCount,
-      'isActive': isActive, // <--- SIMPAN KE JSON
+      'isActive': isActive,
     };
   }
 

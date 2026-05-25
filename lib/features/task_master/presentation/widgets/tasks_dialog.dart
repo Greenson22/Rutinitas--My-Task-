@@ -123,6 +123,7 @@ class TasksDialog extends StatelessWidget {
               required newTargetCount,
               required newTargetCountToday,
               required newIsActive,
+              required newType,
             }) {
               onEditTaskDetail(
                 task,
@@ -351,144 +352,221 @@ class TasksDialog extends StatelessWidget {
                                 : Colors.grey;
                           }
 
-                          String totalText = (todayText == null)
-                              ? 'Total: ${task.count} / ${task.targetCount}'
-                              : ' | Total: ${task.count} / ${task.targetCount}';
+                          // Mengatur visual teks total progress
+                          String totalText = '';
+                          if (task.type == 1) {
+                            totalText = (todayText == null)
+                                ? 'Progress Total: ${task.count} / ${task.targetCount}'
+                                : ' | Progress Total: ${task.count} / ${task.targetCount}';
+                          } else {
+                            totalText = (todayText == null)
+                                ? 'Total: ${task.count}'
+                                : ' | Total: ${task.count}';
+                          }
 
-                          return ListTile(
-                            dense: true,
-                            leading: isSelectionMode
-                                ? Checkbox(
-                                    value: selectedTaskIds.contains(task.id),
-                                    onChanged: (bool? checked) {
-                                      setDialogState(() {
-                                        if (checked == true) {
-                                          selectedTaskIds.add(task.id);
-                                        } else {
-                                          selectedTaskIds.remove(task.id);
-                                        }
-                                      });
-                                    },
-                                  )
-                                : IconButton(
-                                    icon: Icon(
-                                      Icons.add_circle_outline,
-                                      color: task.isActive
-                                          ? Colors.blue
-                                          : Colors.grey[400],
-                                      size: 28,
-                                    ),
-                                    // PERBAIKAN: Menambahkan dialog konfirmasi sebelum menambah hitungan
-                                    onPressed: task.isActive
-                                        ? () => _showConfirmIncrementDialog(
-                                            context,
-                                            task,
-                                            () async {
-                                              bool isUpdated =
-                                                  await onIncrementTask(task);
-                                              if (isUpdated)
-                                                setDialogState(() {});
-                                            },
-                                          )
-                                        : null,
-                                  ),
-                            title: Text(
-                              task.name,
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 15,
-                                color: task.isActive
-                                    ? Colors.black87
-                                    : Colors.grey,
-                              ),
-                            ),
-                            subtitle: Text.rich(
-                              TextSpan(
-                                children: [
-                                  if (todayText != null)
-                                    TextSpan(
-                                      text: todayText,
-                                      style: TextStyle(
-                                        color: todayColor,
-                                        fontWeight:
-                                            (task.countToday >=
-                                                        task.targetCountToday ||
-                                                    task.targetCountToday ==
-                                                        0) &&
-                                                task.isActive
-                                            ? FontWeight.bold
-                                            : FontWeight.normal,
-                                      ),
-                                    ),
-                                  TextSpan(
-                                    text: totalText,
+                          // Hitung persentase progress untuk LinearProgressIndicator jika bertipe progress (1)
+                          double progressPercentage = 0.0;
+                          if (task.type == 1 && task.targetCount > 0) {
+                            progressPercentage = (task.count / task.targetCount)
+                                .clamp(0.0, 1.0);
+                          }
+
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4.0),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                ListTile(
+                                  dense: true,
+                                  leading: isSelectionMode
+                                      ? Checkbox(
+                                          value: selectedTaskIds.contains(
+                                            task.id,
+                                          ),
+                                          onChanged: (bool? checked) {
+                                            setDialogState(() {
+                                              if (checked == true) {
+                                                selectedTaskIds.add(task.id);
+                                              } else {
+                                                selectedTaskIds.remove(task.id);
+                                              }
+                                            });
+                                          },
+                                        )
+                                      : IconButton(
+                                          icon: Icon(
+                                            Icons.add_circle_outline,
+                                            color: task.isActive
+                                                ? Colors.blue
+                                                : Colors.grey[400],
+                                            size: 28,
+                                          ),
+                                          onPressed: task.isActive
+                                              ? () => _showConfirmIncrementDialog(
+                                                  context,
+                                                  task,
+                                                  () async {
+                                                    bool isUpdated =
+                                                        await onIncrementTask(
+                                                          task,
+                                                        );
+                                                    if (isUpdated)
+                                                      setDialogState(() {});
+                                                  },
+                                                )
+                                              : null,
+                                        ),
+                                  title: Text(
+                                    task.name,
                                     style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15,
                                       color: task.isActive
-                                          ? Colors.blue[800]
+                                          ? Colors.black87
                                           : Colors.grey,
                                     ),
                                   ),
-                                  ..._buildIndonesianDateSpans(
-                                    task.date,
-                                    task.isActive,
-                                  ),
-                                ],
-                              ),
-                              style: const TextStyle(fontSize: 11),
-                            ),
-                            trailing: isSelectionMode
-                                ? null
-                                : PopupMenuButton<String>(
-                                    icon: const Icon(
-                                      Icons.more_vert,
-                                      color: Colors.grey,
+                                  subtitle: Text.rich(
+                                    TextSpan(
+                                      children: [
+                                        if (todayText != null)
+                                          TextSpan(
+                                            text: todayText,
+                                            style: TextStyle(
+                                              color: todayColor,
+                                              fontWeight:
+                                                  (task.countToday >=
+                                                              task.targetCountToday ||
+                                                          task.targetCountToday ==
+                                                              0) &&
+                                                      task.isActive
+                                                  ? FontWeight.bold
+                                                  : FontWeight.normal,
+                                            ),
+                                          ),
+                                        TextSpan(
+                                          text: totalText,
+                                          style: TextStyle(
+                                            color: task.isActive
+                                                ? Colors.blue[800]
+                                                : Colors.grey,
+                                          ),
+                                        ),
+                                        ..._buildIndonesianDateSpans(
+                                          task.date,
+                                          task.isActive,
+                                        ),
+                                      ],
                                     ),
-                                    padding: EdgeInsets.zero,
-                                    onSelected: (value) async {
-                                      if (value == 'edit_detail') {
-                                        _showEditTaskDetailDialog(
-                                          context,
-                                          task,
-                                          setDialogState,
-                                        );
-                                      } else if (value == 'delete_task') {
-                                        bool isDeleted = await onDeleteTask(
-                                          task,
-                                        );
-                                        if (isDeleted) setDialogState(() {});
-                                      }
-                                    },
-                                    itemBuilder: (BuildContext context) => [
-                                      const PopupMenuItem<String>(
-                                        value: 'edit_detail',
-                                        child: ListTile(
-                                          leading: Icon(
-                                            Icons.edit_note,
-                                            size: 20,
-                                          ),
-                                          title: Text('Edit Detail'),
-                                          contentPadding: EdgeInsets.zero,
-                                          dense: true,
-                                        ),
-                                      ),
-                                      const PopupMenuItem<String>(
-                                        value: 'delete_task',
-                                        child: ListTile(
-                                          leading: Icon(
-                                            Icons.delete_outline,
-                                            color: Colors.red,
-                                            size: 20,
-                                          ),
-                                          title: Text(
-                                            'Hapus',
-                                            style: TextStyle(color: Colors.red),
-                                          ),
-                                          contentPadding: EdgeInsets.zero,
-                                          dense: true,
-                                        ),
-                                      ),
-                                    ],
+                                    style: const TextStyle(fontSize: 11),
                                   ),
+                                  trailing: isSelectionMode
+                                      ? null
+                                      : PopupMenuButton<String>(
+                                          icon: const Icon(
+                                            Icons.more_vert,
+                                            color: Colors.grey,
+                                          ),
+                                          padding: EdgeInsets.zero,
+                                          onSelected: (value) async {
+                                            if (value == 'edit_detail') {
+                                              _showEditTaskDetailDialog(
+                                                context,
+                                                task,
+                                                setDialogState,
+                                              );
+                                            } else if (value == 'delete_task') {
+                                              bool isDeleted =
+                                                  await onDeleteTask(task);
+                                              if (isDeleted)
+                                                setDialogState(() {});
+                                            }
+                                          },
+                                          itemBuilder: (BuildContext context) =>
+                                              [
+                                                const PopupMenuItem<String>(
+                                                  value: 'edit_detail',
+                                                  child: ListTile(
+                                                    leading: Icon(
+                                                      Icons.edit_note,
+                                                      size: 20,
+                                                    ),
+                                                    title: Text('Edit Detail'),
+                                                    contentPadding:
+                                                        EdgeInsets.zero,
+                                                    dense: true,
+                                                  ),
+                                                ),
+                                                const PopupMenuItem<String>(
+                                                  value: 'delete_task',
+                                                  child: ListTile(
+                                                    leading: Icon(
+                                                      Icons.delete_outline,
+                                                      color: Colors.red,
+                                                      size: 20,
+                                                    ),
+                                                    title: Text(
+                                                      'Hapus',
+                                                      style: TextStyle(
+                                                        color: Colors.red,
+                                                      ),
+                                                    ),
+                                                    contentPadding:
+                                                        EdgeInsets.zero,
+                                                    dense: true,
+                                                  ),
+                                                ),
+                                              ],
+                                        ),
+                                ),
+                                // RENDER PROGRESS BAR HANYA UNTUK TIPE TUGAS 1 (PROGRESS TASK)
+                                if (task.type == 1)
+                                  Padding(
+                                    padding: const EdgeInsets.only(
+                                      left: 64.0,
+                                      right: 24.0,
+                                      bottom: 8.0,
+                                      top: 2.0,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
+                                            child: LinearProgressIndicator(
+                                              value: progressPercentage,
+                                              backgroundColor: Colors.grey[300],
+                                              valueColor:
+                                                  AlwaysStoppedAnimation<Color>(
+                                                    task.isActive
+                                                        ? (progressPercentage >=
+                                                                  1.0
+                                                              ? Colors.green
+                                                              : Colors.indigo)
+                                                        : Colors.grey,
+                                                  ),
+                                              minHeight: 6,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          '${(progressPercentage * 100).toStringAsFixed(0)}%',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            color: task.isActive
+                                                ? Colors.grey[700]
+                                                : Colors.grey,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                              ],
+                            ),
                           );
                         },
                       ),
@@ -597,7 +675,6 @@ class TasksDialog extends StatelessWidget {
                             onPressed: () => Navigator.pop(context),
                             child: const Text('Tutup'),
                           ),
-                          // PERBAIKAN: Mengaktifkan fungsionalitas tombol Tambah Tugas melalui callback
                           TextButton(
                             onPressed: () {
                               Navigator.pop(
