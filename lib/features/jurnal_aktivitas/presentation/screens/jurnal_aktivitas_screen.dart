@@ -122,11 +122,9 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     }
   }
 
-  // === PERBAIKAN: VALIDASI INDIKATOR (Memastikan ID benar-benar eksis di Task Master aktual) ===
   bool _isTaskTrulyLinked(TimeLogTask jurnalTask) {
     if (jurnalTask.linkedTaskIds.isEmpty) return false;
 
-    // Cari apakah ada id di dalam linkedTaskIds yang cocok dengan data asli Task Master
     for (var category in _allTaskCategories) {
       for (var task in category.tasks) {
         if (jurnalTask.linkedTaskIds.contains(task.id)) {
@@ -137,7 +135,24 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     return false;
   }
 
-  // === PERBAIKAN: DIALOG SINKRONISASI DENGAN ATURAN RELASI 1-KE-1 ===
+  // === FITUR BARU: MEMINDAHKAN URUTAN AKTIVITAS PADA HARI INI ===
+  void _moveTaskOrder(
+    List<TimeLogTask> taskList,
+    int currentIndex,
+    int direction,
+  ) async {
+    int newIndex = currentIndex + direction;
+    if (newIndex < 0 || newIndex >= taskList.length) return;
+
+    setState(() {
+      final temp = taskList[currentIndex];
+      taskList[currentIndex] = taskList[newIndex];
+      taskList[newIndex] = temp;
+    });
+
+    await _saveData();
+  }
+
   void _tampilkanDialogLinkTugas(TimeLogTask jurnalTask) {
     final String todayStr = _getTodayDateString();
     final int todayLogIndex = _logs.indexWhere(
@@ -203,25 +218,21 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                 onTap: () {
                                   setDialogState(() {
                                     if (isLinkedWithThis) {
-                                      // Jika diklik pada tugas yang sudah terhubung dengannya, maka putuskan hubungan
                                       jurnalTask.linkedTaskIds.remove(
                                         taskItem.id,
                                       );
                                     } else {
-                                      // ATURAN 1-KE-1 (SEBALIKNYA): Putuskan tugas ini jika sebelumnya nempel di aktivitas lain hari ini
                                       for (var t in todayTasks) {
                                         if (t.id != jurnalTask.id) {
                                           t.linkedTaskIds.remove(taskItem.id);
                                         }
                                       }
-
-                                      // ATURAN 1-KE-1 (SISI AKTIVITAS): Bersihkan link lama agar hanya terhubung ke 1 tugas master
                                       jurnalTask.linkedTaskIds.clear();
                                       jurnalTask.linkedTaskIds.add(taskItem.id);
                                     }
                                   });
                                   _saveData();
-                                  setState(() {}); // Refresh UI halaman utama
+                                  setState(() {});
                                 },
                               );
                             }).toList(),
@@ -647,9 +658,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                           itemCount: todayTasks.length,
                           itemBuilder: (context, index) {
                             final task = todayTasks[index];
-                            final bool isLinked = _isTaskTrulyLinked(
-                              task,
-                            ); // <--- PERBAIKAN VALIDASI INDIKATOR
+                            final bool isLinked = _isTaskTrulyLinked(task);
 
                             return Card(
                               elevation: 2,
@@ -729,6 +738,43 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                     ? Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
+                                          // === TOMBOL PENGURUTAN DI MODE EDIT ===
+                                          IconButton(
+                                            icon: const Icon(
+                                              Icons.arrow_upward,
+                                              size: 20,
+                                            ),
+                                            color: index > 0
+                                                ? Colors.indigo
+                                                : Colors.grey[300],
+                                            onPressed: index > 0
+                                                ? () => _moveTaskOrder(
+                                                    todayTasks,
+                                                    index,
+                                                    -1,
+                                                  )
+                                                : null,
+                                            tooltip: 'Naikkan Posisi',
+                                          ),
+                                          IconButton(
+                                            icon: const Icon(
+                                              Icons.arrow_downward,
+                                              size: 20,
+                                            ),
+                                            color: index < todayTasks.length - 1
+                                                ? Colors.indigo
+                                                : Colors.grey[300],
+                                            onPressed:
+                                                index < todayTasks.length - 1
+                                                ? () => _moveTaskOrder(
+                                                    todayTasks,
+                                                    index,
+                                                    1,
+                                                  )
+                                                : null,
+                                            tooltip: 'Turunkan Posisi',
+                                          ),
+                                          const SizedBox(width: 4),
                                           IconButton(
                                             icon: const Icon(
                                               Icons.link,
