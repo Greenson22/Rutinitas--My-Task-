@@ -375,48 +375,38 @@ class _DailyScreenState extends State<DailyScreen> {
 
                   const SizedBox(height: 12),
 
-                  // 5. BARIS JUMLAH PROGRESS (BERGRADASI & BERGERAK)
+                  // 5. BARIS JUMLAH PROGRESS (SOLID COLOR BERUBAH TIAP LEVEL PROGRESS)
                   LayoutBuilder(
                     builder: (context, barConstraints) {
+                      // Menghitung persentase list yang selesai (0.0 sampai 1.0)
                       double progressPercent = totalSub > 0
                           ? selesaiSub / totalSub
                           : 0.0;
 
-                      Color currentEndColor;
-                      List<Color> gradientColors;
-
-                      if (progressPercent <= 0.5) {
-                        currentEndColor =
-                            Color.lerp(
-                              Colors.red[700],
-                              Colors.orange[700],
-                              progressPercent * 2,
-                            ) ??
-                            Colors.red[700]!;
-                        gradientColors = [Colors.red[700]!, currentEndColor];
+                      // Menentukan warna solid tunggal secara dinamis berdasarkan level persentase (Merah -> Oranye -> Hijau)
+                      Color solidProgressBarColor;
+                      if (progressPercent <= 0.33) {
+                        solidProgressBarColor =
+                            Colors.red[700]!; // Level Rendah: Merah
+                      } else if (progressPercent <= 0.75) {
+                        solidProgressBarColor =
+                            Colors.orange[700]!; // Level Menengah: Oranye
                       } else {
-                        currentEndColor =
-                            Color.lerp(
-                              Colors.orange[700],
-                              Colors.green[700],
-                              (progressPercent - 0.5) * 2,
-                            ) ??
-                            Colors.green[700]!;
-                        gradientColors = [
-                          Colors.red[700]!,
-                          Colors.orange[700]!,
-                          currentEndColor,
-                        ];
+                        solidProgressBarColor =
+                            Colors.green[700]!; // Level Tinggi / Selesai: Hijau
                       }
 
                       return Container(
                         width: double.infinity,
                         height: 32,
                         decoration: BoxDecoration(
-                          color: Colors.grey[100],
+                          color: Colors
+                              .grey[100], // Background track kosong (abu-abu terang)
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: Color(subject.backgroundColor),
+                            color: Color(
+                              subject.backgroundColor,
+                            ), // Border luar mengikuti warna tema kategori
                             width: 2.0,
                           ),
                           boxShadow: [
@@ -431,18 +421,15 @@ class _DailyScreenState extends State<DailyScreen> {
                           borderRadius: BorderRadius.circular(6),
                           child: Stack(
                             children: [
+                              // Pengisi Progress (Lebarnya bergerak dinamis, tetapi warnanya solid satu blok)
                               Container(
                                 width:
                                     barConstraints.maxWidth * progressPercent,
                                 height: double.infinity,
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: gradientColors,
-                                    begin: Alignment.centerLeft,
-                                    end: Alignment.centerRight,
-                                  ),
-                                ),
+                                color:
+                                    solidProgressBarColor, // Warna solid berubah sesuai level checklist
                               ),
+                              // Overlay Teks Deskripsi Progress di bagian tengah bar
                               Center(
                                 child: Text(
                                   isAllDone
@@ -456,7 +443,8 @@ class _DailyScreenState extends State<DailyScreen> {
                                       Shadow(
                                         offset: Offset(0, 1),
                                         blurRadius: 3.0,
-                                        color: Colors.black87,
+                                        color: Colors
+                                            .black87, // Efek bayangan agar teks tetap kontras terbaca
                                       ),
                                     ],
                                   ),
