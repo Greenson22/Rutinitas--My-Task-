@@ -8,6 +8,7 @@ import '../../../task_master/presentation/widgets/drawer_menu.dart';
 import '../../../task_master/presentation/widgets/settings_dialog.dart';
 import '../../data/models/daily_model.dart';
 import '../widgets/daily_checklist_dialog.dart';
+import '../widgets/add_daily_subject_dialog.dart';
 
 class DailyScreen extends StatefulWidget {
   const DailyScreen({super.key});
@@ -88,6 +89,23 @@ class _DailyScreenState extends State<DailyScreen> {
         onDataChanged: () {
           _saveDailyData();
           setState(() {}); // Segarkan UI Utama DailyScreen
+        },
+      ),
+    );
+  }
+
+  void _showAddDailySubjectDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AddDailySubjectDialog(
+        onSave: (newSubject) async {
+          if (_dailyData == null) return;
+
+          setState(() {
+            _dailyData!.subjects.add(newSubject);
+          });
+
+          await _saveDailyData();
         },
       ),
     );
@@ -185,6 +203,11 @@ class _DailyScreenState extends State<DailyScreen> {
                 );
               },
             ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _showAddDailySubjectDialog,
+        backgroundColor: Colors.teal[700],
+        child: const Icon(Icons.add, size: 30, color: Colors.white),
+      ),
     );
   }
 
