@@ -39,8 +39,10 @@ class DailySubject {
   String section;
   String type;
   String? noteContent;
-  String? date; // <-- TAMBAHAN FIELD BARU
-  bool isDateActive; // <-- TAMBAHAN FIELD BARU
+  String? date;
+  bool isDateActive;
+  String dateType; // <-- TAMBAHAN: 'single' atau 'range'
+  String? endDate; // <-- TAMBAHAN: Tanggal tujuan untuk rentang
 
   DailySubject({
     required this.namaMateri,
@@ -54,8 +56,10 @@ class DailySubject {
     this.section = "focus",
     this.type = "list",
     this.noteContent,
-    this.date, // <-- INISIALISASI
-    this.isDateActive = false, // <-- DEFAULT FALSE
+    this.date,
+    this.isDateActive = false,
+    this.dateType = 'single', // <-- DEFAULT single
+    this.endDate,
   });
 
   factory DailySubject.fromJson(Map<String, dynamic> json) {
@@ -77,9 +81,9 @@ class DailySubject {
       type: json['type'] ?? "list",
       noteContent: json['noteContent'],
       date: json['date'],
-      isDateActive:
-          json['isDateActive'] ??
-          false, // <-- PERBAIKAN: Gunakan titik dua (:), bukan (=)
+      isDateActive: json['isDateActive'] ?? false,
+      dateType: json['dateType'] ?? 'single', // <-- PARSING JSON
+      endDate: json['endDate'], // <-- PARSING JSON
     );
   }
 
@@ -96,85 +100,96 @@ class DailySubject {
       'section': section,
       'type': type,
       'noteContent': noteContent,
-      'date': date, // <-- SIMPAN KE JSON
-      'isDateActive': isDateActive, // <-- SIMPAN KE JSON
+      'date': date,
+      'isDateActive': isDateActive,
+      'dateType': dateType, // <-- SIMPAN KE JSON
+      'endDate': endDate, // <-- SIMPAN KE JSON
     };
   }
 
-  // Helper static untuk memformat tanggal penuh warna (bisa dipakai di Screen & Dialog)
+  // Helper static untuk memformat tanggal penuh warna baru sesuai aturan tipe
   static List<TextSpan> buildColoredDateSpans(
-    String? dateStr, {
+    DailySubject subject, {
     bool inHeader = false,
   }) {
-    if (dateStr == null || dateStr.trim().isEmpty) return [];
+    if (subject.date == null || subject.date!.trim().isEmpty) return [];
+
+    const List<String> namaHari = [
+      'Senin',
+      'Selasa',
+      'Rabu',
+      'Kamis',
+      'Jumat',
+      'Sabtu',
+      'Minggu',
+    ];
+    const List<String> namaBulan = [
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
+    ];
+
+    Color? colorHari = inHeader ? Colors.purple[100] : Colors.purple[900];
+    Color? colorTgl = inHeader ? Colors.pink[200] : Colors.pink[700];
+    Color? colorBln = inHeader ? Colors.teal[100] : Colors.teal[700];
 
     try {
-      final DateTime parsedDate = DateTime.parse(dateStr);
-      const List<String> namaHari = [
-        'Senin',
-        'Selasa',
-        'Rabu',
-        'Kamis',
-        'Jumat',
-        'Sabtu',
-        'Minggu',
-      ];
-      const List<String> namaBulan = [
-        'Januari',
-        'Februari',
-        'Maret',
-        'April',
-        'Mei',
-        'Juni',
-        'Juli',
-        'Agustus',
-        'September',
-        'Oktober',
-        'November',
-        'Desember',
-      ];
+      final DateTime parsedStart = DateTime.parse(subject.date!);
 
-      final String hari = '(${namaHari[parsedDate.weekday - 1]}) ';
-      final String tanggal = '${parsedDate.day} ';
-      final String bulan = '${namaBulan[parsedDate.month - 1]} ';
-      // Mengambil 2 angka terakhir dari tahun (contoh: 2026 -> 26)
-      final String tahun = parsedDate.year.toString().substring(2);
+      // 1. JIKA TIPE TANGGAL ADALAH RENTANG (RANGE)
+      if (subject.dateType == 'range' &&
+          subject.endDate != null &&
+          subject.endDate!.isNotEmpty) {
+        final DateTime parsedEnd = DateTime.parse(subject.endDate!);
 
-      // Warna disesuaikan jika diletakkan di header dialog (agar kontras dengan background gelap)
+        final String tglMulai = '${parsedStart.day}';
+        final String tglSelesai = '${parsedEnd.day}';
+        final String bulanSelesai = namaBulan[parsedEnd.month - 1];
+
+        return [
+          TextSpan(
+            text: '$tglMulai - $tglSelesai ',
+            style: TextStyle(color: colorTgl, fontWeight: FontWeight.bold),
+          ),
+          TextSpan(
+            text: bulanSelesai,
+            style: TextStyle(color: colorBln, fontWeight: FontWeight.bold),
+          ),
+        ];
+      }
+
+      // 2. JIKA TIPE TANGGAL ADALAH BIASA (SINGLE) -> Hilangkan Tahun
+      final String hari = '(${namaHari[parsedStart.weekday - 1]}) ';
+      final String tanggal = '${parsedStart.day} ';
+      final String bulan = namaBulan[parsedStart.month - 1];
+
       return [
         TextSpan(
           text: hari,
-          style: TextStyle(
-            color: inHeader ? Colors.purple[100] : Colors.purple[900],
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(color: colorHari, fontWeight: FontWeight.bold),
         ),
         TextSpan(
           text: tanggal,
-          style: TextStyle(
-            color: inHeader ? Colors.pink[200] : Colors.pink[700],
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(color: colorTgl, fontWeight: FontWeight.bold),
         ),
         TextSpan(
           text: bulan,
-          style: TextStyle(
-            color: inHeader ? Colors.teal[100] : Colors.teal[700],
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        TextSpan(
-          text: tahun,
-          style: TextStyle(
-            color: inHeader ? Colors.orange[200] : Colors.deepOrange[700],
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(color: colorBln, fontWeight: FontWeight.bold),
         ),
       ];
     } catch (_) {
       return [
         TextSpan(
-          text: dateStr,
+          text: subject.date,
           style: TextStyle(color: inHeader ? Colors.white70 : Colors.black87),
         ),
       ];

@@ -88,7 +88,7 @@ class _DailyScreenState extends State<DailyScreen> {
         subject: subject,
         onDataChanged: () {
           _saveDailyData();
-          setState(() {}); // Segarkan UI Utama DailyScreen
+          setState(() {});
         },
       ),
     );
@@ -100,11 +100,9 @@ class _DailyScreenState extends State<DailyScreen> {
       builder: (context) => AddDailySubjectDialog(
         onSave: (newSubject) async {
           if (_dailyData == null) return;
-
           setState(() {
             _dailyData!.subjects.add(newSubject);
           });
-
           await _saveDailyData();
         },
       ),
@@ -131,8 +129,6 @@ class _DailyScreenState extends State<DailyScreen> {
           ? const Center(child: Text('Tidak ada rutinitas harian ditemukan.'))
           : LayoutBuilder(
               builder: (context, constraints) {
-                // Memisahkan data berdasarkan 3 kategori baru menggunakan field 'section'
-                // Cari baris pemisahan data ini di dalam LayoutBuilder:
                 final fokusUtamaList = _dailyData!.subjects
                     .where(
                       (s) =>
@@ -158,7 +154,6 @@ class _DailyScreenState extends State<DailyScreen> {
                 return ListView(
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   children: [
-                    // 1. SEKSI FOKUS UTAMA
                     if (fokusUtamaList.isNotEmpty)
                       _buildSectionHeader(
                         title: '🎯 Fokus Utama',
@@ -169,7 +164,6 @@ class _DailyScreenState extends State<DailyScreen> {
                     if (fokusUtamaList.isNotEmpty)
                       _buildCategoryGrid(fokusUtamaList, constraints),
 
-                    // 2. SEKSI RUTINITAS INTI
                     if (rutinitasIntiList.isNotEmpty)
                       _buildSectionHeader(
                         title: '🔄 Rutinitas Inti',
@@ -180,7 +174,6 @@ class _DailyScreenState extends State<DailyScreen> {
                     if (rutinitasIntiList.isNotEmpty)
                       _buildCategoryGrid(rutinitasIntiList, constraints),
 
-                    // 3. SEKSI AKTIVITAS PELENGKAP
                     if (aktivitasPelengkapList.isNotEmpty)
                       _buildSectionHeader(
                         title: '🌱 Aktivitas Pelengkap',
@@ -211,7 +204,6 @@ class _DailyScreenState extends State<DailyScreen> {
     );
   }
 
-  // Widget untuk membuat Header Judul Kategori
   Widget _buildSectionHeader({
     required String title,
     required String subtitle,
@@ -241,18 +233,18 @@ class _DailyScreenState extends State<DailyScreen> {
     );
   }
 
-  // Widget Grid bawaan yang dipisahkan agar reusable untuk setiap seksi
   Widget _buildCategoryGrid(
     List<DailySubject> subjectsList,
     BoxConstraints constraints,
   ) {
     int crossAxisCount = 2;
-    if (constraints.maxWidth >= 1200)
+    if (constraints.maxWidth >= 1200) {
       crossAxisCount = 5;
-    else if (constraints.maxWidth >= 900)
+    } else if (constraints.maxWidth >= 900) {
       crossAxisCount = 4;
-    else if (constraints.maxWidth >= 600)
+    } else if (constraints.maxWidth >= 600) {
       crossAxisCount = 3;
+    }
 
     return GridView.builder(
       shrinkWrap: true,
@@ -260,7 +252,8 @@ class _DailyScreenState extends State<DailyScreen> {
       padding: const EdgeInsets.all(12),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
-        childAspectRatio: 1.7,
+        childAspectRatio:
+            1.55, // Rasio diatur ideal agar muat susunan Vertikal baru
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
       ),
@@ -299,7 +292,7 @@ class _DailyScreenState extends State<DailyScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // KODE PERBAIKAN: Menampilkan judul materi harian
+                        // BARIS 1: Judul Utama Materi
                         Text(
                           subject.namaMateri,
                           style: const TextStyle(
@@ -310,15 +303,13 @@ class _DailyScreenState extends State<DailyScreen> {
                           overflow: TextOverflow.ellipsis,
                         ),
 
-                        // KODE PERBAIKAN: Menampilkan tanggal berwarna di BAWAH judul jika diaktifkan
+                        // BARIS 2: Tanggal Berwarna Baru (Single Tanpa Tahun / Format Range)
                         if (subject.isDateActive && subject.date != null) ...[
-                          const SizedBox(
-                            height: 2,
-                          ), // Jarak kecil antara judul dan tanggal
+                          const SizedBox(height: 2),
                           Text.rich(
                             TextSpan(
                               children: DailySubject.buildColoredDateSpans(
-                                subject.date,
+                                subject,
                               ),
                             ),
                             style: const TextStyle(fontSize: 12),
@@ -326,11 +317,30 @@ class _DailyScreenState extends State<DailyScreen> {
                           ),
                         ],
 
+                        // BARIS 3: Informasi Progress Jumlah Sub-Materi (Dipindahkan ke bawah Tanggal)
                         const SizedBox(height: 4),
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 6,
                             vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isAllDone
+                                ? Colors.green[50]
+                                : Colors.amber[50],
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            isAllDone
+                                ? 'Selesai Semua'
+                                : '$selesaiSub / $totalSub List',
+                            style: TextStyle(
+                              color: isAllDone
+                                  ? Colors.green[800]
+                                  : Colors.orange[900],
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ],

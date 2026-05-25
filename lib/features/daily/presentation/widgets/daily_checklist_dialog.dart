@@ -30,7 +30,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     super.dispose();
   }
 
-  // FUNGSI BARU: Mengubah nama utama materi harian
   void _showEditSubjectNameDialog() {
     final editController = TextEditingController(
       text: widget.subject.namaMateri,
@@ -69,12 +68,15 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     );
   }
 
-  // FUNGSI BARU: Memilih tanggal lewat date picker
-  Future<void> _selectSubjectDate(BuildContext context) async {
+  Future<void> _selectSubjectDate(BuildContext context, bool isEndDate) async {
     DateTime initialDate = DateTime.now();
-    if (widget.subject.date != null && widget.subject.date!.isNotEmpty) {
+    String? dateToParse = isEndDate
+        ? widget.subject.endDate
+        : widget.subject.date;
+
+    if (dateToParse != null && dateToParse.isNotEmpty) {
       try {
-        initialDate = DateTime.parse(widget.subject.date!);
+        initialDate = DateTime.parse(dateToParse);
       } catch (_) {}
     }
 
@@ -87,8 +89,13 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
 
     if (picked != null) {
       setState(() {
-        widget.subject.date =
+        String formatted =
             "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
+        if (isEndDate) {
+          widget.subject.endDate = formatted;
+        } else {
+          widget.subject.date = formatted;
+        }
       });
       widget.onDataChanged();
     }
@@ -268,7 +275,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // HEADER DIALOG (Sekarang Judul bisa diganti & menampilkan Tanggal Berwarna)
+          // Header Dialog dengan Judul dan Tanggal Berwarna
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -285,7 +292,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                 Expanded(
                   child: Row(
                     children: [
-                      // Tombol Rename Judul Utama Materi
                       IconButton(
                         icon: const Icon(
                           Icons.edit_note,
@@ -310,11 +316,10 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              // Menampilkan tanggal berwarna di sebelah judul jika aktif
                               if (widget.subject.isDateActive &&
                                   widget.subject.date != null)
                                 ...DailySubject.buildColoredDateSpans(
-                                  widget.subject.date,
+                                  widget.subject,
                                   inHeader: true,
                                 ),
                             ],
@@ -363,7 +368,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
             ),
           ),
 
-          // PANEL INPUT: Tambah Sub-Materi & Paste dari Clipboard
+          // PANEL INPUT: Tambah Sub-Materi
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
             child: Row(
@@ -401,50 +406,129 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
             ),
           ),
 
-          // PANEL BARU: Pengaturan Tanggal Materi (Switch Aktif & Picker)
+          // PANEL KONTROL TANGGAL: Tipe Dan Switch Aktif
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Row(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 4.0,
+            ),
+            child: Column(
               children: [
-                const Text(
-                  'Aktifkan Tanggal:',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                Row(
+                  children: [
+                    const Text(
+                      'Aktifkan Tanggal:',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    Transform.scale(
+                      scale: 0.8,
+                      child: Switch(
+                        value: widget.subject.isDateActive,
+                        activeColor: Colors.teal,
+                        onChanged: (val) {
+                          setState(() {
+                            widget.subject.isDateActive = val;
+                            if (val &&
+                                (widget.subject.date == null ||
+                                    widget.subject.date!.isEmpty)) {
+                              final now = DateTime.now();
+                              widget.subject.date =
+                                  "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+                            }
+                          });
+                          widget.onDataChanged();
+                        },
+                      ),
+                    ),
+                    const Spacer(),
+                    if (widget.subject.isDateActive)
+                      DropdownButton<String>(
+                        value: widget.subject.dateType,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.black87,
+                        ), // <-- UBAH 'textStyle' MENJADI 'style'
+                        isDense: true,
+                        underline: const SizedBox(),
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'single',
+                            child: Text('Biasa'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'range',
+                            child: Text('Rentang'),
+                          ),
+                        ],
+                        onChanged: (val) {
+                          if (val != null) {
+                            setState(() {
+                              widget.subject.dateType = val;
+                              if (val == 'range' &&
+                                  (widget.subject.endDate == null ||
+                                      widget.subject.endDate!.isEmpty)) {
+                                final besok = DateTime.now().add(
+                                  const Duration(days: 1),
+                                );
+                                widget.subject.endDate =
+                                    "${besok.year}-${besok.month.toString().padLeft(2, '0')}-${besok.day.toString().padLeft(2, '0')}";
+                              }
+                            });
+                            widget.onDataChanged();
+                          }
+                        },
+                      ),
+                  ],
                 ),
-                Transform.scale(
-                  scale: 0.8,
-                  child: Switch(
-                    value: widget.subject.isDateActive,
-                    activeColor: Colors.teal,
-                    onChanged: (val) {
-                      setState(() {
-                        widget.subject.isDateActive = val;
-                        if (val &&
-                            (widget.subject.date == null ||
-                                widget.subject.date!.isEmpty)) {
-                          // Isi dengan hari ini jika kosong saat diaktifkan
-                          final now = DateTime.now();
-                          widget.subject.date =
-                              "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
-                        }
-                      });
-                      widget.onDataChanged();
-                    },
-                  ),
-                ),
-                const Spacer(),
                 if (widget.subject.isDateActive)
-                  TextButton.icon(
-                    onPressed: () => _selectSubjectDate(context),
-                    icon: const Icon(
-                      Icons.calendar_today,
-                      size: 14,
-                      color: Colors.teal,
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => _selectSubjectDate(context, false),
+                          style: TextButton.styleFrom(padding: EdgeInsets.zero),
+                          child: Text(
+                            widget.subject.dateType == 'range'
+                                ? 'Dari: ${widget.subject.date}'
+                                : widget.subject.date ?? 'Pilih Tanggal',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.teal,
+                            ),
+                          ),
+                        ),
+                        if (widget.subject.dateType == 'range') ...[
+                          const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 6.0),
+                            child: Text(
+                              '—',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => _selectSubjectDate(context, true),
+                            style: TextButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                            ),
+                            child: Text(
+                              'Sampai: ${widget.subject.endDate}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.teal,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
-                    label: Text(
-                      widget.subject.date ?? 'Pilih Tanggal',
-                      style: const TextStyle(fontSize: 12, color: Colors.teal),
-                    ),
-                    style: TextButton.styleFrom(padding: EdgeInsets.zero),
                   ),
               ],
             ),
@@ -478,10 +562,8 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                         ),
                         ...belumSelesaiList.map((item) => _buildRowItem(item)),
                       ],
-
                       if (belumSelesaiList.isNotEmpty && selesaiList.isNotEmpty)
                         const Divider(height: 24),
-
                       if (selesaiList.isNotEmpty) ...[
                         const Padding(
                           padding: EdgeInsets.symmetric(
@@ -504,7 +586,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
 
           const Divider(height: 1),
 
-          // Footer Panel Aksi Kontrol Dinamis
+          // Footer Panel Aksi Kontrol
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
