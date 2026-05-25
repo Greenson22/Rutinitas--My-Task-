@@ -253,7 +253,7 @@ class _DailyScreenState extends State<DailyScreen> {
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
         childAspectRatio:
-            1.55, // Rasio diatur ideal agar muat susunan Vertikal baru
+            1.45, // Diatur sedikit disesuaikan agar muat dengan tambahan baris informasi baru
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
       ),
@@ -265,6 +265,22 @@ class _DailyScreenState extends State<DailyScreen> {
             .where((sm) => sm.progress == 'selesai')
             .length;
         bool isAllDone = totalSub > 0 && totalSub == selesaiSub;
+
+        // Mendapatkan sub-materi paling atas/pertama
+        String topListText = "Tidak ada list";
+        Color topListColor = Colors.grey[600]!;
+        TextDecoration? topListDecoration;
+
+        if (subject.subMateri.isNotEmpty) {
+          final firstItem = subject.subMateri.first;
+          topListText = firstItem.namaMateri;
+          if (firstItem.progress == 'selesai') {
+            topListColor = Colors.green[700]!;
+            topListDecoration = TextDecoration.lineThrough;
+          } else {
+            topListColor = Colors.black54;
+          }
+        }
 
         return Card(
           elevation: 2,
@@ -303,7 +319,7 @@ class _DailyScreenState extends State<DailyScreen> {
                           overflow: TextOverflow.ellipsis,
                         ),
 
-                        // BARIS 2: Tanggal Berwarna Baru (Single Tanpa Tahun / Format Range)
+                        // BARIS 2: Tanggal Berwarna
                         if (subject.isDateActive && subject.date != null) ...[
                           const SizedBox(height: 2),
                           Text.rich(
@@ -317,7 +333,22 @@ class _DailyScreenState extends State<DailyScreen> {
                           ),
                         ],
 
-                        // BARIS 3: Informasi Progress Jumlah Sub-Materi (Dipindahkan ke bawah Tanggal)
+                        // BARIS TAMBAHAN: Informasi List Paling Atas (Urutan Pertama)
+                        const SizedBox(height: 2),
+                        Text(
+                          isAllDone ? '🎉 Semua Selesai!' : '🔝 $topListText',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: isAllDone
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                            color: isAllDone ? Colors.green[800] : topListColor,
+                            decoration: isAllDone ? null : topListDecoration,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+
+                        // BARIS JUMlAH PROGRESS: Informasi Progress Jumlah Sub-Materi
                         const SizedBox(height: 4),
                         Container(
                           padding: const EdgeInsets.symmetric(
