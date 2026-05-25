@@ -11,8 +11,7 @@ class TasksDialog extends StatelessWidget {
   final Function(TaskItem, String, int, int, int, int, String?, bool)
   onEditTaskDetail;
   final Future<bool> Function(TaskItem) onDeleteTask;
-  final Function(List<String>, String)
-  onBulkAction; // <--- CALLBACK BARU UNTUK SELEKSI MASAL
+  final Function(List<String>, String) onBulkAction;
 
   const TasksDialog({
     super.key,
@@ -21,7 +20,7 @@ class TasksDialog extends StatelessWidget {
     required this.onUpdateTargetToday,
     required this.onEditTaskDetail,
     required this.onDeleteTask,
-    required this.onBulkAction, // <--- WAJIB DIISI
+    required this.onBulkAction,
   });
 
   List<TextSpan> _buildIndonesianDateSpans(String? dateStr, bool isActive) {
@@ -139,7 +138,6 @@ class TasksDialog extends StatelessWidget {
     );
   }
 
-  // Fungsi Konfirmasi Aksi Masal
   Future<void> _showConfirmBulkDialog(
     BuildContext context,
     String action,
@@ -187,12 +185,16 @@ class TasksDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // State lokal di dalam dialog menggunakan StatefulBuilder
     bool isSelectionMode = false;
     List<String> selectedTaskIds = [];
 
     return StatefulBuilder(
       builder: (context, setDialogState) {
+        // Logika untuk mendeteksi apakah semua item dalam kategori sudah tercentang
+        bool isAllSelected =
+            category.tasks.isNotEmpty &&
+            category.tasks.every((task) => selectedTaskIds.contains(task.id));
+
         return Dialog(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20.0),
@@ -203,7 +205,10 @@ class TasksDialog extends StatelessWidget {
               // HEADER DIALOG
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 8.0,
+                ),
                 decoration: const BoxDecoration(
                   color: Colors.indigo,
                   borderRadius: BorderRadius.only(
@@ -219,11 +224,49 @@ class TasksDialog extends StatelessWidget {
                         'Kategori ${category.name}',
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 20,
+                          fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
+                    // FITUR BARU: Checkbox "Pilih Semua" (Hanya muncul jika mode seleksi aktif)
+                    if (isSelectionMode && category.tasks.isNotEmpty)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'Semua',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          Theme(
+                            data: ThemeData(
+                              unselectedWidgetColor: Colors.white70,
+                            ),
+                            child: Checkbox(
+                              activeColor: Colors.teal,
+                              checkColor: Colors.white,
+                              value: isAllSelected,
+                              onChanged: (bool? checked) {
+                                setDialogState(() {
+                                  if (checked == true) {
+                                    // Masukkan semua ID tugas ke dalam list seleksi
+                                    selectedTaskIds = category.tasks
+                                        .map((t) => t.id)
+                                        .toList();
+                                  } else {
+                                    // Kosongkan seleksi
+                                    selectedTaskIds.clear();
+                                  }
+                                });
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
                     // Tombol Aktivasi Mode Banyak Seleksi
                     if (category.tasks.isNotEmpty)
                       IconButton(
@@ -239,7 +282,7 @@ class TasksDialog extends StatelessWidget {
                         onPressed: () {
                           setDialogState(() {
                             isSelectionMode = !isSelectionMode;
-                            selectedTaskIds.clear(); // reset pilihan
+                            selectedTaskIds.clear();
                           });
                         },
                       ),
@@ -286,7 +329,6 @@ class TasksDialog extends StatelessWidget {
 
                           return ListTile(
                             dense: true,
-                            // LOGIKA CHECKSIDE / LEADING KETIKA SELEKSI MASAL AKTIF
                             leading: isSelectionMode
                                 ? Checkbox(
                                     value: selectedTaskIds.contains(task.id),
@@ -362,7 +404,7 @@ class TasksDialog extends StatelessWidget {
                               style: const TextStyle(fontSize: 11),
                             ),
                             trailing: isSelectionMode
-                                ? null // Hilangkan menu satuan ketika mode seleksi masal aktif
+                                ? null
                                 : PopupMenuButton<String>(
                                     icon: const Icon(
                                       Icons.more_vert,
@@ -421,7 +463,7 @@ class TasksDialog extends StatelessWidget {
 
               const Divider(height: 1),
 
-              // FOOTER PANEL DAN INTEGRASI AKSI MASAL
+              // FOOTER PANEL
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12.0,
@@ -438,7 +480,6 @@ class TasksDialog extends StatelessWidget {
                             ),
                           ),
                           const Spacer(),
-                          // Tombol Nonaktifkan Masal
                           TextButton.icon(
                             style: TextButton.styleFrom(
                               foregroundColor: Colors.orange[800],
@@ -466,7 +507,6 @@ class TasksDialog extends StatelessWidget {
                                     },
                                   ),
                           ),
-                          // Tombol Aktifkan Masal
                           TextButton.icon(
                             style: TextButton.styleFrom(
                               foregroundColor: Colors.green[800],
@@ -491,7 +531,6 @@ class TasksDialog extends StatelessWidget {
                                     },
                                   ),
                           ),
-                          // Tombol Hapus Masal
                           TextButton.icon(
                             style: TextButton.styleFrom(
                               foregroundColor: Colors.red,
