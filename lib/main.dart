@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   runApp(const TaskMasterApp());
@@ -12,114 +14,269 @@ class TaskMasterApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Task Master',
-      theme: ThemeData(
-        primarySwatch:
-            Colors.indigo, // Diubah ke Indigo agar sesuai tema sidebar
-        useMaterial3: false,
-      ),
+      theme: ThemeData(primarySwatch: Colors.indigo, useMaterial3: false),
       home: const HomeScreen(),
     );
   }
 }
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
-  // Data dummy kategori
-  final List<Map<String, dynamic>> categories = const [
-    {
-      'name': 'Work',
-      'tasks': 8,
-      'icon': Icons.card_travel,
-      'color': Colors.indigo,
-    },
-    {'name': 'Personal', 'tasks': 3, 'icon': Icons.home, 'color': Colors.brown},
-    {
-      'name': 'Shopping',
-      'tasks': 5,
-      'icon': Icons.shopping_cart,
-      'color': Colors.pink,
-    },
-    {
-      'name': 'Finance',
-      'tasks': 4,
-      'icon': Icons.credit_card,
-      'color': Colors.green,
-    },
-    {
-      'name': 'Gandom',
-      'tasks': 8,
-      'icon': Icons.notifications_active,
-      'color': Colors.red,
-    },
-    {
-      'name': 'Niacking',
-      'tasks': 8,
-      'icon': Icons.phone,
-      'color': Colors.green,
-    },
-    {
-      'name': 'Problems',
-      'tasks': 8,
-      'icon': Icons.business_center,
-      'color': Colors.teal,
-    },
-    {
-      'name': 'Learning',
-      'tasks': 6,
-      'icon': Icons.school,
-      'color': Colors.purple,
-    },
-    {
-      'name': 'Caries',
-      'tasks': 8,
-      'icon': Icons.directions_car,
-      'color': Colors.purple,
-    },
-    {
-      'name': 'Willdity',
-      'tasks': 8,
-      'icon': Icons.public,
-      'color': Colors.teal,
-    },
-    {'name': 'Travel', 'tasks': 2, 'icon': Icons.flight, 'color': Colors.cyan},
-    {
-      'name': 'Home',
-      'tasks': 7,
-      'icon': Icons.home,
-      'color': Colors.blueAccent,
-    },
-    {
-      'name': 'Problems',
-      'tasks': 8,
-      'icon': Icons.business_center,
-      'color': Colors.tealAccent,
-    },
-    {
-      'name': 'Program',
-      'tasks': 8,
-      'icon': Icons.favorite,
-      'color': Colors.brown,
-    },
-    {
-      'name': 'Hobbies',
-      'tasks': 3,
-      'icon': Icons.palette,
-      'color': Colors.orange,
-    },
-    {
-      'name': 'Health',
-      'tasks': 3,
-      'icon': Icons.people,
-      'color': Colors.orange,
-    },
-    {
-      'name': 'People',
-      'tasks': 3,
-      'icon': Icons.description,
-      'color': Colors.pink,
-    },
-  ];
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  // String JSON riil yang Anda berikan
+  final String _rawJsonData = '''
+  {
+    "categories": [
+      {
+        "name": "Primary",
+        "icon": "💖",
+        "tasks": [
+          {"id": "2f40c177", "name": "Bible", "count": 1006, "date": "2026-05-25", "checked": false, "countToday": 2, "targetCountToday": 2, "type": 1, "targetCount": 1500}
+        ],
+        "isHidden": false
+      },
+      {
+        "name": "Secondary",
+        "icon": "📊",
+        "tasks": [
+          {"id": "ca45cea8", "name": "Career", "count": 625, "date": "2026-05-24", "checked": true, "countToday": 0, "targetCountToday": 4, "type": 0, "targetCount": 1},
+          {"id": "5ee31522", "name": "New Tech", "count": 4, "date": "2026-05-22", "checked": true, "countToday": 0, "targetCountToday": 1, "type": 0, "targetCount": 1},
+          {"id": "a248324a", "name": "Coding", "count": 204, "date": "2026-05-25", "checked": true, "countToday": 1, "targetCountToday": 0, "type": 0, "targetCount": 1},
+          {"id": "82500fc1", "name": "Game", "count": 69, "date": "2026-05-01", "checked": false, "countToday": 0, "targetCountToday": 0, "type": 0, "targetCount": 1},
+          {"id": "46fa2550", "name": "Extra", "count": 604, "date": "2026-05-22", "checked": false, "countToday": 0, "targetCountToday": 0, "type": 0, "targetCount": 1}
+        ],
+        "isHidden": false
+      },
+      {
+        "name": "Exploring",
+        "icon": "🏞️",
+        "tasks": [
+          {"id": "164705ca", "name": "Umum Expl", "count": 158, "date": "2026-01-16", "checked": true, "countToday": 0, "targetCountToday": 0, "type": 0, "targetCount": 1},
+          {"id": "c755c880", "name": "Career Expl", "count": 53, "date": "2026-02-15", "checked": true, "countToday": 0, "targetCountToday": 0, "type": 0, "targetCount": 1}
+        ],
+        "isHidden": true
+      },
+      {
+        "name": "Target",
+        "icon": "🎯",
+        "tasks": [
+          {"id": "14aa5ea8", "name": "Soft Skill dan Meta SKill", "count": 189, "date": "2026-05-24", "checked": false, "countToday": 0, "targetCountToday": 4, "type": 1, "targetCount": 200},
+          {"id": "280daa2a", "name": "Memory", "count": 17, "date": "2026-05-19", "checked": false, "countToday": 0, "targetCountToday": 2, "type": 1, "targetCount": 24},
+          {"id": "30ca88e6", "name": "Uang", "count": 5, "date": "2026-05-10", "checked": false, "countToday": 0, "targetCountToday": 0, "type": 1, "targetCount": 100}
+        ],
+        "isHidden": false
+      },
+      {
+        "name": "Habit",
+        "icon": "🐢",
+        "tasks": [
+          {"id": "34103f2c", "name": "Weak", "count": 1, "date": "2026-05-25", "checked": false, "countToday": 1, "targetCountToday": 1, "type": 1, "targetCount": 7},
+          {"id": "8d308183", "name": "Tidak makan telur", "count": 1, "date": "2026-05-25", "checked": false, "countToday": 1, "targetCountToday": 1, "type": 1, "targetCount": 7}
+        ],
+        "isHidden": false
+      }
+    ]
+  }
+  ''';
+
+  List<dynamic> _categories = [];
+  String _storageLocation =
+      'Penyimpanan Internal'; // Default value lokasi penyimpanan
+
+  @override
+  void initState() {
+    super.initState();
+    _loadJsonData();
+    _loadStorageSettings();
+  }
+
+  // Fungsi memuat data riil dari format JSON
+  void _loadJsonData() {
+    final Map<String, dynamic> parsedMap = jsonDecode(_rawJsonData);
+    setState(() {
+      // Hanya menampilkan kategori yang tidak disembunyikan (isHidden == false)
+      _categories = parsedMap['categories']
+          .where((cat) => cat['isHidden'] == false)
+          .toList();
+    });
+  }
+
+  // Fungsi memuat pengaturan lokasi penyimpanan yang tersimpan di sistem
+  Future<void> _loadStorageSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _storageLocation =
+          prefs.getString('storage_location') ?? 'Penyimpanan Internal';
+    });
+  }
+
+  // Fungsi memperbarui lokasi penyimpanan baru
+  Future<void> _updateStorageLocation(String newLocation) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('storage_location', newLocation);
+    setState(() {
+      _storageLocation = newLocation;
+    });
+  }
+
+  // Dialog Kategori Pengaturan Penyimpanan
+  void _showSettingsDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        String tempSelection = _storageLocation;
+        return AlertDialog(
+          title: const Text('Pengaturan Penyimpanan'),
+          content: StatefulBuilder(
+            builder: (context, setDialogState) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Tentukan format/lokasi penyimpanan file JSON data tugas Anda:',
+                  ),
+                  const SizedBox(height: 15),
+                  RadioListTile<String>(
+                    title: const Text('Penyimpanan Internal (Aplikasi)'),
+                    value: 'Penyimpanan Internal',
+                    groupValue: tempSelection,
+                    onChanged: (val) =>
+                        setDialogState(() => tempSelection = val!),
+                  ),
+                  RadioListTile<String>(
+                    title: const Text('Eksternal (Dokumen/Download)'),
+                    value: 'Penyimpanan Eksternal',
+                    groupValue: tempSelection,
+                    onChanged: (val) =>
+                        setDialogState(() => tempSelection = val!),
+                  ),
+                  RadioListTile<String>(
+                    title: const Text('Cloud Sync (Format Cloud .json)'),
+                    value: 'Cloud Storage',
+                    groupValue: tempSelection,
+                    onChanged: (val) =>
+                        setDialogState(() => tempSelection = val!),
+                  ),
+                ],
+              );
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                _updateStorageLocation(tempSelection);
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Lokasi penyimpanan diatur ke: $tempSelection',
+                    ),
+                  ),
+                );
+              },
+              child: const Text('Simpan'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Dialog Detail Tugas berbasis data riil di dalam List kategori JSON
+  void _showCategoryTasksDialog(String categoryName, List<dynamic> tasks) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20.0),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16.0),
+              decoration: const BoxDecoration(
+                color: Colors.indigo,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(20.0),
+                  topRight: Radius.circular(20.0),
+                ),
+              ),
+              child: Text(
+                '$categoryName Category',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: tasks.length,
+                itemBuilder: (context, index) {
+                  final task = tasks[index];
+                  // Menyusun visual teks subtitle sesuai format data riil Anda
+                  String subtitleText =
+                      '+${task['countToday']} / ${task['targetCountToday']} hari ini | Total: ${task['count']}';
+                  if (task['date'] != null)
+                    subtitleText += ' | Due: ${task['date']}';
+
+                  return ListTile(
+                    dense: true,
+                    leading: Icon(
+                      task['checked'] == true
+                          ? Icons.check_circle
+                          : Icons.radio_button_unchecked,
+                      color: Colors.blue,
+                    ),
+                    title: Text(
+                      task['name'],
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                    subtitle: Text(
+                      subtitleText,
+                      style: const TextStyle(
+                        color: Colors.blueGrey,
+                        fontSize: 11,
+                      ),
+                    ),
+                    trailing: const Icon(Icons.more_vert),
+                  );
+                },
+              ),
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Tutup'),
+                ),
+                TextButton(onPressed: () {}, child: const Text('Tambah Tugas')),
+                const SizedBox(width: 8),
+              ],
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -128,14 +285,12 @@ class HomeScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Task Master'),
         backgroundColor: Colors.indigo[700],
-        // Hamburger menu akan otomatis muncul karena kita menambahkan 'drawer'
       ),
-      // --- PENAMBAHAN SIDEBAR (DRAWER) DI SINI ---
+      // --- INTEGRASI SIDEBAR (DRAWER) ---
       drawer: Drawer(
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
-            // Header Sidebar
             DrawerHeader(
               decoration: const BoxDecoration(color: Colors.white),
               child: Row(
@@ -157,20 +312,45 @@ class HomeScreen extends StatelessWidget {
                 ],
               ),
             ),
-            // Menu Items
             _buildDrawerItem(
               Icons.format_list_bulleted,
               'Task Master',
-              context,
               isSelected: true,
+              onTap: () => Navigator.pop(context),
             ),
-            _buildDrawerItem(Icons.wb_sunny_outlined, 'Daily', context),
-            _buildDrawerItem(Icons.calendar_today, 'Weekly', context),
-            _buildDrawerItem(Icons.calendar_month, 'Monthly', context),
-            const Divider(), // Garis pemisah
-            _buildDrawerItem(Icons.settings, 'Settings', context),
-            const Divider(), // Garis pemisah
-            _buildDrawerItem(Icons.info_outline, 'About', context),
+            _buildDrawerItem(
+              Icons.wb_sunny_outlined,
+              'Daily',
+              onTap: () => Navigator.pop(context),
+            ),
+            _buildDrawerItem(
+              Icons.calendar_today,
+              'Weekly',
+              onTap: () => Navigator.pop(context),
+            ),
+            _buildDrawerItem(
+              Icons.calendar_month,
+              'Monthly',
+              onTap: () => Navigator.pop(context),
+            ),
+            const Divider(),
+            // Menu Pengaturan untuk mengganti lokasi file penyimpanan JSON
+            _buildDrawerItem(
+              Icons.settings,
+              'Settings',
+              subtitle:
+                  _storageLocation, // Menampilkan indikasi lokasi aktif saat ini
+              onTap: () {
+                Navigator.pop(context);
+                _showSettingsDialog();
+              },
+            ),
+            const Divider(),
+            _buildDrawerItem(
+              Icons.info_outline,
+              'About',
+              onTap: () => Navigator.pop(context),
+            ),
           ],
         ),
       ),
@@ -184,6 +364,7 @@ class HomeScreen extends StatelessWidget {
           } else if (constraints.maxWidth >= 600) {
             crossAxisCount = 3;
           }
+
           return GridView.builder(
             padding: const EdgeInsets.all(12),
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -192,30 +373,30 @@ class HomeScreen extends StatelessWidget {
               crossAxisSpacing: 12,
               mainAxisSpacing: 12,
             ),
-            itemCount: categories.length,
+            itemCount: _categories.length,
             itemBuilder: (context, index) {
-              final item = categories[index];
+              final item = _categories[index];
+              final List<dynamic> tasks = item['tasks'] ?? [];
+
               return Card(
                 elevation: 2,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: InkWell(
-                  onTap: () {
-                    if (item['name'] == 'Work')
-                      _showWorkCategoryDialog(context);
-                  },
+                  onTap: () => _showCategoryTasksDialog(item['name'], tasks),
+                  borderRadius: BorderRadius.circular(8),
                   child: Padding(
                     padding: const EdgeInsets.all(12.0),
                     child: Row(
                       children: [
+                        // Menampilkan icon teks emoji bawaan dari JSON (e.g., 💖, 📊)
                         CircleAvatar(
-                          backgroundColor: item['color'],
+                          backgroundColor: Colors.indigo[50],
                           radius: 24,
-                          child: Icon(
-                            item['icon'],
-                            color: Colors.white,
-                            size: 24,
+                          child: Text(
+                            item['icon'] ?? '📝',
+                            style: const TextStyle(fontSize: 22),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -230,10 +411,11 @@ class HomeScreen extends StatelessWidget {
                                   fontSize: 16,
                                   fontWeight: FontWeight.w500,
                                 ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                '${item['tasks']} tasks',
+                                '${tasks.length} tasks',
                                 style: TextStyle(
                                   color: Colors.grey[600],
                                   fontSize: 13,
@@ -242,10 +424,13 @@ class HomeScreen extends StatelessWidget {
                             ],
                           ),
                         ),
-                        const Icon(
-                          Icons.more_vert,
-                          color: Colors.grey,
-                          size: 20,
+                        const Align(
+                          alignment: Alignment.topRight,
+                          child: Icon(
+                            Icons.more_vert,
+                            color: Colors.grey,
+                            size: 20,
+                          ),
                         ),
                       ],
                     ),
@@ -264,12 +449,12 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // Widget pendukung untuk item menu di drawer
   Widget _buildDrawerItem(
     IconData icon,
-    String title,
-    BuildContext context, {
+    String title, {
+    String? subtitle,
     bool isSelected = false,
+    required VoidCallback onTap,
   }) {
     return ListTile(
       leading: Icon(icon, color: isSelected ? Colors.indigo : Colors.grey[700]),
@@ -281,66 +466,13 @@ class HomeScreen extends StatelessWidget {
           fontSize: 16,
         ),
       ),
-      onTap: () => Navigator.pop(context), // Menutup drawer saat diklik
-    );
-  }
-
-  void _showWorkCategoryDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20.0),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16.0),
-              decoration: const BoxDecoration(
-                color: Colors.indigo,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(20.0),
-                  topRight: Radius.circular(20.0),
-                ),
-              ),
-              child: const Text(
-                'Work Category',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(12.0),
-              child: Column(
-                children: [
-                  _buildPopupItem('Career', '+0 / 4 hari ini | Total: 625'),
-                  _buildPopupItem('New Tech', '+0 / 1 hari ini | Total: 4'),
-                  _buildPopupItem('Coding', 'Total: 203'),
-                ],
-              ),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Tutup'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPopupItem(String title, String subtitle) {
-    return ListTile(
-      dense: true,
-      leading: const Icon(Icons.add_circle_outline, color: Colors.blue),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-      subtitle: Text(subtitle, style: const TextStyle(fontSize: 11)),
-      trailing: const Icon(Icons.more_vert),
+      subtitle: subtitle != null
+          ? Text(
+              subtitle,
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            )
+          : null,
+      onTap: onTap,
     );
   }
 }
