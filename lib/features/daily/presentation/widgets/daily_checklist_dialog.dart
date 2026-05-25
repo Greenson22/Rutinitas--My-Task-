@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import '../../data/models/daily_model.dart';
+import 'change_color_dialog.dart';
 
 class DailyChecklistDialog extends StatefulWidget {
   final DailySubject subject;
@@ -320,11 +321,14 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
         mainAxisSize: MainAxisSize.min,
         children: [
           // HEADER DIALOG
+          // HEADER DIALOG
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
-              color: Color(widget.subject.backgroundColor),
+              color: Color(
+                widget.subject.backgroundColor,
+              ), // Mengikuti warna real-time
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(16),
                 topRight: Radius.circular(16),
@@ -348,6 +352,31 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                         onPressed: _showEditSubjectNameDialog,
                       ),
                       const SizedBox(width: 8),
+                      // TAMBAHAN TOMBOL PENGUBAH WARNA DI SINI
+                      IconButton(
+                        icon: const Icon(
+                          Icons.palette,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                        tooltip: 'Ubah Warna Materi',
+                        constraints: const BoxConstraints(),
+                        padding: EdgeInsets.zero,
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            builder: (ctx) => ChangeColorDialog(
+                              subject: widget.subject,
+                              onColorSaved: () {
+                                setState(() {}); // Refresh visual header dialog
+                                widget
+                                    .onDataChanged(); // Trigger auto-save JSON ke lokal storage
+                              },
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 10),
                       Flexible(
                         child: Text.rich(
                           TextSpan(

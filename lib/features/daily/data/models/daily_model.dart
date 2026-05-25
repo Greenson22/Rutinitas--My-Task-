@@ -30,7 +30,7 @@ class DailyData {
 class DailySubject {
   String namaMateri;
   String progress;
-  List<SubMateriItem> subMateri; // Tingkat pertama
+  List<SubMateriItem> subMateri;
   int backgroundColor;
   int textColor;
   int progressBarColor;
@@ -43,6 +43,20 @@ class DailySubject {
   bool isDateActive;
   String dateType;
   String? endDate;
+
+  // Palet warna standar yang estetis untuk memudahkan pengguna memilih warna kustom
+  static const List<Map<String, dynamic>> kustomPaletWarna = [
+    {'nama': 'Teal', 'bg': 4281166415, 'text': 4294967295},
+    {'nama': 'Indigo', 'bg': 4282340786, 'text': 4294967295},
+    {'nama': 'Merah Ruby', 'bg': 4290001456, 'text': 4294967295},
+    {'nama': 'Hijau Emerald', 'bg': 4281102431, 'text': 4294967295},
+    {'nama': 'Amber', 'bg': 4294943744, 'text': 4278190080},
+    {'nama': 'Oranye', 'bg': 4294937600, 'text': 4294967295},
+    {'nama': 'Ungu Amethyst', 'bg': 4287831474, 'text': 4294967295},
+    {'nama': 'Biru Slate', 'bg': 4284511612, 'text': 4294967295},
+    {'nama': 'Kopi', 'bg': 4286734131, 'text': 4294967295},
+    {'nama': 'Rose Pink', 'bg': 4293144195, 'text': 4294967295},
+  ];
 
   DailySubject({
     required this.namaMateri,
@@ -186,7 +200,7 @@ class SubMateriItem {
   String namaMateri;
   String progress;
   String? finishedDate;
-  List<SubMateriItem> subMateri; // <--- SEKARANG REKURSIF (BISA BERANAK PINAK)
+  List<SubMateriItem> subMateri;
 
   SubMateriItem({
     required this.namaMateri,
@@ -218,11 +232,9 @@ class SubMateriItem {
     };
   }
 
-  // Fungsi helper untuk mengecek status progress total anak-anaknya secara rekursif
   void updateStatusFromChildren() {
     if (subMateri.isEmpty) return;
 
-    // Update semua anak terdalam dulu
     for (var child in subMateri) {
       child.updateStatusFromChildren();
     }
