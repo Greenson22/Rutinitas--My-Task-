@@ -12,6 +12,7 @@ class TasksDialog extends StatelessWidget {
   onEditTaskDetail;
   final Future<bool> Function(TaskItem) onDeleteTask;
   final Function(List<String>, String) onBulkAction;
+  final VoidCallback onAddTask; // <--- CALLBACK BARU UNTUK TAMBAH TUGAS
 
   const TasksDialog({
     super.key,
@@ -21,6 +22,7 @@ class TasksDialog extends StatelessWidget {
     required this.onEditTaskDetail,
     required this.onDeleteTask,
     required this.onBulkAction,
+    required this.onAddTask, // <--- WAJIB DIISI
   });
 
   List<TextSpan> _buildIndonesianDateSpans(String? dateStr, bool isActive) {
@@ -138,6 +140,37 @@ class TasksDialog extends StatelessWidget {
     );
   }
 
+  // DIALOG KONFIRMASI UNTUK INCREMENT COUNT TUGAS SATUAN
+  Future<void> _showConfirmIncrementDialog(
+    BuildContext context,
+    TaskItem task,
+    VoidCallback onConfirm,
+  ) async {
+    return showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Tambah Progress?'),
+        content: Text(
+          'Apakah Anda yakin ingin menambah hitungan (count) pada tugas "${task.name}"?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              onConfirm();
+              Navigator.pop(ctx);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
+            child: const Text('Ya, Tambah'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _showConfirmBulkDialog(
     BuildContext context,
     String action,
@@ -190,7 +223,6 @@ class TasksDialog extends StatelessWidget {
 
     return StatefulBuilder(
       builder: (context, setDialogState) {
-        // Logika untuk mendeteksi apakah semua item dalam kategori sudah tercentang
         bool isAllSelected =
             category.tasks.isNotEmpty &&
             category.tasks.every((task) => selectedTaskIds.contains(task.id));
@@ -229,7 +261,6 @@ class TasksDialog extends StatelessWidget {
                         ),
                       ),
                     ),
-                    // FITUR BARU: Checkbox "Pilih Semua" (Hanya muncul jika mode seleksi aktif)
                     if (isSelectionMode && category.tasks.isNotEmpty)
                       Row(
                         mainAxisSize: MainAxisSize.min,
@@ -253,12 +284,10 @@ class TasksDialog extends StatelessWidget {
                               onChanged: (bool? checked) {
                                 setDialogState(() {
                                   if (checked == true) {
-                                    // Masukkan semua ID tugas ke dalam list seleksi
                                     selectedTaskIds = category.tasks
                                         .map((t) => t.id)
                                         .toList();
                                   } else {
-                                    // Kosongkan seleksi
                                     selectedTaskIds.clear();
                                   }
                                 });
@@ -267,7 +296,6 @@ class TasksDialog extends StatelessWidget {
                           ),
                         ],
                       ),
-                    // Tombol Aktivasi Mode Banyak Seleksi
                     if (category.tasks.isNotEmpty)
                       IconButton(
                         icon: Icon(
@@ -350,13 +378,18 @@ class TasksDialog extends StatelessWidget {
                                           : Colors.grey[400],
                                       size: 28,
                                     ),
+                                    // PERBAIKAN: Menambahkan dialog konfirmasi sebelum menambah hitungan
                                     onPressed: task.isActive
-                                        ? () async {
-                                            bool isUpdated =
-                                                await onIncrementTask(task);
-                                            if (isUpdated)
-                                              setDialogState(() {});
-                                          }
+                                        ? () => _showConfirmIncrementDialog(
+                                            context,
+                                            task,
+                                            () async {
+                                              bool isUpdated =
+                                                  await onIncrementTask(task);
+                                              if (isUpdated)
+                                                setDialogState(() {});
+                                            },
+                                          )
                                         : null,
                                   ),
                             title: Text(
@@ -564,8 +597,14 @@ class TasksDialog extends StatelessWidget {
                             onPressed: () => Navigator.pop(context),
                             child: const Text('Tutup'),
                           ),
+                          // PERBAIKAN: Mengaktifkan fungsionalitas tombol Tambah Tugas melalui callback
                           TextButton(
-                            onPressed: () {},
+                            onPressed: () {
+                              Navigator.pop(
+                                context,
+                              ); // Tutup dialog list tugas terlebih dahulu
+                              onAddTask(); // Panggil fungsi tambah tugas
+                            },
                             child: const Text('Tambah Tugas'),
                           ),
                         ],

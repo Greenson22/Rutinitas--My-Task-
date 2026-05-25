@@ -229,7 +229,6 @@ class _HomeScreenState extends State<HomeScreen> {
           });
           await _saveAllCategoriesToFile();
         },
-        // Mengubah implementasi hapus satu tugas
         onDeleteTask: (task) async {
           setState(() {
             category.tasks.removeWhere((t) => t.id == task.id);
@@ -237,7 +236,6 @@ class _HomeScreenState extends State<HomeScreen> {
           await _saveAllCategoriesToFile();
           return true;
         },
-        // TAMBAHKAN CALLBACK BARU UNTUK AKSI MASAL DI SINI
         onBulkAction: (tasksToUpdate, action) async {
           setState(() {
             if (action == 'delete') {
@@ -253,6 +251,18 @@ class _HomeScreenState extends State<HomeScreen> {
             }
           });
           await _saveAllCategoriesToFile();
+        },
+        // PERBAIKAN: Menangani aksi ketika tombol "Tambah Tugas" ditekan
+        onAddTask: () {
+          // Logika untuk menampilkan dialog tambah tugas baru ke kategori ini
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Membuka menu tambah tugas untuk Kategori ${category.name}',
+              ),
+            ),
+          );
+          // Anda bisa menyambungkannya dengan ShowDialog Form Pengisian Tugas baru di sini
         },
       ),
     );
