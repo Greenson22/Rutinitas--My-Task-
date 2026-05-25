@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../screens/home_screen.dart';
 import '../../../daily/presentation/screens/daily_screen.dart';
 import '../../../jurnal_aktivitas/presentation/screens/jurnal_aktivitas_screen.dart';
+import '../../../about/presentation/pages/about_page.dart'; // <--- IMPORT SEUSAI PATH ABOUT PAGE
 
 class DrawerMenu extends StatelessWidget {
   final String selectedBaseDir;
@@ -117,16 +118,8 @@ class DrawerMenu extends StatelessWidget {
               }
             },
           ),
-          _buildDrawerItem(
-            Icons.calendar_today,
-            'Weekly',
-            onTap: () => Navigator.pop(context),
-          ),
-          _buildDrawerItem(
-            Icons.calendar_month,
-            'Monthly',
-            onTap: () => Navigator.pop(context),
-          ),
+
+          // PERBAIKAN: Item Weekly dan Monthly telah dihapus dari sini
           const Divider(),
           _buildDrawerItem(
             Icons.settings,
@@ -142,7 +135,30 @@ class DrawerMenu extends StatelessWidget {
             Icons.info_outline,
             'About',
             subtitle: 'Path: $fullJsonPath',
-            onTap: () => Navigator.pop(context),
+            onTap: () {
+              Navigator.pop(context); // Tutup drawer menu terlebih dahulu
+
+              // Membuka AboutPage sebagai sebuah Dialog Box
+              showDialog(
+                context: context,
+                builder: (context) => const Dialog(
+                  insetPadding: EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 40,
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.all(Radius.circular(16)),
+                    child: SizedBox(
+                      width:
+                          500, // Batasan lebar agar proporsional di tablet/desktop
+                      height:
+                          650, // Batasan tinggi wajib agar TabBarView tidak meluber (unbounded height)
+                      child: AboutPage(),
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
         ],
       ),
