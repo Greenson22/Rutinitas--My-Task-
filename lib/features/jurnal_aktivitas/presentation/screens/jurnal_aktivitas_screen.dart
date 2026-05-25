@@ -8,6 +8,7 @@ import '../../../../core/services/storage_service.dart';
 import '../../../task_master/presentation/widgets/drawer_menu.dart';
 import '../../../task_master/data/models/task_model.dart';
 import '../../data/models/time_log_model.dart';
+import '../widgets/jurnal_statistik_dialog.dart';
 
 class JurnalAktivitasScreen extends StatefulWidget {
   const JurnalAktivitasScreen({super.key});
@@ -615,6 +616,25 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
             ),
             color: _isEditMode ? Colors.amberAccent : Colors.white,
             onPressed: () => setState(() => _isEditMode = !_isEditMode),
+          ),
+          // === TOMBOL STATISTIK (BARU) ===
+          IconButton(
+            icon: const Icon(Icons.analytics_outlined, color: Colors.white),
+            tooltip: 'Lihat Statistik',
+            onPressed: () {
+              if (_logs.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Belum ada data untuk dianalisis.'),
+                  ),
+                );
+                return;
+              }
+              showDialog(
+                context: context,
+                builder: (context) => JurnalStatistikDialog(logs: _logs),
+              );
+            },
           ),
           IconButton(
             icon: const Icon(Icons.history, color: Colors.white),
