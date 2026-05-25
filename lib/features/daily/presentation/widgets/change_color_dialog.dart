@@ -18,14 +18,65 @@ class ChangeColorDialog extends StatefulWidget {
 }
 
 class _ChangeColorDialogState extends State<ChangeColorDialog> {
-  late int _selectedBgColor;
-  late int _selectedTextColor;
+  late Color _selectedBgColor;
+  late Color _selectedTextColor;
+
+  final _hexInputController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  bool _isTextDarkForCustom = true;
+
+  // Daftar warna kustom tambahan (Menggunakan objek Color untuk UI Picker)
+  final List<Map<String, Color>> _extendedPalette = [
+    {'bg': const Color(0xFFFADBD8), 'text': const Color(0xFF78281F)},
+    {'bg': const Color(0xFFD4EFDF), 'text': const Color(0xFF145A32)},
+    {'bg': const Color(0xFFD6EAF8), 'text': const Color(0xFF1B4F72)},
+    {'bg': const Color(0xFFFCF3CF), 'text': const Color(0xFF7E5109)},
+    {'bg': const Color(0xFFE8DAEF), 'text': const Color(0xFF4A235A)},
+    {'bg': const Color(0xFFE5E8E8), 'text': const Color(0xFF1C2833)},
+    {'bg': const Color(0xFFEDBB99), 'text': const Color(0xFF6E2C00)},
+    {'bg': const Color(0xFFA2D9CE), 'text': const Color(0xFF0E6251)},
+    {'bg': const Color(0xFFF5CBA7), 'text': const Color(0xFF784212)},
+    {'bg': const Color(0xFFD7BDE2), 'text': const Color(0xFF4A235A)},
+  ];
 
   @override
   void initState() {
     super.initState();
-    _selectedBgColor = widget.subject.backgroundColor;
-    _selectedTextColor = widget.subject.textColor;
+    // Mengonversi int dari model menjadi objek Color untuk kebutuhan UI Dialog
+    _selectedBgColor = Color(widget.subject.backgroundColor);
+    _selectedTextColor = Color(widget.subject.textColor);
+    _updateHexTextField(_selectedBgColor);
+  }
+
+  @override
+  void dispose() {
+    _hexInputController.dispose();
+    super.dispose();
+  }
+
+  void _updateHexTextField(Color color) {
+    _hexInputController.text = color.value
+        .toRadixString(16)
+        .padLeft(8, '0')
+        .substring(2)
+        .toUpperCase();
+  }
+
+  void _applyCustomHexColor(String val) {
+    String cleanHex = val.replaceAll('#', '').trim();
+    if (cleanHex.length == 6) {
+      cleanHex = 'FF$cleanHex';
+    }
+
+    final int? parsedValue = int.tryParse(cleanHex, radix: 16);
+    if (parsedValue != null) {
+      setState(() {
+        _selectedBgColor = Color(parsedValue);
+        _selectedTextColor = _isTextDarkForCustom
+            ? Colors.black87
+            : Colors.white;
+      });
+    }
   }
 
   @override
@@ -39,120 +90,183 @@ class _ChangeColorDialogState extends State<ChangeColorDialog> {
           Text('Ubah Warna Materi'),
         ],
       ),
-      // PERBAIKAN: Bungkus isi kontent dengan SizedBox untuk mengatur width secara aman
       content: SizedBox(
-        width: double
-            .maxFinite, // Sekarang parameter width berada di tempat yang benar
+        width: double.maxFinite,
         child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 1. LIVE PREVIEW COMPONENT
-              const Text(
-                'Pratinjau Tampilan:',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey,
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 1. LIVE PREVIEW
+                const Text(
+                  'Pratinjau Tampilan:',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Color(_selectedBgColor),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 4,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    Text(
-                      widget.subject.icon,
-                      style: const TextStyle(fontSize: 24),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      widget.subject.namaMateri,
-                      style: TextStyle(
-                        color: Color(_selectedTextColor),
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
+                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: _selectedBgColor,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.black12),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        widget.subject.icon,
+                        style: const TextStyle(fontSize: 24),
                       ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Contoh Teks Sub-Materi / Detail',
-                      style: TextStyle(
-                        color: Color(_selectedTextColor).withOpacity(0.7),
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // 2. PALETTE SELECTION GRID
-              const Text(
-                'Pilih Tema Warna:',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: DailySubject.kustomPaletWarna.length,
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 5,
-                  mainAxisSpacing: 10,
-                  crossAxisSpacing: 10,
-                  childAspectRatio: 1,
-                ),
-                itemBuilder: (context, idx) {
-                  final tema = DailySubject.kustomPaletWarna[idx];
-                  final int bgHex = tema['bg'];
-                  final int textHex = tema['text'];
-                  final bool isSelected = _selectedBgColor == bgHex;
-
-                  return InkWell(
-                    onTap: () {
-                      setState(() {
-                        _selectedBgColor = bgHex;
-                        _selectedTextColor = textHex;
-                      });
-                    },
-                    borderRadius: BorderRadius.circular(50),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Color(bgHex),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: isSelected
-                              ? Colors.black87
-                              : Colors.grey.shade300,
-                          width: isSelected ? 3 : 1,
+                      const SizedBox(height: 6),
+                      Text(
+                        widget.subject.namaMateri,
+                        style: TextStyle(
+                          color: _selectedTextColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
                         ),
+                        textAlign: TextAlign.center,
                       ),
-                      child: isSelected
-                          ? Icon(Icons.check, color: Color(textHex), size: 18)
-                          : const SizedBox.shrink(),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // 2. INPUT KODE HEX
+                const Text(
+                  'Warna Bebas / Kustom (Kode HEX):',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.teal,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _hexInputController,
+                        maxLength: 6,
+                        decoration: const InputDecoration(
+                          hintText: 'F5CBA7',
+                          prefixText: '# ',
+                          isDense: true,
+                          counterText: '',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty)
+                            return null;
+                          if (value.trim().length != 6)
+                            return 'Harus 6 karakter';
+                          if (int.tryParse(value.trim(), radix: 16) == null) {
+                            return 'HEX tidak valid';
+                          }
+                          return null;
+                        },
+                        onChanged: (val) {
+                          if (val.trim().length == 6) {
+                            _applyCustomHexColor(val);
+                          }
+                        },
+                      ),
                     ),
-                  );
-                },
-              ),
-            ],
+                    const SizedBox(width: 12),
+                    Column(
+                      children: [
+                        const Text(
+                          'Warna Teks',
+                          style: TextStyle(fontSize: 10, color: Colors.grey),
+                        ),
+                        DropdownButton<bool>(
+                          value: _isTextDarkForCustom,
+                          isDense: true,
+                          items: const [
+                            DropdownMenuItem(value: true, child: Text('Gelap')),
+                            DropdownMenuItem(
+                              value: false,
+                              child: Text('Putih'),
+                            ),
+                          ],
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() {
+                                _isTextDarkForCustom = val;
+                                _selectedTextColor = val
+                                    ? Colors.black87
+                                    : Colors.white;
+                              });
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // 3. PALET TAMBAHAN
+                const Text(
+                  'Pilihan Palet Warna Tambahan:',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 10),
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _extendedPalette.length,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 5,
+                    mainAxisSpacing: 8,
+                    crossAxisSpacing: 8,
+                    childAspectRatio: 1,
+                  ),
+                  itemBuilder: (context, idx) {
+                    final colorPair = _extendedPalette[idx];
+                    final Color bg = colorPair['bg']!;
+                    final Color text = colorPair['text']!;
+                    final bool isSelected = _selectedBgColor.value == bg.value;
+
+                    return InkWell(
+                      onTap: () {
+                        setState(() {
+                          _selectedBgColor = bg;
+                          _selectedTextColor = text;
+                          _updateHexTextField(bg);
+                        });
+                      },
+                      borderRadius: BorderRadius.circular(50),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: bg,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isSelected
+                                ? Colors.teal.shade700
+                                : Colors.grey.shade300,
+                            width: isSelected ? 3 : 1,
+                          ),
+                        ),
+                        child: isSelected
+                            ? Icon(Icons.check, color: text, size: 18)
+                            : const SizedBox.shrink(),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
         ),
-      ),
+      ), // Penutup content yang benar agar selevel dengan actions
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
@@ -160,10 +274,14 @@ class _ChangeColorDialogState extends State<ChangeColorDialog> {
         ),
         ElevatedButton(
           onPressed: () {
-            widget.subject.backgroundColor = _selectedBgColor;
-            widget.subject.textColor = _selectedTextColor;
-            widget.onColorSaved();
-            Navigator.pop(context);
+            if (_formKey.currentState!.validate()) {
+              // PERBAIKAN: Mengambil nilai integer (.value) untuk disimpan ke model data yang bertipe int
+              widget.subject.backgroundColor = _selectedBgColor.value;
+              widget.subject.textColor = _selectedTextColor.value;
+
+              widget.onColorSaved();
+              Navigator.pop(context);
+            }
           },
           style: ElevatedButton.styleFrom(backgroundColor: Colors.teal[700]),
           child: const Text(

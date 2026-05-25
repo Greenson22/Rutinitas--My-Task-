@@ -280,27 +280,25 @@ class _DailyScreenState extends State<DailyScreen> {
             topListColor = Colors.black87;
           }
         }
-
         return Card(
           elevation: 2,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
+          // MENGGUNAKAN WARNA KUSTOM PADA BACKGROUND CARD
+          color: Color(subject.backgroundColor),
           child: InkWell(
             onTap: () => _openMateriChecklist(subject),
             borderRadius: BorderRadius.circular(16),
             child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
-                // PERBAIKAN UTAMA: Mengubah dari spaceBetween menjadi center
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // 1. ICON EMOJI
+                  // 1. ICON EMOJI (Latar belakang avatar menyesuaikan secara kontras)
                   CircleAvatar(
-                    backgroundColor: Color(
-                      subject.backgroundColor,
-                    ).withOpacity(0.15),
+                    backgroundColor: Color(subject.textColor).withOpacity(0.2),
                     radius: 30,
                     child: Text(
                       subject.icon,
@@ -311,13 +309,13 @@ class _DailyScreenState extends State<DailyScreen> {
                   // Jarak dari Icon ke Judul
                   const SizedBox(height: 12),
 
-                  // 2. JUDUL UTAMA MATERI
+                  // 2. JUDUL UTAMA MATERI (Menggunakan kustom textColor)
                   Text(
                     subject.namaMateri,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                      color: Color(subject.textColor),
                     ),
                     textAlign: TextAlign.center,
                     overflow: TextOverflow.ellipsis,
@@ -329,7 +327,11 @@ class _DailyScreenState extends State<DailyScreen> {
                     const SizedBox(height: 4),
                     Text.rich(
                       TextSpan(
-                        children: DailySubject.buildColoredDateSpans(subject),
+                        children: DailySubject.buildColoredDateSpans(
+                          subject,
+                          inHeader:
+                              true, // true agar warnanya cerah & kontras pada bg kustom
+                        ),
                       ),
                       style: const TextStyle(fontSize: 12),
                       textAlign: TextAlign.center,
@@ -347,7 +349,7 @@ class _DailyScreenState extends State<DailyScreen> {
                       vertical: 5,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.grey[200],
+                      color: Color(subject.textColor).withOpacity(0.15),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
@@ -356,15 +358,13 @@ class _DailyScreenState extends State<DailyScreen> {
                       children: [
                         Flexible(
                           child: Text(
-                            isAllDone ? '🎉 Semua Selesai!' : '🔝 $topListText',
+                            isAllDone ? '🎉 Semua Selesai!' : '📌 $topListText',
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: isAllDone
                                   ? FontWeight.bold
                                   : FontWeight.normal,
-                              color: isAllDone
-                                  ? Colors.green[800]
-                                  : topListColor,
+                              color: Color(subject.textColor),
                               decoration: isAllDone ? null : topListDecoration,
                             ),
                             overflow: TextOverflow.ellipsis,
@@ -374,7 +374,7 @@ class _DailyScreenState extends State<DailyScreen> {
                     ),
                   ),
 
-                  // Jarak dari Badge List Atas ke Tombol Progress (Tidak terlalu jauh)
+                  // Jarak dari Badge List Atas ke Tombol Progress
                   const SizedBox(height: 12),
 
                   // 5. BARIS JUMLAH PROGRESS (SOLID)
@@ -382,8 +382,13 @@ class _DailyScreenState extends State<DailyScreen> {
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     decoration: BoxDecoration(
-                      color: isAllDone ? Colors.green[600] : Colors.orange[500],
+                      color: isAllDone
+                          ? Colors.green[600]!.withOpacity(0.9)
+                          : Colors.orange[500]!.withOpacity(0.9),
                       borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: Color(subject.textColor).withOpacity(0.5),
+                      ),
                     ),
                     child: Text(
                       isAllDone
