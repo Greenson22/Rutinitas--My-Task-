@@ -252,7 +252,8 @@ class _DailyScreenState extends State<DailyScreen> {
       padding: const EdgeInsets.all(12),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
-        childAspectRatio: 0.9,
+        // childAspectRatio disesuaikan menjadi lebih lebar (1.15) karena tinggi komponen berkurang setelah icon dihapus
+        childAspectRatio: 1.15,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
       ),
@@ -296,21 +297,7 @@ class _DailyScreenState extends State<DailyScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // 1. ICON EMOJI
-                  CircleAvatar(
-                    backgroundColor: Color(
-                      subject.backgroundColor,
-                    ).withOpacity(0.12),
-                    radius: 30,
-                    child: Text(
-                      subject.icon,
-                      style: const TextStyle(fontSize: 26),
-                    ),
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  // 2. JUDUL UTAMA MATERI
+                  // 1. JUDUL UTAMA MATERI (Kini berada paling atas karena icon dihilangkan)
                   Text(
                     subject.namaMateri,
                     style: const TextStyle(
@@ -323,7 +310,7 @@ class _DailyScreenState extends State<DailyScreen> {
                     maxLines: 1,
                   ),
 
-                  // 3. TANGGAL BERWARNA
+                  // 2. TANGGAL BERWARNA
                   if (subject.isDateActive && subject.date != null) ...[
                     const SizedBox(height: 4),
                     Text.rich(
@@ -339,9 +326,9 @@ class _DailyScreenState extends State<DailyScreen> {
                     ),
                   ],
 
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
 
-                  // 4. BADGE LIST PALING ATAS
+                  // 3. BADGE LIST PALING ATAS
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 10,
@@ -375,38 +362,30 @@ class _DailyScreenState extends State<DailyScreen> {
 
                   const SizedBox(height: 12),
 
-                  // 5. BARIS JUMLAH PROGRESS (SOLID COLOR BERUBAH TIAP LEVEL PROGRESS)
+                  // 4. BARIS JUMLAH PROGRESS (SOLID COLOR BERUBAH TIAP LEVEL PROGRESS)
                   LayoutBuilder(
                     builder: (context, barConstraints) {
-                      // Menghitung persentase list yang selesai (0.0 sampai 1.0)
                       double progressPercent = totalSub > 0
                           ? selesaiSub / totalSub
                           : 0.0;
 
-                      // Menentukan warna solid tunggal secara dinamis berdasarkan level persentase (Merah -> Oranye -> Hijau)
                       Color solidProgressBarColor;
                       if (progressPercent <= 0.33) {
-                        solidProgressBarColor =
-                            Colors.red[700]!; // Level Rendah: Merah
+                        solidProgressBarColor = Colors.red[700]!;
                       } else if (progressPercent <= 0.75) {
-                        solidProgressBarColor =
-                            Colors.orange[700]!; // Level Menengah: Oranye
+                        solidProgressBarColor = Colors.orange[700]!;
                       } else {
-                        solidProgressBarColor =
-                            Colors.green[700]!; // Level Tinggi / Selesai: Hijau
+                        solidProgressBarColor = Colors.green[700]!;
                       }
 
                       return Container(
                         width: double.infinity,
                         height: 32,
                         decoration: BoxDecoration(
-                          color: Colors
-                              .grey[100], // Background track kosong (abu-abu terang)
+                          color: Colors.grey[100],
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: Color(
-                              subject.backgroundColor,
-                            ), // Border luar mengikuti warna tema kategori
+                            color: Color(subject.backgroundColor),
                             width: 2.0,
                           ),
                           boxShadow: [
@@ -421,15 +400,12 @@ class _DailyScreenState extends State<DailyScreen> {
                           borderRadius: BorderRadius.circular(6),
                           child: Stack(
                             children: [
-                              // Pengisi Progress (Lebarnya bergerak dinamis, tetapi warnanya solid satu blok)
                               Container(
                                 width:
                                     barConstraints.maxWidth * progressPercent,
                                 height: double.infinity,
-                                color:
-                                    solidProgressBarColor, // Warna solid berubah sesuai level checklist
+                                color: solidProgressBarColor,
                               ),
-                              // Overlay Teks Deskripsi Progress di bagian tengah bar
                               Center(
                                 child: Text(
                                   isAllDone
@@ -443,8 +419,7 @@ class _DailyScreenState extends State<DailyScreen> {
                                       Shadow(
                                         offset: Offset(0, 1),
                                         blurRadius: 3.0,
-                                        color: Colors
-                                            .black87, // Efek bayangan agar teks tetap kontras terbaca
+                                        color: Colors.black87,
                                       ),
                                     ],
                                   ),
