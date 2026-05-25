@@ -3,9 +3,8 @@ import '../../data/models/task_model.dart';
 
 class TasksDialog extends StatelessWidget {
   final TaskCategory category;
-  final Function(TaskItem) onIncrementTask; // Callback tambah count
-  final Function(TaskItem, int)
-  onUpdateTargetToday; // Callback ganti target harian
+  final Function(TaskItem) onIncrementTask;
+  final Function(TaskItem, int) onUpdateTargetToday;
 
   const TasksDialog({
     super.key,
@@ -14,8 +13,11 @@ class TasksDialog extends StatelessWidget {
     required this.onUpdateTargetToday,
   });
 
-  // Dialog kecil untuk input target harian baru
-  void _showTargetInputDialog(BuildContext context, TaskItem task) {
+  void _showTargetInputDialog(
+    BuildContext context,
+    TaskItem task,
+    StateSetter setDialogState,
+  ) {
     final controller = TextEditingController(
       text: task.targetCountToday.toString(),
     );
@@ -38,6 +40,8 @@ class TasksDialog extends StatelessWidget {
               final newTarget =
                   int.tryParse(controller.text) ?? task.targetCountToday;
               onUpdateTargetToday(task, newTarget);
+              // Memicu refresh tampilan internal dialog setelah target diubah
+              setDialogState(() {});
               Navigator.pop(ctx);
             },
             child: const Text('Simpan'),
@@ -49,96 +53,112 @@ class TasksDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.0)),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16.0),
-            decoration: const BoxDecoration(
-              color: Colors.indigo,
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(20.0),
-                topRight: Radius.circular(20.0),
-              ),
-            ),
-            child: Text(
-              'Kategori ${category.name}',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+    // === BUNGKUS DENGAN STATEFULBUILDER ===
+    return StatefulBuilder(
+      builder: (context, setDialogState) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20.0),
           ),
-          Flexible(
-            child: category.tasks.isEmpty
-                ? const Padding(
-                    padding: EdgeInsets.all(20.0),
-                    child: Text('Tidak ada tugas aktif di kategori ini.'),
-                  )
-                : ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: category.tasks.length,
-                    itemBuilder: (context, index) {
-                      final task = category.tasks[index];
-                      String subtitleText =
-                          '+${task.countToday} / ${task.targetCountToday} hari ini | Total: ${task.count}';
-                      if (task.date != null) {
-                        subtitleText += ' | Update: ${task.date}';
-                      }
-
-                      return ListTile(
-                        dense: true,
-                        // Mengubah tombol bulat kiri menjadi simbol tambah (+)
-                        leading: IconButton(
-                          icon: const Icon(
-                            Icons.add_circle_outline,
-                            color: Colors.blue,
-                            size: 28,
-                          ),
-                          onPressed: () => onIncrementTask(task),
-                        ),
-                        title: Text(
-                          task.name,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                          ),
-                        ),
-                        subtitle: InkWell(
-                          onTap: () => _showTargetInputDialog(context, task),
-                          child: Text(
-                            subtitleText,
-                            style: const TextStyle(
-                              color: Colors.blueGrey,
-                              fontSize: 11,
-                              decoration: TextDecoration
-                                  .underline, // Menandakan bisa diklik untuk edit target
-                            ),
-                          ),
-                        ),
-                        trailing: const Icon(Icons.more_vert),
-                      );
-                    },
-                  ),
-          ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Tutup'),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16.0),
+                decoration: const BoxDecoration(
+                  color: Colors.indigo,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(20.0),
+                    topRight: Radius.circular(20.0),
+                  ),
+                ),
+                child: Text(
+                  'Kategori ${category.name}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
-              TextButton(onPressed: () {}, child: const Text('Tambah Tugas')),
-              const SizedBox(width: 8),
+              Flexible(
+                child: category.tasks.isEmpty
+                    ? const Padding(
+                        padding: EdgeInsets.all(20.0),
+                        child: Text('Tidak ada tugas aktif di kategori ini.'),
+                      )
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: category.tasks.length,
+                        itemBuilder: (context, index) {
+                          final task = category.tasks[index];
+                          String subtitleText =
+                              '+${task.countToday} / ${task.targetCountToday} hari ini | Total: ${task.count}';
+                          if (task.date != null) {
+                            subtitleText += ' | Update: ${task.date}';
+                          }
+
+                          return ListTile(
+                            dense: true,
+                            leading: IconButton(
+                              icon: const Icon(
+                                Icons.add_circle_outline,
+                                color: Colors.blue,
+                                size: 28,
+                              ),
+                              onPressed: () {
+                                onIncrementTask(task);
+                                // Memicu refresh tampilan internal dialog setelah count bertambah
+                                setDialogState(() {});
+                              },
+                            ),
+                            title: Text(
+                              task.name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                              ),
+                            ),
+                            subtitle: InkWell(
+                              onTap: () => _showTargetInputDialog(
+                                context,
+                                task,
+                                setDialogState,
+                              ),
+                              child: Text(
+                                subtitleText,
+                                style: const TextStyle(
+                                  color: Colors.blueGrey,
+                                  fontSize: 11,
+                                  decoration: TextDecoration.underline,
+                                ),
+                              ),
+                            ),
+                            trailing: const Icon(Icons.more_vert),
+                          );
+                        },
+                      ),
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Tutup'),
+                  ),
+                  TextButton(
+                    onPressed: () {},
+                    child: const Text('Tambah Tugas'),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+              ),
+              const SizedBox(height: 8),
             ],
           ),
-          const SizedBox(height: 8),
-        ],
-      ),
+        );
+      },
     );
   }
 }
