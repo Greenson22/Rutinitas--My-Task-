@@ -34,6 +34,8 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
     Colors.orange.shade700,
     Colors.cyan.shade700,
     Colors.redAccent,
+    Colors.lightGreen.shade700,
+    Colors.blue.shade700,
   ];
 
   DateTime _stripTime(DateTime date) {
@@ -105,7 +107,6 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
     return '${m}m';
   }
 
-  // Helper untuk membuat daftar tanggal berurutan dalam suatu rentang
   List<DateTime> _getDaysInRange(DateTime start, DateTime end) {
     List<DateTime> days = [];
     for (int i = 0; i <= end.difference(start).inDays; i++) {
@@ -118,27 +119,31 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
   Widget build(BuildContext context) {
     final now = _stripTime(DateTime.now());
 
-    // 1. Data Pemrosesan untuk Grafik Distribusi Tugas (Tab 1)
     Map<String, int> taskDurations = {};
-    // 2. Data Pemrosesan untuk Grafik Tren Harian (Tab 2)
     Map<String, int> dailyTotals = {};
+    Map<String, Map<String, int>> dailyTaskBreakdown =
+        {}; // <--- Struktur Data Baru untuk Bar Bertumpuk
 
     int totalMinutesAll = 0;
 
-    // Mengisi data dari logs berdasarkan filter rentang waktu
     for (var entry in widget.logs) {
       try {
         DateTime date = DateTime.parse(entry.tanggal);
         if (_isDateInRange(date)) {
-          String dateKey = entry.tanggal; // YYYY-MM-DD
+          String dateKey = entry.tanggal;
+          dailyTaskBreakdown.putIfAbsent(dateKey, () => {});
+
           for (var task in entry.tasks) {
             if (task.durasiMenit > 0) {
-              // Akumulasi per tugas
               taskDurations[task.nama] =
                   (taskDurations[task.nama] ?? 0) + task.durasiMenit;
-              // Akumulasi per hari
               dailyTotals[dateKey] =
                   (dailyTotals[dateKey] ?? 0) + task.durasiMenit;
+
+              // Simpan detail breakdown tugas per hari
+              dailyTaskBreakdown[dateKey]![task.nama] =
+                  (dailyTaskBreakdown[dateKey]![task.nama] ?? 0) +
+                  task.durasiMenit;
 
               totalMinutesAll += task.durasiMenit;
             }
@@ -147,14 +152,19 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
       } catch (_) {}
     }
 
-    // Sortir data distribusi tugas
     var sortedTaskEntries = taskDurations.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     int maxTaskMinutes = sortedTaskEntries.isNotEmpty
         ? sortedTaskEntries.first.value
         : 1;
 
-    // Menentukan daftar hari yang akan ditampilkan pada Grafik Tren Harian (Tab 2)
+    // SINKRONISASI WARNA: Memberikan warna spesifik ke masing-masing nama tugas
+    Map<String, Color> taskColorMap = {};
+    for (int i = 0; i < sortedTaskEntries.length; i++) {
+      taskColorMap[sortedTaskEntries[i].key] =
+          _barColors[i % _barColors.length];
+    }
+
     List<Map<String, dynamic>> dailyChartData = [];
 
     if (_selectedFilter == 'Minggu Ini') {
@@ -166,9 +176,10 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
       for (var day in days) {
         String key = DateFormat('yyyy-MM-dd').format(day);
         dailyChartData.add({
-          'label': DateFormat('E').format(day), // Sen, Sel, ...
+          'label': DateFormat('E').format(day),
           'subLabel': DateFormat('dd/MM').format(day),
           'minutes': dailyTotals[key] ?? 0,
+          'tasks': dailyTaskBreakdown[key] ?? <String, int>{},
         });
       }
     } else if (_selectedFilter == 'Bulan Ini') {
@@ -178,9 +189,10 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
       for (var day in days) {
         String key = DateFormat('yyyy-MM-dd').format(day);
         dailyChartData.add({
-          'label': DateFormat('dd').format(day), // 01, 02, ...
+          'label': DateFormat('dd').format(day),
           'subLabel': DateFormat('MMM').format(day),
           'minutes': dailyTotals[key] ?? 0,
+          'tasks': dailyTaskBreakdown[key] ?? <String, int>{},
         });
       }
     } else if (_selectedFilter == 'Pilih Rentang' && _customRange != null) {
@@ -194,10 +206,10 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
           'label': DateFormat('dd').format(day),
           'subLabel': DateFormat('MM').format(day),
           'minutes': dailyTotals[key] ?? 0,
+          'tasks': dailyTaskBreakdown[key] ?? <String, int>{},
         });
       }
     } else {
-      // Untuk 'Tahun Ini' atau 'Semua Waktu': Tampilkan per hari yang berisikan aktivitas secara kronologis
       var sortedKeys = dailyTotals.keys.toList()..sort();
       for (var key in sortedKeys) {
         try {
@@ -207,6 +219,7 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
               'label': DateFormat('dd/MM').format(day),
               'subLabel': DateFormat('yy').format(day),
               'minutes': dailyTotals[key] ?? 0,
+              'tasks': dailyTaskBreakdown[key] ?? <String, int>{},
             });
           }
         } catch (_) {}
@@ -229,7 +242,6 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
         insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 24),
         child: Column(
           children: [
-            // === HEADER UTAMA ===
             Container(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
               decoration: BoxDecoration(
@@ -251,7 +263,7 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
                       const SizedBox(width: 12),
                       const Expanded(
                         child: Text(
-                          'Statistik & Analitik Jurnal',
+                          'Statistik & Analitik',
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 18,
@@ -265,13 +277,12 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
                       ),
                     ],
                   ),
-                  // === TAB SELECTOR ===
                   const TabBar(
                     indicatorColor: Colors.amberAccent,
                     indicatorWeight: 3,
                     labelStyle: TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: 14,
+                      fontSize: 13,
                     ),
                     unselectedLabelStyle: TextStyle(
                       fontWeight: FontWeight.normal,
@@ -283,7 +294,7 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
                       ),
                       Tab(
                         text: 'Tren Harian',
-                        icon: Icon(Icons.show_chart, size: 20),
+                        icon: Icon(Icons.stacked_bar_chart, size: 20),
                       ),
                     ],
                   ),
@@ -291,7 +302,6 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
               ),
             ),
 
-            // === FILTER KONTROL ===
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
               child: Container(
@@ -364,7 +374,6 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
                 ),
               ),
 
-            // === OVERVIEW CARD ===
             Padding(
               padding: const EdgeInsets.symmetric(
                 horizontal: 16.0,
@@ -419,11 +428,10 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
 
             const Divider(height: 16),
 
-            // === ISI TAB VIEWER ===
             Expanded(
               child: TabBarView(
                 children: [
-                  // TAB 1: GRAFIK DISTRIBUSI TUGAS (HORIZONTAL)
+                  // TAB 1: DISTRIBUSI TUGAS
                   sortedTaskEntries.isEmpty
                       ? const Center(
                           child: Text(
@@ -444,7 +452,7 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
                             final double percentageTotal =
                                 item.value / totalMinutesAll;
                             final Color barColor =
-                                _barColors[index % _barColors.length];
+                                taskColorMap[item.key] ?? Colors.grey;
 
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 12.0),
@@ -515,7 +523,7 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    '${(percentageTotal * 100).toStringAsFixed(1)}% dari total porsi',
+                                    '${(percentageTotal * 100).toStringAsFixed(1)}% dari total',
                                     style: TextStyle(
                                       fontSize: 10,
                                       color: Colors.grey[600],
@@ -527,7 +535,7 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
                           },
                         ),
 
-                  // TAB 2: GRAFIK TREN HARIAN (VERTICAL SCROLLABLE)
+                  // TAB 2: GRAFIK TREN HARIAN (BERTUMPUK / STACKED BAR)
                   dailyChartData.isEmpty
                       ? const Center(
                           child: Text(
@@ -545,17 +553,17 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
                               child: Row(
                                 children: [
                                   Icon(
-                                    Icons.bar_chart,
+                                    Icons.stacked_bar_chart,
                                     size: 16,
                                     color: Colors.indigo[700],
                                   ),
                                   const SizedBox(width: 4),
                                   Text(
-                                    'Grafik Batang Tren Durasi per Hari',
+                                    'Tap batang grafik untuk melihat detail tugas',
                                     style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.indigo[900],
+                                      fontSize: 11,
+                                      fontStyle: FontStyle.italic,
+                                      color: Colors.indigo[400],
                                     ),
                                   ),
                                 ],
@@ -572,10 +580,8 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: dailyChartData.map((data) {
                                     final int minutes = data['minutes'];
-                                    final double ratio =
-                                        minutes / maxDailyMinutes;
-                                    // Tinggi maksimal grafik batang vertikal adalah 180 unit
-                                    final double barHeight = ratio * 160;
+                                    final Map<String, int> dailyTasks =
+                                        data['tasks'];
 
                                     return Padding(
                                       padding: const EdgeInsets.symmetric(
@@ -585,7 +591,6 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
                                         mainAxisAlignment:
                                             MainAxisAlignment.end,
                                         children: [
-                                          // Nilai durasi di atas batang jika > 0
                                           Text(
                                             minutes > 0
                                                 ? _formatDuration(minutes)
@@ -597,55 +602,81 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
                                             ),
                                           ),
                                           const SizedBox(height: 4),
-                                          // Batang Vertikal Grafik
-                                          Stack(
+                                          // Area Grafik Batang Bertumpuk
+                                          Container(
+                                            height: 160,
+                                            width: 24,
+                                            decoration: BoxDecoration(
+                                              color: Colors.grey[100],
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
+                                            ),
                                             alignment: Alignment.bottomCenter,
-                                            children: [
-                                              Container(
-                                                height: 160,
-                                                width: 24,
-                                                decoration: BoxDecoration(
-                                                  color: Colors.grey[100],
-                                                  borderRadius:
-                                                      BorderRadius.circular(4),
-                                                ),
+                                            child: ClipRRect(
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
+                                              child: Column(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.end,
+                                                children: dailyTasks.entries
+                                                    .map((taskEntry) {
+                                                      // Hitung tinggi proporsional masing-masing segmen tugas
+                                                      final double
+                                                      segmentHeight =
+                                                          (taskEntry.value /
+                                                              maxDailyMinutes) *
+                                                          160;
+                                                      final Color segColor =
+                                                          taskColorMap[taskEntry
+                                                              .key] ??
+                                                          Colors.indigo;
+
+                                                      return Tooltip(
+                                                        message:
+                                                            '${taskEntry.key}\n${_formatDuration(taskEntry.value)}',
+                                                        triggerMode:
+                                                            TooltipTriggerMode
+                                                                .tap,
+                                                        preferBelow: false,
+                                                        decoration: BoxDecoration(
+                                                          color: Colors.black87,
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                8,
+                                                              ),
+                                                        ),
+                                                        child: AnimatedContainer(
+                                                          duration:
+                                                              const Duration(
+                                                                milliseconds:
+                                                                    500,
+                                                              ),
+                                                          height: segmentHeight,
+                                                          width: 24,
+                                                          decoration: BoxDecoration(
+                                                            color: segColor,
+                                                            // Berikan garis tepi tipis agar tumpukannya terlihat jelas
+                                                            border: Border(
+                                                              top: BorderSide(
+                                                                color: Colors
+                                                                    .white
+                                                                    .withOpacity(
+                                                                      0.5,
+                                                                    ),
+                                                                width: 0.5,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      );
+                                                    })
+                                                    .toList()
+                                                    .reversed
+                                                    .toList(),
                                               ),
-                                              AnimatedContainer(
-                                                duration: const Duration(
-                                                  milliseconds: 500,
-                                                ),
-                                                height: barHeight,
-                                                width: 24,
-                                                decoration: BoxDecoration(
-                                                  gradient: LinearGradient(
-                                                    colors: minutes > 0
-                                                        ? [
-                                                            Colors
-                                                                .indigo
-                                                                .shade400,
-                                                            Colors
-                                                                .indigo
-                                                                .shade700,
-                                                          ]
-                                                        : [
-                                                            Colors
-                                                                .grey
-                                                                .shade300,
-                                                            Colors
-                                                                .grey
-                                                                .shade300,
-                                                          ],
-                                                    begin: Alignment.topCenter,
-                                                    end: Alignment.bottomCenter,
-                                                  ),
-                                                  borderRadius:
-                                                      BorderRadius.circular(4),
-                                                ),
-                                              ),
-                                            ],
+                                            ),
                                           ),
                                           const SizedBox(height: 6),
-                                          // Label Hari/Tanggal Utama
                                           Text(
                                             data['label'],
                                             style: const TextStyle(
@@ -653,7 +684,6 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
                                               fontWeight: FontWeight.bold,
                                             ),
                                           ),
-                                          // Sub Label (Bulan/Tahun)
                                           Text(
                                             data['subLabel'],
                                             style: TextStyle(
