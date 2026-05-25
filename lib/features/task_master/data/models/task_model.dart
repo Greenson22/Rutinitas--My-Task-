@@ -1,3 +1,5 @@
+import 'dart:math';
+
 class TaskCategory {
   final String name;
   final String icon;
@@ -23,7 +25,6 @@ class TaskCategory {
     );
   }
 
-  // === TAMBAHKAN METHOD TOJSON ===
   Map<String, dynamic> toJson() {
     return {
       'name': name,
@@ -37,12 +38,14 @@ class TaskCategory {
 class TaskItem {
   final String id;
   final String name;
-  final int count;
-  final String? date;
+  int count; // Diubah menjadi non-final agar bisa dinaikkan
+  String?
+  date; // Diubah menjadi non-final agar bisa diperbarui ke tanggal hari ini
   final bool checked;
-  final int countToday;
+  int countToday; // Diubah menjadi non-final agar bisa diperbarui/direset
   final String lastUpdated;
-  final int targetCountToday;
+  int
+  targetCountToday; // Diubah menjadi non-final agar bisa disesuaikan pengguna
   final int type;
   final int targetCount;
 
@@ -61,7 +64,7 @@ class TaskItem {
 
   factory TaskItem.fromJson(Map<String, dynamic> json) {
     return TaskItem(
-      id: json['id'] ?? '',
+      id: json['id'] ?? generateRandomId(),
       name: json['name'] ?? '',
       count: json['count'] ?? 0,
       date: json['date'],
@@ -74,7 +77,6 @@ class TaskItem {
     );
   }
 
-  // === TAMBAHKAN METHOD TOJSON ===
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -88,5 +90,15 @@ class TaskItem {
       'type': type,
       'targetCount': targetCount,
     };
+  }
+
+  // Fungsi statis untuk membuat ID acak unik numerik/string pendek jika tidak pakai package uuid
+  static String generateRandomId() {
+    final random = Random();
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    return List.generate(
+      8,
+      (index) => chars[random.nextInt(chars.length)],
+    ).join();
   }
 }

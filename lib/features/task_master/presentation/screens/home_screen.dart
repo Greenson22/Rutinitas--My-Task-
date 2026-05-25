@@ -8,6 +8,7 @@ import '../widgets/drawer_menu.dart';
 import '../widgets/settings_dialog.dart';
 import '../widgets/tasks_dialog.dart';
 import '../widgets/add_category_dialog.dart'; // Import dialog baru
+import 'package:intl/intl.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -19,8 +20,6 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final StorageService _storageService = StorageService();
   List<TaskCategory> _categories = [];
-  // Kita buat variabel penampung semua kategori (termasuk yang isHidden)
-  // agar saat menulis file, data kategori tersembunyi tidak terhapus.
   List<TaskCategory> _allCategoriesRaw = [];
   String _selectedBaseDir = 'Documents';
   String _fullJsonPath = '';
@@ -30,6 +29,12 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _initStorageAndLoadData();
+  }
+
+  // Mendapatkan string tanggal hari ini (Format: YYYY-MM-DD)
+  String _getTodayDateString() {
+    final now = DateTime.now();
+    return "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
   }
 
   Future<void> _initStorageAndLoadData() async {
@@ -43,11 +48,32 @@ class _HomeScreenState extends State<HomeScreen> {
       final Map<String, dynamic> parsedMap = jsonDecode(jsonString);
       final List<dynamic> catList = parsedMap['categories'] ?? [];
 
-      setState(() {
-        _allCategoriesRaw = catList
-            .map((json) => TaskCategory.fromJson(json))
-            .toList();
+      List<TaskCategory> loadedCategories = catList
+          .map((json) => TaskCategory.fromJson(json))
+          .toList();
 
+      // === LOGIKA RESET OTOMATIS JIKA BERGANTI HARI ===
+      String todayStr = _getTodayDateString();
+      bool isDataChanged = false;
+
+      for (var category in loadedCategories) {
+        for (var task in category.tasks) {
+          // Jika field date berbeda dengan hari ini, reset countToday menjadi 0
+          if (task.date != todayStr && task.countToday > 0) {
+            task.countToday = 0;
+            isDataChanged = true;
+          }
+        }
+      }
+
+      _allCategoriesRaw = loadedCategories;
+
+      // Jika ada data ter-reset, langsung simpan perubahan kembali ke file
+      if (isDataChanged) {
+        await _saveAllCategoriesToFile(shouldRefresh: false);
+      }
+
+      setState(() {
         _categories = _allCategoriesRaw.where((cat) => !cat.isHidden).toList();
         _isLoading = false;
       });
@@ -114,10 +140,37 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // === FUNGSI AKSI TOMBOL TAMBAH PADA TUGAS ===
+  Future<void> _incrementTaskCount(TaskItem task) async {
+    setState(() {
+      task.count += 1;
+      task.countToday += 1;
+      task.date =
+          _getTodayDateString(); // Mengubah tanggal otomatis ke hari ini
+    });
+    await _saveAllCategoriesToFile();
+  }
+
+  // === FUNGSI AKSI UPDATE TARGET HARIAN TUGAS ===
+  Future<void> _updateTaskTargetToday(TaskItem task, int newTarget) async {
+    setState(() {
+      task.targetCountToday = newTarget;
+    });
+    await _saveAllCategoriesToFile();
+  }
+
   void _showCategoryTasksDialog(TaskCategory category) {
     showDialog(
       context: context,
-      builder: (context) => TasksDialog(category: category),
+      builder: (context) => TasksDialog(
+        category: category,
+        onIncrementTask: (task) {
+          _incrementTaskCount(task);
+        },
+        onUpdateTargetToday: (task, newTarget) {
+          _updateTaskTargetToday(task, newTarget);
+        },
+      ),
     );
   }
 
@@ -252,8 +305,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // Helper fungsi untuk menulis ke file agar kode lebih ringkas
-  Future<void> _saveAllCategoriesToFile() async {
+  Future<void> _saveAllCategoriesToFile({bool shouldRefresh = true}) async {
     final Map<String, dynamic> updatedMap = {
       'categories': _allCategoriesRaw.map((cat) => cat.toJson()).toList(),
     };
@@ -264,7 +316,9 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       File jsonFile = await _storageService.getTargetJsonFile(_selectedBaseDir);
       await _storageService.saveJsonData(jsonFile, updatedJsonString);
-      _initStorageAndLoadData(); // Memuat ulang data dan refresh UI
+      if (shouldRefresh) {
+        _initStorageAndLoadData();
+      }
     } catch (e) {
       debugPrint("Error saving categories: $e");
     }

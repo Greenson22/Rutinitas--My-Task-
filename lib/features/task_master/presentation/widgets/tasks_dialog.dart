@@ -3,8 +3,49 @@ import '../../data/models/task_model.dart';
 
 class TasksDialog extends StatelessWidget {
   final TaskCategory category;
+  final Function(TaskItem) onIncrementTask; // Callback tambah count
+  final Function(TaskItem, int)
+  onUpdateTargetToday; // Callback ganti target harian
 
-  const TasksDialog({super.key, required this.category});
+  const TasksDialog({
+    super.key,
+    required this.category,
+    required this.onIncrementTask,
+    required this.onUpdateTargetToday,
+  });
+
+  // Dialog kecil untuk input target harian baru
+  void _showTargetInputDialog(BuildContext context, TaskItem task) {
+    final controller = TextEditingController(
+      text: task.targetCountToday.toString(),
+    );
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Set Target Hari Ini (${task.name})'),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(labelText: 'Jumlah Target'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () {
+              final newTarget =
+                  int.tryParse(controller.text) ?? task.targetCountToday;
+              onUpdateTargetToday(task, newTarget);
+              Navigator.pop(ctx);
+            },
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +65,7 @@ class TasksDialog extends StatelessWidget {
               ),
             ),
             child: Text(
-              '${category.name} Category',
+              'Kategori ${category.name}',
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 20,
@@ -45,16 +86,20 @@ class TasksDialog extends StatelessWidget {
                       final task = category.tasks[index];
                       String subtitleText =
                           '+${task.countToday} / ${task.targetCountToday} hari ini | Total: ${task.count}';
-                      if (task.date != null)
-                        subtitleText += ' | Due: ${task.date}';
+                      if (task.date != null) {
+                        subtitleText += ' | Update: ${task.date}';
+                      }
 
                       return ListTile(
                         dense: true,
-                        leading: Icon(
-                          task.checked
-                              ? Icons.check_circle
-                              : Icons.radio_button_unchecked,
-                          color: Colors.blue,
+                        // Mengubah tombol bulat kiri menjadi simbol tambah (+)
+                        leading: IconButton(
+                          icon: const Icon(
+                            Icons.add_circle_outline,
+                            color: Colors.blue,
+                            size: 28,
+                          ),
+                          onPressed: () => onIncrementTask(task),
                         ),
                         title: Text(
                           task.name,
@@ -63,11 +108,16 @@ class TasksDialog extends StatelessWidget {
                             fontSize: 15,
                           ),
                         ),
-                        subtitle: Text(
-                          subtitleText,
-                          style: const TextStyle(
-                            color: Colors.blueGrey,
-                            fontSize: 11,
+                        subtitle: InkWell(
+                          onTap: () => _showTargetInputDialog(context, task),
+                          child: Text(
+                            subtitleText,
+                            style: const TextStyle(
+                              color: Colors.blueGrey,
+                              fontSize: 11,
+                              decoration: TextDecoration
+                                  .underline, // Menandakan bisa diklik untuk edit target
+                            ),
                           ),
                         ),
                         trailing: const Icon(Icons.more_vert),
