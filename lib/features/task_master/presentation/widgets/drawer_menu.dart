@@ -2,20 +2,20 @@
 
 import 'package:flutter/material.dart';
 import '../screens/home_screen.dart';
-import '../../../daily/presentation/screens/daily_screen.dart'; // <--- IMPORT BARU
+import '../../../daily/presentation/screens/daily_screen.dart';
 
 class DrawerMenu extends StatelessWidget {
   final String selectedBaseDir;
   final String fullJsonPath;
   final VoidCallback onOpenSettings;
-  final bool isDailyActive; // <--- SEBAGAI PENANDA HALAMAN SEKARANG
+  final bool isDailyActive;
 
   const DrawerMenu({
     super.key,
     required this.selectedBaseDir,
     required this.fullJsonPath,
     required this.onOpenSettings,
-    this.isDailyActive = false, // Default false (Task Master)
+    this.isDailyActive = false,
   });
 
   @override
@@ -24,27 +24,58 @@ class DrawerMenu extends StatelessWidget {
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
+          // HEADER DRAWER BARU: SESUAI GAMBAR MENGGUNAKAN "My Tasks"
           DrawerHeader(
-            decoration: const BoxDecoration(color: Colors.white),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              border: Border(
+                bottom: BorderSide(color: Colors.black12, width: 1),
+              ),
+            ),
             child: Row(
-              children: const [
-                Icon(
-                  Icons.format_list_bulleted,
-                  color: Colors.indigo,
-                  size: 30,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Representasi Ikon/Logo gabungan MT & Kalender Checklist
+                Stack(
+                  alignment:
+                      Alignment.bottomRight, // -> Diperbaiki dari Alianment
+                  children: [
+                    Text(
+                      'M',
+                      style: TextStyle(
+                        color: Colors.indigo[900],
+                        fontSize: 44,
+                        fontWeight: FontWeight
+                            .w900, // -> Diperbaiki dari FontWeight.black
+                        letterSpacing: -2,
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 4,
+                      right: 0,
+                      child: Icon(
+                        Icons.edit_calendar_outlined,
+                        color: Colors.indigo[700],
+                        size: 26,
+                      ),
+                    ),
+                  ],
                 ),
-                SizedBox(width: 20),
+                const SizedBox(width: 12),
+                // Teks Nama Utama Aplikasi
                 Text(
-                  'Task Master',
+                  'My Tasks',
                   style: TextStyle(
-                    color: Colors.indigo,
-                    fontSize: 22,
+                    color: Colors.indigo[900],
+                    fontSize: 26,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
               ],
             ),
           ),
+
+          // DAFTAR FITUR DI DALAMNYA
           _buildDrawerItem(
             Icons.format_list_bulleted,
             'Task Master',
@@ -87,7 +118,7 @@ class DrawerMenu extends StatelessWidget {
           _buildDrawerItem(
             Icons.settings,
             'Settings',
-            subtitle: '~/$selectedBaseDir/mytask/',
+            subtitle: '~/mytask/',
             onTap: () {
               Navigator.pop(context);
               onOpenSettings();

@@ -12,7 +12,7 @@ class TaskMasterApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Task Master',
+      title: 'My Tasks',
       theme: ThemeData(primarySwatch: Colors.indigo, useMaterial3: false),
       home: const HomeScreen(),
     );
