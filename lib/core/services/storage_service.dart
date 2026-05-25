@@ -18,7 +18,6 @@ class StorageService {
   }
 
   Future<File> getTargetJsonFile(String baseDirSetting) async {
-    // Jika baseDirSetting sudah berupa full path dari file picker, langsung pakai jalurnya
     final Directory myTaskDir = Directory('$baseDirSetting/mytask');
 
     if (!await myTaskDir.exists()) {
@@ -33,5 +32,10 @@ class StorageService {
       await jsonFile.writeAsString(DefaultJson.content);
     }
     return await jsonFile.readAsString();
+  }
+
+  // === TAMBAHKAN FUNGSI BARU INI ===
+  Future<void> saveJsonData(File jsonFile, String jsonContent) async {
+    await jsonFile.writeAsString(jsonContent);
   }
 }

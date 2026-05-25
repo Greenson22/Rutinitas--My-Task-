@@ -22,6 +22,16 @@ class TaskCategory {
       tasks: taskList,
     );
   }
+
+  // === TAMBAHKAN METHOD TOJSON ===
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'icon': icon,
+      'isHidden': isHidden,
+      'tasks': tasks.map((e) => e.toJson()).toList(),
+    };
+  }
 }
 
 class TaskItem {
@@ -62,5 +72,21 @@ class TaskItem {
       type: json['type'] ?? 0,
       targetCount: json['targetCount'] ?? 0,
     );
+  }
+
+  // === TAMBAHKAN METHOD TOJSON ===
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'count': count,
+      'date': date,
+      'checked': checked,
+      'countToday': countToday,
+      'lastUpdated': lastUpdated,
+      'targetCountToday': targetCountToday,
+      'type': type,
+      'targetCount': targetCount,
+    };
   }
 }

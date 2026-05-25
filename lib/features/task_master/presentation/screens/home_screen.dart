@@ -7,6 +7,7 @@ import '../widgets/category_card.dart';
 import '../widgets/drawer_menu.dart';
 import '../widgets/settings_dialog.dart';
 import '../widgets/tasks_dialog.dart';
+import '../widgets/add_category_dialog.dart'; // Import dialog baru
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -18,6 +19,9 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final StorageService _storageService = StorageService();
   List<TaskCategory> _categories = [];
+  // Kita buat variabel penampung semua kategori (termasuk yang isHidden)
+  // agar saat menulis file, data kategori tersembunyi tidak terhapus.
+  List<TaskCategory> _allCategoriesRaw = [];
   String _selectedBaseDir = 'Documents';
   String _fullJsonPath = '';
   bool _isLoading = true;
@@ -40,15 +44,53 @@ class _HomeScreenState extends State<HomeScreen> {
       final List<dynamic> catList = parsedMap['categories'] ?? [];
 
       setState(() {
-        _categories = catList
+        _allCategoriesRaw = catList
             .map((json) => TaskCategory.fromJson(json))
-            .where((cat) => !cat.isHidden)
             .toList();
+
+        _categories = _allCategoriesRaw.where((cat) => !cat.isHidden).toList();
         _isLoading = false;
       });
     } catch (e) {
       setState(() => _isLoading = false);
       debugPrint("Error loading data: $e");
+    }
+  }
+
+  // === FUNGSI BARU UNTUK MENYIMPAN KATEGORI BARU KE FILE ===
+  Future<void> _addNewCategory(String name, String icon) async {
+    final newCategory = TaskCategory(
+      name: name,
+      icon: icon,
+      isHidden: false,
+      tasks: [],
+    );
+
+    // Tambahkan ke penampung utama
+    _allCategoriesRaw.add(newCategory);
+
+    // Susun struktur JSON kembali
+    final Map<String, dynamic> updatedMap = {
+      'categories': _allCategoriesRaw.map((cat) => cat.toJson()).toList(),
+    };
+
+    // Encode kembali ke String JSON dengan format rapi (indent)
+    final String updatedJsonString = const JsonEncoder.withIndent(
+      '  ',
+    ).convert(updatedMap);
+
+    try {
+      File jsonFile = await _storageService.getTargetJsonFile(_selectedBaseDir);
+      await _storageService.saveJsonData(jsonFile, updatedJsonString);
+
+      // Refresh UI dan memuat ulang data dari file lokal
+      _initStorageAndLoadData();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Kategori "$name" berhasil ditambahkan!')),
+      );
+    } catch (e) {
+      debugPrint("Error saving new category: $e");
     }
   }
 
@@ -76,6 +118,18 @@ class _HomeScreenState extends State<HomeScreen> {
     showDialog(
       context: context,
       builder: (context) => TasksDialog(category: category),
+    );
+  }
+
+  // Fungsi untuk memicu dialog tambah kategori
+  void _showAddCategoryDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AddCategoryDialog(
+        onSave: (name, icon) {
+          _addNewCategory(name, icon);
+        },
+      ),
     );
   }
 
@@ -124,8 +178,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 );
               },
             ),
+      // === HUBUNGKAN FLOATING ACTION BUTTON DI SINI ===
       floatingActionButton: FloatingActionButton(
-        onPressed: () {},
+        onPressed: _showAddCategoryDialog,
         backgroundColor: Colors.teal,
         child: const Icon(Icons.add, size: 30),
       ),
