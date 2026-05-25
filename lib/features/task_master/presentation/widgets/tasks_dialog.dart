@@ -20,6 +20,89 @@ class TasksDialog extends StatelessWidget {
     required this.onDeleteTask,
   });
 
+  // Fungsi helper untuk memformat tanggal ke gaya Indonesia dengan warna terpisah
+  List<TextSpan> _buildIndonesianDateSpans(String? dateStr) {
+    if (dateStr == null || dateStr.trim().isEmpty) return [];
+
+    try {
+      final DateTime parsedDate = DateTime.parse(dateStr);
+
+      // Map Nama Hari Indonesia
+      const List<String> namaHari = [
+        'Senin',
+        'Selasa',
+        'Rabu',
+        'Kamis',
+        'Jumat',
+        'Sabtu',
+        'Minggu',
+      ];
+      // Map Nama Bulan Indonesia
+      const List<String> namaBulan = [
+        'Januari',
+        'Februari',
+        'Maret',
+        'April',
+        'Mei',
+        'Juni',
+        'Juli',
+        'Agustus',
+        'September',
+        'Oktober',
+        'November',
+        'Desember',
+      ];
+
+      final String hari = '(${namaHari[parsedDate.weekday - 1]}) ';
+      final String tanggal = '${parsedDate.day} ';
+      final String bulan = '${namaBulan[parsedDate.month - 1]} ';
+      final String tahun = '${parsedDate.year}';
+
+      return [
+        const TextSpan(
+          text: ' | Update: ',
+          style: TextStyle(color: Colors.blueGrey),
+        ),
+        TextSpan(
+          text: hari,
+          style: TextStyle(
+            color: Colors.purple[900],
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        TextSpan(
+          text: tanggal,
+          style: TextStyle(
+            color: Colors.pink[700],
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        TextSpan(
+          text: bulan,
+          style: TextStyle(
+            color: Colors.teal[700],
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        TextSpan(
+          text: tahun,
+          style: TextStyle(
+            color: Colors.deepOrange[700],
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ];
+    } catch (_) {
+      // Jika parsing gagal, kembalikan teks aslinya dengan warna default
+      return [
+        TextSpan(
+          text: ' | Update: $dateStr',
+          style: const TextStyle(color: Colors.purple),
+        ),
+      ];
+    }
+  }
+
   void _showEditTaskDetailDialog(
     BuildContext context,
     TaskItem task,
@@ -95,33 +178,34 @@ class TasksDialog extends StatelessWidget {
                         itemBuilder: (context, index) {
                           final task = category.tasks[index];
 
-                          // === LOGIKA PEWARNAAN & STRUKTUR TEKS SUBTITLE ===
-                          String todayText = '';
-                          Color todayColor;
+                          // === LOGIKA STRUKTUR TEKS & PEWARNAAN SUBTITLE ===
+                          String? todayText;
+                          Color? todayColor;
 
                           if (task.targetCountToday == 0) {
-                            // Jika target harian 0 atau tidak diatur, sembunyikan targetnya
-                            todayText = '+${task.countToday} hari ini';
-                            todayColor =
-                                Colors.blueGrey; // Warna netral yang cocok
+                            if (task.countToday > 0) {
+                              // Tanpa target harian, tapi sudah ada hitungan hari ini -> Tampilkan (Warna Hijau)
+                              todayText = '+${task.countToday} hari ini';
+                              todayColor = Colors.green[700]!;
+                            } else {
+                              // Tanpa target harian DAN hitungan masih 0 -> Jangan ditulis dlu (null)
+                              todayText = null;
+                            }
                           } else {
-                            // Jika ada target harian, tampilkan format lengkap
+                            // Jika memiliki target harian, selalu tampilkan format lengkap
                             todayText =
                                 '+${task.countToday} / ${task.targetCountToday} hari ini';
                             if (task.countToday >= task.targetCountToday) {
-                              todayColor = Colors
-                                  .green[700]!; // Hijau jika mencapai target
+                              todayColor = Colors.green[700]!;
                             } else {
-                              todayColor = Colors
-                                  .orange[700]!; // Oranye jika belum mencapai target
+                              todayColor = Colors.orange[700]!;
                             }
                           }
 
-                          String totalText =
-                              ' | Total: ${task.count} / ${task.targetCount}';
-                          if (task.date != null) {
-                            totalText += ' | Update: ${task.date}';
-                          }
+                          // Tentukan teks penghubung pipa pembatas total count
+                          String totalText = (todayText == null)
+                              ? 'Total: ${task.count} / ${task.targetCount}'
+                              : ' | Total: ${task.count} / ${task.targetCount}';
 
                           return ListTile(
                             dense: true,
@@ -131,13 +215,10 @@ class TasksDialog extends StatelessWidget {
                                 color: Colors.blue,
                                 size: 28,
                               ),
-                              // === TAMBAHKAN ASYNC/AWAIT DI SINI ===
                               onPressed: () async {
                                 bool isUpdated = await onIncrementTask(task);
                                 if (isUpdated) {
-                                  setDialogState(
-                                    () {},
-                                  ); // Hanya re-render jika user menekan tombol 'Tambah'
+                                  setDialogState(() {});
                                 }
                               },
                             ),
@@ -148,28 +229,31 @@ class TasksDialog extends StatelessWidget {
                                 fontSize: 15,
                               ),
                             ),
-                            // Menggunakan Text.rich untuk pewarnaan teks parsial yang rapi
+                            // Menggunakan Text.rich untuk segmentasi warna subtitle yang sangat spesifik
                             subtitle: Text.rich(
                               TextSpan(
                                 children: [
-                                  TextSpan(
-                                    text: todayText,
-                                    style: TextStyle(
-                                      color: todayColor,
-                                      fontWeight:
-                                          (task.targetCountToday > 0 &&
-                                              task.countToday >=
-                                                  task.targetCountToday)
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
+                                  // 1. Bagian Progress Hari Ini (jika ada/memenuhi syarat tampil)
+                                  if (todayText != null)
+                                    TextSpan(
+                                      text: todayText,
+                                      style: TextStyle(
+                                        color: todayColor,
+                                        fontWeight:
+                                            task.countToday >=
+                                                    task.targetCountToday ||
+                                                task.targetCountToday == 0
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
+                                      ),
                                     ),
-                                  ),
+                                  // 2. Bagian Total Count
                                   TextSpan(
                                     text: totalText,
-                                    style: const TextStyle(
-                                      color: Colors.blueGrey,
-                                    ),
+                                    style: TextStyle(color: Colors.blue[800]),
                                   ),
+                                  // 3. Bagian Tanggal dengan format Indonesia dan warna pecahan kustom
+                                  ..._buildIndonesianDateSpans(task.date),
                                 ],
                               ),
                               style: const TextStyle(fontSize: 11),
@@ -188,12 +272,9 @@ class TasksDialog extends StatelessWidget {
                                     setDialogState,
                                   );
                                 } else if (value == 'delete_task') {
-                                  // === TAMBAHKAN AWAIT DAN CEK KONDISI BERHASIL ===
                                   bool isDeleted = await onDeleteTask(task);
                                   if (isDeleted) {
-                                    setDialogState(
-                                      () {},
-                                    ); // Re-render daftar tugas secara instan
+                                    setDialogState(() {});
                                   }
                                 }
                               },
@@ -238,9 +319,7 @@ class TasksDialog extends StatelessWidget {
                   ),
                   TextButton(
                     onPressed: () {},
-                    child: const Text(
-                      'Tambah Tugas',
-                    ), // <--- Pastikan bersih sampai di sini saja
+                    child: const Text('Tambah Tugas'),
                   ),
                   const SizedBox(width: 8),
                 ],
