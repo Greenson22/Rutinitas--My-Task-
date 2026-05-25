@@ -1,0 +1,66 @@
+class TaskCategory {
+  final String name;
+  final String icon;
+  final bool isHidden;
+  final List<TaskItem> tasks;
+
+  TaskCategory({
+    required this.name,
+    required this.icon,
+    required this.isHidden,
+    required this.tasks,
+  });
+
+  factory TaskCategory.fromJson(Map<String, dynamic> json) {
+    var list = json['tasks'] as List? ?? [];
+    List<TaskItem> taskList = list.map((i) => TaskItem.fromJson(i)).toList();
+
+    return TaskCategory(
+      name: json['name'] ?? '',
+      icon: json['icon'] ?? '📌',
+      isHidden: json['isHidden'] ?? false,
+      tasks: taskList,
+    );
+  }
+}
+
+class TaskItem {
+  final String id;
+  final String name;
+  final int count;
+  final String? date;
+  final bool checked;
+  final int countToday;
+  final String lastUpdated;
+  final int targetCountToday;
+  final int type;
+  final int targetCount;
+
+  TaskItem({
+    required this.id,
+    required this.name,
+    required this.count,
+    this.date,
+    required this.checked,
+    required this.countToday,
+    required this.lastUpdated,
+    required this.targetCountToday,
+    required this.type,
+    required this.targetCount,
+  });
+
+  factory TaskItem.fromJson(Map<String, dynamic> json) {
+    return TaskItem(
+      id: json['id'] ?? '',
+      name: json['name'] ?? '',
+      count: json['count'] ?? 0,
+      date: json['date'],
+      checked: json['checked'] ?? false,
+      countToday: json['countToday'] ?? 0,
+      lastUpdated: json['lastUpdated'] ?? '',
+      targetCountToday: json['targetCountToday'] ?? 0,
+      type: json['type'] ?? 0,
+      targetCount: json['targetCount'] ?? 0,
+    );
+  }
+}
