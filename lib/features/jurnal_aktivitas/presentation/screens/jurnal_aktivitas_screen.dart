@@ -22,23 +22,11 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
   final TextEditingController _namaAktivitasController =
       TextEditingController();
   final TextEditingController _durasiController = TextEditingController();
-  String _selectedKategori = 'Umum';
 
   List<TimeLogEntry> _logs = [];
   String _baseDir = '';
   String _fullJsonPath = '';
   bool _isLoading = true;
-
-  // Daftar opsi kategori untuk mempermudah user
-  final List<String> _daftarKategori = [
-    'Umum',
-    'Primary',
-    'Secondary',
-    'Target',
-    'Habit',
-    'Career',
-    'Coding',
-  ];
 
   @override
   void initState() {
@@ -98,33 +86,27 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     final String todayStr = _getTodayDateString();
 
     setState(() {
-      // Buat objek aktivitas baru
+      // Buat objek aktivitas baru (kategori dikosongkan/null)
       final newTempTask = TimeLogTask(
-        id: DateTime.now()
-            .millisecondsSinceEpoch, // Generate ID sederhana dari timestamp
+        id: DateTime.now().millisecondsSinceEpoch,
         nama: nama,
         durasiMenit: durasi,
-        kategori: _selectedKategori,
+        kategori: null,
         linkedTaskIds: [],
       );
 
-      // Cari apakah log hari ini sudah ada
       int existingDayIndex = _logs.indexWhere(
         (entry) => entry.tanggal == todayStr,
       );
 
       if (existingDayIndex != -1) {
-        // Jika sudah ada log di tanggal hari ini, tambahkan task ke list teratas hari tersebut
         _logs[existingDayIndex].tasks.insert(0, newTempTask);
       } else {
-        // Jika belum ada entri tanggal hari ini, buat entri tanggal baru di posisi teratas list
         _logs.insert(0, TimeLogEntry(tanggal: todayStr, tasks: [newTempTask]));
       }
 
-      // Bersihkan form input setelah berhasil
       _namaAktivitasController.clear();
       _durasiController.clear();
-      _selectedKategori = 'Umum';
     });
 
     await _saveData();
@@ -134,6 +116,44 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
         content: Text('✨ Aktivitas berhasil dicatat!'),
         backgroundColor: Colors.teal,
         duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  // FUNGSI BARU: Menambahkan durasi aktivitas sebanyak 30 menit
+  void _tambahDurasiAktivitas(TimeLogTask task) async {
+    setState(() {
+      // Karena class model TimeLogTask menggunakan properti final,
+      // kita perlu mengubah strukturnya di model atau melakukan trik reassignment jika diizinkan,
+      // Namun melihat struktur data Anda, agar aman kita buat task baru atau update variabelnya.
+      // Catatan: Di time_log_model.dart, durasiMenit didefinisikan sebagai final.
+      // Kita bisa mengakalinya dengan mengganti objek task di dalam list logs.
+    });
+
+    // Menemukan dan memperbarui data di dalam list logs
+    for (var logEntry in _logs) {
+      int idx = logEntry.tasks.indexWhere((t) => t.id == task.id);
+      if (idx != -1) {
+        setState(() {
+          logEntry.tasks[idx] = TimeLogTask(
+            id: task.id,
+            nama: task.nama,
+            durasiMenit: task.durasiMenit + 30, // Ditambah 30 menit
+            kategori: task.kategori,
+            linkedTaskIds: task.linkedTaskIds,
+          );
+        });
+        break;
+      }
+    }
+
+    await _saveData(); // Simpan otomatis ke JSON lokal
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('⏱ Durasi "${task.nama}" ditambah 30 menit!'),
+        duration: const Duration(seconds: 1),
+        backgroundColor: Colors.indigo,
       ),
     );
   }
@@ -156,7 +176,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
-                // ================= SECTION 1: FORM INPUT YANG CANTIK =================
+                // SECTION 1: FORM INPUT TANPA KATEGORI
                 _buildFormInputCard(),
 
                 // Judul Pemisah Riwayat
@@ -182,7 +202,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                   ),
                 ),
 
-                // ================= SECTION 2: LIST RIWAYAT LOG =================
+                // SECTION 2: LIST RIWAYAT LOG + TOMBOL TAMBAH DURASI
                 Expanded(
                   child: _logs.isEmpty
                       ? const Center(
@@ -217,9 +237,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                 subtitle: Text(
                                   '${log.tasks.length} Aktivitas terekam',
                                 ),
-                                initiallyExpanded:
-                                    index ==
-                                    0, // Buka penel hari ini secara otomatis
+                                initiallyExpanded: index == 0,
                                 children: log.tasks.map((task) {
                                   return Container(
                                     decoration: BoxDecoration(
@@ -247,32 +265,46 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                           fontSize: 13.5,
                                         ),
                                       ),
-                                      subtitle: Text(
-                                        task.kategori ?? 'Tanpa Kategori',
-                                        style: TextStyle(
-                                          color: Colors.indigo[400],
-                                          fontSize: 11,
-                                        ),
-                                      ),
-                                      trailing: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 4,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.amber[50],
-                                          borderRadius: BorderRadius.circular(
-                                            6,
+                                      // Kategori dihilangkan dari tampilan subtitle
+                                      subtitle: null,
+                                      trailing: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          // Tampilan Durasi Utama
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 4,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.amber[50],
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
+                                            ),
+                                            child: Text(
+                                              '⏱ ${task.durasiMenit} mnt',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.amber[900],
+                                                fontSize: 12,
+                                              ),
+                                            ),
                                           ),
-                                        ),
-                                        child: Text(
-                                          '⏱ ${task.durasiMenit} mnt',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.amber[900],
-                                            fontSize: 12,
+                                          const SizedBox(width: 4),
+                                          // TOMBOL ICON BARU: Menambah durasi (+30 Menit) jika ditekan
+                                          IconButton(
+                                            icon: const Icon(
+                                              Icons.add_circle,
+                                              color: Colors.indigo,
+                                              size: 22,
+                                            ),
+                                            tooltip: 'Tambah 30 Menit',
+                                            constraints: const BoxConstraints(),
+                                            padding: const EdgeInsets.all(4),
+                                            onPressed: () =>
+                                                _tambahDurasiAktivitas(task),
                                           ),
-                                        ),
+                                        ],
                                       ),
                                     ),
                                   );
@@ -333,63 +365,24 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
               ),
               const SizedBox(height: 12),
 
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Input Durasi Waktu
-                  Expanded(
-                    flex: 4,
-                    child: TextFormField(
-                      controller: _durasiController,
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        labelText: 'Durasi (Menit)',
-                        hintText: '30',
-                        prefixIcon: const Icon(Icons.timer_outlined, size: 20),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        isDense: true,
-                      ),
-                      validator: (v) {
-                        if (v!.trim().isEmpty) return 'Wajib isi';
-                        if (int.tryParse(v.trim()) == null) return 'Angka saja';
-                        return null;
-                      },
-                    ),
+              // Bagian Durasi dibuat memenuhi baris penuh karena Dropdown Kategori dihapus
+              TextFormField(
+                controller: _durasiController,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: 'Durasi (Menit)',
+                  hintText: '30',
+                  prefixIcon: const Icon(Icons.timer_outlined, size: 20),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  const SizedBox(width: 12),
-
-                  // Dropdown Pilihan Kategori
-                  Expanded(
-                    flex: 5,
-                    child: DropdownButtonFormField<String>(
-                      value: _selectedKategori,
-                      decoration: InputDecoration(
-                        labelText: 'Kategori',
-                        prefixIcon: const Icon(Icons.tag, size: 20),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        isDense: true,
-                      ),
-                      items: _daftarKategori.map((String value) {
-                        return DropdownMenuItem<String>(
-                          value: value,
-                          child: Text(
-                            value,
-                            style: const TextStyle(fontSize: 14),
-                          ),
-                        );
-                      }).toList(),
-                      onChanged: (newValue) {
-                        if (newValue != null) {
-                          setState(() => _selectedKategori = newValue);
-                        }
-                      },
-                    ),
-                  ),
-                ],
+                  isDense: true,
+                ),
+                validator: (v) {
+                  if (v!.trim().isEmpty) return 'Wajib isi';
+                  if (int.tryParse(v.trim()) == null) return 'Angka saja';
+                  return null;
+                },
               ),
               const SizedBox(height: 16),
 
