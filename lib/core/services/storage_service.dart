@@ -18,16 +18,9 @@ class StorageService {
   }
 
   Future<File> getTargetJsonFile(String baseDirSetting) async {
-    Directory baseDir;
-    if (baseDirSetting == 'Downloads') {
-      baseDir =
-          await getDownloadsDirectory() ??
-          await getApplicationDocumentsDirectory();
-    } else {
-      baseDir = await getApplicationDocumentsDirectory();
-    }
+    // Jika baseDirSetting sudah berupa full path dari file picker, langsung pakai jalurnya
+    final Directory myTaskDir = Directory('$baseDirSetting/mytask');
 
-    final Directory myTaskDir = Directory('${baseDir.path}/mytask');
     if (!await myTaskDir.exists()) {
       await myTaskDir.create(recursive: true);
     }
