@@ -1,15 +1,21 @@
+// lib/features/task_master/presentation/widgets/drawer_menu.dart
+
 import 'package:flutter/material.dart';
+import '../screens/home_screen.dart';
+import '../../../daily/presentation/screens/daily_screen.dart'; // <--- IMPORT BARU
 
 class DrawerMenu extends StatelessWidget {
   final String selectedBaseDir;
   final String fullJsonPath;
   final VoidCallback onOpenSettings;
+  final bool isDailyActive; // <--- SEBAGAI PENANDA HALAMAN SEKARANG
 
   const DrawerMenu({
     super.key,
     required this.selectedBaseDir,
     required this.fullJsonPath,
     required this.onOpenSettings,
+    this.isDailyActive = false, // Default false (Task Master)
   });
 
   @override
@@ -42,13 +48,30 @@ class DrawerMenu extends StatelessWidget {
           _buildDrawerItem(
             Icons.format_list_bulleted,
             'Task Master',
-            isSelected: true,
-            onTap: () => Navigator.pop(context),
+            isSelected: !isDailyActive,
+            onTap: () {
+              Navigator.pop(context);
+              if (isDailyActive) {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => const HomeScreen()),
+                );
+              }
+            },
           ),
           _buildDrawerItem(
             Icons.wb_sunny_outlined,
             'Daily',
-            onTap: () => Navigator.pop(context),
+            isSelected: isDailyActive,
+            onTap: () {
+              Navigator.pop(context);
+              if (!isDailyActive) {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => const DailyScreen()),
+                );
+              }
+            },
           ),
           _buildDrawerItem(
             Icons.calendar_today,

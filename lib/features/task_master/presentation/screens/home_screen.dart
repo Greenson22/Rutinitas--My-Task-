@@ -353,6 +353,7 @@ class _HomeScreenState extends State<HomeScreen> {
         selectedBaseDir: _selectedBaseDir,
         fullJsonPath: _fullJsonPath,
         onOpenSettings: _showSettingsDialog,
+        isDailyActive: false,
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())

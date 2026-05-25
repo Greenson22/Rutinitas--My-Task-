@@ -1,3 +1,5 @@
+// lib/core/services/storage_service.dart
+
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
@@ -34,8 +36,36 @@ class StorageService {
     return await jsonFile.readAsString();
   }
 
-  // === TAMBAHKAN FUNGSI BARU INI ===
   Future<void> saveJsonData(File jsonFile, String jsonContent) async {
     await jsonFile.writeAsString(jsonContent);
+  }
+
+  // =========================================================================
+  // === TAMBAHAN UNTUK FITUR DAILY (MENYIMPAN DI SEBELAH FOLDER MYTASK) ===
+  // =========================================================================
+
+  Future<File> getDailyJsonFile(String baseDirSetting) async {
+    // Membuat folder 'daily' sejajar dengan folder 'mytask'
+    final Directory dailyDir = Directory('$baseDirSetting/daily');
+
+    if (!await dailyDir.exists()) {
+      await dailyDir.create(recursive: true);
+    }
+
+    return File('${dailyDir.path}/my_rutinitas.json');
+  }
+
+  Future<String> loadOrInitializeDailyJson(File jsonFile) async {
+    if (!await jsonFile.exists()) {
+      // Menginisialisasi dengan template JSON kosong/bawaan sesuai struktur user
+      const String defaultDailyContent = '''
+{
+  "topics": "Rutinitas",
+  "subjects": []
+}
+''';
+      await jsonFile.writeAsString(defaultDailyContent);
+    }
+    return await jsonFile.readAsString();
   }
 }
