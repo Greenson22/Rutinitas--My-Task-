@@ -23,6 +23,8 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
   bool _showControlPanel = false; // Default: tersembunyi (collapsed)
   final List<SubMateriItem> _selectedItems = [];
 
+  SubMateriItem? _highlightedItem;
+
   @override
   void dispose() {
     _singleInputController.dispose();
@@ -96,8 +98,20 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
   void _moveItemOrder(SubMateriItem item, int direction) {
     setState(() {
       _moveItemInTree(widget.subject.subMateri, item, direction);
+      _highlightedItem = item; // Tandai item yang dipindahkan
     });
     widget.onDataChanged();
+
+    // Hapus efek highlight setelah 2 detik (2000 milidetik)
+    Future.delayed(const Duration(milliseconds: 2000), () {
+      if (mounted) {
+        setState(() {
+          if (_highlightedItem == item) {
+            _highlightedItem = null;
+          }
+        });
+      }
+    });
   }
 
   Future<void> _selectSubjectDate(BuildContext context, bool isEndDate) async {
@@ -828,7 +842,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     );
   }
 
-  // WIDGET REKURSIF UNTUK RENDERING NESTED ITEMS (DENGAN URUTAN MANUAL)
+  // WIDGET REKURSIF UNTUK RENDERING NESTED ITEMS (DENGAN HIGHLIGHT)
   Widget _buildTreeRow(
     SubMateriItem item,
     int depth,
@@ -839,6 +853,9 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     bool isChecked = item.progress == 'selesai';
     bool isCurrentlySelected = _selectedItems.contains(item);
 
+    // Cek apakah item ini yang sedang mendapatkan efek highlight pemindahan
+    bool isHighlighted = _highlightedItem == item;
+
     // Membatasi tingkat indentasi agar teks yang sangat bersarang tidak meluber ke luar screen
     double paddingLeft = (depth * 14.0).clamp(0.0, 48.0);
 
@@ -846,7 +863,20 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Padding(
+        // MENGGANTI PADDING MENJADI ANIMATEDCONTAINER UNTUK EFEK HIGHLIGHT
+        AnimatedContainer(
+          duration: const Duration(
+            milliseconds: 400,
+          ), // Durasi transisi warna halus
+          curve: Curves.easeInOut,
+          margin: const EdgeInsets.symmetric(vertical: 1),
+          decoration: BoxDecoration(
+            // Jika sedang dihighlight, beri warna latar belakang (misal: kuning/amber transparan)
+            color: isHighlighted
+                ? Colors.amber.withOpacity(0.35)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(6),
+          ),
           padding: EdgeInsets.fromLTRB(paddingLeft, 2, 4, 2),
           child: Row(
             children: [
