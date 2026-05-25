@@ -3,7 +3,7 @@ import 'dart:math';
 class TaskCategory {
   final String name;
   final String icon;
-  final bool isHidden;
+  bool isHidden;
   final List<TaskItem> tasks;
 
   TaskCategory({

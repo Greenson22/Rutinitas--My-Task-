@@ -1,11 +1,14 @@
+// lib/features/task_master/presentation/widgets/category_card.dart
+
 import 'package:flutter/material.dart';
 import '../../data/models/task_model.dart';
 
 class CategoryCard extends StatelessWidget {
   final TaskCategory category;
   final VoidCallback onTap;
-  final VoidCallback onEdit; // Callback untuk edit
-  final VoidCallback onDelete; // Callback untuk hapus
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+  final VoidCallback onToggleVisibility; // <--- CALLBACK BARU
 
   const CategoryCard({
     super.key,
@@ -13,6 +16,7 @@ class CategoryCard extends StatelessWidget {
     required this.onTap,
     required this.onEdit,
     required this.onDelete,
+    required this.onToggleVisibility, // <--- AJAK DI CONSTRUCTOR
   });
 
   @override
@@ -43,9 +47,11 @@ class CategoryCard extends StatelessWidget {
                   children: [
                     Text(
                       category.name,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w500,
+                        // Berikan efek transparan tipis jika kategori sedang disembunyikan
+                        color: category.isHidden ? Colors.grey : Colors.black87,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -57,7 +63,6 @@ class CategoryCard extends StatelessWidget {
                   ],
                 ),
               ),
-              // === UBAH BAGIAN INI MENJADI POPUP MENU ===
               PopupMenuButton<String>(
                 icon: const Icon(Icons.more_vert, color: Colors.grey, size: 20),
                 padding: EdgeInsets.zero,
@@ -67,6 +72,8 @@ class CategoryCard extends StatelessWidget {
                     onEdit();
                   } else if (value == 'delete') {
                     onDelete();
+                  } else if (value == 'toggle_visibility') {
+                    onToggleVisibility();
                   }
                 },
                 itemBuilder: (BuildContext context) => [
@@ -75,6 +82,22 @@ class CategoryCard extends StatelessWidget {
                     child: ListTile(
                       leading: Icon(Icons.edit, size: 20),
                       title: Text('Ubah'),
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                    ),
+                  ),
+                  PopupMenuItem<String>(
+                    value: 'toggle_visibility',
+                    child: ListTile(
+                      leading: Icon(
+                        category.isHidden
+                            ? Icons.visibility
+                            : Icons.visibility_off,
+                        size: 20,
+                      ),
+                      title: Text(
+                        category.isHidden ? 'Tampilkan' : 'Sembunyikan',
+                      ),
                       contentPadding: EdgeInsets.zero,
                       dense: true,
                     ),
