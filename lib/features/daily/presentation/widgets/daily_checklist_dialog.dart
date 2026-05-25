@@ -67,6 +67,39 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     );
   }
 
+  // Fungsi untuk menukar posisi sub-materi di dalam list-nya secara rekursif
+  bool _moveItemInTree(
+    List<SubMateriItem> treeList,
+    SubMateriItem target,
+    int direction,
+  ) {
+    if (treeList.contains(target)) {
+      int currentIndex = treeList.indexOf(target);
+      int newIndex = currentIndex + direction;
+
+      // Pastikan index baru masih dalam batas aman list
+      if (newIndex >= 0 && newIndex < treeList.length) {
+        final item = treeList.removeAt(currentIndex);
+        treeList.insert(newIndex, item);
+        return true;
+      }
+      return false;
+    }
+
+    // Jika tidak ketemu di level ini, cari ke anak-anaknya secara rekursif
+    for (var item in treeList) {
+      if (_moveItemInTree(item.subMateri, target, direction)) return true;
+    }
+    return false;
+  }
+
+  void _moveItemOrder(SubMateriItem item, int direction) {
+    setState(() {
+      _moveItemInTree(widget.subject.subMateri, item, direction);
+    });
+    widget.onDataChanged();
+  }
+
   Future<void> _selectSubjectDate(BuildContext context, bool isEndDate) async {
     DateTime initialDate = DateTime.now();
     String? dateToParse = isEndDate
@@ -603,6 +636,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
           ),
 
           // KONTEN TREE LIST
+          // KONTEN TREE LIST
           Flexible(
             child: widget.subject.subMateri.isEmpty
                 ? const Padding(
@@ -617,16 +651,21 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                     ),
                     children: [
                       // 1. Tampilkan sub-materi yang BELUM SELESAI
-                      ...widget.subject.subMateri
-                          .where((item) => item.progress != 'selesai')
-                          .map(
-                            (item) => _buildTreeRow(
-                              item,
-                              0,
-                              widget.subject.subMateri.indexOf(item),
-                            ),
-                          )
-                          .toList(),
+                      ...List.generate(widget.subject.subMateri.length, (
+                        index,
+                      ) {
+                        final item = widget.subject.subMateri[index];
+                        if (item.progress == 'selesai')
+                          return const SizedBox.shrink();
+
+                        return _buildTreeRow(
+                          item,
+                          0,
+                          index,
+                          isFirst: index == 0,
+                          isLast: index == widget.subject.subMateri.length - 1,
+                        );
+                      }),
 
                       // 2. Berikan Garis Pembatas dan Keterangan jika ada item yang selesai
                       if (widget.subject.subMateri.any(
@@ -670,16 +709,21 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                       ],
 
                       // 3. Tampilkan sub-materi yang SUDAH SELESAI di paling bawah
-                      ...widget.subject.subMateri
-                          .where((item) => item.progress == 'selesai')
-                          .map(
-                            (item) => _buildTreeRow(
-                              item,
-                              0,
-                              widget.subject.subMateri.indexOf(item),
-                            ),
-                          )
-                          .toList(),
+                      ...List.generate(widget.subject.subMateri.length, (
+                        index,
+                      ) {
+                        final item = widget.subject.subMateri[index];
+                        if (item.progress != 'selesai')
+                          return const SizedBox.shrink();
+
+                        return _buildTreeRow(
+                          item,
+                          0,
+                          index,
+                          isFirst: index == 0,
+                          isLast: index == widget.subject.subMateri.length - 1,
+                        );
+                      }),
                     ],
                   ),
           ),
@@ -784,8 +828,14 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     );
   }
 
-  // WIDGET REKURSIF UNTUK RENDERING NESTED ITEMS (DIPERBARUI)
-  Widget _buildTreeRow(SubMateriItem item, int depth, int originalIndex) {
+  // WIDGET REKURSIF UNTUK RENDERING NESTED ITEMS (DENGAN URUTAN MANUAL)
+  Widget _buildTreeRow(
+    SubMateriItem item,
+    int depth,
+    int originalIndex, {
+    bool isFirst = false,
+    bool isLast = false,
+  }) {
     bool isChecked = item.progress == 'selesai';
     bool isCurrentlySelected = _selectedItems.contains(item);
 
@@ -800,7 +850,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
           padding: EdgeInsets.fromLTRB(paddingLeft, 2, 4, 2),
           child: Row(
             children: [
-              if (_isEditMode)
+              if (_isEditMode) ...[
                 Checkbox(
                   value: isCurrentlySelected,
                   activeColor: Colors.indigo,
@@ -825,6 +875,26 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                     });
                   },
                 ),
+                // TOMBOL URUTAN KE ATAS
+                IconButton(
+                  icon: const Icon(Icons.arrow_upward, size: 16),
+                  color: isFirst ? Colors.grey[300] : Colors.indigo,
+                  onPressed: isFirst ? null : () => _moveItemOrder(item, -1),
+                  constraints: const BoxConstraints(),
+                  padding: const EdgeInsets.all(2),
+                  tooltip: 'Naikkan Posisi',
+                ),
+                // TOMBOL URUTAN KE BAWAH
+                IconButton(
+                  icon: const Icon(Icons.arrow_downward, size: 16),
+                  color: isLast ? Colors.grey[300] : Colors.indigo,
+                  onPressed: isLast ? null : () => _moveItemOrder(item, 1),
+                  constraints: const BoxConstraints(),
+                  padding: const EdgeInsets.all(2),
+                  tooltip: 'Turunkan Posisi',
+                ),
+                const SizedBox(width: 4),
+              ],
 
               // Konten Utama Baris
               Expanded(
@@ -934,7 +1004,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                       ),
               ),
 
-              if (_isEditMode)
+              if (_isEditMode) ...[
                 IconButton(
                   icon: const Icon(
                     Icons.add_circle_outline,
@@ -946,7 +1016,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                   constraints: const BoxConstraints(),
                   padding: const EdgeInsets.all(4),
                 ),
-              if (_isEditMode)
                 IconButton(
                   icon: const Icon(
                     Icons.delete_outline,
@@ -957,6 +1026,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                   constraints: const BoxConstraints(),
                   padding: const EdgeInsets.all(4),
                 ),
+              ],
             ],
           ),
         ),
@@ -964,15 +1034,16 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
         // Render anak-anak dari item ini secara rekursif
         if (item.subMateri.isNotEmpty)
           Column(
-            children: item.subMateri
-                .map(
-                  (child) => _buildTreeRow(
-                    child,
-                    depth + 1,
-                    item.subMateri.indexOf(child),
-                  ),
-                )
-                .toList(),
+            children: List.generate(item.subMateri.length, (index) {
+              final child = item.subMateri[index];
+              return _buildTreeRow(
+                child,
+                depth + 1,
+                index,
+                isFirst: index == 0,
+                isLast: index == item.subMateri.length - 1,
+              );
+            }),
           ),
       ],
     );
