@@ -16,11 +16,6 @@ class JurnalAktivitasScreen extends StatefulWidget {
 
 class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
   final StorageService _storageService = StorageService();
-  final _formKey = GlobalKey<FormState>();
-
-  final TextEditingController _namaAktivitasController =
-      TextEditingController();
-  final TextEditingController _durasiController = TextEditingController();
 
   List<TimeLogEntry> _logs = [];
   String _baseDir = '';
@@ -31,13 +26,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
   void initState() {
     super.initState();
     _loadData();
-  }
-
-  @override
-  void dispose() {
-    _namaAktivitasController.dispose();
-    _durasiController.dispose();
-    super.dispose();
   }
 
   String _getTodayDateString() {
@@ -55,8 +43,46 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
           .loadOrInitializeJurnalJson(jsonFile);
       final List<dynamic> decodedJson = jsonDecode(jsonString);
 
+      List<TimeLogEntry> loadedLogs = decodedJson
+          .map((e) => TimeLogEntry.fromJson(e))
+          .toList();
+
+      final String todayStr = _getTodayDateString();
+
+      // LOGIKA OTOMATIS COPY AKTIVITAS SAAT BERGANTI HARI
+      // Cek apakah hari ini sudah memiliki log aktivitas
+      bool hasTodayLog = loadedLogs.any((entry) => entry.tanggal == todayStr);
+
+      if (!hasTodayLog && loadedLogs.isNotEmpty) {
+        // Ambil log paling terakhir/terbaru dari hari sebelumnya (indeks terakhir)
+        final lastLog = loadedLogs.last;
+
+        // Salin semua tugas dari hari sebelumnya, set durasi ke 0 menit
+        List<TimeLogTask> copiedTasks = lastLog.tasks.map((task) {
+          return TimeLogTask(
+            id: task.id,
+            nama: task.nama,
+            durasiMenit: 0, // Reset waktu ke 0 menit
+            kategori: task.kategori,
+            linkedTaskIds: task.linkedTaskIds,
+          );
+        }).toList();
+
+        // Buat entri baru untuk hari ini dengan tugas yang sudah dicopy
+        final todayEntry = TimeLogEntry(tanggal: todayStr, tasks: copiedTasks);
+
+        // Masukkan entri hari baru ke dalam list logs
+        loadedLogs.add(todayEntry);
+
+        // Langsung simpan perubahan otomatis ini ke file JSON
+        final String jsonContent = jsonEncode(
+          loadedLogs.map((e) => e.toJson()).toList(),
+        );
+        await _storageService.saveJsonData(jsonFile, jsonContent);
+      }
+
       setState(() {
-        _logs = decodedJson.map((e) => TimeLogEntry.fromJson(e)).toList();
+        _logs = loadedLogs;
         _isLoading = false;
       });
     } catch (e) {
@@ -75,47 +101,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     } catch (e) {
       debugPrint("Error saving jurnal data: $e");
     }
-  }
-
-  void _tambahAktivitasKeLog() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    final String nama = _namaAktivitasController.text.trim();
-    final int durasi = int.parse(_durasiController.text.trim());
-    final String todayStr = _getTodayDateString();
-
-    setState(() {
-      final newTempTask = TimeLogTask(
-        id: DateTime.now().millisecondsSinceEpoch,
-        nama: nama,
-        durasiMenit: durasi,
-        kategori: null,
-        linkedTaskIds: [],
-      );
-
-      int existingDayIndex = _logs.indexWhere(
-        (entry) => entry.tanggal == todayStr,
-      );
-
-      if (existingDayIndex != -1) {
-        _logs[existingDayIndex].tasks.insert(0, newTempTask);
-      } else {
-        _logs.insert(0, TimeLogEntry(tanggal: todayStr, tasks: [newTempTask]));
-      }
-
-      _namaAktivitasController.clear();
-      _durasiController.clear();
-    });
-
-    await _saveData();
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('✨ Aktivitas berhasil dicatat!'),
-        backgroundColor: Colors.teal,
-        duration: Duration(seconds: 2),
-      ),
-    );
   }
 
   void _tambahDurasiAktivitas(TimeLogTask task) async {
@@ -146,7 +131,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     );
   }
 
-  // TAMPILKAN DIALOG BARU UNTUK RIWAYAT DAFTAR AKTIVITAS 전체
+  // TAMPILKAN DIALOG RIWAYAT DAFTAR AKTIVITAS
   void _tampilkanDialogRiwayat() {
     showDialog(
       context: context,
@@ -155,10 +140,10 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
           builder: (context, setDialogState) {
             return AlertDialog(
               title: Row(
-                children: [
-                  const Icon(Icons.history, color: Colors.indigo),
-                  const SizedBox(width: 8),
-                  const Text('Riwayat Aktivitas'),
+                children: const [
+                  Icon(Icons.history, color: Colors.indigo),
+                  SizedBox(width: 8),
+                  Text('Riwayat Aktivitas'),
                 ],
               ),
               content: SizedBox(
@@ -197,9 +182,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                         ),
                                         onPressed: () {
                                           _tambahDurasiAktivitas(task);
-                                          setDialogState(
-                                            () {},
-                                          ); // Update tampilan di dalam dialog
+                                          setDialogState(() {});
                                         },
                                       ),
                                     ],
@@ -221,16 +204,13 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
           },
         );
       },
-    ).then(
-      (_) => setState(() {}),
-    ); // Pastikan halaman utama ikut segar setelah dialog ditutup
+    ).then((_) => setState(() {}));
   }
 
   @override
   Widget build(BuildContext context) {
     final String todayStr = _getTodayDateString();
 
-    // Memfilter log khusus untuk hari ini saja
     final todayLogIndex = _logs.indexWhere(
       (entry) => entry.tanggal == todayStr,
     );
@@ -261,18 +241,16 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
-                _buildFormInputCard(),
-
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
                   child: Row(
                     children: [
-                      const Icon(Icons.today, size: 18, color: Colors.teal),
-                      const SizedBox(width: 6),
+                      const Icon(Icons.today, size: 20, color: Colors.teal),
+                      const SizedBox(width: 8),
                       Text(
                         'Aktivitas Hari Ini ($todayStr)',
                         style: TextStyle(
-                          fontSize: 14,
+                          fontSize: 15,
                           fontWeight: FontWeight.bold,
                           color: Colors.indigo[900],
                         ),
@@ -280,8 +258,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                     ],
                   ),
                 ),
-
-                // MENAMPILKAN HANYA AKTIVITAS HARI INI
                 Expanded(
                   child: todayTasks.isEmpty
                       ? const Center(
@@ -361,102 +337,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                 ),
               ],
             ),
-    );
-  }
-
-  Widget _buildFormInputCard() {
-    return Card(
-      elevation: 4,
-      margin: const EdgeInsets.all(14),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.rate_review_outlined, color: Colors.indigo[700]),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Catat Aktivitas Baru',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.indigo[900],
-                    ),
-                  ),
-                ],
-              ),
-              const Divider(height: 20, thickness: 1),
-              TextFormField(
-                controller: _namaAktivitasController,
-                decoration: InputDecoration(
-                  labelText: 'Apa yang baru saja Anda lakukan?',
-                  hintText: 'Contoh: Slicing UI Dashboard Flutter',
-                  prefixIcon: const Icon(Icons.edit, size: 20),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  isDense: true,
-                ),
-                validator: (v) =>
-                    v!.trim().isEmpty ? 'Aktivitas tidak boleh kosong' : null,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _durasiController,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: 'Durasi (Menit)',
-                  hintText: '30',
-                  prefixIcon: const Icon(Icons.timer_outlined, size: 20),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  isDense: true,
-                ),
-                validator: (v) {
-                  if (v!.trim().isEmpty) return 'Wajib isi';
-                  if (int.tryParse(v.trim()) == null) return 'Angka saja';
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                height: 44,
-                child: ElevatedButton.icon(
-                  onPressed: _tambahAktivitasKeLog,
-                  icon: const Icon(
-                    Icons.playlist_add_check_rounded,
-                    size: 22,
-                    color: Colors.white,
-                  ),
-                  label: const Text(
-                    'Simpan ke Jurnal',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                      color: Colors.white,
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.teal[600],
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    elevation: 2,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
