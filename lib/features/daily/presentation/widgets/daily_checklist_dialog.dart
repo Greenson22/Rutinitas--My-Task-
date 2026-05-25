@@ -20,7 +20,6 @@ class DailyChecklistDialog extends StatefulWidget {
 
 class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
   final TextEditingController _singleInputController = TextEditingController();
-
   bool _isEditMode = false;
   final List<SubMateriItem> _selectedItems = [];
 
@@ -125,12 +124,12 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
         false;
   }
 
-  void _addSingleSubMateri() async {
+  void _addRootSubMateri() async {
     final text = _singleInputController.text.trim();
     if (text.isEmpty) return;
 
     final confirm = await _showConfirmDialog(
-      title: 'Tambah Sub-Materi',
+      title: 'Tambah Sub-Materi Utama',
       content: 'Apakah Anda yakin ingin menambahkan sub-materi "$text"?',
     );
 
@@ -146,78 +145,69 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     widget.onDataChanged();
   }
 
-  Future<void> _pasteSubMateriFromClipboard() async {
-    ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain);
-    if (data == null || data.text == null || data.text!.trim().isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Clipboard kosong atau tidak valid')),
-        );
-      }
-      return;
-    }
-
-    List<String> lines = data.text!
-        .split(RegExp(r'\r?\n'))
-        .map((e) => e.trim())
-        .where((e) => e.isNotEmpty)
-        .toList();
-
-    if (lines.isEmpty) return;
-
-    final confirm = await _showConfirmDialog(
-      title: 'Tambah Banyak Sub-Materi',
-      content:
-          'Apakah Anda yakin ingin menambahkan ${lines.length} sub-materi dari clipboard?',
+  void _addChildSubMateri(SubMateriItem parentItem) {
+    final childController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Tambah Anak di bawah "${parentItem.namaMateri}"'),
+        content: TextField(
+          controller: childController,
+          decoration: const InputDecoration(
+            hintText: 'Nama anak sub-materi...',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final text = childController.text.trim();
+              if (text.isNotEmpty) {
+                setState(() {
+                  parentItem.subMateri.add(
+                    SubMateriItem(namaMateri: text, progress: 'belum'),
+                  );
+                });
+                _updateSubjectOverallProgress();
+                widget.onDataChanged();
+              }
+              Navigator.pop(context);
+            },
+            child: const Text('Tambah'),
+          ),
+        ],
+      ),
     );
+  }
 
-    if (!confirm) return;
-
-    setState(() {
-      for (var line in lines) {
-        widget.subject.subMateri.add(
-          SubMateriItem(namaMateri: line, progress: 'belum'),
-        );
-      }
-    });
-
-    _updateSubjectOverallProgress();
-    widget.onDataChanged();
+  // Fungsi rekursif untuk menghapus satu item di dalam struktur tree
+  bool _deleteItemFromTree(List<SubMateriItem> treeList, SubMateriItem target) {
+    if (treeList.contains(target)) {
+      treeList.remove(target);
+      return true;
+    }
+    for (var item in treeList) {
+      if (_deleteItemFromTree(item.subMateri, target)) return true;
+    }
+    return false;
   }
 
   void _deleteSingleSubMateri(SubMateriItem item) async {
     final confirm = await _showConfirmDialog(
       title: 'Hapus Sub-Materi',
-      content: 'Apakah Anda yakin ingin menghapus "${item.namaMateri}"?',
-    );
-
-    if (!confirm) return;
-
-    setState(() {
-      widget.subject.subMateri.remove(item);
-      _selectedItems.remove(item);
-    });
-
-    _updateSubjectOverallProgress();
-    widget.onDataChanged();
-  }
-
-  void _deleteSelectedBulk() async {
-    if (_selectedItems.isEmpty) return;
-
-    final confirm = await _showConfirmDialog(
-      title: 'Hapus Terpilih',
       content:
-          'Apakah Anda yakin ingin menghapus ${_selectedItems.length} sub-materi sekaligus?',
+          'Apakah Anda yakin ingin menghapus "${item.namaMateri}" beserta seluruh turunannya?',
     );
 
     if (!confirm) return;
 
     setState(() {
-      widget.subject.subMateri.removeWhere(
-        (item) => _selectedItems.contains(item),
-      );
-      _selectedItems.clear();
+      _deleteItemFromTree(widget.subject.subMateri, item);
+      _selectedItems.remove(item);
     });
 
     _updateSubjectOverallProgress();
@@ -257,25 +247,34 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     );
   }
 
+  // Mengumpulkan semua item ke dalam flat list untuk kebutuhan bulk selection jika diperlukan
+  void _getAllItemsFlattened(
+    List<SubMateriItem> source,
+    List<SubMateriItem> destination,
+  ) {
+    for (var element in source) {
+      destination.add(element);
+      if (element.subMateri.isNotEmpty) {
+        _getAllItemsFlattened(element.subMateri, destination);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final belumSelesaiList = widget.subject.subMateri
-        .where((item) => item.progress != 'selesai')
-        .toList();
-    final selesaiList = widget.subject.subMateri
-        .where((item) => item.progress == 'selesai')
-        .toList();
+    List<SubMateriItem> allFlattened = [];
+    _getAllItemsFlattened(widget.subject.subMateri, allFlattened);
 
     bool isAllSelected =
-        widget.subject.subMateri.isNotEmpty &&
-        widget.subject.subMateri.every((item) => _selectedItems.contains(item));
+        allFlattened.isNotEmpty &&
+        allFlattened.every((item) => _selectedItems.contains(item));
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Header Dialog dengan Judul dan Tanggal Berwarna
+          // HEADER DIALOG
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -330,7 +329,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                     ],
                   ),
                 ),
-                if (_isEditMode && widget.subject.subMateri.isNotEmpty)
+                if (_isEditMode && allFlattened.isNotEmpty)
                   Theme(
                     data: ThemeData(unselectedWidgetColor: Colors.white70),
                     child: Checkbox(
@@ -341,7 +340,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                         setState(() {
                           if (checked == true) {
                             _selectedItems.clear();
-                            _selectedItems.addAll(widget.subject.subMateri);
+                            _selectedItems.addAll(allFlattened);
                           } else {
                             _selectedItems.clear();
                           }
@@ -355,7 +354,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                     color: Colors.white,
                   ),
                   tooltip: _isEditMode
-                      ? 'Selesai Edit Sub'
+                      ? 'Selesai Edit'
                       : 'Mode Edit Sub-Materi',
                   onPressed: () {
                     setState(() {
@@ -368,7 +367,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
             ),
           ),
 
-          // PANEL INPUT: Tambah Sub-Materi
+          // PANEL INPUT UTAMA
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
             child: Row(
@@ -377,7 +376,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                   child: TextField(
                     controller: _singleInputController,
                     decoration: const InputDecoration(
-                      hintText: 'Tambah sub-materi baru...',
+                      hintText: 'Tambah sub-materi utama baru...',
                       isDense: true,
                       contentPadding: EdgeInsets.symmetric(
                         vertical: 10,
@@ -385,28 +384,20 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                       ),
                       border: OutlineInputBorder(),
                     ),
-                    onSubmitted: (_) => _addSingleSubMateri(),
+                    onSubmitted: (_) => _addRootSubMateri(),
                   ),
                 ),
                 const SizedBox(width: 6),
                 IconButton(
                   icon: const Icon(Icons.add_box, color: Colors.teal),
-                  tooltip: 'Tambah',
-                  onPressed: _addSingleSubMateri,
-                ),
-                IconButton(
-                  icon: const Icon(
-                    Icons.assignment_turned_in_rounded,
-                    color: Colors.indigo,
-                  ),
-                  tooltip: 'Paste Banyak (Baris Baru)',
-                  onPressed: _pasteSubMateriFromClipboard,
+                  tooltip: 'Tambah Utama',
+                  onPressed: _addRootSubMateri,
                 ),
               ],
             ),
           ),
 
-          // PANEL KONTROL TANGGAL: Tipe Dan Switch Aktif
+          // PANEL KONTROL TANGGAL
           Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: 16.0,
@@ -450,7 +441,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                         style: const TextStyle(
                           fontSize: 12,
                           color: Colors.black87,
-                        ), // <-- UBAH 'textStyle' MENJADI 'style'
+                        ),
                         isDense: true,
                         underline: const SizedBox(),
                         items: const [
@@ -535,7 +526,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
           ),
           const Divider(),
 
-          // Konten List Item Checklist
+          // KONTEN TREE LIST (Mendukung scrollable)
           Flexible(
             child: widget.subject.subMateri.isEmpty
                 ? const Padding(
@@ -544,49 +535,15 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                   )
                 : ListView(
                     shrinkWrap: true,
-                    padding: const EdgeInsets.all(12),
-                    children: [
-                      if (belumSelesaiList.isNotEmpty) ...[
-                        const Padding(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          child: Text(
-                            'Belum Selesai',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.orange,
-                            ),
-                          ),
-                        ),
-                        ...belumSelesaiList.map((item) => _buildRowItem(item)),
-                      ],
-                      if (belumSelesaiList.isNotEmpty && selesaiList.isNotEmpty)
-                        const Divider(height: 24),
-                      if (selesaiList.isNotEmpty) ...[
-                        const Padding(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          child: Text(
-                            'Selesai',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green,
-                            ),
-                          ),
-                        ),
-                        ...selesaiList.map((item) => _buildRowItem(item)),
-                      ],
-                    ],
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    children: widget.subject.subMateri
+                        .map((item) => _buildTreeRow(item, 0))
+                        .toList(),
                   ),
           ),
-
           const Divider(height: 1),
 
-          // Footer Panel Aksi Kontrol
+          // FOOTER PANEL ACTION
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
@@ -603,7 +560,24 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                   ElevatedButton.icon(
                     onPressed: _selectedItems.isEmpty
                         ? null
-                        : _deleteSelectedBulk,
+                        : () async {
+                            final confirm = await _showConfirmDialog(
+                              title: 'Hapus Masal',
+                              content: 'Hapus seluruh item terpilih?',
+                            );
+                            if (!confirm) return;
+                            setState(() {
+                              for (var item in _selectedItems) {
+                                _deleteItemFromTree(
+                                  widget.subject.subMateri,
+                                  item,
+                                );
+                              }
+                              _selectedItems.clear();
+                            });
+                            _updateSubjectOverallProgress();
+                            widget.onDataChanged();
+                          },
                     icon: const Icon(
                       Icons.delete_sweep,
                       color: Colors.white,
@@ -621,18 +595,22 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                   TextButton.icon(
                     onPressed: () async {
                       final confirm = await _showConfirmDialog(
-                        title: 'Reset Semua Progress',
-                        content:
-                            'Apakah Anda yakin ingin mereset progress semua sub-materi kembali ke semula?',
+                        title: 'Reset Progress',
+                        content: 'Reset semua progress menjadi Belum Selesai?',
                       );
                       if (!confirm) return;
-
-                      setState(() {
-                        for (var item in widget.subject.subMateri) {
+                      void resetRecursive(List<SubMateriItem> list) {
+                        for (var item in list) {
                           item.progress = 'belum';
                           item.finishedDate = null;
+                          resetRecursive(item.subMateri);
                         }
+                      }
+
+                      setState(() {
+                        resetRecursive(widget.subject.subMateri);
                       });
+                      _updateSubjectOverallProgress();
                       widget.onDataChanged();
                     },
                     icon: const Icon(
@@ -664,95 +642,194 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     );
   }
 
-  Widget _buildRowItem(SubMateriItem item) {
+  // WIDGET UTAMA REKURSIF UNTUK RENDERING NESTED ITEMS
+  Widget _buildTreeRow(SubMateriItem item, int depth) {
     bool isChecked = item.progress == 'selesai';
     bool isCurrentlySelected = _selectedItems.contains(item);
 
-    return Row(
+    // Hitung Indentasi: batas maksimal agar teks tidak keluar layar pada nesting yang sangat dalam
+    double paddingLeft = (depth * 14.0).clamp(0.0, 48.0);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        if (_isEditMode)
-          Checkbox(
-            value: isCurrentlySelected,
-            activeColor: Colors.indigo,
-            onChanged: (bool? checked) {
-              setState(() {
-                if (checked == true) {
-                  _selectedItems.add(item);
-                } else {
-                  _selectedItems.remove(item);
-                }
-              });
-            },
-          ),
-        Expanded(
-          child: _isEditMode
-              ? InkWell(
-                  onTap: () => _showEditNameDialog(item),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 12.0,
-                      horizontal: 8.0,
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            item.namaMateri,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: Colors.black87,
-                            ),
-                          ),
-                        ),
-                        const Icon(
-                          Icons.edit_note,
-                          color: Colors.blueGrey,
-                          size: 20,
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              : CheckboxListTile(
-                  title: Text(
-                    item.namaMateri,
-                    style: TextStyle(
-                      fontSize: 14,
-                      decoration: isChecked ? TextDecoration.lineThrough : null,
-                      color: isChecked ? Colors.grey : Colors.black87,
-                    ),
-                  ),
-                  value: isChecked,
-                  activeColor: Colors.teal,
-                  controlAffinity: ListTileControlAffinity.leading,
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
+        Padding(
+          padding: EdgeInsets.fromLTRB(paddingLeft, 2, 4, 2),
+          child: Row(
+            children: [
+              if (_isEditMode)
+                Checkbox(
+                  value: isCurrentlySelected,
+                  activeColor: Colors.indigo,
                   onChanged: (bool? checked) {
                     setState(() {
-                      if (checked == true) {
-                        item.progress = 'selesai';
-                        final now = DateTime.now();
-                        item.finishedDate =
-                            "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
-                      } else {
-                        item.progress = 'belum';
-                        item.finishedDate = null;
+                      void selectChildrenRecursive(
+                        SubMateriItem target,
+                        bool add,
+                      ) {
+                        if (add) {
+                          if (!_selectedItems.contains(target))
+                            _selectedItems.add(target);
+                        } else {
+                          _selectedItems.remove(target);
+                        }
+                        for (var child in target.subMateri) {
+                          selectChildrenRecursive(child, add);
+                        }
                       }
-                      _updateSubjectOverallProgress();
+
+                      selectChildrenRecursive(item, checked == true);
                     });
-                    widget.onDataChanged();
                   },
                 ),
+
+              // Tampilan Konten Utama Item (Checkbox + Text Wrap)
+              Expanded(
+                child: _isEditMode
+                    ? InkWell(
+                        onTap: () => _showEditNameDialog(item),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 8.0,
+                            horizontal: 4.0,
+                          ),
+                          child: Row(
+                            children: [
+                              if (item.subMateri.isNotEmpty)
+                                const Icon(
+                                  Icons.account_tree_outlined,
+                                  size: 16,
+                                  color: Colors.indigo,
+                                ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  item.namaMateri,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.black87,
+                                  ),
+                                  softWrap:
+                                      true, // Membuat teks otomatis turun ke baris baru jika panjang
+                                ),
+                              ),
+                              const Icon(
+                                Icons.edit_note,
+                                color: Colors.blueGrey,
+                                size: 18,
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : Row(
+                        children: [
+                          Checkbox(
+                            value: isChecked,
+                            activeColor: Colors.teal,
+                            onChanged: (bool? checked) {
+                              setState(() {
+                                void changeStatusRecursive(
+                                  SubMateriItem target,
+                                  String status,
+                                ) {
+                                  target.progress = status;
+                                  if (status == 'selesai') {
+                                    final now = DateTime.now();
+                                    target.finishedDate =
+                                        "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+                                  } else {
+                                    target.finishedDate = null;
+                                  }
+                                  for (var child in target.subMateri) {
+                                    changeStatusRecursive(child, status);
+                                  }
+                                }
+
+                                changeStatusRecursive(
+                                  item,
+                                  checked == true ? 'selesai' : 'belum',
+                                );
+
+                                // Kalkulasi ulang dari bawah ke atas pada tree utuh
+                                for (var root in widget.subject.subMateri) {
+                                  root.updateStatusFromChildren();
+                                }
+                              });
+                              _updateSubjectOverallProgress();
+                              widget.onDataChanged();
+                            },
+                          ),
+                          Expanded(
+                            child: InkWell(
+                              onTap: () {
+                                // Alternatif tap teks untuk memicu checklist
+                                if (item.progress != 'selesai') {
+                                  setState(() => item.progress = 'selesai');
+                                } else {
+                                  setState(() => item.progress = 'belum');
+                                }
+                                for (var root in widget.subject.subMateri) {
+                                  root.updateStatusFromChildren();
+                                }
+                                _updateSubjectOverallProgress();
+                                widget.onDataChanged();
+                              },
+                              child: Text(
+                                item.namaMateri,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  decoration: isChecked
+                                      ? TextDecoration.lineThrough
+                                      : null,
+                                  color: isChecked
+                                      ? Colors.grey
+                                      : Colors.black87,
+                                ),
+                                softWrap:
+                                    true, // Menjaga teks tidak keluar layout horizontal
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
+
+              // Aksi Tambah Anak (Hanya muncul jika tidak dalam mode edit masal)
+              if (!_isEditMode)
+                IconButton(
+                  icon: const Icon(
+                    Icons.add_circle_outline,
+                    color: Colors.blueGrey,
+                    size: 18,
+                  ),
+                  tooltip: 'Tambah sub-anak',
+                  onPressed: () => _addChildSubMateri(item),
+                  constraints: const BoxConstraints(),
+                  padding: const EdgeInsets.all(4),
+                ),
+              if (_isEditMode)
+                IconButton(
+                  icon: const Icon(
+                    Icons.delete_outline,
+                    color: Colors.redAccent,
+                    size: 18,
+                  ),
+                  onPressed: () => _deleteSingleSubMateri(item),
+                  constraints: const BoxConstraints(),
+                  padding: const EdgeInsets.all(4),
+                ),
+            ],
+          ),
         ),
-        if (_isEditMode)
-          IconButton(
-            icon: const Icon(
-              Icons.delete_outline,
-              color: Colors.redAccent,
-              size: 20,
-            ),
-            tooltip: 'Hapus',
-            onPressed: () => _deleteSingleSubMateri(item),
+
+        // Render anak dari item ini secara rekursif jika ada
+        if (item.subMateri.isNotEmpty)
+          Column(
+            children: item.subMateri
+                .map((child) => _buildTreeRow(child, depth + 1))
+                .toList(),
           ),
       ],
     );
@@ -773,5 +850,12 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     } else {
       widget.subject.progress = 'belum';
     }
+  }
+}
+
+// Helper Extension untuk pengaturan padding dinamis ltrb
+extension SetPadding on EdgeInsets {
+  static EdgeInsets leadingEdge(double value) {
+    return EdgeInsets.fromLTRB(value, 2, 4, 2);
   }
 }

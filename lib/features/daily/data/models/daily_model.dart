@@ -30,7 +30,7 @@ class DailyData {
 class DailySubject {
   String namaMateri;
   String progress;
-  List<SubMateriItem> subMateri;
+  List<SubMateriItem> subMateri; // Tingkat pertama
   int backgroundColor;
   int textColor;
   int progressBarColor;
@@ -41,8 +41,8 @@ class DailySubject {
   String? noteContent;
   String? date;
   bool isDateActive;
-  String dateType; // <-- TAMBAHAN: 'single' atau 'range'
-  String? endDate; // <-- TAMBAHAN: Tanggal tujuan untuk rentang
+  String dateType;
+  String? endDate;
 
   DailySubject({
     required this.namaMateri,
@@ -58,7 +58,7 @@ class DailySubject {
     this.noteContent,
     this.date,
     this.isDateActive = false,
-    this.dateType = 'single', // <-- DEFAULT single
+    this.dateType = 'single',
     this.endDate,
   });
 
@@ -82,8 +82,8 @@ class DailySubject {
       noteContent: json['noteContent'],
       date: json['date'],
       isDateActive: json['isDateActive'] ?? false,
-      dateType: json['dateType'] ?? 'single', // <-- PARSING JSON
-      endDate: json['endDate'], // <-- PARSING JSON
+      dateType: json['dateType'] ?? 'single',
+      endDate: json['endDate'],
     );
   }
 
@@ -102,18 +102,16 @@ class DailySubject {
       'noteContent': noteContent,
       'date': date,
       'isDateActive': isDateActive,
-      'dateType': dateType, // <-- SIMPAN KE JSON
-      'endDate': endDate, // <-- SIMPAN KE JSON
+      'dateType': dateType,
+      'endDate': endDate,
     };
   }
 
-  // Helper static untuk memformat tanggal penuh warna baru sesuai aturan tipe
   static List<TextSpan> buildColoredDateSpans(
     DailySubject subject, {
     bool inHeader = false,
   }) {
     if (subject.date == null || subject.date!.trim().isEmpty) return [];
-
     const List<String> namaHari = [
       'Senin',
       'Selasa',
@@ -144,45 +142,32 @@ class DailySubject {
 
     try {
       final DateTime parsedStart = DateTime.parse(subject.date!);
-
-      // 1. JIKA TIPE TANGGAL ADALAH RENTANG (RANGE)
       if (subject.dateType == 'range' &&
           subject.endDate != null &&
           subject.endDate!.isNotEmpty) {
         final DateTime parsedEnd = DateTime.parse(subject.endDate!);
-
-        final String tglMulai = '${parsedStart.day}';
-        final String tglSelesai = '${parsedEnd.day}';
-        final String bulanSelesai = namaBulan[parsedEnd.month - 1];
-
         return [
           TextSpan(
-            text: '$tglMulai - $tglSelesai ',
+            text: '${parsedStart.day} - ${parsedEnd.day} ',
             style: TextStyle(color: colorTgl, fontWeight: FontWeight.bold),
           ),
           TextSpan(
-            text: bulanSelesai,
+            text: namaBulan[parsedEnd.month - 1],
             style: TextStyle(color: colorBln, fontWeight: FontWeight.bold),
           ),
         ];
       }
-
-      // 2. JIKA TIPE TANGGAL ADALAH BIASA (SINGLE) -> Hilangkan Tahun
-      final String hari = '(${namaHari[parsedStart.weekday - 1]}) ';
-      final String tanggal = '${parsedStart.day} ';
-      final String bulan = namaBulan[parsedStart.month - 1];
-
       return [
         TextSpan(
-          text: hari,
+          text: '(${namaHari[parsedStart.weekday - 1]}) ',
           style: TextStyle(color: colorHari, fontWeight: FontWeight.bold),
         ),
         TextSpan(
-          text: tanggal,
+          text: '${parsedStart.day} ',
           style: TextStyle(color: colorTgl, fontWeight: FontWeight.bold),
         ),
         TextSpan(
-          text: bulan,
+          text: namaBulan[parsedStart.month - 1],
           style: TextStyle(color: colorBln, fontWeight: FontWeight.bold),
         ),
       ];
@@ -201,18 +186,26 @@ class SubMateriItem {
   String namaMateri;
   String progress;
   String? finishedDate;
+  List<SubMateriItem> subMateri; // <--- SEKARANG REKURSIF (BISA BERANAK PINAK)
 
   SubMateriItem({
     required this.namaMateri,
     required this.progress,
     this.finishedDate,
-  });
+    List<SubMateriItem>? subMateri,
+  }) : this.subMateri = subMateri ?? [];
 
   factory SubMateriItem.fromJson(Map<String, dynamic> json) {
+    var subList = json['sub_materi'] as List? ?? [];
+    List<SubMateriItem> parsedSub = subList
+        .map((i) => SubMateriItem.fromJson(i))
+        .toList();
+
     return SubMateriItem(
       namaMateri: json['nama_materi'] ?? '',
       progress: json['progress'] ?? 'belum',
       finishedDate: json['finishedDate'],
+      subMateri: parsedSub,
     );
   }
 
@@ -221,6 +214,28 @@ class SubMateriItem {
       'nama_materi': namaMateri,
       'progress': progress,
       'finishedDate': finishedDate,
+      'sub_materi': subMateri.map((e) => e.toJson()).toList(),
     };
+  }
+
+  // Fungsi helper untuk mengecek status progress total anak-anaknya secara rekursif
+  void updateStatusFromChildren() {
+    if (subMateri.isEmpty) return;
+
+    // Update semua anak terdalam dulu
+    for (var child in subMateri) {
+      child.updateStatusFromChildren();
+    }
+
+    int total = subMateri.length;
+    int selesai = subMateri.where((sm) => sm.progress == 'selesai').length;
+
+    if (selesai == total) {
+      progress = 'selesai';
+    } else if (selesai > 0) {
+      progress = 'sementara';
+    } else {
+      progress = 'belum';
+    }
   }
 }
