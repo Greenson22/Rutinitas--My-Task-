@@ -94,10 +94,33 @@ class TasksDialog extends StatelessWidget {
                         itemCount: category.tasks.length,
                         itemBuilder: (context, index) {
                           final task = category.tasks[index];
-                          String subtitleText =
-                              '+${task.countToday} / ${task.targetCountToday} hari ini | Total: ${task.count} / ${task.targetCount}';
+
+                          // === LOGIKA PEWARNAAN & STRUKTUR TEKS SUBTITLE ===
+                          String todayText = '';
+                          Color todayColor;
+
+                          if (task.targetCountToday == 0) {
+                            // Jika target harian 0 atau tidak diatur, sembunyikan targetnya
+                            todayText = '+${task.countToday} hari ini';
+                            todayColor =
+                                Colors.blueGrey; // Warna netral yang cocok
+                          } else {
+                            // Jika ada target harian, tampilkan format lengkap
+                            todayText =
+                                '+${task.countToday} / ${task.targetCountToday} hari ini';
+                            if (task.countToday >= task.targetCountToday) {
+                              todayColor = Colors
+                                  .green[700]!; // Hijau jika mencapai target
+                            } else {
+                              todayColor = Colors
+                                  .orange[700]!; // Oranye jika belum mencapai target
+                            }
+                          }
+
+                          String totalText =
+                              ' | Total: ${task.count} / ${task.targetCount}';
                           if (task.date != null) {
-                            subtitleText += ' | Update: ${task.date}';
+                            totalText += ' | Update: ${task.date}';
                           }
 
                           return ListTile(
@@ -125,12 +148,31 @@ class TasksDialog extends StatelessWidget {
                                 fontSize: 15,
                               ),
                             ),
-                            subtitle: Text(
-                              subtitleText,
-                              style: const TextStyle(
-                                color: Colors.blueGrey,
-                                fontSize: 11,
+                            // Menggunakan Text.rich untuk pewarnaan teks parsial yang rapi
+                            subtitle: Text.rich(
+                              TextSpan(
+                                children: [
+                                  TextSpan(
+                                    text: todayText,
+                                    style: TextStyle(
+                                      color: todayColor,
+                                      fontWeight:
+                                          (task.targetCountToday > 0 &&
+                                              task.countToday >=
+                                                  task.targetCountToday)
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                    ),
+                                  ),
+                                  TextSpan(
+                                    text: totalText,
+                                    style: const TextStyle(
+                                      color: Colors.blueGrey,
+                                    ),
+                                  ),
+                                ],
                               ),
+                              style: const TextStyle(fontSize: 11),
                             ),
                             trailing: PopupMenuButton<String>(
                               icon: const Icon(
