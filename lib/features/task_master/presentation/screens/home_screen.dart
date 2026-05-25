@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../../core/services/storage_service.dart';
 import '../../data/models/task_model.dart';
+import '../../../jurnal_aktivitas/data/models/time_log_model.dart'; // <--- IMPORT BARU MODEL JURNAL
 import '../widgets/category_card.dart';
 import '../widgets/drawer_menu.dart';
 import '../widgets/settings_dialog.dart';
@@ -29,8 +30,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoading = true;
 
   bool _isSortedAZ = false;
-  bool _showHiddenSection =
-      false; // <--- STATE BARU UNTUK MENYEMBUNYIKAN SEKSI BAWAH SECARA TOTAL
+  bool _showHiddenSection = false;
 
   @override
   void initState() {
@@ -84,7 +84,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _processCategoriesDisplay() {
-    // Memisahkan list dengan mempertahankan urutan aslinya dari _allCategoriesRaw
     List<TaskCategory> visible = _allCategoriesRaw
         .where((cat) => !cat.isHidden)
         .toList();
@@ -108,33 +107,27 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  // === FUNGSI URUTAN MANUAL (GESER INDEKS) ===
   void _moveCategoryOrder(
     List<TaskCategory> targetSubList,
     int currentIndex,
     int direction,
   ) async {
-    // direction: -1 untuk ke atas, 1 untuk ke bawah
     int newIndex = currentIndex + direction;
     if (newIndex < 0 || newIndex >= targetSubList.length) return;
 
-    // Ambil item dari list pecahan
     final itemA = targetSubList[currentIndex];
     final itemB = targetSubList[newIndex];
 
-    // Temukan index aslinya di _allCategoriesRaw
     int rawIdxA = _allCategoriesRaw.indexWhere((cat) => cat.name == itemA.name);
     int rawIdxB = _allCategoriesRaw.indexWhere((cat) => cat.name == itemB.name);
 
     if (rawIdxA != -1 && rawIdxB != -1) {
       setState(() {
-        // Tukar posisi di list utama agar urutan permanen tersimpan ke JSON
         final temp = _allCategoriesRaw[rawIdxA];
         _allCategoriesRaw[rawIdxA] = _allCategoriesRaw[rawIdxB];
         _allCategoriesRaw[rawIdxB] = temp;
       });
 
-      // Simpan perubahan ke file JSON lokal secara otomatis
       await _saveAllCategoriesToFile(shouldRefresh: false);
       _processCategoriesDisplay();
     }
@@ -170,7 +163,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // ... [Fungsi Tambah, Edit, Hapus, dan Save data tetap sama seperti kode sebelumnya] ...
   Future<void> _addNewCategory(String name, String icon) async {
     final newCategory = TaskCategory(
       name: name,
@@ -199,18 +191,100 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // === MODIFIKASI: FUNGSI INCREMENT TASK MENJALANKAN FUNGSI PENAMBAH JURNAL ===
   Future<bool> _incrementTaskCount(TaskItem task) async {
     setState(() {
       task.count += 1;
       task.countToday += 1;
       task.date = _getTodayDateString();
     });
-    // Tambahkan parameter shouldRefresh: false agar data memori tidak ditimpa data lama dari storage
     await _saveAllCategoriesToFile(shouldRefresh: false);
+
+    // Panggil fungsi penambahan waktu 30 menit ke Jurnal Aktivitas
+    await _add30MinutesToJurnal(task.id);
+
     return true;
   }
 
-  // === UPDATE HANDLING DI DIALOG TUGAS ===
+  // === FITUR BARU: MENGHUBUNGKAN DAN MENAMBAH 30 MENIT KE JURNAL ===
+  Future<void> _add30MinutesToJurnal(String myTaskId) async {
+    try {
+      final File jurnalFile = await _storageService.getJurnalJsonFile(
+        _selectedBaseDir,
+      );
+      String jsonString = await _storageService.loadOrInitializeJurnalJson(
+        jurnalFile,
+      );
+      List<dynamic> decodedJson = jsonDecode(jsonString);
+
+      List<TimeLogEntry> loadedLogs = decodedJson
+          .map((e) => TimeLogEntry.fromJson(e))
+          .toList();
+
+      final String todayStr = _getTodayDateString();
+      bool hasTodayLog = loadedLogs.any((entry) => entry.tanggal == todayStr);
+
+      // 1. Jika belum ada log hari ini, otomatis salin dari hari terakhir seperti di jurnal_aktivitas_screen
+      if (!hasTodayLog && loadedLogs.isNotEmpty) {
+        final lastLog = loadedLogs.last;
+        List<TimeLogTask> copiedTasks = lastLog.tasks.map((task) {
+          return TimeLogTask(
+            id: task.id,
+            nama: task.nama,
+            durasiMenit: 0,
+            kategori: task.kategori,
+            linkedTaskIds: task.linkedTaskIds,
+          );
+        }).toList();
+        loadedLogs.add(TimeLogEntry(tanggal: todayStr, tasks: copiedTasks));
+      } else if (loadedLogs.isEmpty) {
+        loadedLogs.add(TimeLogEntry(tanggal: todayStr, tasks: []));
+      }
+
+      // 2. Cari entry hari ini
+      int todayIndex = loadedLogs.indexWhere(
+        (entry) => entry.tanggal == todayStr,
+      );
+      if (todayIndex != -1) {
+        bool isUpdated = false;
+        String updatedJurnalTaskName = "";
+
+        for (var logTask in loadedLogs[todayIndex].tasks) {
+          // Jika array linkedTaskIds memiliki id tugas dari my_tasks
+          if (logTask.linkedTaskIds.contains(myTaskId)) {
+            logTask.durasiMenit += 30;
+            isUpdated = true;
+            updatedJurnalTaskName = logTask.nama;
+            break; // Jika sudah ketemu, langsung break asumsikan 1 ID hanya nempel ke 1 logTask.
+          }
+        }
+
+        // 3. Jika ada kecocokan, simpan ulang jurnalnya
+        if (isUpdated) {
+          final String updatedJsonContent = jsonEncode(
+            loadedLogs.map((e) => e.toJson()).toList(),
+          );
+          await _storageService.saveJsonData(jurnalFile, updatedJsonContent);
+
+          // Tampilkan notifikasi keberhasilan di layar My Tasks
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  '⏱ Terhubung! "$updatedJurnalTaskName" di Jurnal +30 menit.',
+                ),
+                duration: const Duration(seconds: 2),
+                backgroundColor: Colors.teal[800],
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint("Error updating linked jurnal data: $e");
+    }
+  }
+
   void _showCategoryTasksDialog(TaskCategory category) {
     showDialog(
       context: context,
@@ -227,7 +301,6 @@ class _HomeScreenState extends State<HomeScreen> {
             task.targetCountToday = tct;
             task.date = d;
             task.isActive = active;
-            // Variabel `task.type` sudah otomatis ter-update dari pemicu di dalam `tasks_dialog.dart`
           });
           await _saveAllCategoriesToFile();
         },
@@ -254,9 +327,7 @@ class _HomeScreenState extends State<HomeScreen> {
           });
           await _saveAllCategoriesToFile();
         },
-        // PERBAIKAN: Menangani aksi ketika tombol "Tambah Tugas" ditekan
         onAddTask: () {
-          // Logika untuk menampilkan dialog tambah tugas baru ke kategori ini
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
@@ -264,7 +335,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           );
-          // Anda bisa menyambungkannya dengan ShowDialog Form Pengisian Tugas baru di sini
         },
       ),
     );
@@ -309,7 +379,6 @@ class _HomeScreenState extends State<HomeScreen> {
           onEdit: () {},
           onDelete: () {},
           onToggleVisibility: () => _toggleCategoryVisibility(category),
-          // Hanya izinkan urutan manual jika mode urutan otomatis A-Z mati
           onMoveUp: !_isSortedAZ && index > 0
               ? () => _moveCategoryOrder(categoriesList, index, -1)
               : null,
@@ -329,7 +398,6 @@ class _HomeScreenState extends State<HomeScreen> {
         title: const Text('Task Master'),
         backgroundColor: Colors.indigo[700],
         actions: [
-          // Tombol Aktivasi Toggle Kategori Tersembunyi
           IconButton(
             icon: Icon(
               _showHiddenSection ? Icons.visibility : Icons.visibility_off,
@@ -374,7 +442,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: Center(child: Text('Tidak ada kategori.')),
                       ),
 
-                    // KATEGORI TERSEMBUNYI HANYA DIKONTROL OLEH TOMBOL APPBAR `_showHiddenSection`
                     if (_hiddenCategories.isNotEmpty && _showHiddenSection) ...[
                       const Padding(
                         padding: EdgeInsets.symmetric(horizontal: 16.0),
@@ -428,7 +495,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
     for (var category in _allCategoriesRaw) {
       for (var task in category.tasks) {
-        // Periksa terlebih dahulu apakah tugas aktif atau tidak
         if (task.isActive) {
           totalTasks++;
           if (task.targetCountToday > 0) {
@@ -479,7 +545,6 @@ class _HomeScreenState extends State<HomeScreen> {
           const Divider(height: 20, thickness: 1),
           Row(
             children: [
-              // Card Kategori
               Expanded(
                 child: Container(
                   padding: const EdgeInsets.all(12),
@@ -516,7 +581,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SizedBox(width: 8),
-              // Card Total Tugas
               Expanded(
                 child: Container(
                   padding: const EdgeInsets.all(12),
@@ -556,7 +620,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SizedBox(width: 8),
-              // Card Target Selesai Hari ini
               Expanded(
                 child: Container(
                   padding: const EdgeInsets.all(12),
