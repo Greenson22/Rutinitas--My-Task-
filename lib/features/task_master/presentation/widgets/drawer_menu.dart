@@ -3,12 +3,14 @@
 import 'package:flutter/material.dart';
 import '../screens/home_screen.dart';
 import '../../../daily/presentation/screens/daily_screen.dart';
+import '../../../jurnal_aktivitas/presentation/screens/jurnal_aktivitas_screen.dart';
 
 class DrawerMenu extends StatelessWidget {
   final String selectedBaseDir;
   final String fullJsonPath;
   final VoidCallback onOpenSettings;
   final bool isDailyActive;
+  final bool isJurnalActive;
 
   const DrawerMenu({
     super.key,
@@ -16,6 +18,7 @@ class DrawerMenu extends StatelessWidget {
     required this.fullJsonPath,
     required this.onOpenSettings,
     this.isDailyActive = false,
+    this.isJurnalActive = false,
   });
 
   @override
@@ -24,7 +27,6 @@ class DrawerMenu extends StatelessWidget {
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
-          // HEADER DRAWER BARU: SESUAI GAMBAR MENGGUNAKAN "My Tasks"
           DrawerHeader(
             decoration: const BoxDecoration(
               color: Colors.white,
@@ -35,18 +37,15 @@ class DrawerMenu extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Representasi Ikon/Logo gabungan MT & Kalender Checklist
                 Stack(
-                  alignment:
-                      Alignment.bottomRight, // -> Diperbaiki dari Alianment
+                  alignment: Alignment.bottomRight,
                   children: [
                     Text(
                       'M',
                       style: TextStyle(
                         color: Colors.indigo[900],
                         fontSize: 44,
-                        fontWeight: FontWeight
-                            .w900, // -> Diperbaiki dari FontWeight.black
+                        fontWeight: FontWeight.w900,
                         letterSpacing: -2,
                       ),
                     ),
@@ -62,7 +61,6 @@ class DrawerMenu extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(width: 12),
-                // Teks Nama Utama Aplikasi
                 Text(
                   'My Tasks',
                   style: TextStyle(
@@ -75,14 +73,13 @@ class DrawerMenu extends StatelessWidget {
             ),
           ),
 
-          // DAFTAR FITUR DI DALAMNYA
           _buildDrawerItem(
             Icons.format_list_bulleted,
             'Task Master',
-            isSelected: !isDailyActive,
+            isSelected: !isDailyActive && !isJurnalActive,
             onTap: () {
               Navigator.pop(context);
-              if (isDailyActive) {
+              if (isDailyActive || isJurnalActive) {
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(builder: (context) => const HomeScreen()),
@@ -100,6 +97,22 @@ class DrawerMenu extends StatelessWidget {
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(builder: (context) => const DailyScreen()),
+                );
+              }
+            },
+          ),
+          _buildDrawerItem(
+            Icons.menu_book,
+            'Jurnal Aktivitas',
+            isSelected: isJurnalActive,
+            onTap: () {
+              Navigator.pop(context);
+              if (!isJurnalActive) {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const JurnalAktivitasScreen(),
+                  ),
                 );
               }
             },

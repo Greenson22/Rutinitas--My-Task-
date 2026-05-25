@@ -68,4 +68,28 @@ class StorageService {
     }
     return await jsonFile.readAsString();
   }
+
+  // =========================================================================
+  // === TAMBAHAN UNTUK FITUR JURNAL AKTIVITAS ===
+  // =========================================================================
+
+  Future<File> getJurnalJsonFile(String baseDirSetting) async {
+    // Membuat folder 'jurnal_aktivitas' sejajar dengan folder 'mytask' dan 'daily'
+    final Directory jurnalDir = Directory('$baseDirSetting/jurnal_aktivitas');
+
+    if (!await jurnalDir.exists()) {
+      await jurnalDir.create(recursive: true);
+    }
+
+    return File('${jurnalDir.path}/time_log.json');
+  }
+
+  Future<String> loadOrInitializeJurnalJson(File jsonFile) async {
+    if (!await jsonFile.exists()) {
+      // Menginisialisasi dengan list kosong [] jika file belum ada
+      const String defaultJurnalContent = '[]';
+      await jsonFile.writeAsString(defaultJurnalContent);
+    }
+    return await jsonFile.readAsString();
+  }
 }
