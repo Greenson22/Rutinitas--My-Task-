@@ -209,6 +209,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return true;
   }
 
+  // === UPDATE HANDLING DI DIALOG TUGAS ===
   void _showCategoryTasksDialog(TaskCategory category) {
     showDialog(
       context: context,
@@ -216,7 +217,6 @@ class _HomeScreenState extends State<HomeScreen> {
         category: category,
         onIncrementTask: (task) => _incrementTaskCount(task),
         onUpdateTargetToday: (task, target) {},
-        // === UPDATE HANDLING DI SINI ===
         onEditTaskDetail: (task, name, c, ct, tc, tct, d, active) async {
           setState(() {
             task.name = name;
@@ -225,11 +225,35 @@ class _HomeScreenState extends State<HomeScreen> {
             task.targetCount = tc;
             task.targetCountToday = tct;
             task.date = d;
-            task.isActive = active; // <--- ASSIGN VALUE KE OBJEK MODEL
+            task.isActive = active;
           });
-          await _saveAllCategoriesToFile(); // Simpan otomatis ke JSON lokal
+          await _saveAllCategoriesToFile();
         },
-        onDeleteTask: (task) async => false,
+        // Mengubah implementasi hapus satu tugas
+        onDeleteTask: (task) async {
+          setState(() {
+            category.tasks.removeWhere((t) => t.id == task.id);
+          });
+          await _saveAllCategoriesToFile();
+          return true;
+        },
+        // TAMBAHKAN CALLBACK BARU UNTUK AKSI MASAL DI SINI
+        onBulkAction: (tasksToUpdate, action) async {
+          setState(() {
+            if (action == 'delete') {
+              category.tasks.removeWhere((t) => tasksToUpdate.contains(t.id));
+            } else if (action == 'activate') {
+              for (var t in category.tasks) {
+                if (tasksToUpdate.contains(t.id)) t.isActive = true;
+              }
+            } else if (action == 'deactivate') {
+              for (var t in category.tasks) {
+                if (tasksToUpdate.contains(t.id)) t.isActive = false;
+              }
+            }
+          });
+          await _saveAllCategoriesToFile();
+        },
       ),
     );
   }
@@ -390,13 +414,15 @@ class _HomeScreenState extends State<HomeScreen> {
     int tasksWithTargetToday = 0;
 
     for (var category in _allCategoriesRaw) {
-      totalTasks += category.tasks.length;
       for (var task in category.tasks) {
-        // Menghitung tugas dengan target harian yang sudah selesai hari ini
-        if (task.targetCountToday > 0) {
-          tasksWithTargetToday++;
-          if (task.countToday >= task.targetCountToday) {
-            completedTasksToday++;
+        // Periksa terlebih dahulu apakah tugas aktif atau tidak
+        if (task.isActive) {
+          totalTasks++;
+          if (task.targetCountToday > 0) {
+            tasksWithTargetToday++;
+            if (task.countToday >= task.targetCountToday) {
+              completedTasksToday++;
+            }
           }
         }
       }

@@ -9,8 +9,10 @@ class TasksDialog extends StatelessWidget {
   final Future<bool> Function(TaskItem) onIncrementTask;
   final Function(TaskItem, int) onUpdateTargetToday;
   final Function(TaskItem, String, int, int, int, int, String?, bool)
-  onEditTaskDetail; // <--- TAMBAH PARAMS BOOL DI AKHIR
+  onEditTaskDetail;
   final Future<bool> Function(TaskItem) onDeleteTask;
+  final Function(List<String>, String)
+  onBulkAction; // <--- CALLBACK BARU UNTUK SELEKSI MASAL
 
   const TasksDialog({
     super.key,
@@ -19,6 +21,7 @@ class TasksDialog extends StatelessWidget {
     required this.onUpdateTargetToday,
     required this.onEditTaskDetail,
     required this.onDeleteTask,
+    required this.onBulkAction, // <--- WAJIB DIISI
   });
 
   List<TextSpan> _buildIndonesianDateSpans(String? dateStr, bool isActive) {
@@ -26,7 +29,6 @@ class TasksDialog extends StatelessWidget {
 
     try {
       final DateTime parsedDate = DateTime.parse(dateStr);
-
       const List<String> namaHari = [
         'Senin',
         'Selasa',
@@ -119,7 +121,7 @@ class TasksDialog extends StatelessWidget {
               required newName,
               required newTargetCount,
               required newTargetCountToday,
-              required newIsActive, // <--- TANGKAP DATA SWITCH
+              required newIsActive,
             }) {
               onEditTaskDetail(
                 task,
@@ -129,7 +131,7 @@ class TasksDialog extends StatelessWidget {
                 newTargetCount,
                 newTargetCountToday,
                 newDate,
-                newIsActive, // <--- EVALUASI DATA KE CALLBACK UTAMA
+                newIsActive,
               );
               setDialogState(() {});
             },
@@ -137,8 +139,58 @@ class TasksDialog extends StatelessWidget {
     );
   }
 
+  // Fungsi Konfirmasi Aksi Masal
+  Future<void> _showConfirmBulkDialog(
+    BuildContext context,
+    String action,
+    int count,
+    VoidCallback onConfirm,
+  ) async {
+    String title = '';
+    String content = '';
+
+    if (action == 'delete') {
+      title = 'Hapus $count Tugas sekaligus?';
+      content = 'Tugas yang dihapus tidak dapat dikembalikan.';
+    } else if (action == 'activate') {
+      title = 'Aktifkan $count Tugas?';
+      content = 'Tugas yang dipilih akan dihitung kembali di ringkasan.';
+    } else {
+      title = 'Nonaktifkan $count Tugas?';
+      content = 'Tugas yang dinonaktifkan tidak akan dihitung di ringkasan.';
+    }
+
+    return showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(content),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              onConfirm();
+              Navigator.pop(ctx);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: action == 'delete' ? Colors.red : Colors.indigo,
+            ),
+            child: const Text('Ya, Konfirmasi'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // State lokal di dalam dialog menggunakan StatefulBuilder
+    bool isSelectionMode = false;
+    List<String> selectedTaskIds = [];
+
     return StatefulBuilder(
       builder: (context, setDialogState) {
         return Dialog(
@@ -148,6 +200,7 @@ class TasksDialog extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // HEADER DIALOG
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(16.0),
@@ -158,15 +211,43 @@ class TasksDialog extends StatelessWidget {
                     topRight: Radius.circular(20.0),
                   ),
                 ),
-                child: Text(
-                  'Kategori ${category.name}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Kategori ${category.name}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    // Tombol Aktivasi Mode Banyak Seleksi
+                    if (category.tasks.isNotEmpty)
+                      IconButton(
+                        icon: Icon(
+                          isSelectionMode
+                              ? Icons.check_box
+                              : Icons.library_add_check,
+                          color: Colors.white,
+                        ),
+                        tooltip: isSelectionMode
+                            ? 'Selesai Pilih'
+                            : 'Pilih Banyak',
+                        onPressed: () {
+                          setDialogState(() {
+                            isSelectionMode = !isSelectionMode;
+                            selectedTaskIds.clear(); // reset pilihan
+                          });
+                        },
+                      ),
+                  ],
                 ),
               ),
+
+              // KONTEN UTAMA LIST TUGAS
               Flexible(
                 child: category.tasks.isEmpty
                     ? const Padding(
@@ -188,21 +269,15 @@ class TasksDialog extends StatelessWidget {
                               todayColor = task.isActive
                                   ? Colors.green[700]!
                                   : Colors.grey;
-                            } else {
-                              todayText = null;
                             }
                           } else {
                             todayText =
                                 '+${task.countToday} / ${task.targetCountToday} hari ini';
-                            if (task.countToday >= task.targetCountToday) {
-                              todayColor = task.isActive
-                                  ? Colors.green[700]!
-                                  : Colors.grey;
-                            } else {
-                              todayColor = task.isActive
-                                  ? Colors.orange[700]!
-                                  : Colors.grey;
-                            }
+                            todayColor = task.isActive
+                                ? (task.countToday >= task.targetCountToday
+                                      ? Colors.green[700]!
+                                      : Colors.orange[700]!)
+                                : Colors.grey;
                           }
 
                           String totalText = (todayText == null)
@@ -211,26 +286,37 @@ class TasksDialog extends StatelessWidget {
 
                           return ListTile(
                             dense: true,
-                            // JIKA NONAKTIF, TOMBOL PLUS MATI & BERWARNA ABU-ABU
-                            leading: IconButton(
-                              icon: Icon(
-                                Icons.add_circle_outline,
-                                color: task.isActive
-                                    ? Colors.blue
-                                    : Colors.grey[400],
-                                size: 28,
-                              ),
-                              onPressed: task.isActive
-                                  ? () async {
-                                      bool isUpdated = await onIncrementTask(
-                                        task,
-                                      );
-                                      if (isUpdated) {
-                                        setDialogState(() {});
-                                      }
-                                    }
-                                  : null, // <--- KUNCI INPUT COUNT
-                            ),
+                            // LOGIKA CHECKSIDE / LEADING KETIKA SELEKSI MASAL AKTIF
+                            leading: isSelectionMode
+                                ? Checkbox(
+                                    value: selectedTaskIds.contains(task.id),
+                                    onChanged: (bool? checked) {
+                                      setDialogState(() {
+                                        if (checked == true) {
+                                          selectedTaskIds.add(task.id);
+                                        } else {
+                                          selectedTaskIds.remove(task.id);
+                                        }
+                                      });
+                                    },
+                                  )
+                                : IconButton(
+                                    icon: Icon(
+                                      Icons.add_circle_outline,
+                                      color: task.isActive
+                                          ? Colors.blue
+                                          : Colors.grey[400],
+                                      size: 28,
+                                    ),
+                                    onPressed: task.isActive
+                                        ? () async {
+                                            bool isUpdated =
+                                                await onIncrementTask(task);
+                                            if (isUpdated)
+                                              setDialogState(() {});
+                                          }
+                                        : null,
+                                  ),
                             title: Text(
                               task.name,
                               style: TextStyle(
@@ -238,8 +324,7 @@ class TasksDialog extends StatelessWidget {
                                 fontSize: 15,
                                 color: task.isActive
                                     ? Colors.black87
-                                    : Colors
-                                          .grey, // <--- WARNA TEKS UTAMA ABU-ABU
+                                    : Colors.grey,
                               ),
                             ),
                             subtitle: Text.rich(
@@ -276,73 +361,178 @@ class TasksDialog extends StatelessWidget {
                               ),
                               style: const TextStyle(fontSize: 11),
                             ),
-                            trailing: PopupMenuButton<String>(
-                              icon: const Icon(
-                                Icons.more_vert,
-                                color: Colors.grey,
-                              ),
-                              padding: EdgeInsets.zero,
-                              onSelected: (value) async {
-                                if (value == 'edit_detail') {
-                                  _showEditTaskDetailDialog(
-                                    context,
-                                    task,
-                                    setDialogState,
-                                  );
-                                } else if (value == 'delete_task') {
-                                  bool isDeleted = await onDeleteTask(task);
-                                  if (isDeleted) {
-                                    setDialogState(() {});
-                                  }
-                                }
-                              },
-                              itemBuilder: (BuildContext context) => [
-                                const PopupMenuItem<String>(
-                                  value: 'edit_detail',
-                                  child: ListTile(
-                                    leading: Icon(Icons.edit_note, size: 20),
-                                    title: Text('Edit Detail'),
-                                    contentPadding: EdgeInsets.zero,
-                                    dense: true,
-                                  ),
-                                ),
-                                const PopupMenuItem<String>(
-                                  value: 'delete_task',
-                                  child: ListTile(
-                                    leading: Icon(
-                                      Icons.delete_outline,
-                                      color: Colors.red,
-                                      size: 20,
+                            trailing: isSelectionMode
+                                ? null // Hilangkan menu satuan ketika mode seleksi masal aktif
+                                : PopupMenuButton<String>(
+                                    icon: const Icon(
+                                      Icons.more_vert,
+                                      color: Colors.grey,
                                     ),
-                                    title: Text(
-                                      'Hapus',
-                                      style: TextStyle(color: Colors.red),
-                                    ),
-                                    contentPadding: EdgeInsets.zero,
-                                    dense: true,
+                                    padding: EdgeInsets.zero,
+                                    onSelected: (value) async {
+                                      if (value == 'edit_detail') {
+                                        _showEditTaskDetailDialog(
+                                          context,
+                                          task,
+                                          setDialogState,
+                                        );
+                                      } else if (value == 'delete_task') {
+                                        bool isDeleted = await onDeleteTask(
+                                          task,
+                                        );
+                                        if (isDeleted) setDialogState(() {});
+                                      }
+                                    },
+                                    itemBuilder: (BuildContext context) => [
+                                      const PopupMenuItem<String>(
+                                        value: 'edit_detail',
+                                        child: ListTile(
+                                          leading: Icon(
+                                            Icons.edit_note,
+                                            size: 20,
+                                          ),
+                                          title: Text('Edit Detail'),
+                                          contentPadding: EdgeInsets.zero,
+                                          dense: true,
+                                        ),
+                                      ),
+                                      const PopupMenuItem<String>(
+                                        value: 'delete_task',
+                                        child: ListTile(
+                                          leading: Icon(
+                                            Icons.delete_outline,
+                                            color: Colors.red,
+                                            size: 20,
+                                          ),
+                                          title: Text(
+                                            'Hapus',
+                                            style: TextStyle(color: Colors.red),
+                                          ),
+                                          contentPadding: EdgeInsets.zero,
+                                          dense: true,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ),
-                              ],
-                            ),
                           );
                         },
                       ),
               ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Tutup'),
-                  ),
-                  TextButton(
-                    onPressed: () {},
-                    child: const Text('Tambah Tugas'),
-                  ),
-                  const SizedBox(width: 8),
-                ],
+
+              const Divider(height: 1),
+
+              // FOOTER PANEL DAN INTEGRASI AKSI MASAL
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12.0,
+                  vertical: 8.0,
+                ),
+                child: isSelectionMode
+                    ? Row(
+                        children: [
+                          Text(
+                            '${selectedTaskIds.length} Terpilih',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.indigo,
+                            ),
+                          ),
+                          const Spacer(),
+                          // Tombol Nonaktifkan Masal
+                          TextButton.icon(
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.orange[800],
+                            ),
+                            icon: const Icon(Icons.visibility_off, size: 18),
+                            label: const Text(
+                              'Matikan',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                            onPressed: selectedTaskIds.isEmpty
+                                ? null
+                                : () => _showConfirmBulkDialog(
+                                    context,
+                                    'deactivate',
+                                    selectedTaskIds.length,
+                                    () {
+                                      onBulkAction(
+                                        selectedTaskIds,
+                                        'deactivate',
+                                      );
+                                      setDialogState(() {
+                                        isSelectionMode = false;
+                                        selectedTaskIds.clear();
+                                      });
+                                    },
+                                  ),
+                          ),
+                          // Tombol Aktifkan Masal
+                          TextButton.icon(
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.green[800],
+                            ),
+                            icon: const Icon(Icons.visibility, size: 18),
+                            label: const Text(
+                              'Aktifkan',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                            onPressed: selectedTaskIds.isEmpty
+                                ? null
+                                : () => _showConfirmBulkDialog(
+                                    context,
+                                    'activate',
+                                    selectedTaskIds.length,
+                                    () {
+                                      onBulkAction(selectedTaskIds, 'activate');
+                                      setDialogState(() {
+                                        isSelectionMode = false;
+                                        selectedTaskIds.clear();
+                                      });
+                                    },
+                                  ),
+                          ),
+                          // Tombol Hapus Masal
+                          TextButton.icon(
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.red,
+                            ),
+                            icon: const Icon(Icons.delete_sweep, size: 18),
+                            label: const Text(
+                              'Hapus',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                            onPressed: selectedTaskIds.isEmpty
+                                ? null
+                                : () => _showConfirmBulkDialog(
+                                    context,
+                                    'delete',
+                                    selectedTaskIds.length,
+                                    () {
+                                      onBulkAction(selectedTaskIds, 'delete');
+                                      setDialogState(() {
+                                        isSelectionMode = false;
+                                        selectedTaskIds.clear();
+                                      });
+                                    },
+                                  ),
+                          ),
+                        ],
+                      )
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('Tutup'),
+                          ),
+                          TextButton(
+                            onPressed: () {},
+                            child: const Text('Tambah Tugas'),
+                          ),
+                        ],
+                      ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 4),
             ],
           ),
         );
