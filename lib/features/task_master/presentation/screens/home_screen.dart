@@ -218,9 +218,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 newDate,
               );
             },
-        onDeleteTask: (task) {
-          _deleteTask(category, task);
-        },
+        onDeleteTask: (task) => _deleteTask(category, task),
       ),
     );
   }
@@ -427,8 +425,8 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // === FUNGSI LOGIKA UNTUK MENGHAPUS TUGAS ===
-  Future<void> _deleteTask(TaskCategory category, TaskItem task) async {
+  // === FUNGSI LOGIKA UNTUK MENGHAPUS TUGAS (DENGAN RETURN VALUE) ===
+  Future<bool> _deleteTask(TaskCategory category, TaskItem task) async {
     bool? confirmDelete = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -461,7 +459,9 @@ class _HomeScreenState extends State<HomeScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Tugas "${task.name}" berhasil dihapus.')),
         );
+        return true; // Berhasil dihapus
       }
     }
+    return false; // Dibatalkan atau gagal
   }
 }

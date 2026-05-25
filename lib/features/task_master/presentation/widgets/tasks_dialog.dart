@@ -9,7 +9,7 @@ class TasksDialog extends StatelessWidget {
   final Function(TaskItem, int) onUpdateTargetToday;
   final Function(TaskItem, String, int, int, int, int, String?)
   onEditTaskDetail;
-  final Function(TaskItem) onDeleteTask;
+  final Future<bool> Function(TaskItem) onDeleteTask;
 
   const TasksDialog({
     super.key,
@@ -138,7 +138,7 @@ class TasksDialog extends StatelessWidget {
                                 color: Colors.grey,
                               ),
                               padding: EdgeInsets.zero,
-                              onSelected: (value) {
+                              onSelected: (value) async {
                                 if (value == 'edit_detail') {
                                   _showEditTaskDetailDialog(
                                     context,
@@ -146,8 +146,13 @@ class TasksDialog extends StatelessWidget {
                                     setDialogState,
                                   );
                                 } else if (value == 'delete_task') {
-                                  onDeleteTask(task);
-                                  setDialogState(() {});
+                                  // === TAMBAHKAN AWAIT DAN CEK KONDISI BERHASIL ===
+                                  bool isDeleted = await onDeleteTask(task);
+                                  if (isDeleted) {
+                                    setDialogState(
+                                      () {},
+                                    ); // Re-render daftar tugas secara instan
+                                  }
                                 }
                               },
                               itemBuilder: (BuildContext context) => [
@@ -191,7 +196,9 @@ class TasksDialog extends StatelessWidget {
                   ),
                   TextButton(
                     onPressed: () {},
-                    child: const Text('Tambah Tugas'),
+                    child: const Text(
+                      'Tambah Tugas',
+                    ), // <--- Pastikan bersih sampai di sini saja
                   ),
                   const SizedBox(width: 8),
                 ],
