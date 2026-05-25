@@ -871,8 +871,8 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                       ),
               ),
 
-              // Tombol Tambah Sub-Materi Nested (Hanya muncul jika ditekan/bukan mode edit masal)
-              if (!_isEditMode)
+              // PERUBAHAN: Tombol Tambah Sub-Materi bersarang kini hanya aktif/muncul di Mode Edit (_isEditMode)
+              if (_isEditMode)
                 IconButton(
                   icon: const Icon(
                     Icons.add_circle_outline,
