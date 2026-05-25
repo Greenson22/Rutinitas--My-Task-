@@ -1,122 +1,293 @@
 import 'package:flutter/material.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(const TaskMasterApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class TaskMasterApp extends StatelessWidget {
+  const TaskMasterApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      debugShowCheckedModeBanner: false,
+      title: 'Task Master',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        primarySwatch: Colors.blue,
+        useMaterial3:
+            false, // Menggunakan Material 2 agar tampilan warna AppBar persis seperti gambar
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: const HomeScreen(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key});
 
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
+  // Data dummy untuk halaman utama sesuai dengan gambar pertama
+  final List<Map<String, dynamic>> categories = const [
+    {
+      'name': 'Work',
+      'tasks': 8,
+      'icon': Icons.card_travel,
+      'color': Colors.indigo,
+    },
+    {'name': 'Personal', 'tasks': 3, 'icon': Icons.home, 'color': Colors.brown},
+    {
+      'name': 'Gandom',
+      'tasks': 8,
+      'icon': Icons.notifications_active,
+      'color': Colors.red,
+    },
+    {
+      'name': 'Niacking',
+      'tasks': 8,
+      'icon': Icons.phone,
+      'color': Colors.green,
+    },
+    {
+      'name': 'Caries',
+      'tasks': 8,
+      'icon': Icons.directions_car,
+      'color': Colors.purple,
+    },
+    {
+      'name': 'Willdity',
+      'tasks': 8,
+      'icon': Icons.public,
+      'color': Colors.teal,
+    },
+    {
+      'name': 'Problems',
+      'tasks': 8,
+      'icon': Icons.business_center,
+      'color': Colors.tealAccent,
+    },
+    {
+      'name': 'Program',
+      'tasks': 8,
+      'icon': Icons.favorite,
+      'color': Colors.brown,
+    },
+    {
+      'name': 'Health',
+      'tasks': 3,
+      'icon': Icons.people,
+      'color': Colors.orange,
+    },
+    {
+      'name': 'People',
+      'tasks': 3,
+      'icon': Icons.description,
+      'color': Colors.pink,
+    },
+    {
+      'name': 'Contact',
+      'tasks': 8,
+      'icon': Icons.supervised_user_circle,
+      'color': Colors.deepPurple,
+    },
+  ];
 
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
+  // Fungsi untuk menampilkan popup "Work Category" sesuai gambar kedua
+  void _showWorkCategoryDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20.0),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header Dialog
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16.0),
+                decoration: const BoxDecoration(
+                  color: Colors
+                      .indigo, // Menggunakan warna biru gelap/indigo sesuai tema Work
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(20.0),
+                    topRight: Radius.circular(20.0),
+                  ),
+                ),
+                child: const Text(
+                  'Work Category',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              // List Tugas di dalam Kategori
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 8.0,
+                  horizontal: 12.0,
+                ),
+                child: Column(
+                  children: [
+                    _buildPopupItem(
+                      'Career',
+                      '+0 / 4 hari ini | Total: 625 | Due: 2026-05-24',
+                    ),
+                    _buildPopupItem(
+                      'New Tech',
+                      '+0 / 1 hari ini | Total: 4 | Due: 2026-05-22',
+                    ),
+                    _buildPopupItem('Coding', 'Total: 203 | Due: 2026-05-24'),
+                    _buildPopupItem('Game', 'Total: 69 | Due: 2026-05-01'),
+                    _buildPopupItem('Extra', 'Total: 604 | Due: 2026-05-22'),
+                  ],
+                ),
+              ),
+              // Tombol Aksi di bagian bawah
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text(
+                      'Tutup',
+                      style: TextStyle(color: Colors.blue, fontSize: 16),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {},
+                    child: const Text(
+                      'Tambah Tugas',
+                      style: TextStyle(color: Colors.blue, fontSize: 16),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
-  final String title;
-
-  @override
-  State<MyHomePage> createState() => _MyHomePageState();
-}
-
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
-
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
+  // Widget helper untuk item di dalam dialog
+  Widget _buildPopupItem(String title, String subtitle) {
+    return ListTile(
+      dense: true,
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 8.0,
+        vertical: 0.0,
+      ),
+      leading: const Icon(Icons.add_circle_outline, color: Colors.blue),
+      title: Text(
+        title,
+        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: const TextStyle(color: Colors.blueGrey, fontSize: 11),
+      ),
+      trailing: const Icon(Icons.more_vert, color: Colors.black),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
+      backgroundColor: Colors.grey[200],
       appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
+        title: const Text('Task Master'),
+        backgroundColor: Colors.indigo[700], // Warna biru gelap navbar
+        leading: IconButton(icon: const Icon(Icons.menu), onPressed: () {}),
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
+      body: GridView.builder(
+        padding: const EdgeInsets.all(10),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2, // 2 Kolom ke samping
+          childAspectRatio: 1.6, // Rasio lebar dan tinggi kotak
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 10,
         ),
+        itemCount: categories.length,
+        itemBuilder: (context, index) {
+          final item = categories[index];
+          return Card(
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: InkWell(
+              onTap: () {
+                // Di sini kita batasi: Jika kotak "Work" ditekan, popup akan muncul
+                if (item['name'] == 'Work') {
+                  _showWorkCategoryDialog(context);
+                }
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Row(
+                  children: [
+                    // Lingkaran Ikon
+                    CircleAvatar(
+                      backgroundColor: item['color'],
+                      radius: 24,
+                      child: Icon(item['icon'], color: Colors.white, size: 24),
+                    ),
+                    const SizedBox(width: 12),
+                    // Teks Nama Kategori & Jumlah Task
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item['name'],
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${item['tasks']} tasks',
+                            style: Colors.grey[600] != null
+                                ? TextStyle(
+                                    color: Colors.grey[600],
+                                    fontSize: 13,
+                                  )
+                                : null,
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Tombol Titik Tiga di pojok kanan atas kartu
+                    const Align(
+                      alignment: Alignment.topRight,
+                      child: Icon(
+                        Icons.more_vert,
+                        color: Colors.grey,
+                        size: 20,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
       ),
+      // Floating Action Button di pojok kanan bawah
       floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
+        onPressed: () {},
+        backgroundColor: Colors.teal,
+        child: const Icon(Icons.add, size: 30),
+      ),
     );
   }
 }
