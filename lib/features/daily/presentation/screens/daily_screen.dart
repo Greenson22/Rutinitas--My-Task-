@@ -299,49 +299,38 @@ class _DailyScreenState extends State<DailyScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // KODE PERBAIKAN: Menampilkan judul materi harian & tanggal berwarna jika diaktifkan
-                        Text.rich(
-                          TextSpan(
-                            children: [
-                              TextSpan(
-                                text: '${subject.namaMateri} ',
-                                style: const TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                              if (subject.isDateActive && subject.date != null)
-                                ...DailySubject.buildColoredDateSpans(
-                                  subject.date,
-                                ),
-                            ],
+                        // KODE PERBAIKAN: Menampilkan judul materi harian
+                        Text(
+                          subject.namaMateri,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
+
+                        // KODE PERBAIKAN: Menampilkan tanggal berwarna di BAWAH judul jika diaktifkan
+                        if (subject.isDateActive && subject.date != null) ...[
+                          const SizedBox(
+                            height: 2,
+                          ), // Jarak kecil antara judul dan tanggal
+                          Text.rich(
+                            TextSpan(
+                              children: DailySubject.buildColoredDateSpans(
+                                subject.date,
+                              ),
+                            ),
+                            style: const TextStyle(fontSize: 12),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+
                         const SizedBox(height: 4),
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 6,
                             vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isAllDone
-                                ? Colors.green[50]
-                                : Colors.amber[50],
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            isAllDone
-                                ? 'Selesai Semua'
-                                : '$selesaiSub / $totalSub List',
-                            style: TextStyle(
-                              color: isAllDone
-                                  ? Colors.green[800]
-                                  : Colors.orange[900],
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
                           ),
                         ),
                       ],
