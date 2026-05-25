@@ -21,13 +21,16 @@ class DailyChecklistDialog extends StatefulWidget {
 class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
   final TextEditingController _singleInputController = TextEditingController();
 
+  // State untuk kontrol mode edit dan seleksi banyak
+  bool _isEditMode = false;
+  final List<SubMateriItem> _selectedItems = [];
+
   @override
   void dispose() {
     _singleInputController.dispose();
     super.dispose();
   }
 
-  // Fungsi konfirmasi umum
   Future<bool> _showConfirmDialog({
     required String title,
     required String content,
@@ -52,8 +55,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
         false;
   }
 
-  // Fungsi untuk menambah 1 sub-materi secara manual dengan konfirmasi
-  Future<void> _addSingleSubMateri() async {
+  void _addSingleSubMateri() async {
     final text = _singleInputController.text.trim();
     if (text.isEmpty) return;
 
@@ -74,7 +76,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     widget.onDataChanged();
   }
 
-  // Fungsi untuk menempel banyak sub-materi dari clipboard dengan konfirmasi
   Future<void> _pasteSubMateriFromClipboard() async {
     ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain);
     if (data == null || data.text == null || data.text!.trim().isEmpty) {
@@ -122,8 +123,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     }
   }
 
-  // Fungsi untuk menghapus sub-materi dengan konfirmasi
-  Future<void> _deleteSubMateri(SubMateriItem item) async {
+  void _deleteSingleSubMateri(SubMateriItem item) async {
     final confirm = await _showConfirmDialog(
       title: 'Hapus Sub-Materi',
       content: 'Apakah Anda yakin ingin menghapus "${item.namaMateri}"?',
@@ -133,6 +133,29 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
 
     setState(() {
       widget.subject.subMateri.remove(item);
+      _selectedItems.remove(item);
+    });
+
+    _updateSubjectOverallProgress();
+    widget.onDataChanged();
+  }
+
+  void _deleteSelectedBulk() async {
+    if (_selectedItems.isEmpty) return;
+
+    final confirm = await _showConfirmDialog(
+      title: 'Hapus Terpilih',
+      content:
+          'Apakah Anda yakin ingin menghapus ${_selectedItems.length} sub-materi sekaligus?',
+    );
+
+    if (!confirm) return;
+
+    setState(() {
+      widget.subject.subMateri.removeWhere(
+        (item) => _selectedItems.contains(item),
+      );
+      _selectedItems.clear();
     });
 
     _updateSubjectOverallProgress();
@@ -140,9 +163,43 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sub-materi berhasil dihapus')),
+        const SnackBar(content: Text('Sub-materi terpilih berhasil dihapus')),
       );
     }
+  }
+
+  // Fungsi untuk mengubah nama sub-materi secara langsung (Inline Edit)
+  void _showEditNameDialog(SubMateriItem item) {
+    final editController = TextEditingController(text: item.namaMateri);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Ubah Nama Sub-Materi'),
+        content: TextField(
+          controller: editController,
+          decoration: const InputDecoration(border: OutlineInputBorder()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final newName = editController.text.trim();
+              if (newName.isNotEmpty) {
+                setState(() {
+                  item.namaMateri = newName;
+                });
+                widget.onDataChanged();
+              }
+              Navigator.pop(context);
+            },
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -154,15 +211,19 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
         .where((item) => item.progress == 'selesai')
         .toList();
 
+    bool isAllSelected =
+        widget.subject.subMateri.isNotEmpty &&
+        widget.subject.subMateri.every((item) => _selectedItems.contains(item));
+
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Header Dialog
+          // Header Dialog dengan Tombol Toggle Mode Edit
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
               color: Color(widget.subject.backgroundColor),
               borderRadius: const BorderRadius.only(
@@ -170,13 +231,53 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                 topRight: Radius.circular(16),
               ),
             ),
-            child: Text(
-              widget.subject.namaMateri,
-              style: TextStyle(
-                color: Color(widget.subject.textColor),
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    widget.subject.namaMateri,
+                    style: TextStyle(
+                      color: Color(widget.subject.textColor),
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                if (_isEditMode && widget.subject.subMateri.isNotEmpty)
+                  Theme(
+                    data: ThemeData(unselectedWidgetColor: Colors.white70),
+                    child: Checkbox(
+                      activeColor: Colors.teal,
+                      checkColor: Colors.white,
+                      value: isAllSelected,
+                      onChanged: (bool? checked) {
+                        setState(() {
+                          if (checked == true) {
+                            _selectedItems.clear();
+                            _selectedItems.addAll(widget.subject.subMateri);
+                          } else {
+                            _selectedItems.clear();
+                          }
+                        });
+                      },
+                    ),
+                  ),
+                IconButton(
+                  icon: Icon(
+                    _isEditMode ? Icons.check_circle : Icons.edit,
+                    color: Colors.white,
+                  ),
+                  tooltip: _isEditMode ? 'Selesai Edit' : 'Mode Edit',
+                  onPressed: () {
+                    setState(() {
+                      _isEditMode = !_isEditMode;
+                      _selectedItems
+                          .clear(); // Bersihkan pilihan setiap ganti mode
+                    });
+                  },
+                ),
+              ],
             ),
           ),
 
@@ -230,7 +331,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                     shrinkWrap: true,
                     padding: const EdgeInsets.all(12),
                     children: [
-                      // SEKSI BELUM SELESAI
                       if (belumSelesaiList.isNotEmpty) ...[
                         const Padding(
                           padding: EdgeInsets.symmetric(
@@ -245,15 +345,12 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                             ),
                           ),
                         ),
-                        ...belumSelesaiList.map(
-                          (item) => _buildChecklistTile(item),
-                        ),
+                        ...belumSelesaiList.map((item) => _buildRowItem(item)),
                       ],
 
                       if (belumSelesaiList.isNotEmpty && selesaiList.isNotEmpty)
                         const Divider(height: 24),
 
-                      // SEKSI SELESAI
                       if (selesaiList.isNotEmpty) ...[
                         const Padding(
                           padding: EdgeInsets.symmetric(
@@ -268,7 +365,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                             ),
                           ),
                         ),
-                        ...selesaiList.map((item) => _buildChecklistTile(item)),
+                        ...selesaiList.map((item) => _buildRowItem(item)),
                       ],
                     ],
                   ),
@@ -276,45 +373,76 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
 
           const Divider(height: 1),
 
-          // Footer Panel Aksi
+          // Footer Panel Aksi Kontrol Dinamis
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                TextButton.icon(
-                  onPressed: () async {
-                    final confirm = await _showConfirmDialog(
-                      title: 'Reset Semua Progress',
-                      content:
-                          'Apakah Anda yakin ingin mereset progress semua sub-materi kembali ke semula?',
-                    );
-                    if (!confirm) return;
+                if (_isEditMode) ...[
+                  Text(
+                    '${_selectedItems.length} Terpilih',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.indigo,
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: _selectedItems.isEmpty
+                        ? null
+                        : _deleteSelectedBulk,
+                    icon: const Icon(
+                      Icons.delete_sweep,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                    label: const Text(
+                      'Hapus Masal',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                    ),
+                  ),
+                ] else ...[
+                  TextButton.icon(
+                    onPressed: () async {
+                      final confirm = await _showConfirmDialog(
+                        title: 'Reset Semua Progress',
+                        content:
+                            'Apakah Anda yakin ingin mereset progress semua sub-materi kembali ke semula?',
+                      );
+                      if (!confirm) return;
 
-                    setState(() {
-                      for (var item in widget.subject.subMateri) {
-                        item.progress = 'belum';
-                        item.finishedDate = null;
-                      }
-                    });
-                    widget.onDataChanged();
-                  },
-                  icon: const Icon(Icons.refresh, color: Colors.red, size: 18),
-                  label: const Text(
-                    'Reset',
-                    style: TextStyle(color: Colors.red),
+                      setState(() {
+                        for (var item in widget.subject.subMateri) {
+                          item.progress = 'belum';
+                          item.finishedDate = null;
+                        }
+                      });
+                      widget.onDataChanged();
+                    },
+                    icon: const Icon(
+                      Icons.refresh,
+                      color: Colors.red,
+                      size: 18,
+                    ),
+                    label: const Text(
+                      'Reset',
+                      style: TextStyle(color: Colors.red),
+                    ),
                   ),
-                ),
-                ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(widget.subject.backgroundColor),
+                  ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Color(widget.subject.backgroundColor),
+                    ),
+                    child: Text(
+                      'Tutup',
+                      style: TextStyle(color: Color(widget.subject.textColor)),
+                    ),
                   ),
-                  child: Text(
-                    'Tutup',
-                    style: TextStyle(color: Color(widget.subject.textColor)),
-                  ),
-                ),
+                ],
               ],
             ),
           ),
@@ -323,53 +451,97 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     );
   }
 
-  Widget _buildChecklistTile(SubMateriItem item) {
+  // Helper builder baris data
+  Widget _buildRowItem(SubMateriItem item) {
     bool isChecked = item.progress == 'selesai';
+    bool isCurrentlySelected = _selectedItems.contains(item);
 
     return Row(
       children: [
-        Expanded(
-          child: CheckboxListTile(
-            title: Text(
-              item.namaMateri,
-              style: TextStyle(
-                fontSize: 14,
-                decoration: isChecked ? TextDecoration.lineThrough : null,
-                color: isChecked ? Colors.grey : Colors.black87,
-              ),
-            ),
-            value: isChecked,
-            activeColor: Colors.teal,
-            controlAffinity: ListTileControlAffinity.leading,
-            dense: true,
-            contentPadding: EdgeInsets
-                .zero, // Mengurangi padding bawaan agar muat dengan tombol hapus
+        if (_isEditMode)
+          Checkbox(
+            value: isCurrentlySelected,
+            activeColor: Colors.indigo,
             onChanged: (bool? checked) {
               setState(() {
                 if (checked == true) {
-                  item.progress = 'selesai';
-                  final now = DateTime.now();
-                  item.finishedDate =
-                      "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
+                  _selectedItems.add(item);
                 } else {
-                  item.progress = 'belum';
-                  item.finishedDate = null;
+                  _selectedItems.remove(item);
                 }
-                _updateSubjectOverallProgress();
               });
-              widget.onDataChanged();
             },
           ),
+        Expanded(
+          child: _isEditMode
+              ? InkWell(
+                  onTap: () => _showEditNameDialog(item),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 12.0,
+                      horizontal: 8.0,
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            item.namaMateri,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ),
+                        const Icon(
+                          Icons.edit_note,
+                          color: Colors.blueGrey,
+                          size: 20,
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : CheckboxListTile(
+                  title: Text(
+                    item.namaMateri,
+                    style: TextStyle(
+                      fontSize: 14,
+                      decoration: isChecked ? TextDecoration.lineThrough : null,
+                      color: isChecked ? Colors.grey : Colors.black87,
+                    ),
+                  ),
+                  value: isChecked,
+                  activeColor: Colors.teal,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  onChanged: (bool? checked) {
+                    setState(() {
+                      if (checked == true) {
+                        item.progress = 'selesai';
+                        final now = DateTime.now();
+                        item.finishedDate =
+                            "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
+                      } else {
+                        item.progress = 'belum';
+                        item.finishedDate = null;
+                      }
+                      _updateSubjectOverallProgress();
+                    });
+                    widget.onDataChanged();
+                  },
+                ),
         ),
-        IconButton(
-          icon: const Icon(
-            Icons.delete_outline,
-            color: Colors.redAccent,
-            size: 20,
+        if (_isEditMode)
+          IconButton(
+            icon: const Icon(
+              Icons.delete_outline,
+              color: Colors.redAccent,
+              size: 20,
+            ),
+            tooltip: 'Hapus',
+            onPressed: () => _deleteSingleSubMateri(item),
           ),
-          tooltip: 'Hapus Sub-materi',
-          onPressed: () => _deleteSubMateri(item),
-        ),
       ],
     );
   }
