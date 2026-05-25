@@ -6,7 +6,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import '../../../../core/services/storage_service.dart';
 import '../../../task_master/presentation/widgets/drawer_menu.dart';
-import '../../../task_master/data/models/task_model.dart'; // <--- IMPORT MODEL TASK MASTER
+import '../../../task_master/data/models/task_model.dart';
 import '../../data/models/time_log_model.dart';
 
 class JurnalAktivitasScreen extends StatefulWidget {
@@ -20,8 +20,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
   final StorageService _storageService = StorageService();
 
   List<TimeLogEntry> _logs = [];
-  List<TaskCategory> _allTaskCategories =
-      []; // <--- SIMPAN DATA TUGAS DARI TASK MASTER
+  List<TaskCategory> _allTaskCategories = [];
   String _baseDir = '';
   String _fullJsonPath = '';
   bool _isLoading = true;
@@ -83,7 +82,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
         await _storageService.saveJsonData(jsonFile, jsonContent);
       }
 
-      // AMBIL JUGA DATA DARI TASK MASTER UNTUK CONTEXT LINKING
       await _loadTaskMasterData();
 
       setState(() {
@@ -124,8 +122,31 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     }
   }
 
-  // === FITUR BARU: DIALOG UNTUK MENGHUBUNGKAN / MEMUTUSKAN HUBUNGAN ID TUGAS ===
+  // === PERBAIKAN: VALIDASI INDIKATOR (Memastikan ID benar-benar eksis di Task Master aktual) ===
+  bool _isTaskTrulyLinked(TimeLogTask jurnalTask) {
+    if (jurnalTask.linkedTaskIds.isEmpty) return false;
+
+    // Cari apakah ada id di dalam linkedTaskIds yang cocok dengan data asli Task Master
+    for (var category in _allTaskCategories) {
+      for (var task in category.tasks) {
+        if (jurnalTask.linkedTaskIds.contains(task.id)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  // === PERBAIKAN: DIALOG SINKRONISASI DENGAN ATURAN RELASI 1-KE-1 ===
   void _tampilkanDialogLinkTugas(TimeLogTask jurnalTask) {
+    final String todayStr = _getTodayDateString();
+    final int todayLogIndex = _logs.indexWhere(
+      (entry) => entry.tanggal == todayStr,
+    );
+    final List<TimeLogTask> todayTasks = todayLogIndex != -1
+        ? _logs[todayLogIndex].tasks
+        : [];
+
     showDialog(
       context: context,
       builder: (context) {
@@ -158,8 +179,10 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                               ),
                             ),
                             children: category.tasks.map((taskItem) {
-                              final bool isLinked = jurnalTask.linkedTaskIds
+                              final bool isLinkedWithThis = jurnalTask
+                                  .linkedTaskIds
                                   .contains(taskItem.id);
+
                               return ListTile(
                                 dense: true,
                                 title: Text(taskItem.name),
@@ -167,24 +190,38 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                   'Total hitungan: ${taskItem.count}',
                                 ),
                                 trailing: Icon(
-                                  isLinked ? Icons.link : Icons.link_off,
-                                  color: isLinked ? Colors.teal : Colors.grey,
+                                  isLinkedWithThis
+                                      ? Icons.link
+                                      : Icons.link_off,
+                                  color: isLinkedWithThis
+                                      ? Colors.teal
+                                      : Colors.grey,
                                 ),
-                                tileColor: isLinked
+                                tileColor: isLinkedWithThis
                                     ? Colors.teal.withOpacity(0.05)
                                     : null,
                                 onTap: () {
                                   setDialogState(() {
-                                    if (isLinked) {
+                                    if (isLinkedWithThis) {
+                                      // Jika diklik pada tugas yang sudah terhubung dengannya, maka putuskan hubungan
                                       jurnalTask.linkedTaskIds.remove(
                                         taskItem.id,
                                       );
                                     } else {
+                                      // ATURAN 1-KE-1 (SEBALIKNYA): Putuskan tugas ini jika sebelumnya nempel di aktivitas lain hari ini
+                                      for (var t in todayTasks) {
+                                        if (t.id != jurnalTask.id) {
+                                          t.linkedTaskIds.remove(taskItem.id);
+                                        }
+                                      }
+
+                                      // ATURAN 1-KE-1 (SISI AKTIVITAS): Bersihkan link lama agar hanya terhubung ke 1 tugas master
+                                      jurnalTask.linkedTaskIds.clear();
                                       jurnalTask.linkedTaskIds.add(taskItem.id);
                                     }
                                   });
-                                  _saveData(); // Auto save json log update
-                                  setState(() {}); // Refresh UI Utama Screen
+                                  _saveData();
+                                  setState(() {}); // Refresh UI halaman utama
                                 },
                               );
                             }).toList(),
@@ -469,7 +506,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                               ),
                               subtitle: Text('${log.tasks.length} aktivitas'),
                               children: log.tasks.map((task) {
-                                final isLinked = task.linkedTaskIds.isNotEmpty;
+                                final isLinked = _isTaskTrulyLinked(task);
                                 return ListTile(
                                   dense: true,
                                   title: Row(
@@ -610,9 +647,9 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                           itemCount: todayTasks.length,
                           itemBuilder: (context, index) {
                             final task = todayTasks[index];
-                            final bool isLinked = task
-                                .linkedTaskIds
-                                .isNotEmpty; // <--- CEK APAKAH TERHUBUNG
+                            final bool isLinked = _isTaskTrulyLinked(
+                              task,
+                            ); // <--- PERBAIKAN VALIDASI INDIKATOR
 
                             return Card(
                               elevation: 2,
@@ -650,7 +687,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                         ),
                                       ),
                                     ),
-                                    // === VISUAL INDIKATOR TUGAS TERHUBUNG ===
                                     if (isLinked)
                                       Container(
                                         margin: const EdgeInsets.only(left: 6),
