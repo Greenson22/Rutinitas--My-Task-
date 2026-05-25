@@ -12,7 +12,11 @@ class TaskMasterApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Task Master',
-      theme: ThemeData(primarySwatch: Colors.blue, useMaterial3: false),
+      theme: ThemeData(
+        primarySwatch:
+            Colors.indigo, // Diubah ke Indigo agar sesuai tema sidebar
+        useMaterial3: false,
+      ),
       home: const HomeScreen(),
     );
   }
@@ -21,7 +25,7 @@ class TaskMasterApp extends StatelessWidget {
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
-  // Data dummy yang sudah ditambah sesuai gambar tablet Anda
+  // Data dummy kategori
   final List<Map<String, dynamic>> categories = const [
     {
       'name': 'Work',
@@ -117,105 +121,6 @@ class HomeScreen extends StatelessWidget {
     },
   ];
 
-  void _showWorkCategoryDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20.0),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16.0),
-                decoration: const BoxDecoration(
-                  color: Colors.indigo,
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(20.0),
-                    topRight: Radius.circular(20.0),
-                  ),
-                ),
-                child: const Text(
-                  'Work Category',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 8.0,
-                  horizontal: 12.0,
-                ),
-                child: Column(
-                  children: [
-                    _buildPopupItem(
-                      'Career',
-                      '+0 / 4 hari ini | Total: 625 | Due: 2026-05-24',
-                    ),
-                    _buildPopupItem(
-                      'New Tech',
-                      '+0 / 1 hari ini | Total: 4 | Due: 2026-05-22',
-                    ),
-                    _buildPopupItem('Coding', 'Total: 203 | Due: 2026-05-24'),
-                    _buildPopupItem('Game', 'Total: 69 | Due: 2026-05-01'),
-                    _buildPopupItem('Extra', 'Total: 604 | Due: 2026-05-22'),
-                  ],
-                ),
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text(
-                      'Tutup',
-                      style: TextStyle(color: Colors.blue, fontSize: 16),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () {},
-                    child: const Text(
-                      'Tambah Tugas',
-                      style: TextStyle(color: Colors.blue, fontSize: 16),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-              ),
-              const SizedBox(height: 8),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildPopupItem(String title, String subtitle) {
-    return ListTile(
-      dense: true,
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 8.0,
-        vertical: 0.0,
-      ),
-      leading: const Icon(Icons.add_circle_outline, color: Colors.blue),
-      title: Text(
-        title,
-        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-      ),
-      subtitle: Text(
-        subtitle,
-        style: const TextStyle(color: Colors.blueGrey, fontSize: 11),
-      ),
-      trailing: const Icon(Icons.more_vert, color: Colors.black),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -223,30 +128,67 @@ class HomeScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Task Master'),
         backgroundColor: Colors.indigo[700],
-        leading: IconButton(icon: const Icon(Icons.menu), onPressed: () {}),
+        // Hamburger menu akan otomatis muncul karena kita menambahkan 'drawer'
       ),
-      // MENGGUNAKAN LAYOUTBUILDER AGAR RESPONSIF
+      // --- PENAMBAHAN SIDEBAR (DRAWER) DI SINI ---
+      drawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            // Header Sidebar
+            DrawerHeader(
+              decoration: const BoxDecoration(color: Colors.white),
+              child: Row(
+                children: const [
+                  Icon(
+                    Icons.format_list_bulleted,
+                    color: Colors.indigo,
+                    size: 30,
+                  ),
+                  SizedBox(width: 20),
+                  Text(
+                    'Task Master',
+                    style: TextStyle(
+                      color: Colors.indigo,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Menu Items
+            _buildDrawerItem(
+              Icons.format_list_bulleted,
+              'Task Master',
+              context,
+              isSelected: true,
+            ),
+            _buildDrawerItem(Icons.wb_sunny_outlined, 'Daily', context),
+            _buildDrawerItem(Icons.calendar_today, 'Weekly', context),
+            _buildDrawerItem(Icons.calendar_month, 'Monthly', context),
+            const Divider(), // Garis pemisah
+            _buildDrawerItem(Icons.settings, 'Settings', context),
+            const Divider(), // Garis pemisah
+            _buildDrawerItem(Icons.info_outline, 'About', context),
+          ],
+        ),
+      ),
       body: LayoutBuilder(
         builder: (context, constraints) {
-          // Menentukan jumlah kolom berdasarkan lebar layar
-          int crossAxisCount = 2; // Default untuk HP biasa
-
+          int crossAxisCount = 2;
           if (constraints.maxWidth >= 1200) {
-            crossAxisCount =
-                5; // Layar monitor besar / tablet landscape sangat lebar
+            crossAxisCount = 5;
           } else if (constraints.maxWidth >= 900) {
-            crossAxisCount =
-                4; // Tablet Landscape (Sesuai dengan gambar Anda yang memiliki 4 kolom)
+            crossAxisCount = 4;
           } else if (constraints.maxWidth >= 600) {
-            crossAxisCount = 3; // Tablet Portrait
+            crossAxisCount = 3;
           }
-
           return GridView.builder(
             padding: const EdgeInsets.all(12),
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: crossAxisCount, // Kolom berubah dinamis di sini
-              childAspectRatio:
-                  1.8, // Menyesuaikan proporsi kotak agar tidak terlalu tinggi saat melebar
+              crossAxisCount: crossAxisCount,
+              childAspectRatio: 1.8,
               crossAxisSpacing: 12,
               mainAxisSpacing: 12,
             ),
@@ -260,11 +202,9 @@ class HomeScreen extends StatelessWidget {
                 ),
                 child: InkWell(
                   onTap: () {
-                    if (item['name'] == 'Work') {
+                    if (item['name'] == 'Work')
                       _showWorkCategoryDialog(context);
-                    }
                   },
-                  borderRadius: BorderRadius.circular(8),
                   child: Padding(
                     padding: const EdgeInsets.all(12.0),
                     child: Row(
@@ -290,7 +230,6 @@ class HomeScreen extends StatelessWidget {
                                   fontSize: 16,
                                   fontWeight: FontWeight.w500,
                                 ),
-                                overflow: TextOverflow.ellipsis,
                               ),
                               const SizedBox(height: 4),
                               Text(
@@ -303,13 +242,10 @@ class HomeScreen extends StatelessWidget {
                             ],
                           ),
                         ),
-                        const Align(
-                          alignment: Alignment.topRight,
-                          child: Icon(
-                            Icons.more_vert,
-                            color: Colors.grey,
-                            size: 20,
-                          ),
+                        const Icon(
+                          Icons.more_vert,
+                          color: Colors.grey,
+                          size: 20,
                         ),
                       ],
                     ),
@@ -325,6 +261,86 @@ class HomeScreen extends StatelessWidget {
         backgroundColor: Colors.teal,
         child: const Icon(Icons.add, size: 30),
       ),
+    );
+  }
+
+  // Widget pendukung untuk item menu di drawer
+  Widget _buildDrawerItem(
+    IconData icon,
+    String title,
+    BuildContext context, {
+    bool isSelected = false,
+  }) {
+    return ListTile(
+      leading: Icon(icon, color: isSelected ? Colors.indigo : Colors.grey[700]),
+      title: Text(
+        title,
+        style: TextStyle(
+          color: isSelected ? Colors.indigo : Colors.black87,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          fontSize: 16,
+        ),
+      ),
+      onTap: () => Navigator.pop(context), // Menutup drawer saat diklik
+    );
+  }
+
+  void _showWorkCategoryDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20.0),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16.0),
+              decoration: const BoxDecoration(
+                color: Colors.indigo,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(20.0),
+                  topRight: Radius.circular(20.0),
+                ),
+              ),
+              child: const Text(
+                'Work Category',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Column(
+                children: [
+                  _buildPopupItem('Career', '+0 / 4 hari ini | Total: 625'),
+                  _buildPopupItem('New Tech', '+0 / 1 hari ini | Total: 4'),
+                  _buildPopupItem('Coding', 'Total: 203'),
+                ],
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Tutup'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPopupItem(String title, String subtitle) {
+    return ListTile(
+      dense: true,
+      leading: const Icon(Icons.add_circle_outline, color: Colors.blue),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+      subtitle: Text(subtitle, style: const TextStyle(fontSize: 11)),
+      trailing: const Icon(Icons.more_vert),
     );
   }
 }
