@@ -615,9 +615,72 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                       vertical: 8,
                       horizontal: 4,
                     ),
-                    children: widget.subject.subMateri
-                        .map((item) => _buildTreeRow(item, 0))
-                        .toList(),
+                    children: [
+                      // 1. Tampilkan sub-materi yang BELUM SELESAI
+                      ...widget.subject.subMateri
+                          .where((item) => item.progress != 'selesai')
+                          .map(
+                            (item) => _buildTreeRow(
+                              item,
+                              0,
+                              widget.subject.subMateri.indexOf(item),
+                            ),
+                          )
+                          .toList(),
+
+                      // 2. Berikan Garis Pembatas dan Keterangan jika ada item yang selesai
+                      if (widget.subject.subMateri.any(
+                        (item) => item.progress == 'selesai',
+                      )) ...[
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 12.0,
+                            horizontal: 16.0,
+                          ),
+                          child: Row(
+                            children: [
+                              const Expanded(
+                                child: Divider(
+                                  thickness: 1.5,
+                                  color: Colors.green,
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10.0,
+                                ),
+                                child: Text(
+                                  'List Telah Selesai',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green[700],
+                                  ),
+                                ),
+                              ),
+                              const Expanded(
+                                child: Divider(
+                                  thickness: 1.5,
+                                  color: Colors.green,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+
+                      // 3. Tampilkan sub-materi yang SUDAH SELESAI di paling bawah
+                      ...widget.subject.subMateri
+                          .where((item) => item.progress == 'selesai')
+                          .map(
+                            (item) => _buildTreeRow(
+                              item,
+                              0,
+                              widget.subject.subMateri.indexOf(item),
+                            ),
+                          )
+                          .toList(),
+                    ],
                   ),
           ),
           const Divider(height: 1),
@@ -721,8 +784,8 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     );
   }
 
-  // WIDGET REKURSIF UNTUK RENDERING NESTED ITEMS
-  Widget _buildTreeRow(SubMateriItem item, int depth) {
+  // WIDGET REKURSIF UNTUK RENDERING NESTED ITEMS (DIPERBARUI)
+  Widget _buildTreeRow(SubMateriItem item, int depth, int originalIndex) {
     bool isChecked = item.progress == 'selesai';
     bool isCurrentlySelected = _selectedItems.contains(item);
 
@@ -871,7 +934,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                       ),
               ),
 
-              // PERUBAHAN: Tombol Tambah Sub-Materi bersarang kini hanya aktif/muncul di Mode Edit (_isEditMode)
               if (_isEditMode)
                 IconButton(
                   icon: const Icon(
@@ -903,7 +965,13 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
         if (item.subMateri.isNotEmpty)
           Column(
             children: item.subMateri
-                .map((child) => _buildTreeRow(child, depth + 1))
+                .map(
+                  (child) => _buildTreeRow(
+                    child,
+                    depth + 1,
+                    item.subMateri.indexOf(child),
+                  ),
+                )
                 .toList(),
           ),
       ],
