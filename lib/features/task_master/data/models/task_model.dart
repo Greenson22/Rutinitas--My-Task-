@@ -36,18 +36,16 @@ class TaskCategory {
 }
 
 class TaskItem {
-  final String id;
-  final String name;
-  int count; // Diubah menjadi non-final agar bisa dinaikkan
-  String?
-  date; // Diubah menjadi non-final agar bisa diperbarui ke tanggal hari ini
+  final String id; // Tetap final karena ID tidak perlu diubah
+  String name; // <--- HAPUS FINAL DI SINI
+  int count;
+  String? date;
   final bool checked;
-  int countToday; // Diubah menjadi non-final agar bisa diperbarui/direset
+  int countToday;
   final String lastUpdated;
-  int
-  targetCountToday; // Diubah menjadi non-final agar bisa disesuaikan pengguna
+  int targetCountToday;
   final int type;
-  final int targetCount;
+  int targetCount; // <--- HAPUS FINAL DI SINI
 
   TaskItem({
     required this.id,

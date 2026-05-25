@@ -170,6 +170,31 @@ class _HomeScreenState extends State<HomeScreen> {
         onUpdateTargetToday: (task, newTarget) {
           _updateTaskTargetToday(task, newTarget);
         },
+        // Tambahkan dua parameter callback baru ini
+        onEditTaskDetail:
+            (
+              task,
+              newName,
+              newCount,
+              newCountToday,
+              newTargetCount,
+              newTargetCountToday,
+              newDate,
+            ) {
+              _editTaskDetail(
+                category,
+                task,
+                newName,
+                newCount,
+                newCountToday,
+                newTargetCount,
+                newTargetCountToday,
+                newDate,
+              );
+            },
+        onDeleteTask: (task) {
+          _deleteTask(category, task);
+        },
       ),
     );
   }
@@ -335,5 +360,82 @@ class _HomeScreenState extends State<HomeScreen> {
         },
       ),
     );
+  }
+
+  // Fungsi baru
+  // === FUNGSI LOGIKA UNTUK EDIT DETAIL TUGAS ===
+  Future<void> _editTaskDetail(
+    TaskCategory category,
+    TaskItem oldTask,
+    String newName,
+    int newCount,
+    int newCountToday,
+    int newTargetCount,
+    int newTargetCountToday,
+    String? newDate,
+  ) async {
+    // Cari kategori yang sesuai
+    int catIndex = _allCategoriesRaw.indexWhere(
+      (cat) => cat.name == category.name,
+    );
+    if (catIndex != -1) {
+      // Cari tugas yang sesuai di dalam kategori tersebut
+      int taskIndex = _allCategoriesRaw[catIndex].tasks.indexWhere(
+        (t) => t.id == oldTask.id,
+      );
+      if (taskIndex != -1) {
+        setState(() {
+          var task = _allCategoriesRaw[catIndex].tasks[taskIndex];
+          task.name = newName;
+          task.count = newCount;
+          task.countToday = newCountToday;
+          task.targetCount = newTargetCount;
+          task.targetCountToday = newTargetCountToday;
+          task.date = newDate;
+        });
+        await _saveAllCategoriesToFile();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Tugas "$newName" berhasil diperbarui!')),
+        );
+      }
+    }
+  }
+
+  // === FUNGSI LOGIKA UNTUK MENGHAPUS TUGAS ===
+  Future<void> _deleteTask(TaskCategory category, TaskItem task) async {
+    bool? confirmDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Hapus Tugas'),
+        content: Text(
+          'Apakah Anda yakin ingin menghapus tugas "${task.name}"?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Hapus', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmDelete == true) {
+      int catIndex = _allCategoriesRaw.indexWhere(
+        (cat) => cat.name == category.name,
+      );
+      if (catIndex != -1) {
+        setState(() {
+          _allCategoriesRaw[catIndex].tasks.removeWhere((t) => t.id == task.id);
+        });
+        await _saveAllCategoriesToFile();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Tugas "${task.name}" berhasil dihapus.')),
+        );
+      }
+    }
   }
 }

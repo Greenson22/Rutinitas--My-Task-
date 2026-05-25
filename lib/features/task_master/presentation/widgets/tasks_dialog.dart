@@ -1,16 +1,23 @@
 import 'package:flutter/material.dart';
 import '../../data/models/task_model.dart';
+import 'edit_task_dialog.dart'; // Import dialog edit detail baru
 
 class TasksDialog extends StatelessWidget {
   final TaskCategory category;
   final Function(TaskItem) onIncrementTask;
   final Function(TaskItem, int) onUpdateTargetToday;
+  // Tambahkan callback untuk edit detail dan hapus tugas
+  final Function(TaskItem, String, int, int, int, int, String?)
+  onEditTaskDetail;
+  final Function(TaskItem) onDeleteTask;
 
   const TasksDialog({
     super.key,
     required this.category,
     required this.onIncrementTask,
     required this.onUpdateTargetToday,
+    required this.onEditTaskDetail,
+    required this.onDeleteTask,
   });
 
   void _showTargetInputDialog(
@@ -40,7 +47,6 @@ class TasksDialog extends StatelessWidget {
               final newTarget =
                   int.tryParse(controller.text) ?? task.targetCountToday;
               onUpdateTargetToday(task, newTarget);
-              // Memicu refresh tampilan internal dialog setelah target diubah
               setDialogState(() {});
               Navigator.pop(ctx);
             },
@@ -51,9 +57,44 @@ class TasksDialog extends StatelessWidget {
     );
   }
 
+  // Fungsi untuk menampilkan form edit detail tugas lengkap
+  void _showEditTaskDetailDialog(
+    BuildContext context,
+    TaskItem task,
+    StateSetter setDialogState,
+  ) {
+    showDialog(
+      context: context,
+      builder: (ctx) => EditTaskDialog(
+        task: task,
+        onSave:
+            ({
+              required newCount,
+              required newCountToday,
+              required newDate,
+              required newName,
+              required newTargetCount,
+              required newTargetCountToday,
+            }) {
+              onEditTaskDetail(
+                task,
+                newName,
+                newCount,
+                newCountToday,
+                newTargetCount,
+                newTargetCountToday,
+                newDate,
+              );
+              setDialogState(
+                () {},
+              ); // Memicu re-render UI dialog tugas secara instan
+            },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    // === BUNGKUS DENGAN STATEFULBUILDER ===
     return StatefulBuilder(
       builder: (context, setDialogState) {
         return Dialog(
@@ -94,7 +135,7 @@ class TasksDialog extends StatelessWidget {
                         itemBuilder: (context, index) {
                           final task = category.tasks[index];
                           String subtitleText =
-                              '+${task.countToday} / ${task.targetCountToday} hari ini | Total: ${task.count}';
+                              '+${task.countToday} / ${task.targetCountToday} hari ini | Total: ${task.count} / ${task.targetCount}';
                           if (task.date != null) {
                             subtitleText += ' | Update: ${task.date}';
                           }
@@ -109,7 +150,6 @@ class TasksDialog extends StatelessWidget {
                               ),
                               onPressed: () {
                                 onIncrementTask(task);
-                                // Memicu refresh tampilan internal dialog setelah count bertambah
                                 setDialogState(() {});
                               },
                             ),
@@ -135,7 +175,55 @@ class TasksDialog extends StatelessWidget {
                                 ),
                               ),
                             ),
-                            trailing: const Icon(Icons.more_vert),
+                            // === UBAH TOMBOL TITIK TIGA MENJADI POPUP MENU ===
+                            trailing: PopupMenuButton<String>(
+                              icon: const Icon(
+                                Icons.more_vert,
+                                color: Colors.grey,
+                              ),
+                              padding: EdgeInsets.zero,
+                              onSelected: (value) {
+                                if (value == 'edit_detail') {
+                                  _showEditTaskDetailDialog(
+                                    context,
+                                    task,
+                                    setDialogState,
+                                  );
+                                } else if (value == 'delete_task') {
+                                  onDeleteTask(task);
+                                  setDialogState(
+                                    () {},
+                                  ); // Menghapus item dari list view dialog
+                                }
+                              },
+                              itemBuilder: (BuildContext context) => [
+                                const PopupMenuItem<String>(
+                                  value: 'edit_detail',
+                                  child: ListTile(
+                                    leading: Icon(Icons.edit_note, size: 20),
+                                    title: Text('Edit Detail'),
+                                    contentPadding: EdgeInsets.zero,
+                                    dense: true,
+                                  ),
+                                ),
+                                const PopupMenuItem<String>(
+                                  value: 'delete_task',
+                                  child: ListTile(
+                                    leading: Icon(
+                                      Icons.delete_outline,
+                                      color: Colors.red,
+                                      size: 20,
+                                    ),
+                                    title: Text(
+                                      'Hapus',
+                                      style: TextStyle(color: Colors.red),
+                                    ),
+                                    contentPadding: EdgeInsets.zero,
+                                    dense: true,
+                                  ),
+                                ),
+                              ],
+                            ),
                           );
                         },
                       ),
