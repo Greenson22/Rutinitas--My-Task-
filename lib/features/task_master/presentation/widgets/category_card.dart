@@ -8,7 +8,9 @@ class CategoryCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
-  final VoidCallback onToggleVisibility; // <--- CALLBACK BARU
+  final VoidCallback onToggleVisibility;
+  final VoidCallback? onMoveUp; // <--- TAMBAHAN UNTUK URUTAN MANUAL
+  final VoidCallback? onMoveDown; // <--- TAMBAHAN UNTUK URUTAN MANUAL
 
   const CategoryCard({
     super.key,
@@ -16,7 +18,9 @@ class CategoryCard extends StatelessWidget {
     required this.onTap,
     required this.onEdit,
     required this.onDelete,
-    required this.onToggleVisibility, // <--- AJAK DI CONSTRUCTOR
+    required this.onToggleVisibility,
+    this.onMoveUp,
+    this.onMoveDown,
   });
 
   @override
@@ -50,7 +54,6 @@ class CategoryCard extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w500,
-                        // Berikan efek transparan tipis jika kategori sedang disembunyikan
                         color: category.isHidden ? Colors.grey : Colors.black87,
                       ),
                       overflow: TextOverflow.ellipsis,
@@ -74,9 +77,35 @@ class CategoryCard extends StatelessWidget {
                     onDelete();
                   } else if (value == 'toggle_visibility') {
                     onToggleVisibility();
+                  } else if (value == 'move_up' && onMoveUp != null) {
+                    onMoveUp!();
+                  } else if (value == 'move_down' && onMoveDown != null) {
+                    onMoveDown!();
                   }
                 },
                 itemBuilder: (BuildContext context) => [
+                  // Menu Naik Posisi
+                  if (onMoveUp != null)
+                    const PopupMenuItem<String>(
+                      value: 'move_up',
+                      child: ListTile(
+                        leading: Icon(Icons.arrow_left, size: 20),
+                        title: Text('Pindahkan ke Kiri'),
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                      ),
+                    ),
+                  // Menu Turun Posisi
+                  if (onMoveDown != null)
+                    const PopupMenuItem<String>(
+                      value: 'move_down',
+                      child: ListTile(
+                        leading: Icon(Icons.arrow_right, size: 20),
+                        title: Text('Pindahkan ke Kanan'),
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                      ),
+                    ),
                   const PopupMenuItem<String>(
                     value: 'edit',
                     child: ListTile(
