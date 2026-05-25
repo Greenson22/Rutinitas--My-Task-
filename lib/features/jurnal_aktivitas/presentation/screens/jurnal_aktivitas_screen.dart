@@ -6,6 +6,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import '../../../../core/services/storage_service.dart';
 import '../../../task_master/presentation/widgets/drawer_menu.dart';
+import '../../../task_master/data/models/task_model.dart'; // <--- IMPORT MODEL TASK MASTER
 import '../../data/models/time_log_model.dart';
 
 class JurnalAktivitasScreen extends StatefulWidget {
@@ -19,11 +20,12 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
   final StorageService _storageService = StorageService();
 
   List<TimeLogEntry> _logs = [];
+  List<TaskCategory> _allTaskCategories =
+      []; // <--- SIMPAN DATA TUGAS DARI TASK MASTER
   String _baseDir = '';
   String _fullJsonPath = '';
   bool _isLoading = true;
 
-  // STATE BARU: Menandakan apakah halaman Jurnal sedang dalam mode edit (Ubah/Hapus)
   bool _isEditMode = false;
 
   @override
@@ -52,12 +54,10 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
           .toList();
 
       final String todayStr = _getTodayDateString();
-
       bool hasTodayLog = loadedLogs.any((entry) => entry.tanggal == todayStr);
 
       if (!hasTodayLog && loadedLogs.isNotEmpty) {
         final lastLog = loadedLogs.last;
-
         List<TimeLogTask> copiedTasks = lastLog.tasks.map((task) {
           return TimeLogTask(
             id: task.id,
@@ -83,6 +83,9 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
         await _storageService.saveJsonData(jsonFile, jsonContent);
       }
 
+      // AMBIL JUGA DATA DARI TASK MASTER UNTUK CONTEXT LINKING
+      await _loadTaskMasterData();
+
       setState(() {
         _logs = loadedLogs;
         _isLoading = false;
@@ -90,6 +93,22 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     } catch (e) {
       setState(() => _isLoading = false);
       debugPrint("Error loading jurnal data: $e");
+    }
+  }
+
+  Future<void> _loadTaskMasterData() async {
+    try {
+      File taskFile = await _storageService.getTargetJsonFile(_baseDir);
+      if (await taskFile.exists()) {
+        String jsonString = await taskFile.readAsString();
+        final Map<String, dynamic> parsedMap = jsonDecode(jsonString);
+        final List<dynamic> catList = parsedMap['categories'] ?? [];
+        _allTaskCategories = catList
+            .map((json) => TaskCategory.fromJson(json))
+            .toList();
+      }
+    } catch (e) {
+      debugPrint("Error loading task master components: $e");
     }
   }
 
@@ -105,7 +124,87 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     }
   }
 
-  // === MODIFIKASI: DENGAN KONFIRMASI SEBELUM TAMBAH 30 MENIT ===
+  // === FITUR BARU: DIALOG UNTUK MENGHUBUNGKAN / MEMUTUSKAN HUBUNGAN ID TUGAS ===
+  void _tampilkanDialogLinkTugas(TimeLogTask jurnalTask) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text('Hubungkan: ${jurnalTask.nama}'),
+              content: SizedBox(
+                width: double.maxFinite,
+                height: MediaQuery.of(context).size.height * 0.5,
+                child: _allTaskCategories.isEmpty
+                    ? const Center(
+                        child: Text(
+                          "Tidak ada kategori tugas ditemukan di Task Master.",
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: _allTaskCategories.length,
+                        itemBuilder: (context, catIdx) {
+                          final category = _allTaskCategories[catIdx];
+                          return ExpansionTile(
+                            leading: Text(
+                              category.icon,
+                              style: const TextStyle(fontSize: 18),
+                            ),
+                            title: Text(
+                              category.name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            children: category.tasks.map((taskItem) {
+                              final bool isLinked = jurnalTask.linkedTaskIds
+                                  .contains(taskItem.id);
+                              return ListTile(
+                                dense: true,
+                                title: Text(taskItem.name),
+                                subtitle: Text(
+                                  'Total hitungan: ${taskItem.count}',
+                                ),
+                                trailing: Icon(
+                                  isLinked ? Icons.link : Icons.link_off,
+                                  color: isLinked ? Colors.teal : Colors.grey,
+                                ),
+                                tileColor: isLinked
+                                    ? Colors.teal.withOpacity(0.05)
+                                    : null,
+                                onTap: () {
+                                  setDialogState(() {
+                                    if (isLinked) {
+                                      jurnalTask.linkedTaskIds.remove(
+                                        taskItem.id,
+                                      );
+                                    } else {
+                                      jurnalTask.linkedTaskIds.add(taskItem.id);
+                                    }
+                                  });
+                                  _saveData(); // Auto save json log update
+                                  setState(() {}); // Refresh UI Utama Screen
+                                },
+                              );
+                            }).toList(),
+                          );
+                        },
+                      ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Selesai'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   void _tambahDurasiAktivitas(TimeLogTask task, {VoidCallback? onDone}) async {
     final bool? konfirmasi = await showDialog<bool>(
       context: context,
@@ -134,13 +233,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
       int idx = logEntry.tasks.indexWhere((t) => t.id == task.id);
       if (idx != -1) {
         setState(() {
-          logEntry.tasks[idx] = TimeLogTask(
-            id: task.id,
-            nama: task.nama,
-            durasiMenit: task.durasiMenit + 30,
-            kategori: task.kategori,
-            linkedTaskIds: task.linkedTaskIds,
-          );
+          logEntry.tasks[idx].durasiMenit += 30;
         });
         break;
       }
@@ -148,17 +241,8 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
 
     await _saveData();
     if (onDone != null) onDone();
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('⏱ Durasi "${task.nama}" ditambah 30 menit!'),
-        duration: const Duration(seconds: 1),
-        backgroundColor: Colors.indigo,
-      ),
-    );
   }
 
-  // === FITUR BARU: DIALOG EDIT TIMER MANUAL SECARA LANGSUNG ===
   void _tampilkanDialogEditTimerLangsung(
     TimeLogTask task, {
     VoidCallback? onDone,
@@ -207,14 +291,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                 await _saveData();
                 if (onDone != null) onDone();
                 Navigator.pop(context);
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      '⏱ Durasi "${task.nama}" berhasil diubah menjadi $newDuration menit!',
-                    ),
-                  ),
-                );
               }
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
@@ -239,7 +315,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
             controller: inputController,
             decoration: const InputDecoration(
               labelText: 'Nama Aktivitas / Tugas',
-              hintText: 'Contoh: Rapat Tim, Belajar Dart',
               border: OutlineInputBorder(),
             ),
             validator: (v) =>
@@ -274,11 +349,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
 
                   await _saveData();
                   Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Aktivitas baru berhasil ditambahkan!'),
-                    ),
-                  );
                 }
               }
             },
@@ -294,7 +364,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     final TextEditingController editController = TextEditingController(
       text: task.nama,
     );
-
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -362,9 +431,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
           _logs[todayLogIndex].tasks.removeWhere((t) => t.id == task.id);
         });
         await _saveData();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Aktivitas berhasil dihapus.')),
-        );
       }
     }
   }
@@ -403,13 +469,23 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                               ),
                               subtitle: Text('${log.tasks.length} aktivitas'),
                               children: log.tasks.map((task) {
+                                final isLinked = task.linkedTaskIds.isNotEmpty;
                                 return ListTile(
                                   dense: true,
-                                  title: Text(task.nama),
+                                  title: Row(
+                                    children: [
+                                      Expanded(child: Text(task.nama)),
+                                      if (isLinked)
+                                        const Icon(
+                                          Icons.link,
+                                          size: 14,
+                                          color: Colors.teal,
+                                        ),
+                                    ],
+                                  ),
                                   trailing: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      // KLIK TEXT TIMER UNTUK EDIT LANGSUNG DI DIALOG RIWAYAT
                                       InkWell(
                                         onTap: () =>
                                             _tampilkanDialogEditTimerLangsung(
@@ -417,35 +493,34 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                               onDone: () =>
                                                   setDialogState(() {}),
                                             ),
-                                        borderRadius: BorderRadius.circular(4),
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 4,
-                                            vertical: 2,
-                                          ),
-                                          child: Text(
-                                            '⏱ ${task.durasiMenit} mnt',
-                                            style: const TextStyle(
-                                              decoration:
-                                                  TextDecoration.underline,
-                                              color: Colors.indigo,
-                                            ),
+                                        child: Text(
+                                          '⏱ ${task.durasiMenit} mnt',
+                                          style: const TextStyle(
+                                            decoration:
+                                                TextDecoration.underline,
+                                            color: Colors.indigo,
                                           ),
                                         ),
                                       ),
-                                      const SizedBox(width: 4),
+                                      IconButton(
+                                        icon: const Icon(
+                                          Icons.link,
+                                          color: Colors.blueGrey,
+                                          size: 18,
+                                        ),
+                                        onPressed: () =>
+                                            _tampilkanDialogLinkTugas(task),
+                                      ),
                                       IconButton(
                                         icon: const Icon(
                                           Icons.add_circle,
                                           color: Colors.indigo,
                                           size: 20,
                                         ),
-                                        onPressed: () {
-                                          _tambahDurasiAktivitas(
-                                            task,
-                                            onDone: () => setDialogState(() {}),
-                                          );
-                                        },
+                                        onPressed: () => _tambahDurasiAktivitas(
+                                          task,
+                                          onDone: () => setDialogState(() {}),
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -472,7 +547,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
   @override
   Widget build(BuildContext context) {
     final String todayStr = _getTodayDateString();
-
     final todayLogIndex = _logs.indexWhere(
       (entry) => entry.tanggal == todayStr,
     );
@@ -492,18 +566,10 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
               size: 28,
             ),
             color: _isEditMode ? Colors.amberAccent : Colors.white,
-            tooltip: _isEditMode
-                ? 'Selesai Mengatur'
-                : 'Ubah & Hapus Aktivitas',
-            onPressed: () {
-              setState(() {
-                _isEditMode = !_isEditMode;
-              });
-            },
+            onPressed: () => setState(() => _isEditMode = !_isEditMode),
           ),
           IconButton(
             icon: const Icon(Icons.history, color: Colors.white),
-            tooltip: 'Lihat Riwayat',
             onPressed: _tampilkanDialogRiwayat,
           ),
         ],
@@ -542,9 +608,12 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                         )
                       : ListView.builder(
                           itemCount: todayTasks.length,
-                          padding: const EdgeInsets.only(bottom: 80),
                           itemBuilder: (context, index) {
                             final task = todayTasks[index];
+                            final bool isLinked = task
+                                .linkedTaskIds
+                                .isNotEmpty; // <--- CEK APAKAH TERHUBUNG
+
                             return Card(
                               elevation: 2,
                               margin: const EdgeInsets.symmetric(
@@ -570,12 +639,55 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                     size: 18,
                                   ),
                                 ),
-                                title: Text(
-                                  task.nama,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 13.5,
-                                  ),
+                                title: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        task.nama,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13.5,
+                                        ),
+                                      ),
+                                    ),
+                                    // === VISUAL INDIKATOR TUGAS TERHUBUNG ===
+                                    if (isLinked)
+                                      Container(
+                                        margin: const EdgeInsets.only(left: 6),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.teal[50],
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                          border: Border.all(
+                                            color: Colors.teal.shade200,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: const [
+                                            Icon(
+                                              Icons.link,
+                                              size: 10,
+                                              color: Colors.teal,
+                                            ),
+                                            SizedBox(width: 2),
+                                            Text(
+                                              'Terhubung',
+                                              style: TextStyle(
+                                                fontSize: 9,
+                                                color: Colors.teal,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                  ],
                                 ),
                                 trailing: _isEditMode
                                     ? Row(
@@ -583,10 +695,18 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                         children: [
                                           IconButton(
                                             icon: const Icon(
+                                              Icons.link,
+                                              color: Colors.teal,
+                                            ),
+                                            tooltip: 'Kelola Hubungan Tugas',
+                                            onPressed: () =>
+                                                _tampilkanDialogLinkTugas(task),
+                                          ),
+                                          IconButton(
+                                            icon: const Icon(
                                               Icons.edit_note,
                                               color: Colors.blueGrey,
                                             ),
-                                            tooltip: 'Ubah Nama',
                                             onPressed: () =>
                                                 _tampilkanDialogUbahAktivitas(
                                                   task,
@@ -597,7 +717,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                               Icons.delete_outline,
                                               color: Colors.redAccent,
                                             ),
-                                            tooltip: 'Hapus',
                                             onPressed: () =>
                                                 _hapusAktivitas(task),
                                           ),
@@ -606,7 +725,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                     : Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          // === MODIFIKASI: DIBUNGKUS INKWELL AGAR BISA DIKLIK UNTUK EDIT TIMER ===
                                           InkWell(
                                             onTap: () =>
                                                 _tampilkanDialogEditTimerLangsung(
@@ -627,7 +745,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                                     BorderRadius.circular(6),
                                                 border: Border.all(
                                                   color: Colors.amber.shade200,
-                                                  width: 1,
                                                 ),
                                               ),
                                               child: Text(
@@ -647,8 +764,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                               color: Colors.indigo,
                                               size: 22,
                                             ),
-                                            tooltip: 'Tambah 30 Menit',
-                                            constraints: const BoxConstraints(),
                                             padding: const EdgeInsets.all(4),
                                             onPressed: () =>
                                                 _tambahDurasiAktivitas(task),

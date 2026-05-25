@@ -22,10 +22,11 @@ class TimeLogEntry {
 
 class TimeLogTask {
   final int id;
-  String nama; // <--- UBAH DI SINI: Hapus 'final' agar bisa di-edit namanya
+  String nama;
   int durasiMenit;
   final String? kategori;
-  final List<String> linkedTaskIds;
+  List<String>
+  linkedTaskIds; // <--- UBAH DI SINI: Hapus 'final' agar bisa dimodifikasi
 
   TimeLogTask({
     required this.id,
