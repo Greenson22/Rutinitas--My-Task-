@@ -253,7 +253,7 @@ class _DailyScreenState extends State<DailyScreen> {
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
         childAspectRatio:
-            0.72, // Sedikit disesuaikan agar pas dengan komponen yang lebih rapat
+            0.9, // Sedikit disesuaikan agar pas dengan komponen yang lebih rapat
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
       ),
