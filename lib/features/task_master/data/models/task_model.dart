@@ -1,3 +1,5 @@
+// lib/features/task_master/data/models/task_model.dart
+
 import 'dart:math';
 
 class TaskCategory {
@@ -36,8 +38,8 @@ class TaskCategory {
 }
 
 class TaskItem {
-  final String id; // Tetap final karena ID tidak perlu diubah
-  String name; // <--- HAPUS FINAL DI SINI
+  final String id;
+  String name;
   int count;
   String? date;
   final bool checked;
@@ -45,7 +47,8 @@ class TaskItem {
   final String lastUpdated;
   int targetCountToday;
   final int type;
-  int targetCount; // <--- HAPUS FINAL DI SINI
+  int targetCount;
+  bool isActive; // <--- TAMBAHAN FIELD BARU
 
   TaskItem({
     required this.id,
@@ -58,6 +61,7 @@ class TaskItem {
     required this.targetCountToday,
     required this.type,
     required this.targetCount,
+    this.isActive = true, // <--- DEFAULT VALUES TRUE
   });
 
   factory TaskItem.fromJson(Map<String, dynamic> json) {
@@ -72,6 +76,7 @@ class TaskItem {
       targetCountToday: json['targetCountToday'] ?? 0,
       type: json['type'] ?? 0,
       targetCount: json['targetCount'] ?? 0,
+      isActive: json['isActive'] ?? true, // <--- PARSING DARI JSON
     );
   }
 
@@ -87,10 +92,10 @@ class TaskItem {
       'targetCountToday': targetCountToday,
       'type': type,
       'targetCount': targetCount,
+      'isActive': isActive, // <--- SIMPAN KE JSON
     };
   }
 
-  // Fungsi statis untuk membuat ID acak unik numerik/string pendek jika tidak pakai package uuid
   static String generateRandomId() {
     final random = Random();
     const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';

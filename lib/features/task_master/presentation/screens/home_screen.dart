@@ -216,7 +216,19 @@ class _HomeScreenState extends State<HomeScreen> {
         category: category,
         onIncrementTask: (task) => _incrementTaskCount(task),
         onUpdateTargetToday: (task, target) {},
-        onEditTaskDetail: (task, name, c, ct, tc, tct, d) {},
+        // === UPDATE HANDLING DI SINI ===
+        onEditTaskDetail: (task, name, c, ct, tc, tct, d, active) async {
+          setState(() {
+            task.name = name;
+            task.count = c;
+            task.countToday = ct;
+            task.targetCount = tc;
+            task.targetCountToday = tct;
+            task.date = d;
+            task.isActive = active; // <--- ASSIGN VALUE KE OBJEK MODEL
+          });
+          await _saveAllCategoriesToFile(); // Simpan otomatis ke JSON lokal
+        },
         onDeleteTask: (task) async => false,
       ),
     );

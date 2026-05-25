@@ -1,6 +1,7 @@
+// lib/features/task_master/presentation/widgets/edit_task_dialog.dart
+
 import 'package:flutter/material.dart';
 import '../../data/models/task_model.dart';
-import 'package:intl/intl.dart'; // Digunakan untuk memformat objek DateTime ke string YYYY-MM-DD
 
 class EditTaskDialog extends StatefulWidget {
   final TaskItem task;
@@ -11,6 +12,7 @@ class EditTaskDialog extends StatefulWidget {
     required int newTargetCount,
     required int newTargetCountToday,
     required String? newDate,
+    required bool newIsActive, // <--- PARAMETER BARU
   })
   onSave;
 
@@ -28,6 +30,7 @@ class _EditTaskDialogState extends State<EditTaskDialog> {
   late TextEditingController _targetCountController;
   late TextEditingController _targetCountTodayController;
   late TextEditingController _dateController;
+  late bool _isActive; // <--- STATE BARU
 
   @override
   void initState() {
@@ -46,6 +49,7 @@ class _EditTaskDialogState extends State<EditTaskDialog> {
       text: widget.task.targetCountToday.toString(),
     );
     _dateController = TextEditingController(text: widget.task.date ?? '');
+    _isActive = widget.task.isActive; // <--- INISIALISASI STATUS AKTIF
   }
 
   @override
@@ -59,11 +63,8 @@ class _EditTaskDialogState extends State<EditTaskDialog> {
     super.dispose();
   }
 
-  // === FUNGSI UTK MEMBUKA DATE PICKER YANG MUDAH ===
   Future<void> _selectDate(BuildContext context) async {
     DateTime initialDate = DateTime.now();
-
-    // Jika data date sebelumnya valid, gunakan sebagai initial date picker
     if (_dateController.text.isNotEmpty) {
       try {
         initialDate = DateTime.parse(_dateController.text);
@@ -79,7 +80,6 @@ class _EditTaskDialogState extends State<EditTaskDialog> {
 
     if (picked != null) {
       setState(() {
-        // Format otomatis ke format YYYY-MM-DD
         _dateController.text =
             "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
       });
@@ -122,10 +122,9 @@ class _EditTaskDialogState extends State<EditTaskDialog> {
                 decoration: const InputDecoration(labelText: 'Target Hari Ini'),
                 keyboardType: TextInputType.number,
               ),
-              // === INPUT DATE YANG DIUBAH MENJADI DATE PICKER KALENDER ===
               TextFormField(
                 controller: _dateController,
-                readOnly: true, // Menghindari keyboard muncul saat ditekan
+                readOnly: true,
                 decoration: InputDecoration(
                   labelText: 'Tanggal (YYYY-MM-DD)',
                   hintText: 'Pilih Tanggal',
@@ -138,6 +137,19 @@ class _EditTaskDialogState extends State<EditTaskDialog> {
                       : const Icon(Icons.calendar_today),
                 ),
                 onTap: () => _selectDate(context),
+              ),
+              const SizedBox(height: 10),
+              // === INPUT BARU STATUS AKTIF ===
+              SwitchListTile(
+                title: const Text('Status Tugas Aktif'),
+                value: _isActive,
+                activeColor: Colors.indigo,
+                contentPadding: EdgeInsets.zero,
+                onChanged: (bool value) {
+                  setState(() {
+                    _isActive = value;
+                  });
+                },
               ),
             ],
           ),
@@ -167,6 +179,7 @@ class _EditTaskDialogState extends State<EditTaskDialog> {
                 newDate: _dateController.text.trim().isEmpty
                     ? null
                     : _dateController.text.trim(),
+                newIsActive: _isActive, // <--- PASS DATA STATUS TERBARU
               );
               Navigator.pop(context);
             }

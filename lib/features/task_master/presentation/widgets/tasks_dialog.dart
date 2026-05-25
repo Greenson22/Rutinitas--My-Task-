@@ -1,14 +1,15 @@
+// lib/features/task_master/presentation/widgets/tasks_dialog.dart
+
 import 'package:flutter/material.dart';
 import '../../data/models/task_model.dart';
 import 'edit_task_dialog.dart';
 
 class TasksDialog extends StatelessWidget {
   final TaskCategory category;
-  final Future<bool> Function(TaskItem)
-  onIncrementTask; // <--- UBAH DI SINI MENJADI FUTURE<BOOL>
+  final Future<bool> Function(TaskItem) onIncrementTask;
   final Function(TaskItem, int) onUpdateTargetToday;
-  final Function(TaskItem, String, int, int, int, int, String?)
-  onEditTaskDetail;
+  final Function(TaskItem, String, int, int, int, int, String?, bool)
+  onEditTaskDetail; // <--- TAMBAH PARAMS BOOL DI AKHIR
   final Future<bool> Function(TaskItem) onDeleteTask;
 
   const TasksDialog({
@@ -20,14 +21,12 @@ class TasksDialog extends StatelessWidget {
     required this.onDeleteTask,
   });
 
-  // Fungsi helper untuk memformat tanggal ke gaya Indonesia dengan warna terpisah
-  List<TextSpan> _buildIndonesianDateSpans(String? dateStr) {
+  List<TextSpan> _buildIndonesianDateSpans(String? dateStr, bool isActive) {
     if (dateStr == null || dateStr.trim().isEmpty) return [];
 
     try {
       final DateTime parsedDate = DateTime.parse(dateStr);
 
-      // Map Nama Hari Indonesia
       const List<String> namaHari = [
         'Senin',
         'Selasa',
@@ -37,7 +36,6 @@ class TasksDialog extends StatelessWidget {
         'Sabtu',
         'Minggu',
       ];
-      // Map Nama Bulan Indonesia
       const List<String> namaBulan = [
         'Januari',
         'Februari',
@@ -59,45 +57,46 @@ class TasksDialog extends StatelessWidget {
       final String tahun = '${parsedDate.year}';
 
       return [
-        const TextSpan(
+        TextSpan(
           text: ' | Update: ',
-          style: TextStyle(color: Colors.blueGrey),
+          style: TextStyle(
+            color: isActive ? Colors.blueGrey : Colors.grey[400],
+          ),
         ),
         TextSpan(
           text: hari,
           style: TextStyle(
-            color: Colors.purple[900],
+            color: isActive ? Colors.purple[900] : Colors.grey,
             fontWeight: FontWeight.bold,
           ),
         ),
         TextSpan(
           text: tanggal,
           style: TextStyle(
-            color: Colors.pink[700],
+            color: isActive ? Colors.pink[700] : Colors.grey,
             fontWeight: FontWeight.bold,
           ),
         ),
         TextSpan(
           text: bulan,
           style: TextStyle(
-            color: Colors.teal[700],
+            color: isActive ? Colors.teal[700] : Colors.grey,
             fontWeight: FontWeight.bold,
           ),
         ),
         TextSpan(
           text: tahun,
           style: TextStyle(
-            color: Colors.deepOrange[700],
+            color: isActive ? Colors.deepOrange[700] : Colors.grey,
             fontWeight: FontWeight.bold,
           ),
         ),
       ];
     } catch (_) {
-      // Jika parsing gagal, kembalikan teks aslinya dengan warna default
       return [
         TextSpan(
           text: ' | Update: $dateStr',
-          style: const TextStyle(color: Colors.purple),
+          style: TextStyle(color: isActive ? Colors.purple : Colors.grey),
         ),
       ];
     }
@@ -120,6 +119,7 @@ class TasksDialog extends StatelessWidget {
               required newName,
               required newTargetCount,
               required newTargetCountToday,
+              required newIsActive, // <--- TANGKAP DATA SWITCH
             }) {
               onEditTaskDetail(
                 task,
@@ -129,6 +129,7 @@ class TasksDialog extends StatelessWidget {
                 newTargetCount,
                 newTargetCountToday,
                 newDate,
+                newIsActive, // <--- EVALUASI DATA KE CALLBACK UTAMA
               );
               setDialogState(() {});
             },
@@ -178,82 +179,99 @@ class TasksDialog extends StatelessWidget {
                         itemBuilder: (context, index) {
                           final task = category.tasks[index];
 
-                          // === LOGIKA STRUKTUR TEKS & PEWARNAAN SUBTITLE ===
                           String? todayText;
                           Color? todayColor;
 
                           if (task.targetCountToday == 0) {
                             if (task.countToday > 0) {
-                              // Tanpa target harian, tapi sudah ada hitungan hari ini -> Tampilkan (Warna Hijau)
                               todayText = '+${task.countToday} hari ini';
-                              todayColor = Colors.green[700]!;
+                              todayColor = task.isActive
+                                  ? Colors.green[700]!
+                                  : Colors.grey;
                             } else {
-                              // Tanpa target harian DAN hitungan masih 0 -> Jangan ditulis dlu (null)
                               todayText = null;
                             }
                           } else {
-                            // Jika memiliki target harian, selalu tampilkan format lengkap
                             todayText =
                                 '+${task.countToday} / ${task.targetCountToday} hari ini';
                             if (task.countToday >= task.targetCountToday) {
-                              todayColor = Colors.green[700]!;
+                              todayColor = task.isActive
+                                  ? Colors.green[700]!
+                                  : Colors.grey;
                             } else {
-                              todayColor = Colors.orange[700]!;
+                              todayColor = task.isActive
+                                  ? Colors.orange[700]!
+                                  : Colors.grey;
                             }
                           }
 
-                          // Tentukan teks penghubung pipa pembatas total count
                           String totalText = (todayText == null)
                               ? 'Total: ${task.count} / ${task.targetCount}'
                               : ' | Total: ${task.count} / ${task.targetCount}';
 
                           return ListTile(
                             dense: true,
+                            // JIKA NONAKTIF, TOMBOL PLUS MATI & BERWARNA ABU-ABU
                             leading: IconButton(
-                              icon: const Icon(
+                              icon: Icon(
                                 Icons.add_circle_outline,
-                                color: Colors.blue,
+                                color: task.isActive
+                                    ? Colors.blue
+                                    : Colors.grey[400],
                                 size: 28,
                               ),
-                              onPressed: () async {
-                                bool isUpdated = await onIncrementTask(task);
-                                if (isUpdated) {
-                                  setDialogState(() {});
-                                }
-                              },
+                              onPressed: task.isActive
+                                  ? () async {
+                                      bool isUpdated = await onIncrementTask(
+                                        task,
+                                      );
+                                      if (isUpdated) {
+                                        setDialogState(() {});
+                                      }
+                                    }
+                                  : null, // <--- KUNCI INPUT COUNT
                             ),
                             title: Text(
                               task.name,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 15,
+                                color: task.isActive
+                                    ? Colors.black87
+                                    : Colors
+                                          .grey, // <--- WARNA TEKS UTAMA ABU-ABU
                               ),
                             ),
-                            // Menggunakan Text.rich untuk segmentasi warna subtitle yang sangat spesifik
                             subtitle: Text.rich(
                               TextSpan(
                                 children: [
-                                  // 1. Bagian Progress Hari Ini (jika ada/memenuhi syarat tampil)
                                   if (todayText != null)
                                     TextSpan(
                                       text: todayText,
                                       style: TextStyle(
                                         color: todayColor,
                                         fontWeight:
-                                            task.countToday >=
-                                                    task.targetCountToday ||
-                                                task.targetCountToday == 0
+                                            (task.countToday >=
+                                                        task.targetCountToday ||
+                                                    task.targetCountToday ==
+                                                        0) &&
+                                                task.isActive
                                             ? FontWeight.bold
                                             : FontWeight.normal,
                                       ),
                                     ),
-                                  // 2. Bagian Total Count
                                   TextSpan(
                                     text: totalText,
-                                    style: TextStyle(color: Colors.blue[800]),
+                                    style: TextStyle(
+                                      color: task.isActive
+                                          ? Colors.blue[800]
+                                          : Colors.grey,
+                                    ),
                                   ),
-                                  // 3. Bagian Tanggal dengan format Indonesia dan warna pecahan kustom
-                                  ..._buildIndonesianDateSpans(task.date),
+                                  ..._buildIndonesianDateSpans(
+                                    task.date,
+                                    task.isActive,
+                                  ),
                                 ],
                               ),
                               style: const TextStyle(fontSize: 11),
