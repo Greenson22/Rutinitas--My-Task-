@@ -252,8 +252,8 @@ class _DailyScreenState extends State<DailyScreen> {
       padding: const EdgeInsets.all(12),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
-        // UBAH childAspectRatio dari 1.45 menjadi 0.65 agar bentuk kotak memanjang ke bawah (potrait)
-        childAspectRatio: 0.65,
+        childAspectRatio:
+            0.72, // Sedikit disesuaikan agar pas dengan komponen yang lebih rapat
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
       ),
@@ -266,7 +266,6 @@ class _DailyScreenState extends State<DailyScreen> {
             .length;
         bool isAllDone = totalSub > 0 && totalSub == selesaiSub;
 
-        // Mendapatkan sub-materi paling atas/pertama
         String topListText = "Tidak ada list";
         Color topListColor = Colors.grey[600]!;
         TextDecoration? topListDecoration;
@@ -286,79 +285,69 @@ class _DailyScreenState extends State<DailyScreen> {
           elevation: 2,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-          ), // Mengubah radius menjadi lebih rounded (16) sesuai gambar
+          ),
           child: InkWell(
             onTap: () => _openMateriChecklist(subject),
             borderRadius: BorderRadius.circular(16),
             child: Padding(
-              padding: const EdgeInsets.symmetric(
-                vertical: 20.0,
-                horizontal: 12.0,
-              ), // Padding disesuaikan
+              padding: const EdgeInsets.all(16.0),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment
-                    .spaceBetween, // Menyebarkan posisi atas, tengah, bawah agar proporsional
-                crossAxisAlignment: CrossAxisAlignment
-                    .center, // Semua teks diatur ke tengah (Center)
+                // PERBAIKAN UTAMA: Mengubah dari spaceBetween menjadi center
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // 1. ICON EMOJI (DI ATAS TENGAH)
+                  // 1. ICON EMOJI
                   CircleAvatar(
                     backgroundColor: Color(
                       subject.backgroundColor,
                     ).withOpacity(0.15),
-                    radius: 32, // Ukuran lingkaran dinaikkan agar lebih jelas
+                    radius: 30,
                     child: Text(
                       subject.icon,
-                      style: const TextStyle(fontSize: 28),
+                      style: const TextStyle(fontSize: 26),
                     ),
                   ),
 
-                  const SizedBox(height: 8),
+                  // Jarak dari Icon ke Judul
+                  const SizedBox(height: 12),
 
-                  // BLOCK INFORMASI UTAMA & TANGGAL
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // 2. JUDUL UTAMA MATERI (Contoh: "Harians")
-                      Text(
-                        subject.namaMateri,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                        textAlign: TextAlign.center,
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 2, // Izinkan 2 baris jika teks panjang
-                      ),
-
-                      // 3. TANGGAL BERWARNA (Tepat di bawah judul)
-                      if (subject.isDateActive && subject.date != null) ...[
-                        const SizedBox(height: 4),
-                        Text.rich(
-                          TextSpan(
-                            children: DailySubject.buildColoredDateSpans(
-                              subject,
-                            ),
-                          ),
-                          style: const TextStyle(fontSize: 13),
-                          textAlign: TextAlign.center,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ],
+                  // 2. JUDUL UTAMA MATERI
+                  Text(
+                    subject.namaMateri,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                    textAlign: TextAlign.center,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                   ),
 
-                  const SizedBox(height: 8),
+                  // 3. TANGGAL BERWARNA
+                  if (subject.isDateActive && subject.date != null) ...[
+                    const SizedBox(height: 4),
+                    Text.rich(
+                      TextSpan(
+                        children: DailySubject.buildColoredDateSpans(subject),
+                      ),
+                      style: const TextStyle(fontSize: 12),
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
 
-                  // 4. INFORMASI LIST PALING ATAS (Berbentuk Kotak Pil / Badge Abu-Abu)
+                  // Jarak dari area Judul/Tanggal ke Badge List Atas
+                  const SizedBox(height: 16),
+
+                  // 4. BADGE LIST PALING ATAS
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 10,
-                      vertical: 6,
+                      vertical: 5,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.grey[200], // Background badge abu-abu tipis
+                      color: Colors.grey[200],
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
@@ -369,7 +358,7 @@ class _DailyScreenState extends State<DailyScreen> {
                           child: Text(
                             isAllDone ? '🎉 Semua Selesai!' : '🔝 $topListText',
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: 11,
                               fontWeight: isAllDone
                                   ? FontWeight.bold
                                   : FontWeight.normal,
@@ -385,17 +374,15 @@ class _DailyScreenState extends State<DailyScreen> {
                     ),
                   ),
 
-                  const SizedBox(height: 8),
+                  // Jarak dari Badge List Atas ke Tombol Progress (Tidak terlalu jauh)
+                  const SizedBox(height: 12),
 
-                  // 5. BARIS JUMLAH PROGRESS (Menggunakan Container Lebar Berwarna penuh)
+                  // 5. BARIS JUMLAH PROGRESS (SOLID)
                   Container(
-                    width: double.infinity, // Memenuhi lebar kartu
+                    width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     decoration: BoxDecoration(
-                      color: isAllDone
-                          ? Colors.green[600]
-                          : Colors
-                                .orange[500], // Meniru gaya warna solid di gambar referensi
+                      color: isAllDone ? Colors.green[600] : Colors.orange[500],
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
@@ -403,9 +390,8 @@ class _DailyScreenState extends State<DailyScreen> {
                           ? 'Selesai Semua'
                           : '$selesaiSub / $totalSub List',
                       style: const TextStyle(
-                        color: Colors
-                            .white, // Teks putih agar kontras dengan warna solid
-                        fontSize: 13,
+                        color: Colors.white,
+                        fontSize: 12,
                         fontWeight: FontWeight.bold,
                       ),
                       textAlign: TextAlign.center,
