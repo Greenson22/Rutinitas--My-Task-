@@ -23,7 +23,7 @@ class TimeLogEntry {
 class TimeLogTask {
   final int id;
   String nama; // <--- UBAH DI SINI: Hapus 'final' agar bisa di-edit namanya
-  final int durasiMenit;
+  int durasiMenit;
   final String? kategori;
   final List<String> linkedTaskIds;
 

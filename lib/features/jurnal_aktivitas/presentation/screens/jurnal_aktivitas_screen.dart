@@ -76,7 +76,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
         );
         await _storageService.saveJsonData(jsonFile, jsonContent);
       } else if (loadedLogs.isEmpty) {
-        // Jika file benar-benar baru kosong, buat inisialisasi hari ini
         loadedLogs.add(TimeLogEntry(tanggal: todayStr, tasks: []));
         final String jsonContent = jsonEncode(
           loadedLogs.map((e) => e.toJson()).toList(),
@@ -106,7 +105,31 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     }
   }
 
-  void _tambahDurasiAktivitas(TimeLogTask task) async {
+  // === MODIFIKASI: DENGAN KONFIRMASI SEBELUM TAMBAH 30 MENIT ===
+  void _tambahDurasiAktivitas(TimeLogTask task, {VoidCallback? onDone}) async {
+    final bool? konfirmasi = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Tambah Waktu?'),
+        content: Text(
+          'Apakah Anda yakin ingin menambah durasi "${task.nama}" sebanyak 30 menit?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
+            child: const Text('Ya, Tambah'),
+          ),
+        ],
+      ),
+    );
+
+    if (konfirmasi != true) return;
+
     for (var logEntry in _logs) {
       int idx = logEntry.tasks.indexWhere((t) => t.id == task.id);
       if (idx != -1) {
@@ -124,6 +147,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     }
 
     await _saveData();
+    if (onDone != null) onDone();
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -134,7 +158,73 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     );
   }
 
-  // === FITUR BARU: DIALOG TAMBAH AKTIVITAS BARU ===
+  // === FITUR BARU: DIALOG EDIT TIMER MANUAL SECARA LANGSUNG ===
+  void _tampilkanDialogEditTimerLangsung(
+    TimeLogTask task, {
+    VoidCallback? onDone,
+  }) {
+    final TextEditingController timerController = TextEditingController(
+      text: task.durasiMenit.toString(),
+    );
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Ubah Durasi: ${task.nama}'),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: timerController,
+            decoration: const InputDecoration(
+              labelText: 'Durasi Waktu (Menit)',
+              border: OutlineInputBorder(),
+              suffixText: 'mnt',
+            ),
+            keyboardType: TextInputType.number,
+            validator: (v) {
+              if (v == null || v.trim().isEmpty)
+                return 'Durasi tidak boleh kosong';
+              if (int.tryParse(v.trim()) == null)
+                return 'Masukkan angka yang valid';
+              if (int.parse(v.trim()) < 0) return 'Durasi tidak boleh negatif';
+              return null;
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (formKey.currentState!.validate()) {
+                final int newDuration = int.parse(timerController.text.trim());
+                setState(() {
+                  task.durasiMenit = newDuration;
+                });
+                await _saveData();
+                if (onDone != null) onDone();
+                Navigator.pop(context);
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      '⏱ Durasi "${task.nama}" berhasil diubah menjadi $newDuration menit!',
+                    ),
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _tampilkanDialogTambahAktivitas() {
     final TextEditingController inputController = TextEditingController();
     final formKey = GlobalKey<FormState>();
@@ -200,10 +290,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     );
   }
 
-  // === FITUR BARU: DIALOG UBAH NAMA AKTIVITAS ===
-  // === DIALOG UBAH NAMA AKTIVITAS ===
   void _tampilkanDialogUbahAktivitas(TimeLogTask task) {
-    // 1. Ubah task.name menjadi task.nama di sini
     final TextEditingController editController = TextEditingController(
       text: task.nama,
     );
@@ -229,7 +316,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
               final newName = editController.text.trim();
               if (newName.isNotEmpty) {
                 setState(() {
-                  // 2. Ubah task.name menjadi task.nama di sini juga
                   task.nama = newName;
                 });
                 await _saveData();
@@ -243,7 +329,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     );
   }
 
-  // === FITUR BARU: FUNGSI HAPUS AKTIVITAS ===
   void _hapusAktivitas(TimeLogTask task) async {
     final bool? konfirmasi = await showDialog<bool>(
       context: context,
@@ -324,7 +409,30 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                   trailing: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Text('⏱ ${task.durasiMenit} mnt'),
+                                      // KLIK TEXT TIMER UNTUK EDIT LANGSUNG DI DIALOG RIWAYAT
+                                      InkWell(
+                                        onTap: () =>
+                                            _tampilkanDialogEditTimerLangsung(
+                                              task,
+                                              onDone: () =>
+                                                  setDialogState(() {}),
+                                            ),
+                                        borderRadius: BorderRadius.circular(4),
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 4,
+                                            vertical: 2,
+                                          ),
+                                          child: Text(
+                                            '⏱ ${task.durasiMenit} mnt',
+                                            style: const TextStyle(
+                                              decoration:
+                                                  TextDecoration.underline,
+                                              color: Colors.indigo,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
                                       const SizedBox(width: 4),
                                       IconButton(
                                         icon: const Icon(
@@ -333,8 +441,10 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                           size: 20,
                                         ),
                                         onPressed: () {
-                                          _tambahDurasiAktivitas(task);
-                                          setDialogState(() {});
+                                          _tambahDurasiAktivitas(
+                                            task,
+                                            onDone: () => setDialogState(() {}),
+                                          );
                                         },
                                       ),
                                     ],
@@ -376,7 +486,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
         title: const Text('Jurnal Aktivitas'),
         backgroundColor: Colors.indigo[700],
         actions: [
-          // TOMBOL EDIT UTAMA DI ATAS KANAN (APP BAR)
           IconButton(
             icon: Icon(
               _isEditMode ? Icons.check_circle : Icons.edit_note,
@@ -433,9 +542,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                         )
                       : ListView.builder(
                           itemCount: todayTasks.length,
-                          padding: const EdgeInsets.only(
-                            bottom: 80,
-                          ), // Beri ruang agar tidak tertutup FAB
+                          padding: const EdgeInsets.only(bottom: 80),
                           itemBuilder: (context, index) {
                             final task = todayTasks[index];
                             return Card(
@@ -470,7 +577,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                     fontSize: 13.5,
                                   ),
                                 ),
-                                // Jika Masuk Mode Edit, tampilkan kontrol ubah & hapus, sebaliknya tampilkan penambah durasi waktu harian
                                 trailing: _isEditMode
                                     ? Row(
                                         mainAxisSize: MainAxisSize.min,
@@ -500,22 +606,37 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                     : Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                              vertical: 4,
+                                          // === MODIFIKASI: DIBUNGKUS INKWELL AGAR BISA DIKLIK UNTUK EDIT TIMER ===
+                                          InkWell(
+                                            onTap: () =>
+                                                _tampilkanDialogEditTimerLangsung(
+                                                  task,
+                                                ),
+                                            borderRadius: BorderRadius.circular(
+                                              6,
                                             ),
-                                            decoration: BoxDecoration(
-                                              color: Colors.amber[50],
-                                              borderRadius:
-                                                  BorderRadius.circular(6),
-                                            ),
-                                            child: Text(
-                                              '⏱ ${task.durasiMenit} mnt',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.amber[900],
-                                                fontSize: 12,
+                                            child: Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 4,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.amber[50],
+                                                borderRadius:
+                                                    BorderRadius.circular(6),
+                                                border: Border.all(
+                                                  color: Colors.amber.shade200,
+                                                  width: 1,
+                                                ),
+                                              ),
+                                              child: Text(
+                                                '⏱ ${task.durasiMenit} mnt',
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.amber[900],
+                                                  fontSize: 12,
+                                                ),
                                               ),
                                             ),
                                           ),
@@ -541,7 +662,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                 ),
               ],
             ),
-      // FLOATING ACTION BUTTON UNTUK TAMBAH AKTIVITAS BARU
       floatingActionButton: FloatingActionButton(
         onPressed: _tampilkanDialogTambahAktivitas,
         backgroundColor: Colors.indigo[700],
