@@ -12,11 +12,7 @@ class TaskMasterApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Task Master',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        useMaterial3:
-            false, // Menggunakan Material 2 agar tampilan warna AppBar persis seperti gambar
-      ),
+      theme: ThemeData(primarySwatch: Colors.blue, useMaterial3: false),
       home: const HomeScreen(),
     );
   }
@@ -25,7 +21,7 @@ class TaskMasterApp extends StatelessWidget {
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
-  // Data dummy untuk halaman utama sesuai dengan gambar pertama
+  // Data dummy yang sudah ditambah sesuai gambar tablet Anda
   final List<Map<String, dynamic>> categories = const [
     {
       'name': 'Work',
@@ -34,6 +30,18 @@ class HomeScreen extends StatelessWidget {
       'color': Colors.indigo,
     },
     {'name': 'Personal', 'tasks': 3, 'icon': Icons.home, 'color': Colors.brown},
+    {
+      'name': 'Shopping',
+      'tasks': 5,
+      'icon': Icons.shopping_cart,
+      'color': Colors.pink,
+    },
+    {
+      'name': 'Finance',
+      'tasks': 4,
+      'icon': Icons.credit_card,
+      'color': Colors.green,
+    },
     {
       'name': 'Gandom',
       'tasks': 8,
@@ -47,6 +55,18 @@ class HomeScreen extends StatelessWidget {
       'color': Colors.green,
     },
     {
+      'name': 'Problems',
+      'tasks': 8,
+      'icon': Icons.business_center,
+      'color': Colors.teal,
+    },
+    {
+      'name': 'Learning',
+      'tasks': 6,
+      'icon': Icons.school,
+      'color': Colors.purple,
+    },
+    {
       'name': 'Caries',
       'tasks': 8,
       'icon': Icons.directions_car,
@@ -57,6 +77,13 @@ class HomeScreen extends StatelessWidget {
       'tasks': 8,
       'icon': Icons.public,
       'color': Colors.teal,
+    },
+    {'name': 'Travel', 'tasks': 2, 'icon': Icons.flight, 'color': Colors.cyan},
+    {
+      'name': 'Home',
+      'tasks': 7,
+      'icon': Icons.home,
+      'color': Colors.blueAccent,
     },
     {
       'name': 'Problems',
@@ -71,6 +98,12 @@ class HomeScreen extends StatelessWidget {
       'color': Colors.brown,
     },
     {
+      'name': 'Hobbies',
+      'tasks': 3,
+      'icon': Icons.palette,
+      'color': Colors.orange,
+    },
+    {
       'name': 'Health',
       'tasks': 3,
       'icon': Icons.people,
@@ -82,15 +115,8 @@ class HomeScreen extends StatelessWidget {
       'icon': Icons.description,
       'color': Colors.pink,
     },
-    {
-      'name': 'Contact',
-      'tasks': 8,
-      'icon': Icons.supervised_user_circle,
-      'color': Colors.deepPurple,
-    },
   ];
 
-  // Fungsi untuk menampilkan popup "Work Category" sesuai gambar kedua
   void _showWorkCategoryDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -102,13 +128,11 @@ class HomeScreen extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Header Dialog
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(16.0),
                 decoration: const BoxDecoration(
-                  color: Colors
-                      .indigo, // Menggunakan warna biru gelap/indigo sesuai tema Work
+                  color: Colors.indigo,
                   borderRadius: BorderRadius.only(
                     topLeft: Radius.circular(20.0),
                     topRight: Radius.circular(20.0),
@@ -123,7 +147,6 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              // List Tugas di dalam Kategori
               Padding(
                 padding: const EdgeInsets.symmetric(
                   vertical: 8.0,
@@ -145,7 +168,6 @@ class HomeScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              // Tombol Aksi di bagian bawah
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
@@ -174,7 +196,6 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // Widget helper untuk item di dalam dialog
   Widget _buildPopupItem(String title, String subtitle) {
     return ListTile(
       dense: true,
@@ -201,88 +222,104 @@ class HomeScreen extends StatelessWidget {
       backgroundColor: Colors.grey[200],
       appBar: AppBar(
         title: const Text('Task Master'),
-        backgroundColor: Colors.indigo[700], // Warna biru gelap navbar
+        backgroundColor: Colors.indigo[700],
         leading: IconButton(icon: const Icon(Icons.menu), onPressed: () {}),
       ),
-      body: GridView.builder(
-        padding: const EdgeInsets.all(10),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2, // 2 Kolom ke samping
-          childAspectRatio: 1.6, // Rasio lebar dan tinggi kotak
-          crossAxisSpacing: 10,
-          mainAxisSpacing: 10,
-        ),
-        itemCount: categories.length,
-        itemBuilder: (context, index) {
-          final item = categories[index];
-          return Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
+      // MENGGUNAKAN LAYOUTBUILDER AGAR RESPONSIF
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          // Menentukan jumlah kolom berdasarkan lebar layar
+          int crossAxisCount = 2; // Default untuk HP biasa
+
+          if (constraints.maxWidth >= 1200) {
+            crossAxisCount =
+                5; // Layar monitor besar / tablet landscape sangat lebar
+          } else if (constraints.maxWidth >= 900) {
+            crossAxisCount =
+                4; // Tablet Landscape (Sesuai dengan gambar Anda yang memiliki 4 kolom)
+          } else if (constraints.maxWidth >= 600) {
+            crossAxisCount = 3; // Tablet Portrait
+          }
+
+          return GridView.builder(
+            padding: const EdgeInsets.all(12),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: crossAxisCount, // Kolom berubah dinamis di sini
+              childAspectRatio:
+                  1.8, // Menyesuaikan proporsi kotak agar tidak terlalu tinggi saat melebar
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
             ),
-            child: InkWell(
-              onTap: () {
-                // Di sini kita batasi: Jika kotak "Work" ditekan, popup akan muncul
-                if (item['name'] == 'Work') {
-                  _showWorkCategoryDialog(context);
-                }
-              },
-              borderRadius: BorderRadius.circular(8),
-              child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Row(
-                  children: [
-                    // Lingkaran Ikon
-                    CircleAvatar(
-                      backgroundColor: item['color'],
-                      radius: 24,
-                      child: Icon(item['icon'], color: Colors.white, size: 24),
-                    ),
-                    const SizedBox(width: 12),
-                    // Teks Nama Kategori & Jumlah Task
-                    Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            item['name'],
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '${item['tasks']} tasks',
-                            style: Colors.grey[600] != null
-                                ? TextStyle(
-                                    color: Colors.grey[600],
-                                    fontSize: 13,
-                                  )
-                                : null,
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Tombol Titik Tiga di pojok kanan atas kartu
-                    const Align(
-                      alignment: Alignment.topRight,
-                      child: Icon(
-                        Icons.more_vert,
-                        color: Colors.grey,
-                        size: 20,
-                      ),
-                    ),
-                  ],
+            itemCount: categories.length,
+            itemBuilder: (context, index) {
+              final item = categories[index];
+              return Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
                 ),
-              ),
-            ),
+                child: InkWell(
+                  onTap: () {
+                    if (item['name'] == 'Work') {
+                      _showWorkCategoryDialog(context);
+                    }
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          backgroundColor: item['color'],
+                          radius: 24,
+                          child: Icon(
+                            item['icon'],
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item['name'],
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${item['tasks']} tasks',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Align(
+                          alignment: Alignment.topRight,
+                          child: Icon(
+                            Icons.more_vert,
+                            color: Colors.grey,
+                            size: 20,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
           );
         },
       ),
-      // Floating Action Button di pojok kanan bawah
       floatingActionButton: FloatingActionButton(
         onPressed: () {},
         backgroundColor: Colors.teal,
