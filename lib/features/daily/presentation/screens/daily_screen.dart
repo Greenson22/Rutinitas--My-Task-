@@ -166,7 +166,7 @@ class _DailyScreenState extends State<DailyScreen> {
 
                     if (rutinitasIntiList.isNotEmpty)
                       _buildSectionHeader(
-                        title: '🔄 Rutinitas Inti',
+                        title: '📅 Rutinitas Inti',
                         subtitle:
                             'Kegiatan harian standar penunjang produktivitas',
                         color: Colors.indigo[800]!,
@@ -176,7 +176,7 @@ class _DailyScreenState extends State<DailyScreen> {
 
                     if (aktivitasPelengkapList.isNotEmpty)
                       _buildSectionHeader(
-                        title: '🌱 Aktivitas Pelengkap',
+                        title: '🧪 Aktivitas Pelengkap',
                         subtitle: 'Kegiatan opsional dan pengembangan tambahan',
                         color: Colors.teal[800]!,
                       ),
@@ -252,8 +252,7 @@ class _DailyScreenState extends State<DailyScreen> {
       padding: const EdgeInsets.all(12),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
-        childAspectRatio:
-            0.9, // Sedikit disesuaikan agar pas dengan komponen yang lebih rapat
+        childAspectRatio: 0.9,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
       ),
@@ -280,21 +279,14 @@ class _DailyScreenState extends State<DailyScreen> {
             topListColor = Colors.black87;
           }
         }
-        // KODE BARU (BORDEN PINGGIR TEBAL & BG BERSIH)
+
         return Card(
-          elevation:
-              3, // Sedikit dinaikkan agar bayangan lebih halus dan elegan
+          elevation: 3,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-            side: BorderSide(
-              color: Color(
-                subject.backgroundColor,
-              ), // Warna kustom dialihkan ke border
-              width: 3.5, // Mengatur ketebalan garis pinggir sesuai keinginan
-            ),
+            side: BorderSide(color: Color(subject.backgroundColor), width: 3.5),
           ),
-          color: Colors
-              .white, // Latar belakang dibuat putih bersih agar kontras dengan border
+          color: Colors.white,
           child: InkWell(
             onTap: () => _openMateriChecklist(subject),
             borderRadius: BorderRadius.circular(16),
@@ -304,7 +296,7 @@ class _DailyScreenState extends State<DailyScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // 1. ICON EMOJI (Latar belakang avatar menggunakan warna border transparan)
+                  // 1. ICON EMOJI
                   CircleAvatar(
                     backgroundColor: Color(
                       subject.backgroundColor,
@@ -316,16 +308,15 @@ class _DailyScreenState extends State<DailyScreen> {
                     ),
                   ),
 
-                  // Jarak dari Icon ke Judul
                   const SizedBox(height: 12),
 
-                  // 2. JUDUL UTAMA MATERI (Menggunakan warna gelap konstan agar mudah dibaca di atas warna putih)
+                  // 2. JUDUL UTAMA MATERI
                   Text(
                     subject.namaMateri,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: Colors.black87, // Menggunakan warna gelap standar
+                      color: Colors.black87,
                     ),
                     textAlign: TextAlign.center,
                     overflow: TextOverflow.ellipsis,
@@ -339,8 +330,7 @@ class _DailyScreenState extends State<DailyScreen> {
                       TextSpan(
                         children: DailySubject.buildColoredDateSpans(
                           subject,
-                          inHeader:
-                              false, // Diubah ke false agar warnanya kontras pada background putih
+                          inHeader: false,
                         ),
                       ),
                       style: const TextStyle(fontSize: 12),
@@ -349,7 +339,6 @@ class _DailyScreenState extends State<DailyScreen> {
                     ),
                   ],
 
-                  // Jarak dari area Judul/Tanggal ke Badge List Atas
                   const SizedBox(height: 16),
 
                   // 4. BADGE LIST PALING ATAS
@@ -374,9 +363,7 @@ class _DailyScreenState extends State<DailyScreen> {
                               fontWeight: isAllDone
                                   ? FontWeight.bold
                                   : FontWeight.normal,
-                              color: Color(
-                                subject.backgroundColor,
-                              ), // Mengikuti rumpun warna subject
+                              color: Color(subject.backgroundColor),
                               decoration: isAllDone ? null : topListDecoration,
                             ),
                             overflow: TextOverflow.ellipsis,
@@ -386,33 +373,101 @@ class _DailyScreenState extends State<DailyScreen> {
                     ),
                   ),
 
-                  // Jarak dari Badge List Atas ke Tombol Progress
                   const SizedBox(height: 12),
 
-                  // 5. BARIS JUMLAH PROGRESS (SOLID)
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    decoration: BoxDecoration(
-                      color: isAllDone
-                          ? Colors.green[600]!.withOpacity(0.9)
-                          : Colors.orange[500]!.withOpacity(0.9),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: Color(subject.backgroundColor).withOpacity(0.3),
-                      ),
-                    ),
-                    child: Text(
-                      isAllDone
-                          ? 'Selesai Semua'
-                          : '$selesaiSub / $totalSub List',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
+                  // 5. BARIS JUMLAH PROGRESS (BERGRADASI & BERGERAK)
+                  LayoutBuilder(
+                    builder: (context, barConstraints) {
+                      double progressPercent = totalSub > 0
+                          ? selesaiSub / totalSub
+                          : 0.0;
+
+                      Color currentEndColor;
+                      List<Color> gradientColors;
+
+                      if (progressPercent <= 0.5) {
+                        currentEndColor =
+                            Color.lerp(
+                              Colors.red[700],
+                              Colors.orange[700],
+                              progressPercent * 2,
+                            ) ??
+                            Colors.red[700]!;
+                        gradientColors = [Colors.red[700]!, currentEndColor];
+                      } else {
+                        currentEndColor =
+                            Color.lerp(
+                              Colors.orange[700],
+                              Colors.green[700],
+                              (progressPercent - 0.5) * 2,
+                            ) ??
+                            Colors.green[700]!;
+                        gradientColors = [
+                          Colors.red[700]!,
+                          Colors.orange[700]!,
+                          currentEndColor,
+                        ];
+                      }
+
+                      return Container(
+                        width: double.infinity,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[100],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: Color(subject.backgroundColor),
+                            width: 2.0,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 2,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: Stack(
+                            children: [
+                              Container(
+                                width:
+                                    barConstraints.maxWidth * progressPercent,
+                                height: double.infinity,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: gradientColors,
+                                    begin: Alignment.centerLeft,
+                                    end: Alignment.centerRight,
+                                  ),
+                                ),
+                              ),
+                              Center(
+                                child: Text(
+                                  isAllDone
+                                      ? 'Selesai Semua'
+                                      : '$selesaiSub / $totalSub List',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    shadows: [
+                                      Shadow(
+                                        offset: Offset(0, 1),
+                                        blurRadius: 3.0,
+                                        color: Colors.black87,
+                                      ),
+                                    ],
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),
