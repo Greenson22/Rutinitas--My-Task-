@@ -252,8 +252,8 @@ class _DailyScreenState extends State<DailyScreen> {
       padding: const EdgeInsets.all(12),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
-        childAspectRatio:
-            1.45, // Diatur sedikit disesuaikan agar muat dengan tambahan baris informasi baru
+        // UBAH childAspectRatio dari 1.45 menjadi 0.65 agar bentuk kotak memanjang ke bawah (potrait)
+        childAspectRatio: 0.65,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
       ),
@@ -278,103 +278,137 @@ class _DailyScreenState extends State<DailyScreen> {
             topListColor = Colors.green[700]!;
             topListDecoration = TextDecoration.lineThrough;
           } else {
-            topListColor = Colors.black54;
+            topListColor = Colors.black87;
           }
         }
 
         return Card(
           elevation: 2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ), // Mengubah radius menjadi lebih rounded (16) sesuai gambar
           child: InkWell(
             onTap: () => _openMateriChecklist(subject),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(16),
             child: Padding(
-              padding: const EdgeInsets.all(12.0),
-              child: Row(
+              padding: const EdgeInsets.symmetric(
+                vertical: 20.0,
+                horizontal: 12.0,
+              ), // Padding disesuaikan
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment
+                    .spaceBetween, // Menyebarkan posisi atas, tengah, bawah agar proporsional
+                crossAxisAlignment: CrossAxisAlignment
+                    .center, // Semua teks diatur ke tengah (Center)
                 children: [
+                  // 1. ICON EMOJI (DI ATAS TENGAH)
                   CircleAvatar(
                     backgroundColor: Color(
                       subject.backgroundColor,
                     ).withOpacity(0.15),
-                    radius: 24,
+                    radius: 32, // Ukuran lingkaran dinaikkan agar lebih jelas
                     child: Text(
                       subject.icon,
-                      style: const TextStyle(fontSize: 22),
+                      style: const TextStyle(fontSize: 28),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // BARIS 1: Judul Utama Materi
-                        Text(
-                          subject.namaMateri,
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                          ),
-                          overflow: TextOverflow.ellipsis,
+
+                  const SizedBox(height: 8),
+
+                  // BLOCK INFORMASI UTAMA & TANGGAL
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // 2. JUDUL UTAMA MATERI (Contoh: "Harians")
+                      Text(
+                        subject.namaMateri,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
                         ),
+                        textAlign: TextAlign.center,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 2, // Izinkan 2 baris jika teks panjang
+                      ),
 
-                        // BARIS 2: Tanggal Berwarna
-                        if (subject.isDateActive && subject.date != null) ...[
-                          const SizedBox(height: 2),
-                          Text.rich(
-                            TextSpan(
-                              children: DailySubject.buildColoredDateSpans(
-                                subject,
-                              ),
-                            ),
-                            style: const TextStyle(fontSize: 12),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-
-                        // BARIS TAMBAHAN: Informasi List Paling Atas (Urutan Pertama)
-                        const SizedBox(height: 2),
-                        Text(
-                          isAllDone ? '🎉 Semua Selesai!' : '🔝 $topListText',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: isAllDone
-                                ? FontWeight.bold
-                                : FontWeight.normal,
-                            color: isAllDone ? Colors.green[800] : topListColor,
-                            decoration: isAllDone ? null : topListDecoration,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-
-                        // BARIS JUMlAH PROGRESS: Informasi Progress Jumlah Sub-Materi
+                      // 3. TANGGAL BERWARNA (Tepat di bawah judul)
+                      if (subject.isDateActive && subject.date != null) ...[
                         const SizedBox(height: 4),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
+                        Text.rich(
+                          TextSpan(
+                            children: DailySubject.buildColoredDateSpans(
+                              subject,
+                            ),
                           ),
-                          decoration: BoxDecoration(
-                            color: isAllDone
-                                ? Colors.green[50]
-                                : Colors.amber[50],
-                            borderRadius: BorderRadius.circular(4),
-                          ),
+                          style: const TextStyle(fontSize: 13),
+                          textAlign: TextAlign.center,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ],
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  // 4. INFORMASI LIST PALING ATAS (Berbentuk Kotak Pil / Badge Abu-Abu)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200], // Background badge abu-abu tipis
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Flexible(
                           child: Text(
-                            isAllDone
-                                ? 'Selesai Semua'
-                                : '$selesaiSub / $totalSub List',
+                            isAllDone ? '🎉 Semua Selesai!' : '🔝 $topListText',
                             style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: isAllDone
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
                               color: isAllDone
                                   ? Colors.green[800]
-                                  : Colors.orange[900],
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
+                                  : topListColor,
+                              decoration: isAllDone ? null : topListDecoration,
                             ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  // 5. BARIS JUMLAH PROGRESS (Menggunakan Container Lebar Berwarna penuh)
+                  Container(
+                    width: double.infinity, // Memenuhi lebar kartu
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isAllDone
+                          ? Colors.green[600]
+                          : Colors
+                                .orange[500], // Meniru gaya warna solid di gambar referensi
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      isAllDone
+                          ? 'Selesai Semua'
+                          : '$selesaiSub / $totalSub List',
+                      style: const TextStyle(
+                        color: Colors
+                            .white, // Teks putih agar kontras dengan warna solid
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
                     ),
                   ),
                 ],
