@@ -205,7 +205,8 @@ class _HomeScreenState extends State<HomeScreen> {
       task.countToday += 1;
       task.date = _getTodayDateString();
     });
-    await _saveAllCategoriesToFile();
+    // Tambahkan parameter shouldRefresh: false agar data memori tidak ditimpa data lama dari storage
+    await _saveAllCategoriesToFile(shouldRefresh: false);
     return true;
   }
 
