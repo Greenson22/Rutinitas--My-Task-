@@ -18,7 +18,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
   final StorageService _storageService = StorageService();
   final _formKey = GlobalKey<FormState>();
 
-  // Controller untuk Form Input
   final TextEditingController _namaAktivitasController =
       TextEditingController();
   final TextEditingController _durasiController = TextEditingController();
@@ -86,7 +85,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     final String todayStr = _getTodayDateString();
 
     setState(() {
-      // Buat objek aktivitas baru (kategori dikosongkan/null)
       final newTempTask = TimeLogTask(
         id: DateTime.now().millisecondsSinceEpoch,
         nama: nama,
@@ -120,17 +118,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     );
   }
 
-  // FUNGSI BARU: Menambahkan durasi aktivitas sebanyak 30 menit
   void _tambahDurasiAktivitas(TimeLogTask task) async {
-    setState(() {
-      // Karena class model TimeLogTask menggunakan properti final,
-      // kita perlu mengubah strukturnya di model atau melakukan trik reassignment jika diizinkan,
-      // Namun melihat struktur data Anda, agar aman kita buat task baru atau update variabelnya.
-      // Catatan: Di time_log_model.dart, durasiMenit didefinisikan sebagai final.
-      // Kita bisa mengakalinya dengan mengganti objek task di dalam list logs.
-    });
-
-    // Menemukan dan memperbarui data di dalam list logs
     for (var logEntry in _logs) {
       int idx = logEntry.tasks.indexWhere((t) => t.id == task.id);
       if (idx != -1) {
@@ -138,7 +126,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
           logEntry.tasks[idx] = TimeLogTask(
             id: task.id,
             nama: task.nama,
-            durasiMenit: task.durasiMenit + 30, // Ditambah 30 menit
+            durasiMenit: task.durasiMenit + 30,
             kategori: task.kategori,
             linkedTaskIds: task.linkedTaskIds,
           );
@@ -147,7 +135,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
       }
     }
 
-    await _saveData(); // Simpan otomatis ke JSON lokal
+    await _saveData();
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -158,13 +146,110 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     );
   }
 
+  // TAMPILKAN DIALOG BARU UNTUK RIWAYAT DAFTAR AKTIVITAS 전체
+  void _tampilkanDialogRiwayat() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Row(
+                children: [
+                  const Icon(Icons.history, color: Colors.indigo),
+                  const SizedBox(width: 8),
+                  const Text('Riwayat Aktivitas'),
+                ],
+              ),
+              content: SizedBox(
+                width: double.maxFinite,
+                height: MediaQuery.of(context).size.height * 0.6,
+                child: _logs.isEmpty
+                    ? const Center(child: Text("Belum ada riwayat aktivitas."))
+                    : ListView.builder(
+                        itemCount: _logs.length,
+                        itemBuilder: (context, index) {
+                          final log = _logs[index];
+                          return Card(
+                            margin: const EdgeInsets.symmetric(vertical: 6),
+                            child: ExpansionTile(
+                              title: Text(
+                                log.tanggal,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              subtitle: Text('${log.tasks.length} aktivitas'),
+                              children: log.tasks.map((task) {
+                                return ListTile(
+                                  dense: true,
+                                  title: Text(task.nama),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text('⏱ ${task.durasiMenit} mnt'),
+                                      const SizedBox(width: 4),
+                                      IconButton(
+                                        icon: const Icon(
+                                          Icons.add_circle,
+                                          color: Colors.indigo,
+                                          size: 20,
+                                        ),
+                                        onPressed: () {
+                                          _tambahDurasiAktivitas(task);
+                                          setDialogState(
+                                            () {},
+                                          ); // Update tampilan di dalam dialog
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Tutup'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    ).then(
+      (_) => setState(() {}),
+    ); // Pastikan halaman utama ikut segar setelah dialog ditutup
+  }
+
   @override
   Widget build(BuildContext context) {
+    final String todayStr = _getTodayDateString();
+
+    // Memfilter log khusus untuk hari ini saja
+    final todayLogIndex = _logs.indexWhere(
+      (entry) => entry.tanggal == todayStr,
+    );
+    final List<TimeLogTask> todayTasks = todayLogIndex != -1
+        ? _logs[todayLogIndex].tasks
+        : [];
+
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
         title: const Text('Jurnal Aktivitas'),
         backgroundColor: Colors.indigo[700],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.history, color: Colors.white),
+            tooltip: 'Lihat Riwayat',
+            onPressed: _tampilkanDialogRiwayat,
+          ),
+        ],
       ),
       drawer: DrawerMenu(
         selectedBaseDir: _baseDir,
@@ -176,22 +261,16 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
-                // SECTION 1: FORM INPUT TANPA KATEGORI
                 _buildFormInputCard(),
 
-                // Judul Pemisah Riwayat
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                   child: Row(
                     children: [
-                      const Icon(
-                        Icons.history,
-                        size: 18,
-                        color: Colors.blueGrey,
-                      ),
+                      const Icon(Icons.today, size: 18, color: Colors.teal),
                       const SizedBox(width: 6),
                       Text(
-                        'Riwayat Aktivitas Terkini',
+                        'Aktivitas Hari Ini ($todayStr)',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
@@ -202,17 +281,17 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                   ),
                 ),
 
-                // SECTION 2: LIST RIWAYAT LOG + TOMBOL TAMBAH DURASI
+                // MENAMPILKAN HANYA AKTIVITAS HARI INI
                 Expanded(
-                  child: _logs.isEmpty
+                  child: todayTasks.isEmpty
                       ? const Center(
                           child: Text("Belum ada aktivitas dicatat hari ini."),
                         )
                       : ListView.builder(
-                          itemCount: _logs.length,
+                          itemCount: todayTasks.length,
                           padding: const EdgeInsets.only(bottom: 16),
                           itemBuilder: (context, index) {
-                            final log = _logs[index];
+                            final task = todayTasks[index];
                             return Card(
                               elevation: 2,
                               margin: const EdgeInsets.symmetric(
@@ -222,93 +301,59 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
-                              child: ExpansionTile(
-                                leading: const Icon(
-                                  Icons.calendar_today_rounded,
-                                  color: Colors.indigo,
-                                ),
-                                title: Text(
-                                  log.tanggal,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 15,
+                              child: ListTile(
+                                leading: CircleAvatar(
+                                  backgroundColor: Colors.teal[50],
+                                  radius: 16,
+                                  child: const Icon(
+                                    Icons.check_circle_outline,
+                                    color: Colors.teal,
+                                    size: 18,
                                   ),
                                 ),
-                                subtitle: Text(
-                                  '${log.tasks.length} Aktivitas terekam',
+                                title: Text(
+                                  task.nama,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13.5,
+                                  ),
                                 ),
-                                initiallyExpanded: index == 0,
-                                children: log.tasks.map((task) {
-                                  return Container(
-                                    decoration: BoxDecoration(
-                                      border: Border(
-                                        top: BorderSide(
-                                          color: Colors.grey.shade200,
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.amber[50],
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        '⏱ ${task.durasiMenit} mnt',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.amber[900],
+                                          fontSize: 12,
                                         ),
                                       ),
                                     ),
-                                    child: ListTile(
-                                      dense: true,
-                                      leading: CircleAvatar(
-                                        backgroundColor: Colors.teal[50],
-                                        radius: 16,
-                                        child: const Icon(
-                                          Icons.check_circle_outline,
-                                          color: Colors.teal,
-                                          size: 18,
-                                        ),
+                                    const SizedBox(width: 4),
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.add_circle,
+                                        color: Colors.indigo,
+                                        size: 22,
                                       ),
-                                      title: Text(
-                                        task.nama,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 13.5,
-                                        ),
-                                      ),
-                                      // Kategori dihilangkan dari tampilan subtitle
-                                      subtitle: null,
-                                      trailing: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          // Tampilan Durasi Utama
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                              vertical: 4,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: Colors.amber[50],
-                                              borderRadius:
-                                                  BorderRadius.circular(6),
-                                            ),
-                                            child: Text(
-                                              '⏱ ${task.durasiMenit} mnt',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.amber[900],
-                                                fontSize: 12,
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 4),
-                                          // TOMBOL ICON BARU: Menambah durasi (+30 Menit) jika ditekan
-                                          IconButton(
-                                            icon: const Icon(
-                                              Icons.add_circle,
-                                              color: Colors.indigo,
-                                              size: 22,
-                                            ),
-                                            tooltip: 'Tambah 30 Menit',
-                                            constraints: const BoxConstraints(),
-                                            padding: const EdgeInsets.all(4),
-                                            onPressed: () =>
-                                                _tambahDurasiAktivitas(task),
-                                          ),
-                                        ],
-                                      ),
+                                      tooltip: 'Tambah 30 Menit',
+                                      constraints: const BoxConstraints(),
+                                      padding: const EdgeInsets.all(4),
+                                      onPressed: () =>
+                                          _tambahDurasiAktivitas(task),
                                     ),
-                                  );
-                                }).toList(),
+                                  ],
+                                ),
                               ),
                             );
                           },
@@ -347,8 +392,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                 ],
               ),
               const Divider(height: 20, thickness: 1),
-
-              // Input Nama Aktivitas
               TextFormField(
                 controller: _namaAktivitasController,
                 decoration: InputDecoration(
@@ -364,8 +407,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                     v!.trim().isEmpty ? 'Aktivitas tidak boleh kosong' : null,
               ),
               const SizedBox(height: 12),
-
-              // Bagian Durasi dibuat memenuhi baris penuh karena Dropdown Kategori dihapus
               TextFormField(
                 controller: _durasiController,
                 keyboardType: TextInputType.number,
@@ -385,8 +426,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                 },
               ),
               const SizedBox(height: 16),
-
-              // Tombol Submit Masukkan Data
               SizedBox(
                 width: double.infinity,
                 height: 44,
