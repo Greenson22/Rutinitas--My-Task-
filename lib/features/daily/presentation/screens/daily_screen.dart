@@ -280,13 +280,21 @@ class _DailyScreenState extends State<DailyScreen> {
             topListColor = Colors.black87;
           }
         }
+        // KODE BARU (BORDEN PINGGIR TEBAL & BG BERSIH)
         return Card(
-          elevation: 2,
+          elevation:
+              3, // Sedikit dinaikkan agar bayangan lebih halus dan elegan
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
+            side: BorderSide(
+              color: Color(
+                subject.backgroundColor,
+              ), // Warna kustom dialihkan ke border
+              width: 3.5, // Mengatur ketebalan garis pinggir sesuai keinginan
+            ),
           ),
-          // MENGGUNAKAN WARNA KUSTOM PADA BACKGROUND CARD
-          color: Color(subject.backgroundColor),
+          color: Colors
+              .white, // Latar belakang dibuat putih bersih agar kontras dengan border
           child: InkWell(
             onTap: () => _openMateriChecklist(subject),
             borderRadius: BorderRadius.circular(16),
@@ -296,9 +304,11 @@ class _DailyScreenState extends State<DailyScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // 1. ICON EMOJI (Latar belakang avatar menyesuaikan secara kontras)
+                  // 1. ICON EMOJI (Latar belakang avatar menggunakan warna border transparan)
                   CircleAvatar(
-                    backgroundColor: Color(subject.textColor).withOpacity(0.2),
+                    backgroundColor: Color(
+                      subject.backgroundColor,
+                    ).withOpacity(0.12),
                     radius: 30,
                     child: Text(
                       subject.icon,
@@ -309,13 +319,13 @@ class _DailyScreenState extends State<DailyScreen> {
                   // Jarak dari Icon ke Judul
                   const SizedBox(height: 12),
 
-                  // 2. JUDUL UTAMA MATERI (Menggunakan kustom textColor)
+                  // 2. JUDUL UTAMA MATERI (Menggunakan warna gelap konstan agar mudah dibaca di atas warna putih)
                   Text(
                     subject.namaMateri,
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: Color(subject.textColor),
+                      color: Colors.black87, // Menggunakan warna gelap standar
                     ),
                     textAlign: TextAlign.center,
                     overflow: TextOverflow.ellipsis,
@@ -330,7 +340,7 @@ class _DailyScreenState extends State<DailyScreen> {
                         children: DailySubject.buildColoredDateSpans(
                           subject,
                           inHeader:
-                              true, // true agar warnanya cerah & kontras pada bg kustom
+                              false, // Diubah ke false agar warnanya kontras pada background putih
                         ),
                       ),
                       style: const TextStyle(fontSize: 12),
@@ -349,7 +359,7 @@ class _DailyScreenState extends State<DailyScreen> {
                       vertical: 5,
                     ),
                     decoration: BoxDecoration(
-                      color: Color(subject.textColor).withOpacity(0.15),
+                      color: Color(subject.backgroundColor).withOpacity(0.12),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
@@ -364,7 +374,9 @@ class _DailyScreenState extends State<DailyScreen> {
                               fontWeight: isAllDone
                                   ? FontWeight.bold
                                   : FontWeight.normal,
-                              color: Color(subject.textColor),
+                              color: Color(
+                                subject.backgroundColor,
+                              ), // Mengikuti rumpun warna subject
                               decoration: isAllDone ? null : topListDecoration,
                             ),
                             overflow: TextOverflow.ellipsis,
@@ -387,7 +399,7 @@ class _DailyScreenState extends State<DailyScreen> {
                           : Colors.orange[500]!.withOpacity(0.9),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                        color: Color(subject.textColor).withOpacity(0.5),
+                        color: Color(subject.backgroundColor).withOpacity(0.3),
                       ),
                     ),
                     child: Text(
