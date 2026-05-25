@@ -1,5 +1,7 @@
 // lib/features/daily/data/models/daily_model.dart
 
+import 'package:flutter/material.dart';
+
 class DailyData {
   String topics;
   List<DailySubject> subjects;
@@ -37,6 +39,8 @@ class DailySubject {
   String section;
   String type;
   String? noteContent;
+  String? date; // <-- TAMBAHAN FIELD BARU
+  bool isDateActive; // <-- TAMBAHAN FIELD BARU
 
   DailySubject({
     required this.namaMateri,
@@ -50,6 +54,8 @@ class DailySubject {
     this.section = "focus",
     this.type = "list",
     this.noteContent,
+    this.date, // <-- INISIALISASI
+    this.isDateActive = false, // <-- DEFAULT FALSE
   });
 
   factory DailySubject.fromJson(Map<String, dynamic> json) {
@@ -70,6 +76,10 @@ class DailySubject {
       section: json['section'] ?? "focus",
       type: json['type'] ?? "list",
       noteContent: json['noteContent'],
+      date: json['date'],
+      isDateActive:
+          json['isDateActive'] ??
+          false, // <-- PERBAIKAN: Gunakan titik dua (:), bukan (=)
     );
   }
 
@@ -86,13 +96,95 @@ class DailySubject {
       'section': section,
       'type': type,
       'noteContent': noteContent,
+      'date': date, // <-- SIMPAN KE JSON
+      'isDateActive': isDateActive, // <-- SIMPAN KE JSON
     };
+  }
+
+  // Helper static untuk memformat tanggal penuh warna (bisa dipakai di Screen & Dialog)
+  static List<TextSpan> buildColoredDateSpans(
+    String? dateStr, {
+    bool inHeader = false,
+  }) {
+    if (dateStr == null || dateStr.trim().isEmpty) return [];
+
+    try {
+      final DateTime parsedDate = DateTime.parse(dateStr);
+      const List<String> namaHari = [
+        'Senin',
+        'Selasa',
+        'Rabu',
+        'Kamis',
+        'Jumat',
+        'Sabtu',
+        'Minggu',
+      ];
+      const List<String> namaBulan = [
+        'Januari',
+        'Februari',
+        'Maret',
+        'April',
+        'Mei',
+        'Juni',
+        'Juli',
+        'Agustus',
+        'September',
+        'Oktober',
+        'November',
+        'Desember',
+      ];
+
+      final String hari = '(${namaHari[parsedDate.weekday - 1]}) ';
+      final String tanggal = '${parsedDate.day} ';
+      final String bulan = '${namaBulan[parsedDate.month - 1]} ';
+      // Mengambil 2 angka terakhir dari tahun (contoh: 2026 -> 26)
+      final String tahun = parsedDate.year.toString().substring(2);
+
+      // Warna disesuaikan jika diletakkan di header dialog (agar kontras dengan background gelap)
+      return [
+        TextSpan(
+          text: hari,
+          style: TextStyle(
+            color: inHeader ? Colors.purple[100] : Colors.purple[900],
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        TextSpan(
+          text: tanggal,
+          style: TextStyle(
+            color: inHeader ? Colors.pink[200] : Colors.pink[700],
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        TextSpan(
+          text: bulan,
+          style: TextStyle(
+            color: inHeader ? Colors.teal[100] : Colors.teal[700],
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        TextSpan(
+          text: tahun,
+          style: TextStyle(
+            color: inHeader ? Colors.orange[200] : Colors.deepOrange[700],
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ];
+    } catch (_) {
+      return [
+        TextSpan(
+          text: dateStr,
+          style: TextStyle(color: inHeader ? Colors.white70 : Colors.black87),
+        ),
+      ];
+    }
   }
 }
 
 class SubMateriItem {
   String namaMateri;
-  String progress; // "belum" atau "selesai"
+  String progress;
   String? finishedDate;
 
   SubMateriItem({

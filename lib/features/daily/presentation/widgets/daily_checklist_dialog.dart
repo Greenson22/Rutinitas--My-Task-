@@ -21,7 +21,6 @@ class DailyChecklistDialog extends StatefulWidget {
 class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
   final TextEditingController _singleInputController = TextEditingController();
 
-  // State untuk kontrol mode edit dan seleksi banyak
   bool _isEditMode = false;
   final List<SubMateriItem> _selectedItems = [];
 
@@ -29,6 +28,70 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
   void dispose() {
     _singleInputController.dispose();
     super.dispose();
+  }
+
+  // FUNGSI BARU: Mengubah nama utama materi harian
+  void _showEditSubjectNameDialog() {
+    final editController = TextEditingController(
+      text: widget.subject.namaMateri,
+    );
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Ubah Judul Materi'),
+        content: TextField(
+          controller: editController,
+          decoration: const InputDecoration(
+            labelText: 'Nama Materi Baru',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final newName = editController.text.trim();
+              if (newName.isNotEmpty) {
+                setState(() {
+                  widget.subject.namaMateri = newName;
+                });
+                widget.onDataChanged();
+              }
+              Navigator.pop(context);
+            },
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // FUNGSI BARU: Memilih tanggal lewat date picker
+  Future<void> _selectSubjectDate(BuildContext context) async {
+    DateTime initialDate = DateTime.now();
+    if (widget.subject.date != null && widget.subject.date!.isNotEmpty) {
+      try {
+        initialDate = DateTime.parse(widget.subject.date!);
+      } catch (_) {}
+    }
+
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2101),
+    );
+
+    if (picked != null) {
+      setState(() {
+        widget.subject.date =
+            "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
+      });
+      widget.onDataChanged();
+    }
   }
 
   Future<bool> _showConfirmDialog({
@@ -113,14 +176,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
 
     _updateSubjectOverallProgress();
     widget.onDataChanged();
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Berhasil menambahkan ${lines.length} sub-materi'),
-        ),
-      );
-    }
   }
 
   void _deleteSingleSubMateri(SubMateriItem item) async {
@@ -160,15 +215,8 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
 
     _updateSubjectOverallProgress();
     widget.onDataChanged();
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sub-materi terpilih berhasil dihapus')),
-      );
-    }
   }
 
-  // Fungsi untuk mengubah nama sub-materi secara langsung (Inline Edit)
   void _showEditNameDialog(SubMateriItem item) {
     final editController = TextEditingController(text: item.namaMateri);
     showDialog(
@@ -220,7 +268,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Header Dialog dengan Tombol Toggle Mode Edit
+          // HEADER DIALOG (Sekarang Judul bisa diganti & menampilkan Tanggal Berwarna)
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -235,13 +283,46 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Expanded(
-                  child: Text(
-                    widget.subject.namaMateri,
-                    style: TextStyle(
-                      color: Color(widget.subject.textColor),
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  child: Row(
+                    children: [
+                      // Tombol Rename Judul Utama Materi
+                      IconButton(
+                        icon: const Icon(
+                          Icons.edit_note,
+                          color: Colors.white,
+                          size: 22,
+                        ),
+                        tooltip: 'Ubah Judul Materi',
+                        constraints: const BoxConstraints(),
+                        padding: EdgeInsets.zero,
+                        onPressed: _showEditSubjectNameDialog,
+                      ),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text.rich(
+                          TextSpan(
+                            children: [
+                              TextSpan(
+                                text: '${widget.subject.namaMateri} ',
+                                style: TextStyle(
+                                  color: Color(widget.subject.textColor),
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              // Menampilkan tanggal berwarna di sebelah judul jika aktif
+                              if (widget.subject.isDateActive &&
+                                  widget.subject.date != null)
+                                ...DailySubject.buildColoredDateSpans(
+                                  widget.subject.date,
+                                  inHeader: true,
+                                ),
+                            ],
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 if (_isEditMode && widget.subject.subMateri.isNotEmpty)
@@ -268,12 +349,13 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                     _isEditMode ? Icons.check_circle : Icons.edit,
                     color: Colors.white,
                   ),
-                  tooltip: _isEditMode ? 'Selesai Edit' : 'Mode Edit',
+                  tooltip: _isEditMode
+                      ? 'Selesai Edit Sub'
+                      : 'Mode Edit Sub-Materi',
                   onPressed: () {
                     setState(() {
                       _isEditMode = !_isEditMode;
-                      _selectedItems
-                          .clear(); // Bersihkan pilihan setiap ganti mode
+                      _selectedItems.clear();
                     });
                   },
                 ),
@@ -315,6 +397,55 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                   tooltip: 'Paste Banyak (Baris Baru)',
                   onPressed: _pasteSubMateriFromClipboard,
                 ),
+              ],
+            ),
+          ),
+
+          // PANEL BARU: Pengaturan Tanggal Materi (Switch Aktif & Picker)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Row(
+              children: [
+                const Text(
+                  'Aktifkan Tanggal:',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                ),
+                Transform.scale(
+                  scale: 0.8,
+                  child: Switch(
+                    value: widget.subject.isDateActive,
+                    activeColor: Colors.teal,
+                    onChanged: (val) {
+                      setState(() {
+                        widget.subject.isDateActive = val;
+                        if (val &&
+                            (widget.subject.date == null ||
+                                widget.subject.date!.isEmpty)) {
+                          // Isi dengan hari ini jika kosong saat diaktifkan
+                          final now = DateTime.now();
+                          widget.subject.date =
+                              "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+                        }
+                      });
+                      widget.onDataChanged();
+                    },
+                  ),
+                ),
+                const Spacer(),
+                if (widget.subject.isDateActive)
+                  TextButton.icon(
+                    onPressed: () => _selectSubjectDate(context),
+                    icon: const Icon(
+                      Icons.calendar_today,
+                      size: 14,
+                      color: Colors.teal,
+                    ),
+                    label: Text(
+                      widget.subject.date ?? 'Pilih Tanggal',
+                      style: const TextStyle(fontSize: 12, color: Colors.teal),
+                    ),
+                    style: TextButton.styleFrom(padding: EdgeInsets.zero),
+                  ),
               ],
             ),
           ),
@@ -451,7 +582,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     );
   }
 
-  // Helper builder baris data
   Widget _buildRowItem(SubMateriItem item) {
     bool isChecked = item.progress == 'selesai';
     bool isCurrentlySelected = _selectedItems.contains(item);

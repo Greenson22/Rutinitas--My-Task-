@@ -299,12 +299,23 @@ class _DailyScreenState extends State<DailyScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          subject.namaMateri,
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
+                        // KODE PERBAIKAN: Menampilkan judul materi harian & tanggal berwarna jika diaktifkan
+                        Text.rich(
+                          TextSpan(
+                            children: [
+                              TextSpan(
+                                text: '${subject.namaMateri} ',
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              if (subject.isDateActive && subject.date != null)
+                                ...DailySubject.buildColoredDateSpans(
+                                  subject.date,
+                                ),
+                            ],
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
