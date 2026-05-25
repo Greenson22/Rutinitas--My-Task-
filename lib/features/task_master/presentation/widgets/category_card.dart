@@ -4,8 +4,16 @@ import '../../data/models/task_model.dart';
 class CategoryCard extends StatelessWidget {
   final TaskCategory category;
   final VoidCallback onTap;
+  final VoidCallback onEdit; // Callback untuk edit
+  final VoidCallback onDelete; // Callback untuk hapus
 
-  const CategoryCard({super.key, required this.category, required this.onTap});
+  const CategoryCard({
+    super.key,
+    required this.category,
+    required this.onTap,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -49,9 +57,38 @@ class CategoryCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const Align(
-                alignment: Alignment.topRight,
-                child: Icon(Icons.more_vert, color: Colors.grey, size: 20),
+              // === UBAH BAGIAN INI MENJADI POPUP MENU ===
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert, color: Colors.grey, size: 20),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                onSelected: (value) {
+                  if (value == 'edit') {
+                    onEdit();
+                  } else if (value == 'delete') {
+                    onDelete();
+                  }
+                },
+                itemBuilder: (BuildContext context) => [
+                  const PopupMenuItem<String>(
+                    value: 'edit',
+                    child: ListTile(
+                      leading: Icon(Icons.edit, size: 20),
+                      title: Text('Ubah'),
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                    ),
+                  ),
+                  const PopupMenuItem<String>(
+                    value: 'delete',
+                    child: ListTile(
+                      leading: Icon(Icons.delete, color: Colors.red, size: 20),
+                      title: Text('Hapus', style: TextStyle(color: Colors.red)),
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

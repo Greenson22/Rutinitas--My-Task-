@@ -173,6 +173,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     return CategoryCard(
                       category: category,
                       onTap: () => _showCategoryTasksDialog(category),
+                      onEdit: () => _showEditCategoryDialog(
+                        category,
+                      ), // Pasang callback edit
+                      onDelete: () =>
+                          _deleteCategory(category), // Pasang callback hapus
                     );
                   },
                 );
@@ -183,6 +188,97 @@ class _HomeScreenState extends State<HomeScreen> {
         onPressed: _showAddCategoryDialog,
         backgroundColor: Colors.teal,
         child: const Icon(Icons.add, size: 30),
+      ),
+    );
+  }
+
+  // === FUNGSI LOGIKA UNTUK MENYIMPAN HASIL EDIT ===
+  Future<void> _editCategory(
+    TaskCategory oldCategory,
+    String newName,
+    String newIcon,
+  ) async {
+    // Cari index kategori lama di dalam list utama
+    int index = _allCategoriesRaw.indexWhere(
+      (cat) => cat.name == oldCategory.name,
+    );
+
+    if (index != -1) {
+      // Buat objek kategori baru dengan data terupdate tetapi mempertahankan task yang ada
+      _allCategoriesRaw[index] = TaskCategory(
+        name: newName,
+        icon: newIcon,
+        isHidden: oldCategory.isHidden,
+        tasks: oldCategory.tasks,
+      );
+      await _saveAllCategoriesToFile();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Kategori "$newName" berhasil diperbarui!')),
+      );
+    }
+  }
+
+  // === FUNGSI LOGIKA UNTUK MENGHAPUS KATEGORI ===
+  Future<void> _deleteCategory(TaskCategory category) async {
+    // Tampilkan dialog konfirmasi sebelum menghapus
+    bool? confirmDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Hapus Kategori'),
+        content: Text(
+          'Apakah Anda yakin ingin menghapus kategori "${category.name}" beserta semua tugas di dalamnya?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Hapus', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmDelete == true) {
+      _allCategoriesRaw.removeWhere((cat) => cat.name == category.name);
+      await _saveAllCategoriesToFile();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Kategori "${category.name}" berhasil dihapus.'),
+        ),
+      );
+    }
+  }
+
+  // Helper fungsi untuk menulis ke file agar kode lebih ringkas
+  Future<void> _saveAllCategoriesToFile() async {
+    final Map<String, dynamic> updatedMap = {
+      'categories': _allCategoriesRaw.map((cat) => cat.toJson()).toList(),
+    };
+    final String updatedJsonString = const JsonEncoder.withIndent(
+      '  ',
+    ).convert(updatedMap);
+
+    try {
+      File jsonFile = await _storageService.getTargetJsonFile(_selectedBaseDir);
+      await _storageService.saveJsonData(jsonFile, updatedJsonString);
+      _initStorageAndLoadData(); // Memuat ulang data dan refresh UI
+    } catch (e) {
+      debugPrint("Error saving categories: $e");
+    }
+  }
+
+  // Fungsi memicu dialog edit
+  void _showEditCategoryDialog(TaskCategory category) {
+    showDialog(
+      context: context,
+      builder: (context) => AddCategoryDialog(
+        categoryToEdit: category,
+        onSave: (newName, newIcon) {
+          _editCategory(category, newName, newIcon);
+        },
       ),
     );
   }

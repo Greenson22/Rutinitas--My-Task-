@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
+import '../../data/models/task_model.dart';
 
 class AddCategoryDialog extends StatefulWidget {
   final Function(String name, String icon) onSave;
+  final TaskCategory? categoryToEdit; // Tambahkan parameter opsional ini
 
-  const AddCategoryDialog({super.key, required this.onSave});
+  const AddCategoryDialog({
+    super.key,
+    required this.onSave,
+    this.categoryToEdit,
+  });
 
   @override
   State<AddCategoryDialog> createState() => _AddCategoryDialogState();
@@ -11,8 +17,18 @@ class AddCategoryDialog extends StatefulWidget {
 
 class _AddCategoryDialogState extends State<AddCategoryDialog> {
   final _nameController = TextEditingController();
-  final _iconController = TextEditingController(text: '📌'); // Default icon
+  final _iconController = TextEditingController(text: '📌');
   final _formKey = GlobalKey<FormState>();
+
+  @override
+  void initState() {
+    super.initState();
+    // Jika ada data yang di-edit, pasang nilai awalnya ke dalam form
+    if (widget.categoryToEdit != null) {
+      _nameController.text = widget.categoryToEdit!.name;
+      _iconController.text = widget.categoryToEdit!.icon;
+    }
+  }
 
   @override
   void dispose() {
@@ -23,8 +39,10 @@ class _AddCategoryDialogState extends State<AddCategoryDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final isEditMode = widget.categoryToEdit != null;
+
     return AlertDialog(
-      title: const Text('Tambah Kategori Baru'),
+      title: Text(isEditMode ? 'Ubah Kategori' : 'Tambah Kategori Baru'),
       content: Form(
         key: _formKey,
         child: Column(
@@ -32,10 +50,7 @@ class _AddCategoryDialogState extends State<AddCategoryDialog> {
           children: [
             TextFormField(
               controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'Nama Kategori',
-                hintText: 'Contoh: Olahraga, Belajar',
-              ),
+              decoration: const InputDecoration(labelText: 'Nama Kategori'),
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
                   return 'Nama kategori tidak boleh kosong';
@@ -46,10 +61,7 @@ class _AddCategoryDialogState extends State<AddCategoryDialog> {
             const SizedBox(height: 12),
             TextFormField(
               controller: _iconController,
-              decoration: const InputDecoration(
-                labelText: 'Emoji Ikon',
-                hintText: 'Masukkan satu emoji',
-              ),
+              decoration: const InputDecoration(labelText: 'Emoji Ikon'),
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
                   return 'Ikon tidak boleh kosong';
