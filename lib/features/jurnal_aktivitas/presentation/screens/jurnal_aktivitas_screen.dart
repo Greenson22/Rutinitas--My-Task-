@@ -2,6 +2,7 @@
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import '../../../../core/services/storage_service.dart';
 import '../../../task_master/presentation/widgets/drawer_menu.dart';
@@ -21,6 +22,9 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
   String _baseDir = '';
   String _fullJsonPath = '';
   bool _isLoading = true;
+
+  // STATE BARU: Menandakan apakah halaman Jurnal sedang dalam mode edit (Ubah/Hapus)
+  bool _isEditMode = false;
 
   @override
   void initState() {
@@ -49,32 +53,31 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
 
       final String todayStr = _getTodayDateString();
 
-      // LOGIKA OTOMATIS COPY AKTIVITAS SAAT BERGANTI HARI
-      // Cek apakah hari ini sudah memiliki log aktivitas
       bool hasTodayLog = loadedLogs.any((entry) => entry.tanggal == todayStr);
 
       if (!hasTodayLog && loadedLogs.isNotEmpty) {
-        // Ambil log paling terakhir/terbaru dari hari sebelumnya (indeks terakhir)
         final lastLog = loadedLogs.last;
 
-        // Salin semua tugas dari hari sebelumnya, set durasi ke 0 menit
         List<TimeLogTask> copiedTasks = lastLog.tasks.map((task) {
           return TimeLogTask(
             id: task.id,
             nama: task.nama,
-            durasiMenit: 0, // Reset waktu ke 0 menit
+            durasiMenit: 0,
             kategori: task.kategori,
             linkedTaskIds: task.linkedTaskIds,
           );
         }).toList();
 
-        // Buat entri baru untuk hari ini dengan tugas yang sudah dicopy
         final todayEntry = TimeLogEntry(tanggal: todayStr, tasks: copiedTasks);
-
-        // Masukkan entri hari baru ke dalam list logs
         loadedLogs.add(todayEntry);
 
-        // Langsung simpan perubahan otomatis ini ke file JSON
+        final String jsonContent = jsonEncode(
+          loadedLogs.map((e) => e.toJson()).toList(),
+        );
+        await _storageService.saveJsonData(jsonFile, jsonContent);
+      } else if (loadedLogs.isEmpty) {
+        // Jika file benar-benar baru kosong, buat inisialisasi hari ini
+        loadedLogs.add(TimeLogEntry(tanggal: todayStr, tasks: []));
         final String jsonContent = jsonEncode(
           loadedLogs.map((e) => e.toJson()).toList(),
         );
@@ -131,7 +134,156 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     );
   }
 
-  // TAMPILKAN DIALOG RIWAYAT DAFTAR AKTIVITAS
+  // === FITUR BARU: DIALOG TAMBAH AKTIVITAS BARU ===
+  void _tampilkanDialogTambahAktivitas() {
+    final TextEditingController inputController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Tambah Aktivitas Hari Ini'),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: inputController,
+            decoration: const InputDecoration(
+              labelText: 'Nama Aktivitas / Tugas',
+              hintText: 'Contoh: Rapat Tim, Belajar Dart',
+              border: OutlineInputBorder(),
+            ),
+            validator: (v) =>
+                v!.trim().isEmpty ? 'Nama tidak boleh kosong' : null,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (formKey.currentState!.validate()) {
+                final String todayStr = _getTodayDateString();
+                final int todayLogIndex = _logs.indexWhere(
+                  (entry) => entry.tanggal == todayStr,
+                );
+
+                if (todayLogIndex != -1) {
+                  final randomId = Random().nextInt(999999);
+                  final newTask = TimeLogTask(
+                    id: randomId,
+                    nama: inputController.text.trim(),
+                    durasiMenit: 0,
+                    linkedTaskIds: [],
+                  );
+
+                  setState(() {
+                    _logs[todayLogIndex].tasks.add(newTask);
+                  });
+
+                  await _saveData();
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Aktivitas baru berhasil ditambahkan!'),
+                    ),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // === FITUR BARU: DIALOG UBAH NAMA AKTIVITAS ===
+  // === DIALOG UBAH NAMA AKTIVITAS ===
+  void _tampilkanDialogUbahAktivitas(TimeLogTask task) {
+    // 1. Ubah task.name menjadi task.nama di sini
+    final TextEditingController editController = TextEditingController(
+      text: task.nama,
+    );
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Ubah Nama Aktivitas'),
+        content: TextField(
+          controller: editController,
+          decoration: const InputDecoration(
+            labelText: 'Nama Aktivitas Baru',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final newName = editController.text.trim();
+              if (newName.isNotEmpty) {
+                setState(() {
+                  // 2. Ubah task.name menjadi task.nama di sini juga
+                  task.nama = newName;
+                });
+                await _saveData();
+                Navigator.pop(context);
+              }
+            },
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // === FITUR BARU: FUNGSI HAPUS AKTIVITAS ===
+  void _hapusAktivitas(TimeLogTask task) async {
+    final bool? konfirmasi = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Hapus Aktivitas?'),
+        content: Text(
+          'Apakah Anda yakin ingin menghapus "${task.nama}" dari list hari ini?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+
+    if (konfirmasi == true) {
+      final String todayStr = _getTodayDateString();
+      final int todayLogIndex = _logs.indexWhere(
+        (entry) => entry.tanggal == todayStr,
+      );
+
+      if (todayLogIndex != -1) {
+        setState(() {
+          _logs[todayLogIndex].tasks.removeWhere((t) => t.id == task.id);
+        });
+        await _saveData();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Aktivitas berhasil dihapus.')),
+        );
+      }
+    }
+  }
+
   void _tampilkanDialogRiwayat() {
     showDialog(
       context: context,
@@ -224,6 +376,22 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
         title: const Text('Jurnal Aktivitas'),
         backgroundColor: Colors.indigo[700],
         actions: [
+          // TOMBOL EDIT UTAMA DI ATAS KANAN (APP BAR)
+          IconButton(
+            icon: Icon(
+              _isEditMode ? Icons.check_circle : Icons.edit_note,
+              size: 28,
+            ),
+            color: _isEditMode ? Colors.amberAccent : Colors.white,
+            tooltip: _isEditMode
+                ? 'Selesai Mengatur'
+                : 'Ubah & Hapus Aktivitas',
+            onPressed: () {
+              setState(() {
+                _isEditMode = !_isEditMode;
+              });
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.history, color: Colors.white),
             tooltip: 'Lihat Riwayat',
@@ -265,7 +433,9 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                         )
                       : ListView.builder(
                           itemCount: todayTasks.length,
-                          padding: const EdgeInsets.only(bottom: 16),
+                          padding: const EdgeInsets.only(
+                            bottom: 80,
+                          ), // Beri ruang agar tidak tertutup FAB
                           itemBuilder: (context, index) {
                             final task = todayTasks[index];
                             return Card(
@@ -279,11 +449,17 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                               ),
                               child: ListTile(
                                 leading: CircleAvatar(
-                                  backgroundColor: Colors.teal[50],
+                                  backgroundColor: _isEditMode
+                                      ? Colors.amber[50]
+                                      : Colors.teal[50],
                                   radius: 16,
-                                  child: const Icon(
-                                    Icons.check_circle_outline,
-                                    color: Colors.teal,
+                                  child: Icon(
+                                    _isEditMode
+                                        ? Icons.edit
+                                        : Icons.check_circle_outline,
+                                    color: _isEditMode
+                                        ? Colors.amber[800]
+                                        : Colors.teal,
                                     size: 18,
                                   ),
                                 ),
@@ -294,42 +470,70 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                     fontSize: 13.5,
                                   ),
                                 ),
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 4,
+                                // Jika Masuk Mode Edit, tampilkan kontrol ubah & hapus, sebaliknya tampilkan penambah durasi waktu harian
+                                trailing: _isEditMode
+                                    ? Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          IconButton(
+                                            icon: const Icon(
+                                              Icons.edit_note,
+                                              color: Colors.blueGrey,
+                                            ),
+                                            tooltip: 'Ubah Nama',
+                                            onPressed: () =>
+                                                _tampilkanDialogUbahAktivitas(
+                                                  task,
+                                                ),
+                                          ),
+                                          IconButton(
+                                            icon: const Icon(
+                                              Icons.delete_outline,
+                                              color: Colors.redAccent,
+                                            ),
+                                            tooltip: 'Hapus',
+                                            onPressed: () =>
+                                                _hapusAktivitas(task),
+                                          ),
+                                        ],
+                                      )
+                                    : Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 4,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.amber[50],
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
+                                            ),
+                                            child: Text(
+                                              '⏱ ${task.durasiMenit} mnt',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.amber[900],
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          IconButton(
+                                            icon: const Icon(
+                                              Icons.add_circle,
+                                              color: Colors.indigo,
+                                              size: 22,
+                                            ),
+                                            tooltip: 'Tambah 30 Menit',
+                                            constraints: const BoxConstraints(),
+                                            padding: const EdgeInsets.all(4),
+                                            onPressed: () =>
+                                                _tambahDurasiAktivitas(task),
+                                          ),
+                                        ],
                                       ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.amber[50],
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Text(
-                                        '⏱ ${task.durasiMenit} mnt',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.amber[900],
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    IconButton(
-                                      icon: const Icon(
-                                        Icons.add_circle,
-                                        color: Colors.indigo,
-                                        size: 22,
-                                      ),
-                                      tooltip: 'Tambah 30 Menit',
-                                      constraints: const BoxConstraints(),
-                                      padding: const EdgeInsets.all(4),
-                                      onPressed: () =>
-                                          _tambahDurasiAktivitas(task),
-                                    ),
-                                  ],
-                                ),
                               ),
                             );
                           },
@@ -337,6 +541,12 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                 ),
               ],
             ),
+      // FLOATING ACTION BUTTON UNTUK TAMBAH AKTIVITAS BARU
+      floatingActionButton: FloatingActionButton(
+        onPressed: _tampilkanDialogTambahAktivitas,
+        backgroundColor: Colors.indigo[700],
+        child: const Icon(Icons.add, size: 30, color: Colors.white),
+      ),
     );
   }
 }
