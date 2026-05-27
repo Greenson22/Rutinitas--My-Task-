@@ -212,14 +212,19 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
   }
 
   // === UI PROGRESS BAR & KARTU LAMA ANDA TETAP AMAN DI SINI ===
+  // === UI KOTAK UTUH DAN LENGKAP LAMA ANDA SEKARANG SUDAH DIKEMBALIKAN ===
   Widget _buildCategoryGrid(
     List<DailySubject> subjectsList,
     BoxConstraints constraints,
   ) {
-    int crossAxisCount = constraints.maxWidth >= 900
-        ? 4
-        : (constraints.maxWidth >= 600 ? 3 : 2);
-    if (subjectsList.isEmpty) return const SizedBox(height: 10);
+    int crossAxisCount = 2;
+    if (constraints.maxWidth >= 1200) {
+      crossAxisCount = 5;
+    } else if (constraints.maxWidth >= 900) {
+      crossAxisCount = 4;
+    } else if (constraints.maxWidth >= 600) {
+      crossAxisCount = 3;
+    }
 
     return GridView.builder(
       shrinkWrap: true,
@@ -227,6 +232,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
       padding: const EdgeInsets.all(12),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
+        // Responsif childAspectRatio berdasarkan mode edit aktif atau tidak
         childAspectRatio: _isPageEditMode ? 0.95 : 1.15,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
@@ -240,62 +246,255 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
             .length;
         bool isAllDone = totalSub > 0 && totalSub == selesaiSub;
 
+        String topListText = "Tidak ada list";
+
+        if (subject.subMateri.isNotEmpty) {
+          final firstUnfinishedItem = subject.subMateri.firstWhere(
+            (sm) => sm.progress != 'selesai',
+            orElse: () => SubMateriItem(namaMateri: '', progress: 'selesai'),
+          );
+
+          if (firstUnfinishedItem.namaMateri.isNotEmpty) {
+            topListText = firstUnfinishedItem.namaMateri;
+          } else {
+            topListText = "Semua Selesai!";
+          }
+        }
+
         return Card(
           elevation: 3,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
             side: BorderSide(color: Color(subject.backgroundColor), width: 3.5),
           ),
-          child: InkWell(
-            onTap: _isPageEditMode ? null : () => _openMateriChecklist(subject),
-            child: Padding(
-              padding: const EdgeInsets.all(12.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    subject.namaMateri,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                    maxLines: 1,
+          color: Colors.white,
+          child: Column(
+            children: [
+              // Area Konten Utama Materi
+              Expanded(
+                child: InkWell(
+                  onTap: _isPageEditMode
+                      ? null
+                      : () => _openMateriChecklist(subject),
+                  borderRadius: BorderRadius.vertical(
+                    top: const Radius.circular(12),
+                    bottom: Radius.circular(_isPageEditMode ? 0 : 12),
                   ),
-                  const SizedBox(height: 10),
-                  // Render Progress bar lama
-                  Container(
-                    width: double.infinity,
-                    height: 22,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[100],
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: Color(subject.backgroundColor)),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(5),
-                      child: Stack(
-                        children: [
-                          Container(
-                            width:
-                                constraints.maxWidth *
-                                (totalSub > 0 ? selesaiSub / totalSub : 0),
-                            color: Color(
-                              subject.backgroundColor,
-                            ).withOpacity(0.8),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        // Mengembalikan Teks Ikon Emoji + Nama Materi
+                        Text(
+                          '${subject.icon} ${subject.namaMateri}',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
                           ),
-                          Center(
-                            child: Text(
-                              isAllDone ? 'Selesai' : '$selesaiSub / $totalSub',
-                              style: const TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
+                          textAlign: TextAlign.center,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                        // Mengembalikan Render Tanggal Berwarna Indah
+                        if (subject.isDateActive && subject.date != null) ...[
+                          const SizedBox(height: 2),
+                          Text.rich(
+                            TextSpan(
+                              children: DailySubject.buildColoredDateSpans(
+                                subject,
+                                inHeader: false,
                               ),
                             ),
+                            style: const TextStyle(fontSize: 10),
+                            textAlign: TextAlign.center,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
-                      ),
+                        const SizedBox(height: 6),
+                        // Mengembalikan Tanda List Teratas (Top Unfinished List)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Color(
+                              subject.backgroundColor,
+                            ).withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  isAllDone
+                                      ? '🎉 Semua Selesai!'
+                                      : '📌 $topListText',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    color: Color(subject.backgroundColor),
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        // Render Progress Bar Berwarna Solid Kreatif
+                        LayoutBuilder(
+                          builder: (context, barConstraints) {
+                            double progressPercent = totalSub > 0
+                                ? selesaiSub / totalSub
+                                : 0.0;
+                            Color solidProgressBarColor =
+                                progressPercent <= 0.33
+                                ? Colors.red[700]!
+                                : (progressPercent <= 0.75
+                                      ? Colors.orange[700]!
+                                      : Colors.green[700]!);
+
+                            return Container(
+                              width: double.infinity,
+                              height: 22,
+                              decoration: BoxDecoration(
+                                color: Colors.grey[100],
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: Color(subject.backgroundColor),
+                                  width: 1.2,
+                                ),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(5),
+                                child: Stack(
+                                  children: [
+                                    Container(
+                                      width:
+                                          barConstraints.maxWidth *
+                                          progressPercent,
+                                      height: double.infinity,
+                                      color: solidProgressBarColor,
+                                    ),
+                                    Center(
+                                      child: Text(
+                                        isAllDone
+                                            ? 'Selesai Semua'
+                                            : '$selesaiSub / $totalSub List',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
                     ),
                   ),
-                ],
+                ),
               ),
-            ),
+
+              // === KONTROL EDIT URUTAN & PINDAH SEKSI SEPERTI FITUR LAMA ===
+              if (_isPageEditMode) ...[
+                Divider(height: 1, color: Colors.grey[300]),
+                Container(
+                  color: Colors.grey[50],
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 2,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      // Tombol Urutan Kiri/Atas
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back, size: 16),
+                        color: index > 0 ? Colors.teal[700] : Colors.grey[300],
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: index > 0
+                            ? () {
+                                setState(() {
+                                  final temp = subjectsList[index];
+                                  subjectsList[index] = subjectsList[index - 1];
+                                  subjectsList[index - 1] = temp;
+                                });
+                                _saveHubData();
+                              }
+                            : null,
+                      ),
+
+                      // Popup Menu Pindah Seksi Penempatan secara Dinamis
+                      PopupMenuButton<String>(
+                        tooltip: 'Pindah Seksi',
+                        icon: const Icon(
+                          Icons.swap_horiz,
+                          size: 16,
+                          color: Colors.blueGrey,
+                        ),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onSelected: (targetSectionName) {
+                          setState(() {
+                            // Ambil item subjek, hapus dari seksi ini, pindahkan ke seksi tujuan
+                            final itemToMove = subjectsList.removeAt(index);
+                            _currentHub.semuaList
+                                .firstWhere(
+                                  (sec) => sec.namaSeksi == targetSectionName,
+                                )
+                                .items
+                                .add(itemToMove);
+                          });
+                          _saveHubData();
+                        },
+                        itemBuilder: (context) => _currentHub.semuaList
+                            .map(
+                              (sec) => PopupMenuItem<String>(
+                                value: sec.namaSeksi,
+                                child: Text(
+                                  sec.namaSeksi,
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
+
+                      // Tombol Urutan Kanan/Bawah
+                      IconButton(
+                        icon: const Icon(Icons.arrow_forward, size: 16),
+                        color: index < subjectsList.length - 1
+                            ? Colors.teal[700]
+                            : Colors.grey[300],
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: index < subjectsList.length - 1
+                            ? () {
+                                setState(() {
+                                  final temp = subjectsList[index];
+                                  subjectsList[index] = subjectsList[index + 1];
+                                  subjectsList[index + 1] = temp;
+                                });
+                                _saveHubData();
+                              }
+                            : null,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
           ),
         );
       },
