@@ -142,6 +142,44 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
     );
   }
 
+  // Tambahkan fungsi baru ini di dalam kelas _ChecklistDetailScreenState
+  void _deleteItemFromSection(
+    List<DailySubject> subjectsList,
+    DailySubject subject,
+  ) async {
+    // 1. Tampilkan dialog konfirmasi sebelum menghapus
+    final bool confirm =
+        await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Hapus Item Checklist?'),
+            content: Text(
+              'Apakah Anda yakin ingin menghapus "${subject.namaMateri}" beserta seluruh sub-materinya?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Batal'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                child: const Text('Hapus'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    // 2. Jika dikonfirmasi, hapus dari list, simpan ke JSON, dan perbarui UI
+    if (confirm) {
+      setState(() {
+        subjectsList.remove(subject);
+      });
+      _saveHubData(); // Menyimpan perubahan urutan/isi secara otomatis ke JSON lokal
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -543,6 +581,22 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                                 _saveHubData(); // Auto-save urutan posisi baru ke JSON lokal
                               }
                             : null,
+                      ),
+
+                      // === TOMBOL BARU: UNTUK MENGHAPUS ITEM MATERI (KARTU) ===
+                      IconButton(
+                        icon: const Icon(
+                          Icons.delete_outline,
+                          size: 16,
+                          color: Colors.redAccent,
+                        ),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        tooltip: 'Hapus Item Ini',
+                        onPressed: () => _deleteItemFromSection(
+                          subjectsList,
+                          subject,
+                        ), // Memanggil fungsi hapus
                       ),
                     ],
                   ),
