@@ -6,8 +6,13 @@ import 'package:flutter/services.dart'; // <--- Tambahkan ini di baris paling at
 
 class AddDailySubjectDialog extends StatefulWidget {
   final Function(DailySubject newSubject) onSave;
+  final List<String> existingSections;
 
-  const AddDailySubjectDialog({super.key, required this.onSave});
+  const AddDailySubjectDialog({
+    super.key,
+    required this.onSave,
+    required this.existingSections, // <--- TAMBAHAN: Wajib diisi
+  });
 
   @override
   State<AddDailySubjectDialog> createState() => _AddDailySubjectDialogState();
@@ -19,8 +24,18 @@ class _AddDailySubjectDialogState extends State<AddDailySubjectDialog> {
   final _iconController = TextEditingController(text: '📚');
   final _subMateriInputController = TextEditingController();
 
-  String _selectedSection = 'rutinitas_inti';
+  late String _selectedSection;
   final List<String> _subMateriItems = [];
+
+  @override
+  void initState() {
+    super.initState();
+    // Mengeset nilai default dropdown ke seksi pertama yang tersedia,
+    // atau string kosong jika belum ada seksi sama sekali.
+    _selectedSection = widget.existingSections.isNotEmpty
+        ? widget.existingSections.first
+        : '';
+  }
 
   @override
   void dispose() {
@@ -73,29 +88,24 @@ class _AddDailySubjectDialogState extends State<AddDailySubjectDialog> {
               const SizedBox(height: 12),
 
               // Pilihan Seksi / Kategori Penempatan
-              DropdownButtonFormField<String>(
-                value: _selectedSection,
-                decoration: const InputDecoration(
-                  labelText: 'Seksi Penempatan',
+              // PERBAIKAN: Pilihan Seksi Penempatan Mengikuti Seksi Kustom Dinamis Hub
+              if (widget.existingSections.isNotEmpty)
+                DropdownButtonFormField<String>(
+                  value: _selectedSection,
+                  decoration: const InputDecoration(
+                    labelText: 'Seksi Penempatan',
+                  ),
+                  // Render item dropdown secara otomatis dari daftar seksi yang ada
+                  items: widget.existingSections.map((String sectionName) {
+                    return DropdownMenuItem<String>(
+                      value: sectionName,
+                      child: Text('📁 $sectionName'),
+                    );
+                  }).toList(),
+                  onChanged: (val) {
+                    if (val != null) setState(() => _selectedSection = val);
+                  },
                 ),
-                items: const [
-                  DropdownMenuItem(
-                    value: 'fokus_utama',
-                    child: Text('🎯 Fokus Utama'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'rutinitas_inti',
-                    child: Text('🔄 Rutinitas Inti'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'aktivitas_pelengkap',
-                    child: Text('🌱 Aktivitas Pelengkap'),
-                  ),
-                ],
-                onChanged: (val) {
-                  if (val != null) setState(() => _selectedSection = val);
-                },
-              ),
               const SizedBox(height: 16),
 
               const Divider(),

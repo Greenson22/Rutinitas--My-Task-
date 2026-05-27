@@ -155,9 +155,14 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                             child: TextButton.icon(
                               onPressed: () {
                                 // Tambah item ke dalam seksi ini
+                                // Membuka dialog tambah item subjek ke seksi tertentu
                                 showDialog(
                                   context: context,
                                   builder: (context) => AddDailySubjectDialog(
+                                    // Salurkan daftar seluruh nama seksi yang ada di Hub ini
+                                    existingSections: _currentHub.semuaList
+                                        .map((sec) => sec.namaSeksi)
+                                        .toList(),
                                     onSave: (newSubject) {
                                       setState(
                                         () => section.items.add(newSubject),
