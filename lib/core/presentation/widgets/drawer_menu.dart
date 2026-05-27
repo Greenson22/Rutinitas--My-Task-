@@ -1,10 +1,10 @@
 // lib/features/task_master/presentation/widgets/drawer_menu.dart
 
 import 'package:flutter/material.dart';
-import '../screens/home_screen.dart';
-import '../../../daily/presentation/screens/daily_screen.dart';
-import '../../../jurnal_aktivitas/presentation/screens/jurnal_aktivitas_screen.dart';
-import '../../../about/presentation/pages/about_page.dart'; // <--- IMPORT SEUSAI PATH ABOUT PAGE
+import '../../../features/task_master/presentation/screens/home_screen.dart';
+import '../../../features/daily/presentation/screens/daily_screen.dart';
+import '../../../features/jurnal_aktivitas/presentation/screens/jurnal_aktivitas_screen.dart';
+import '../../../features/about/presentation/pages/about_page.dart'; // <--- IMPORT SEUSAI PATH ABOUT PAGE
 
 class DrawerMenu extends StatelessWidget {
   final String selectedBaseDir;

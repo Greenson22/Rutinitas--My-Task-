@@ -7,7 +7,7 @@ import '../../../../core/services/storage_service.dart';
 import '../../data/models/task_model.dart';
 import '../../../jurnal_aktivitas/data/models/time_log_model.dart'; // <--- IMPORT BARU MODEL JURNAL
 import '../widgets/category_card.dart';
-import '../widgets/drawer_menu.dart';
+import '../../../../core/presentation/widgets/drawer_menu.dart';
 import '../widgets/settings_dialog.dart';
 import '../widgets/tasks_dialog.dart';
 import '../widgets/add_category_dialog.dart';
