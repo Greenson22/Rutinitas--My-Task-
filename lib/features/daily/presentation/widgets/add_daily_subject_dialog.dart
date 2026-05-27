@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import '../../data/models/daily_model.dart';
+import 'package:flutter/services.dart'; // <--- Tambahkan ini di baris paling atas file
 
 class AddDailySubjectDialog extends StatefulWidget {
   final Function(DailySubject newSubject) onSave;
@@ -98,20 +99,69 @@ class _AddDailySubjectDialogState extends State<AddDailySubjectDialog> {
               const SizedBox(height: 16),
 
               const Divider(),
-              const Text(
-                'Daftar Sub-Materi Checklist (Opsional):',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Daftar Sub-Materi Checklist (Opsional):',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                  // === TOMBOL BARU: PASTE BANYAK LIST DARI CLIPBOARD ===
+                  TextButton.icon(
+                    icon: const Icon(
+                      Icons.assignment_returned_outlined,
+                      size: 16,
+                      color: Colors.teal,
+                    ),
+                    label: const Text(
+                      'Paste dari Clipboard',
+                      style: TextStyle(fontSize: 11, color: Colors.teal),
+                    ),
+                    onPressed: () async {
+                      ClipboardData? data = await Clipboard.getData(
+                        Clipboard.kTextPlain,
+                      );
+                      if (data != null &&
+                          data.text != null &&
+                          data.text!.trim().isNotEmpty) {
+                        // Memecah baris teks dari clipboard berdasarkan baris baru (\n)
+                        List<String> lines = data.text!.split('\n');
+                        setState(() {
+                          for (var line in lines) {
+                            if (line.trim().isNotEmpty) {
+                              _subMateriItems.add(line.trim());
+                            }
+                          }
+                        });
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Berhasil menempelkan ${lines.length} item list!',
+                            ),
+                            duration: const Duration(seconds: 1),
+                          ),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Clipboard kosong atau tidak valid.'),
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                ],
               ),
               const SizedBox(height: 8),
 
-              // Input Tambah Item Sub-Materi
+              // Input Manual Satu per Satu (Tetap Dipertahankan)
               Row(
                 children: [
                   Expanded(
                     child: TextField(
                       controller: _subMateriInputController,
                       decoration: const InputDecoration(
-                        hintText: 'Tulis sub-materi...',
+                        hintText: 'Tulis sub-materi manual...',
                         isDense: true,
                       ),
                     ),
@@ -122,7 +172,6 @@ class _AddDailySubjectDialogState extends State<AddDailySubjectDialog> {
                   ),
                 ],
               ),
-
               // Preview List Item yang akan ditambahkan
               if (_subMateriItems.isNotEmpty)
                 Container(

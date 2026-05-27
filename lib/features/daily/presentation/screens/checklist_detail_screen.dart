@@ -286,9 +286,9 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        // Mengembalikan Teks Ikon Emoji + Nama Materi
+                        // PERBAIKAN: Ikon emoji '${subject.icon}' TELAH DIHAPUS
                         Text(
-                          '${subject.icon} ${subject.namaMateri}',
+                          subject.namaMateri,
                           style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
@@ -298,7 +298,6 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                           overflow: TextOverflow.ellipsis,
                           maxLines: 1,
                         ),
-                        // Mengembalikan Render Tanggal Berwarna Indah
                         if (subject.isDateActive && subject.date != null) ...[
                           const SizedBox(height: 2),
                           Text.rich(
@@ -314,7 +313,6 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                           ),
                         ],
                         const SizedBox(height: 6),
-                        // Mengembalikan Tanda List Teratas (Top Unfinished List)
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 6,
@@ -346,7 +344,6 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                           ),
                         ),
                         const SizedBox(height: 6),
-                        // Render Progress Bar Berwarna Solid Kreatif
                         LayoutBuilder(
                           builder: (context, barConstraints) {
                             double progressPercent = totalSub > 0
@@ -363,7 +360,8 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                               width: double.infinity,
                               height: 22,
                               decoration: BoxDecoration(
-                                color: Colors.grey[100],
+                                color: Colors
+                                    .grey[200], // Background bar lebih kontras
                                 borderRadius: BorderRadius.circular(6),
                                 border: Border.all(
                                   color: Color(subject.backgroundColor),
@@ -381,15 +379,25 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                                       height: double.infinity,
                                       color: solidProgressBarColor,
                                     ),
+                                    // PERBAIKAN: Menggunakan jaminan warna teks kontras tinggi (Putih Bayangan / Hitam Outline)
                                     Center(
                                       child: Text(
                                         isAllDone
                                             ? 'Selesai Semua'
                                             : '$selesaiSub / $totalSub List',
                                         style: const TextStyle(
-                                          color: Colors.white,
+                                          color: Colors
+                                              .white, // Teks warna putih murni
                                           fontSize: 9,
                                           fontWeight: FontWeight.bold,
+                                          // Ditambahkan shadow agar teks selalu terbaca di warna bar apapun
+                                          shadows: [
+                                            Shadow(
+                                              offset: Offset(0.5, 0.5),
+                                              blurRadius: 1.0,
+                                              color: Colors.black87,
+                                            ),
+                                          ],
                                         ),
                                       ),
                                     ),
@@ -404,96 +412,6 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                   ),
                 ),
               ),
-
-              // === KONTROL EDIT URUTAN & PINDAH SEKSI SEPERTI FITUR LAMA ===
-              if (_isPageEditMode) ...[
-                Divider(height: 1, color: Colors.grey[300]),
-                Container(
-                  color: Colors.grey[50],
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 4,
-                    vertical: 2,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      // Tombol Urutan Kiri/Atas
-                      IconButton(
-                        icon: const Icon(Icons.arrow_back, size: 16),
-                        color: index > 0 ? Colors.teal[700] : Colors.grey[300],
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        onPressed: index > 0
-                            ? () {
-                                setState(() {
-                                  final temp = subjectsList[index];
-                                  subjectsList[index] = subjectsList[index - 1];
-                                  subjectsList[index - 1] = temp;
-                                });
-                                _saveHubData();
-                              }
-                            : null,
-                      ),
-
-                      // Popup Menu Pindah Seksi Penempatan secara Dinamis
-                      PopupMenuButton<String>(
-                        tooltip: 'Pindah Seksi',
-                        icon: const Icon(
-                          Icons.swap_horiz,
-                          size: 16,
-                          color: Colors.blueGrey,
-                        ),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        onSelected: (targetSectionName) {
-                          setState(() {
-                            // Ambil item subjek, hapus dari seksi ini, pindahkan ke seksi tujuan
-                            final itemToMove = subjectsList.removeAt(index);
-                            _currentHub.semuaList
-                                .firstWhere(
-                                  (sec) => sec.namaSeksi == targetSectionName,
-                                )
-                                .items
-                                .add(itemToMove);
-                          });
-                          _saveHubData();
-                        },
-                        itemBuilder: (context) => _currentHub.semuaList
-                            .map(
-                              (sec) => PopupMenuItem<String>(
-                                value: sec.namaSeksi,
-                                child: Text(
-                                  sec.namaSeksi,
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                              ),
-                            )
-                            .toList(),
-                      ),
-
-                      // Tombol Urutan Kanan/Bawah
-                      IconButton(
-                        icon: const Icon(Icons.arrow_forward, size: 16),
-                        color: index < subjectsList.length - 1
-                            ? Colors.teal[700]
-                            : Colors.grey[300],
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        onPressed: index < subjectsList.length - 1
-                            ? () {
-                                setState(() {
-                                  final temp = subjectsList[index];
-                                  subjectsList[index] = subjectsList[index + 1];
-                                  subjectsList[index + 1] = temp;
-                                });
-                                _saveHubData();
-                              }
-                            : null,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
             ],
           ),
         );
