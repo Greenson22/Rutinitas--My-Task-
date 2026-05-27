@@ -193,16 +193,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
           ],
         ),
         backgroundColor: Colors.teal[700],
-        actions: [
-          IconButton(
-            icon: Icon(
-              _isPageEditMode ? Icons.check_circle : Icons.edit_note,
-              size: 28,
-            ),
-            color: _isPageEditMode ? Colors.amberAccent : Colors.white,
-            onPressed: () => setState(() => _isPageEditMode = !_isPageEditMode),
-          ),
-        ],
+        actions: [],
       ),
 
       // MODIFIKASI: Jika kosong, tampilkan tombol untuk langsung menambah item pertama
@@ -361,9 +352,17 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
               // Area Konten Utama Materi
               Expanded(
                 child: InkWell(
+                  // Kotak hanya bisa diklik untuk membuka dialog jika mode edit mati
                   onTap: _isPageEditMode
                       ? null
                       : () => _openMateriChecklist(subject),
+
+                  // TAMBAHAN: Menahan kotak untuk masuk atau keluar dari mode edit
+                  onLongPress: () {
+                    setState(() {
+                      _isPageEditMode = !_isPageEditMode;
+                    });
+                  },
                   borderRadius: BorderRadius.vertical(
                     top: const Radius.circular(12),
                     bottom: Radius.circular(_isPageEditMode ? 0 : 12),
