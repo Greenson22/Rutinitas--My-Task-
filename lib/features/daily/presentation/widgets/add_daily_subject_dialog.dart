@@ -124,13 +124,44 @@ class _AddDailySubjectDialogState extends State<AddDailySubjectDialog> {
                       if (data != null &&
                           data.text != null &&
                           data.text!.trim().isNotEmpty) {
-                        // Memecah baris teks dari clipboard berdasarkan baris baru (\n)
-                        List<String> lines = data.text!.split('\n');
+                        List<String> lines = data.text!
+                            .split('\n')
+                            .where((line) => line.trim().isNotEmpty)
+                            .toList();
+
+                        if (lines.isEmpty) return;
+
+                        // === TAHAP 1: DIALOG KONFIRMASI SEBELUM PASTE ===
+                        bool? konfirmasi = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Konfirmasi Paste List'),
+                            content: Text(
+                              'Apakah Anda yakin ingin memasukkan ${lines.length} item dari clipboard Anda ke daftar sub-materi?',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, false),
+                                child: const Text('Batal'),
+                              ),
+                              ElevatedButton(
+                                onPressed: () => Navigator.pop(ctx, true),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.teal,
+                                ),
+                                child: const Text('Ya, Masukkan'),
+                              ),
+                            ],
+                          ),
+                        );
+
+                        if (konfirmasi != true)
+                          return; // Batalkan jika memilih tidak/batal
+
+                        // Proses memasukkan data setelah dikonfirmasi
                         setState(() {
                           for (var line in lines) {
-                            if (line.trim().isNotEmpty) {
-                              _subMateriItems.add(line.trim());
-                            }
+                            _subMateriItems.add(line.trim());
                           }
                         });
                         ScaffoldMessenger.of(context).showSnackBar(

@@ -480,21 +480,55 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                                   if (data != null &&
                                       data.text != null &&
                                       data.text!.trim().isNotEmpty) {
-                                    // Memecah teks clipboard berdasarkan baris baru (\n)
-                                    List<String> lines = data.text!.split('\n');
-                                    int countAdded = 0;
+                                    List<String> lines = data.text!
+                                        .split('\n')
+                                        .where((line) => line.trim().isNotEmpty)
+                                        .toList();
 
+                                    if (lines.isEmpty) return;
+
+                                    // === TAHAP 2: DIALOG KONFIRMASI SEBELUM PASTE ===
+                                    bool? konfirmasi = await showDialog<bool>(
+                                      context: context,
+                                      builder: (ctx) => AlertDialog(
+                                        title: const Text(
+                                          'Konfirmasi Paste Banyak List',
+                                        ),
+                                        content: Text(
+                                          'Apakah Anda yakin ingin menambahkan ${lines.length} item baru dari clipboard langsung ke materi ini?',
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.pop(ctx, false),
+                                            child: const Text('Batal'),
+                                          ),
+                                          ElevatedButton(
+                                            onPressed: () =>
+                                                Navigator.pop(ctx, true),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.indigo,
+                                            ),
+                                            child: const Text('Ya, Tambahkan'),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+
+                                    if (konfirmasi != true)
+                                      return; // Batalkan jika memilih tidak/batal
+
+                                    // Proses memasukkan data setelah dikonfirmasi
+                                    int countAdded = 0;
                                     setState(() {
                                       for (var line in lines) {
-                                        if (line.trim().isNotEmpty) {
-                                          widget.subject.subMateri.add(
-                                            SubMateriItem(
-                                              namaMateri: line.trim(),
-                                              progress: 'belum',
-                                            ),
-                                          );
-                                          countAdded++;
-                                        }
+                                        widget.subject.subMateri.add(
+                                          SubMateriItem(
+                                            namaMateri: line.trim(),
+                                            progress: 'belum',
+                                          ),
+                                        );
+                                        countAdded++;
                                       }
                                     });
 
