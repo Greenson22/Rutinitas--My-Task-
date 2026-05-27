@@ -1,6 +1,7 @@
 // lib/features/daily/presentation/widgets/daily_checklist_dialog.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // <--- Tambahkan ini di baris paling atas
 import '../../data/models/daily_model.dart';
 import 'change_color_dialog.dart';
 
@@ -435,6 +436,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         // 1. PANEL INPUT UTAMA
+                        // 1. PANEL INPUT UTAMA (DENGAN FITUR PASTE CLIPBOARD)
                         Padding(
                           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                           child: Row(
@@ -454,7 +456,8 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                                   onSubmitted: (_) => _addRootSubMateri(),
                                 ),
                               ),
-                              const SizedBox(width: 6),
+                              const SizedBox(width: 4),
+                              // Tombol Tambah Manual (Bawaan)
                               IconButton(
                                 icon: const Icon(
                                   Icons.add_box,
@@ -463,10 +466,69 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                                 tooltip: 'Tambah Utama',
                                 onPressed: _addRootSubMateri,
                               ),
+                              // === TOMBOL BARU: PASTE BANYAK BARIS DARI CLIPBOARD ===
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.assignment_returned_outlined,
+                                  color: Colors.indigo,
+                                ),
+                                tooltip: 'Paste Banyak Baris dari Clipboard',
+                                onPressed: () async {
+                                  ClipboardData? data = await Clipboard.getData(
+                                    Clipboard.kTextPlain,
+                                  );
+                                  if (data != null &&
+                                      data.text != null &&
+                                      data.text!.trim().isNotEmpty) {
+                                    // Memecah teks clipboard berdasarkan baris baru (\n)
+                                    List<String> lines = data.text!.split('\n');
+                                    int countAdded = 0;
+
+                                    setState(() {
+                                      for (var line in lines) {
+                                        if (line.trim().isNotEmpty) {
+                                          widget.subject.subMateri.add(
+                                            SubMateriItem(
+                                              namaMateri: line.trim(),
+                                              progress: 'belum',
+                                            ),
+                                          );
+                                          countAdded++;
+                                        }
+                                      }
+                                    });
+
+                                    if (countAdded > 0) {
+                                      _updateSubjectOverallProgress(); // Memperbarui persentase progress subjek
+                                      widget
+                                          .onDataChanged(); // Trigger auto-save ke JSON lokal
+
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            '⏱ Berhasil menambahkan $countAdded item dari clipboard!',
+                                          ),
+                                          duration: const Duration(seconds: 2),
+                                          backgroundColor: Colors.teal[800],
+                                        ),
+                                      );
+                                    }
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Clipboard kosong atau tidak berisi teks.',
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
+                              ),
                             ],
                           ),
                         ),
-
                         // 2. PANEL KONTROL TANGGAL & MODE EDIT MASAL
                         Padding(
                           padding: const EdgeInsets.symmetric(
