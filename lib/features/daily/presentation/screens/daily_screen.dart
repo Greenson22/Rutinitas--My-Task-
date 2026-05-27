@@ -268,15 +268,6 @@ class _DailyScreenState extends State<DailyScreen> {
             onPressed: () =>
                 setState(() => _showHiddenSection = !_showHiddenSection),
           ),
-          IconButton(
-            icon: Icon(
-              _isPageEditMode ? Icons.check_circle : Icons.edit_note,
-              size: 28,
-            ),
-            color: _isPageEditMode ? Colors.amberAccent : Colors.white,
-            tooltip: 'Mode Edit Susunan Hub',
-            onPressed: () => setState(() => _isPageEditMode = !_isPageEditMode),
-          ),
         ],
       ),
       drawer: DrawerMenu(
@@ -374,7 +365,8 @@ class _DailyScreenState extends State<DailyScreen> {
       padding: const EdgeInsets.all(12),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
-        childAspectRatio: 1.15,
+        // Rasio aspek disesuaikan secara dinamis agar kotak memanjang ke bawah saat panel kontrol aktif
+        childAspectRatio: _isPageEditMode ? 0.90 : 1.15,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
       ),
@@ -392,174 +384,161 @@ class _DailyScreenState extends State<DailyScreen> {
             ),
           ),
           color: Colors.white,
-          child: Stack(
+          child: Column(
             children: [
-              InkWell(
-                borderRadius: BorderRadius.circular(16),
-                // MENAHAN KOTAK (LONG PRESS): memicu masuk/keluar dari mode edit halaman
-                onLongPress: () {
-                  setState(() {
-                    _isPageEditMode = !_isPageEditMode;
-                  });
-                },
-                onTap: _isPageEditMode
-                    ? null
-                    : () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => ChecklistDetailScreen(
-                              hub: hub,
-                              baseDir: _selectedBaseDir,
+              // Area Utama Konten Hub
+              Expanded(
+                child: InkWell(
+                  borderRadius: BorderRadius.only(
+                    topLeft: const Radius.circular(16),
+                    topRight: const Radius.circular(16),
+                    bottomLeft: Radius.circular(_isPageEditMode ? 0 : 16),
+                    bottomRight: Radius.circular(_isPageEditMode ? 0 : 16),
+                  ),
+                  // Mengaktifkan atau mengembalikan mode edit dengan cara menahan kotak
+                  onLongPress: () {
+                    setState(() {
+                      _isPageEditMode = !_isPageEditMode;
+                    });
+                  },
+                  onTap: _isPageEditMode
+                      ? null
+                      : () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ChecklistDetailScreen(
+                                hub: hub,
+                                baseDir: _selectedBaseDir,
+                              ),
                             ),
-                          ),
-                        ).then((_) => _loadHubsData());
-                      },
-                child: SizedBox.expand(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Text(
-                          hub.ikon,
-                          style: TextStyle(
-                            fontSize: 28,
-                            color: hub.isHidden ? Colors.grey : Colors.black,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          hub.namaHub,
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                            color: hub.isHidden ? Colors.grey : Colors.black87,
-                          ),
-                          textAlign: TextAlign.center,
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                        ),
-                        const SizedBox(height: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color:
-                                (hub.isHidden ? Colors.grey : Colors.teal[800]!)
-                                    .withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            '${hub.semuaList.length} Seksi',
+                          ).then((_) => _loadHubsData());
+                        },
+                  child: SizedBox.expand(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Text(
+                            hub.ikon,
                             style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: hub.isHidden
-                                  ? Colors.grey[700]
-                                  : Colors.teal[900]!,
+                              fontSize: 28,
+                              color: hub.isHidden ? Colors.grey : Colors.black,
                             ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 8),
+                          Text(
+                            hub.namaHub,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: hub.isHidden
+                                  ? Colors.grey
+                                  : Colors.black87,
+                            ),
+                            textAlign: TextAlign.center,
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                          const SizedBox(height: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color:
+                                  (hub.isHidden
+                                          ? Colors.grey
+                                          : Colors.teal[800]!)
+                                      .withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              '${hub.semuaList.length} Seksi',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: hub.isHidden
+                                    ? Colors.grey[700]
+                                    : Colors.teal[900]!,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
 
-              if (_isPageEditMode)
-                Positioned(
-                  top: 4,
-                  right: 4,
-                  child: PopupMenuButton<String>(
-                    icon: const Icon(
-                      Icons.more_vert,
-                      color: Colors.black87,
-                      size: 20,
-                    ),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    onSelected: (value) {
-                      if (value == 'edit') {
-                        _showEditHubDialog(hub);
-                      } else if (value == 'delete') {
-                        _deleteHub(hub);
-                      } else if (value == 'toggle_visibility') {
-                        _toggleHubVisibility(hub);
-                      } else if (value == 'move_left') {
-                        _moveHubOrder(hubsList, index, -1);
-                      } else if (value == 'move_right') {
-                        _moveHubOrder(hubsList, index, 1);
-                      }
-                    },
-                    itemBuilder: (BuildContext context) => [
-                      PopupMenuItem<String>(
-                        value: 'move_left',
-                        enabled: index > 0,
-                        child: const ListTile(
-                          leading: Icon(Icons.arrow_back, size: 18),
-                          title: Text('Pindah Kiri/Atas'),
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                        ),
+              // PANEL KONTROL BARU SEPERTI GAMBAR (Hanya tampil saat Mode Edit Aktif)
+              if (_isPageEditMode) ...[
+                Divider(height: 1, color: Colors.grey[300]),
+                Container(
+                  color: Colors.grey[50],
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 4,
+                    horizontal: 8,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      // 1. Tombol Pindah Kiri / Atas
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back, size: 18),
+                        color: index > 0 ? Colors.teal[800] : Colors.grey[300],
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: index > 0
+                            ? () => _moveHubOrder(hubsList, index, -1)
+                            : null,
                       ),
-                      PopupMenuItem<String>(
-                        value: 'move_right',
-                        enabled: index < hubsList.length - 1,
-                        child: const ListTile(
-                          leading: Icon(Icons.arrow_forward, size: 18),
-                          title: Text('Pindah Kanan/Bawah'),
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
+                      // 2. Tombol Sembunyikan / Tampilkan (Mata)
+                      IconButton(
+                        icon: Icon(
+                          hub.isHidden
+                              ? Icons.visibility
+                              : Icons.visibility_off,
+                          size: 18,
+                          color: Colors.blueGrey[700],
                         ),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        tooltip: hub.isHidden
+                            ? 'Tampilkan Hub'
+                            : 'Sembunyikan Hub',
+                        onPressed: () => _toggleHubVisibility(hub),
                       ),
-                      const PopupMenuItem<String>(
-                        value: 'edit',
-                        child: ListTile(
-                          leading: Icon(Icons.edit, size: 18),
-                          title: Text('Ubah Nama & Ikon'),
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                        ),
+                      // 3. Tombol Pindah Kanan / Bawah
+                      IconButton(
+                        icon: const Icon(Icons.arrow_forward, size: 18),
+                        color: index < hubsList.length - 1
+                            ? Colors.teal[800]
+                            : Colors.grey[300],
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: index < hubsList.length - 1
+                            ? () => _moveHubOrder(hubsList, index, 1)
+                            : null,
                       ),
-                      PopupMenuItem<String>(
-                        value: 'toggle_visibility',
-                        child: ListTile(
-                          leading: Icon(
-                            hub.isHidden
-                                ? Icons.visibility
-                                : Icons.visibility_off,
-                            size: 18,
-                          ),
-                          title: Text(
-                            hub.isHidden ? 'Tampilkan Hub' : 'Sembunyikan Hub',
-                          ),
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
+                      // 4. Tombol Hapus (Merah)
+                      IconButton(
+                        icon: const Icon(
+                          Icons.delete_outline,
+                          size: 18,
+                          color: Colors.redAccent,
                         ),
-                      ),
-                      const PopupMenuItem<String>(
-                        value: 'delete',
-                        child: ListTile(
-                          leading: Icon(
-                            Icons.delete,
-                            color: Colors.red,
-                            size: 18,
-                          ),
-                          title: Text(
-                            'Hapus Hub',
-                            style: TextStyle(color: Colors.red),
-                          ),
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                        ),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: () => _deleteHub(hub),
                       ),
                     ],
                   ),
                 ),
+              ],
             ],
           ),
         );
