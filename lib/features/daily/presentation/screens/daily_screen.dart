@@ -7,7 +7,7 @@ import '../../../../core/services/storage_service.dart';
 import '../../../../core/presentation/widgets/drawer_menu.dart';
 import '../../../task_master/presentation/widgets/settings_dialog.dart';
 import '../../data/models/daily_model.dart';
-import 'checklist_detail_screen.dart'; // Import layar detail baru
+import 'checklist_detail_screen.dart';
 
 class DailyScreen extends StatefulWidget {
   const DailyScreen({super.key});
@@ -18,10 +18,16 @@ class DailyScreen extends StatefulWidget {
 
 class _DailyScreenState extends State<DailyScreen> {
   final StorageService _storageService = StorageService();
-  List<ChecklistHub> _hubs = []; // Menggunakan List untuk menampung banyak Hub
+  List<ChecklistHub> _allHubsRaw = [];
+  List<ChecklistHub> _visibleHubs = [];
+  List<ChecklistHub> _hiddenHubs = [];
+
   String _selectedBaseDir = 'Documents';
   String _fullJsonPath = 'my_checklist/';
   bool _isLoading = true;
+
+  bool _isPageEditMode = false;
+  bool _showHiddenSection = false;
 
   @override
   void initState() {
@@ -29,7 +35,6 @@ class _DailyScreenState extends State<DailyScreen> {
     _loadHubsData();
   }
 
-  // Fungsi baru: Scan semua file JSON Hub di direktori
   Future<void> _loadHubsData() async {
     setState(() => _isLoading = true);
     try {
@@ -45,14 +50,31 @@ class _DailyScreenState extends State<DailyScreen> {
         loadedHubs.add(ChecklistHub.fromJson(parsedMap));
       }
 
-      setState(() {
-        _hubs = loadedHubs;
-        _isLoading = false;
-      });
+      _allHubsRaw = loadedHubs;
+      _processHubsDisplay();
     } catch (e) {
       setState(() => _isLoading = false);
       debugPrint("Error loading hubs: $e");
     }
+  }
+
+  void _processHubsDisplay() {
+    setState(() {
+      _visibleHubs = _allHubsRaw.where((hub) => !hub.isHidden).toList();
+      _hiddenHubs = _allHubsRaw.where((hub) => hub.isHidden).toList();
+      _isLoading = false;
+    });
+  }
+
+  Future<void> _saveHubDataToFile(ChecklistHub hub) async {
+    File hubFile = await _storageService.getSpecificHubFile(
+      _selectedBaseDir,
+      hub.id,
+    );
+    final String jsonString = const JsonEncoder.withIndent(
+      '  ',
+    ).convert(hub.toJson());
+    await _storageService.saveJsonData(hubFile, jsonString);
   }
 
   Future<void> _createNewHub(String nama, String ikon) async {
@@ -61,19 +83,20 @@ class _DailyScreenState extends State<DailyScreen> {
       id: newId,
       namaHub: nama,
       ikon: ikon,
+      isHidden: false,
       semuaList: [],
     );
 
-    File newFile = await _storageService.getSpecificHubFile(
-      _selectedBaseDir,
-      newId,
-    );
-    final String jsonString = const JsonEncoder.withIndent(
-      '  ',
-    ).convert(newHub.toJson());
-    await _storageService.saveJsonData(newFile, jsonString);
+    await _saveHubDataToFile(newHub);
+    _loadHubsData();
+  }
 
-    _loadHubsData(); // Refresh UI
+  Future<void> _toggleHubVisibility(ChecklistHub hub) async {
+    setState(() {
+      hub.isHidden = !hub.isHidden;
+    });
+    await _saveHubDataToFile(hub);
+    _processHubsDisplay();
   }
 
   void _showAddHubDialog() {
@@ -118,8 +141,6 @@ class _DailyScreenState extends State<DailyScreen> {
     );
   }
 
-  // Taruh fungsi ini di dalam class _DailyScreenState
-
   void _showEditHubDialog(ChecklistHub hub) {
     final _nameController = TextEditingController(text: hub.namaHub);
     final _iconController = TextEditingController(text: hub.ikon);
@@ -150,23 +171,12 @@ class _DailyScreenState extends State<DailyScreen> {
           ElevatedButton(
             onPressed: () async {
               if (_nameController.text.isNotEmpty) {
-                setState(() {
-                  hub.namaHub = _nameController.text.trim();
-                  hub.ikon = _iconController.text.trim();
-                });
+                hub.namaHub = _nameController.text.trim();
+                hub.ikon = _iconController.text.trim();
 
-                // Menyimpan perubahan ke file JSON spesifik milik Hub ini
-                File hubFile = await _storageService.getSpecificHubFile(
-                  _selectedBaseDir,
-                  hub.id,
-                );
-                final String jsonString = const JsonEncoder.withIndent(
-                  '  ',
-                ).convert(hub.toJson());
-                await _storageService.saveJsonData(hubFile, jsonString);
-
+                await _saveHubDataToFile(hub);
                 Navigator.pop(context);
-                _loadHubsData(); // Refresh UI
+                _loadHubsData();
               }
             },
             child: const Text('Simpan'),
@@ -175,8 +185,6 @@ class _DailyScreenState extends State<DailyScreen> {
       ),
     );
   }
-
-  // Taruh fungsi ini di dalam class _DailyScreenState
 
   void _deleteHub(ChecklistHub hub) async {
     final bool confirm =
@@ -209,28 +217,37 @@ class _DailyScreenState extends State<DailyScreen> {
           hub.id,
         );
         if (await hubFile.exists()) {
-          await hubFile.delete(); // Menghapus file fisik JSON
+          await hubFile.delete();
         }
-        _loadHubsData(); // Refresh list Hub setelah dihapus
+        _loadHubsData();
       } catch (e) {
         debugPrint("Error deleting hub file: $e");
       }
     }
   }
 
-  // Taruh fungsi ini di dalam class _DailyScreenState
-
-  void _moveHubOrder(int currentIndex, int direction) {
+  void _moveHubOrder(
+    List<ChecklistHub> targetList,
+    int currentIndex,
+    int direction,
+  ) {
     int newIndex = currentIndex + direction;
-    if (newIndex < 0 || newIndex >= _hubs.length) return;
+    if (newIndex < 0 || newIndex >= targetList.length) return;
 
-    setState(() {
-      final temp = _hubs[currentIndex];
-      _hubs[currentIndex] = _hubs[newIndex];
-      _hubs[newIndex] = temp;
-    });
-    // Catatan: Jika ingin urutan ini permanen di penyimpanan offline,
-    // Anda memerlukan mekanisme file indeks tambahan atau memanipulasi timestamp nama file.
+    final itemA = targetList[currentIndex];
+    final itemB = targetList[newIndex];
+
+    int rawIdxA = _allHubsRaw.indexWhere((h) => h.id == itemA.id);
+    int rawIdxB = _allHubsRaw.indexWhere((h) => h.id == itemB.id);
+
+    if (rawIdxA != -1 && rawIdxB != -1) {
+      setState(() {
+        final temp = _allHubsRaw[rawIdxA];
+        _allHubsRaw[rawIdxA] = _allHubsRaw[rawIdxB];
+        _allHubsRaw[rawIdxB] = temp;
+      });
+      _processHubsDisplay();
+    }
   }
 
   @override
@@ -240,6 +257,27 @@ class _DailyScreenState extends State<DailyScreen> {
       appBar: AppBar(
         title: const Text('My Checklist Hubs'),
         backgroundColor: Colors.teal[800],
+        actions: [
+          IconButton(
+            icon: Icon(
+              _showHiddenSection ? Icons.visibility : Icons.visibility_off,
+            ),
+            tooltip: _showHiddenSection
+                ? 'Sembunyikan Sesi Tersembunyi'
+                : 'Tampilkan Sesi Tersembunyi',
+            onPressed: () =>
+                setState(() => _showHiddenSection = !_showHiddenSection),
+          ),
+          IconButton(
+            icon: Icon(
+              _isPageEditMode ? Icons.check_circle : Icons.edit_note,
+              size: 28,
+            ),
+            color: _isPageEditMode ? Colors.amberAccent : Colors.white,
+            tooltip: 'Mode Edit Susunan Hub',
+            onPressed: () => setState(() => _isPageEditMode = !_isPageEditMode),
+          ),
+        ],
       ),
       drawer: DrawerMenu(
         selectedBaseDir: _selectedBaseDir,
@@ -247,168 +285,63 @@ class _DailyScreenState extends State<DailyScreen> {
         onOpenSettings: () {},
         isDailyActive: true,
       ),
-
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _hubs.isEmpty
+          : _allHubsRaw.isEmpty
           ? const Center(
               child: Text('Belum ada Hub. Tekan + untuk membuat baru!'),
             )
           : LayoutBuilder(
               builder: (context, constraints) {
-                // SINKRONISASI: Menyamakan hitungan jumlah kolom secara responsif
-                int crossAxisCount = 2;
-                if (constraints.maxWidth >= 1200) {
-                  crossAxisCount = 5;
-                } else if (constraints.maxWidth >= 900) {
-                  crossAxisCount = 4;
-                } else if (constraints.maxWidth >= 600) {
-                  crossAxisCount = 3;
-                }
+                return ListView(
+                  children: [
+                    if (_visibleHubs.isNotEmpty)
+                      _buildHubGrid(_visibleHubs, constraints),
 
-                return GridView.builder(
-                  padding: const EdgeInsets.all(12), // Menyamakan padding grid
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: crossAxisCount,
-                    // SINKRONISASI: Menyamakan aspek rasio kotak (1.15) dengan Level 2
-                    childAspectRatio: 1.15,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                  ),
-                  itemCount: _hubs.length,
-                  itemBuilder: (context, index) {
-                    final hub = _hubs[index];
-
-                    // MODIFIKASI bagian GridView.builder -> Card -> Stack/Row di daily_screen.dart
-
-                    return Card(
-                      elevation: 3,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        side: BorderSide(color: Colors.teal[800]!, width: 3.5),
+                    if (_visibleHubs.isEmpty && _hiddenHubs.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.all(32.0),
+                        child: Center(child: Text('Tidak ada Hub.')),
                       ),
-                      color: Colors.white,
-                      child: Stack(
-                        // Menggunakan Stack agar bisa menaruh tombol menu di pojok kanan atas kartu
-                        children: [
-                          InkWell(
-                            borderRadius: BorderRadius.circular(16),
-                            onTap: () {
-                              // ... kode Navigator.push lama Anda tetap di sini ...
-                            },
-                            child: Padding(
-                              padding: const EdgeInsets.all(12.0),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    hub.ikon,
-                                    style: const TextStyle(fontSize: 28),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    hub.namaHub,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 14,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                    overflow: TextOverflow.ellipsis,
-                                    maxLines: 1,
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Container(
-                                    // ... kode kontainer jumlah Seksi List lama Anda ...
-                                  ),
-                                ],
+
+                    if (_hiddenHubs.isNotEmpty && _showHiddenSection) ...[
+                      const Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 16.0,
+                          vertical: 8.0,
+                        ),
+                        child: Divider(thickness: 2, color: Colors.grey),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16.0,
+                          vertical: 4.0,
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.visibility_off_outlined,
+                              color: Colors.blueGrey,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Hub yang disembunyikan (${_hiddenHubs.length})',
+                              style: const TextStyle(
+                                color: Colors.blueGrey,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
                               ),
                             ),
-                          ),
-
-                          // === TOMBOL POPUP MENU BARU DI POJOK KANAN ATAS KARTU HUB ===
-                          Positioned(
-                            top: 4,
-                            right: 4,
-                            child: PopupMenuButton<String>(
-                              icon: const Icon(
-                                Icons.more_vert,
-                                color: Colors.grey,
-                                size: 20,
-                              ),
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                              onSelected: (value) {
-                                if (value == 'edit') {
-                                  _showEditHubDialog(hub);
-                                } else if (value == 'delete') {
-                                  _deleteHub(hub);
-                                } else if (value == 'move_left') {
-                                  _moveHubOrder(index, -1);
-                                } else if (value == 'move_right') {
-                                  _moveHubOrder(index, 1);
-                                }
-                              },
-                              itemBuilder: (BuildContext context) => [
-                                PopupMenuItem<String>(
-                                  value: 'move_left',
-                                  enabled: index > 0,
-                                  child: const ListTile(
-                                    leading: Icon(Icons.arrow_back, size: 18),
-                                    title: Text('Pindah Kiri/Atas'),
-                                    dense: true,
-                                    contentPadding: EdgeInsets.zero,
-                                  ),
-                                ),
-                                PopupMenuItem<String>(
-                                  value: 'move_right',
-                                  enabled: index < _hubs.length - 1,
-                                  child: const ListTile(
-                                    leading: Icon(
-                                      Icons.arrow_forward,
-                                      size: 18,
-                                    ),
-                                    title: Text('Pindah Kanan/Bawah'),
-                                    dense: true,
-                                    contentPadding: EdgeInsets.zero,
-                                  ),
-                                ),
-                                const PopupMenuItem<String>(
-                                  value: 'edit',
-                                  child: ListTile(
-                                    leading: Icon(Icons.edit, size: 18),
-                                    title: Text('Ubah Nama & Ikon'),
-                                    dense: true,
-                                    contentPadding: EdgeInsets.zero,
-                                  ),
-                                ),
-                                const PopupMenuItem<String>(
-                                  value: 'delete',
-                                  child: ListTile(
-                                    leading: Icon(
-                                      Icons.delete,
-                                      color: Colors.red,
-                                      size: 18,
-                                    ),
-                                    title: Text(
-                                      'Hapus Hub',
-                                      style: TextStyle(color: Colors.red),
-                                    ),
-                                    dense: true,
-                                    contentPadding: EdgeInsets.zero,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    );
-                  },
+                      _buildHubGrid(_hiddenHubs, constraints),
+                    ],
+                  ],
                 );
               },
             ),
-      // === MENGEMBALIKAN TOMBOL TAMBAH HUBS YANG HILANG ===
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddHubDialog,
         backgroundColor: Colors.teal[800],
@@ -419,6 +352,216 @@ class _DailyScreenState extends State<DailyScreen> {
           color: Colors.white,
         ),
       ),
+    );
+  }
+
+  Widget _buildHubGrid(
+    List<ChecklistHub> hubsList,
+    BoxConstraints constraints,
+  ) {
+    int crossAxisCount = 2;
+    if (constraints.maxWidth >= 1200) {
+      crossAxisCount = 5;
+    } else if (constraints.maxWidth >= 900) {
+      crossAxisCount = 4;
+    } else if (constraints.maxWidth >= 600) {
+      crossAxisCount = 3;
+    }
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(12),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: crossAxisCount,
+        childAspectRatio: 1.15,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+      ),
+      itemCount: hubsList.length,
+      itemBuilder: (context, index) {
+        final hub = hubsList[index];
+
+        return Card(
+          elevation: 3,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(
+              color: hub.isHidden ? Colors.grey : Colors.teal[800]!,
+              width: 3.5,
+            ),
+          ),
+          color: Colors.white,
+          child: Stack(
+            children: [
+              // PERBAIKAN UTAMA: Bungkus isi InkWell dengan komponen bertata letak tengah sempurna
+              InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: _isPageEditMode
+                    ? null
+                    : () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ChecklistDetailScreen(
+                              hub: hub,
+                              baseDir: _selectedBaseDir,
+                            ),
+                          ),
+                        ).then((_) => _loadHubsData());
+                      },
+                child: SizedBox.expand(
+                  // <--- Memaksa area deteksi klik memenuhi seluruh ruang kotak
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment
+                          .center, // <--- Memaksa komponen Column rata tengah horizontal
+                      children: [
+                        Text(
+                          hub.ikon,
+                          style: TextStyle(
+                            fontSize: 28,
+                            color: hub.isHidden ? Colors.grey : Colors.black,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          hub.namaHub,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: hub.isHidden ? Colors.grey : Colors.black87,
+                          ),
+                          textAlign: TextAlign.center,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                        const SizedBox(height: 6),
+                        // RE-DRAFT KONTEN SEKSI: Mengisi kontainer jumlah list seksi agar kembali muncul
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color:
+                                (hub.isHidden ? Colors.grey : Colors.teal[800]!)
+                                    .withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            '${hub.semuaList.length} Seksi',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: hub.isHidden
+                                  ? Colors.grey[700]
+                                  : Colors.teal[900]!,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              if (_isPageEditMode)
+                Positioned(
+                  top: 4,
+                  right: 4,
+                  child: PopupMenuButton<String>(
+                    icon: const Icon(
+                      Icons.more_vert,
+                      color: Colors.black87,
+                      size: 20,
+                    ),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    onSelected: (value) {
+                      if (value == 'edit') {
+                        _showEditHubDialog(hub);
+                      } else if (value == 'delete') {
+                        _deleteHub(hub);
+                      } else if (value == 'toggle_visibility') {
+                        _toggleHubVisibility(hub);
+                      } else if (value == 'move_left') {
+                        _moveHubOrder(hubsList, index, -1);
+                      } else if (value == 'move_right') {
+                        _moveHubOrder(hubsList, index, 1);
+                      }
+                    },
+                    itemBuilder: (BuildContext context) => [
+                      PopupMenuItem<String>(
+                        value: 'move_left',
+                        enabled: index > 0,
+                        child: const ListTile(
+                          leading: Icon(Icons.arrow_back, size: 18),
+                          title: Text('Pindah Kiri/Atas'),
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
+                      PopupMenuItem<String>(
+                        value: 'move_right',
+                        enabled: index < hubsList.length - 1,
+                        child: const ListTile(
+                          leading: Icon(Icons.arrow_forward, size: 18),
+                          title: Text('Pindah Kanan/Bawah'),
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
+                      const PopupMenuItem<String>(
+                        value: 'edit',
+                        child: ListTile(
+                          leading: Icon(Icons.edit, size: 18),
+                          title: Text('Ubah Nama & Ikon'),
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
+                      PopupMenuItem<String>(
+                        value: 'toggle_visibility',
+                        child: ListTile(
+                          leading: Icon(
+                            hub.isHidden
+                                ? Icons.visibility
+                                : Icons.visibility_off,
+                            size: 18,
+                          ),
+                          title: Text(
+                            hub.isHidden ? 'Tampilkan Hub' : 'Sembunyikan Hub',
+                          ),
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
+                      const PopupMenuItem<String>(
+                        value: 'delete',
+                        child: ListTile(
+                          leading: Icon(
+                            Icons.delete,
+                            color: Colors.red,
+                            size: 18,
+                          ),
+                          title: Text(
+                            'Hapus Hub',
+                            style: TextStyle(color: Colors.red),
+                          ),
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
