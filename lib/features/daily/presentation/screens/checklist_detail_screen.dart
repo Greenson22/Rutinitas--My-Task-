@@ -112,7 +112,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
     );
   }
 
-  void _tambahItemKeSeksi(
+  void _addItemToSection(
     BuildContext context,
     ChecklistSection? targetSection,
   ) {
@@ -171,7 +171,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
       body: _currentHub.semuaList.isEmpty
           ? Center(
               child: ElevatedButton.icon(
-                onPressed: () => _tambahItemKeSeksi(context, null),
+                onPressed: () => _addItemToSection(context, null),
                 icon: const Icon(Icons.add_box),
                 label: const Text('Tambah Item Pertama'),
                 style: ElevatedButton.styleFrom(
@@ -199,7 +199,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                           _buildSectionHeader(
                             section.namaSeksi,
                             Colors.teal[800]!,
-                            () => _tambahItemKeSeksi(context, section),
+                            () => _addItemToSection(context, section),
                           ),
                         _buildCategoryGrid(section.items, constraints),
                       ],
