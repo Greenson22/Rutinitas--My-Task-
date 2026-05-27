@@ -132,71 +132,117 @@ class _DailyScreenState extends State<DailyScreen> {
         onOpenSettings: () {},
         isDailyActive: true,
       ),
+
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _hubs.isEmpty
           ? const Center(
               child: Text('Belum ada Hub. Tekan + untuk membuat baru!'),
             )
-          : GridView.builder(
-              padding: const EdgeInsets.all(16),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-                childAspectRatio: 1.1,
-              ),
-              itemCount: _hubs.length,
-              itemBuilder: (context, index) {
-                final hub = _hubs[index];
-                return Card(
-                  elevation: 4,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+          : LayoutBuilder(
+              builder: (context, constraints) {
+                // SINKRONISASI: Menyamakan hitungan jumlah kolom secara responsif
+                int crossAxisCount = 2;
+                if (constraints.maxWidth >= 1200) {
+                  crossAxisCount = 5;
+                } else if (constraints.maxWidth >= 900) {
+                  crossAxisCount = 4;
+                } else if (constraints.maxWidth >= 600) {
+                  crossAxisCount = 3;
+                }
+
+                return GridView.builder(
+                  padding: const EdgeInsets.all(12), // Menyamakan padding grid
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: crossAxisCount,
+                    // SINKRONISASI: Menyamakan aspek rasio kotak (1.15) dengan Level 2
+                    childAspectRatio: 1.15,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
                   ),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(16),
-                    onTap: () {
-                      // Pindah ke layar detail checklist lama Anda (Tahap 4)
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ChecklistDetailScreen(
-                            hub: hub,
-                            baseDir: _selectedBaseDir,
+                  itemCount: _hubs.length,
+                  itemBuilder: (context, index) {
+                    final hub = _hubs[index];
+                    return Card(
+                      elevation: 3, // Menyamakan tingkat elevasi bayangan
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        // Memberikan aksen border teal penanda Hub agar senada dengan dekorasi Level 2
+                        side: BorderSide(color: Colors.teal[800]!, width: 3.5),
+                      ),
+                      color: Colors.white,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(16),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ChecklistDetailScreen(
+                                hub: hub,
+                                baseDir: _selectedBaseDir,
+                              ),
+                            ),
+                          ).then((_) => _loadHubsData());
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.all(
+                            12.0,
+                          ), // Menyamakan padding dalam card
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Text(
+                                hub.ikon,
+                                style: const TextStyle(
+                                  fontSize: 28,
+                                ), // Ukuran ikon yang proporsional
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                hub.namaHub,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                  color: Colors.black87,
+                                ),
+                                textAlign: TextAlign.center,
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
+                              const SizedBox(height: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.teal[800]!.withOpacity(0.12),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  '${hub.semuaList.length} Seksi List',
+                                  style: TextStyle(
+                                    color: Colors.teal[800],
+                                    fontSize: 9,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ).then((_) => _loadHubsData()); // Refresh saat kembali
-                    },
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(hub.ikon, style: const TextStyle(fontSize: 50)),
-                        const SizedBox(height: 12),
-                        Text(
-                          hub.namaHub,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${hub.semuaList.length} Seksi List',
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                      ),
+                    );
+                  },
                 );
               },
             ),
+      // === MENGEMBALIKAN TOMBOL TAMBAH HUBS YANG HILANG ===
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddHubDialog,
         backgroundColor: Colors.teal[800],
+        tooltip: 'Buat Hub Baru',
         child: const Icon(
           Icons.create_new_folder,
           size: 28,
