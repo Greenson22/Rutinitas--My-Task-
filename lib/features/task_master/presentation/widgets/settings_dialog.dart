@@ -1,5 +1,7 @@
 // lib/features/task_master/presentation/widgets/settings_dialog.dart
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 
@@ -68,17 +70,19 @@ class _SettingsDialogState extends State<SettingsDialog> {
               ),
             ),
             const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: _pickDirectory,
-              icon: const Icon(Icons.folder_open, size: 20),
-              label: const Text('Pilih Folder Kustom'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.indigo,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
+            Platform.isAndroid
+                ? const SizedBox.shrink() // Sembunyikan tombol jika dijalankan di Android
+                : ElevatedButton.icon(
+                    onPressed: _pickDirectory,
+                    icon: const Icon(Icons.folder_open, size: 20),
+                    label: const Text('Pilih Folder Kustom'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.indigo,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
             const SizedBox(height: 20),
             const Divider(),
             const SizedBox(height: 10),

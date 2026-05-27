@@ -9,12 +9,22 @@ import '../config/default_json.dart';
 class StorageService {
   static const String _keyBaseDir = 'ubuntu_base_dir';
 
+  // MODIFIKASI: Menyesuaikan base directory untuk Android secara otomatis
   Future<String> getBaseDirSetting() async {
+    if (!kIsWeb && Platform.isAndroid) {
+      // Jika di Android, ambil path internal documents app
+      final directory = await getApplicationDocumentsDirectory();
+      return directory.path;
+    }
+
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_keyBaseDir) ?? 'Documents';
   }
 
   Future<void> saveBaseDirSetting(String value) async {
+    // Di Android, kita bisa mengunci agar tidak bisa diubah sembarangan jika ingin aman
+    if (!kIsWeb && Platform.isAndroid) return;
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyBaseDir, value);
   }
@@ -41,25 +51,9 @@ class StorageService {
   }
 
   // =========================================================================
-  // === TAMBAHAN UNTUK FITUR DAILY (MENYIMPAN DI SEBELAH FOLDER MYTASK) ===
+  // === CHECKLIST HUB STORAGE ===
   // =========================================================================
 
-  Future<File> getDailyJsonFile(String baseDirSetting) async {
-    // Membuat folder 'daily' sejajar dengan folder 'mytask'
-    final Directory dailyDir = Directory('$baseDirSetting/daily');
-
-    if (!await dailyDir.exists()) {
-      await dailyDir.create(recursive: true);
-    }
-
-    return File('${dailyDir.path}/my_rutinitas.json');
-  }
-
-  // =========================================================================
-  // === TAHAP 1: FITUR MY CHECKLIST (PENGGANTI DAILY) ===
-  // =========================================================================
-
-  // 1. Mendapatkan path folder utama My Checklist
   Future<Directory> getChecklistDir(String baseDirSetting) async {
     final Directory checklistDir = Directory('$baseDirSetting/my_checklist');
     if (!await checklistDir.exists()) {
@@ -68,44 +62,30 @@ class StorageService {
     return checklistDir;
   }
 
-  // 2. Scan semua file Checklist Hub (.json) di dalam folder
   Future<List<File>> getAllChecklistHubs(String baseDirSetting) async {
     final Directory checklistDir = await getChecklistDir(baseDirSetting);
-    List<FileSystemEntity> files = checklistDir.listSync();
-
-    // Filter hanya file .json
-    return files
-        .whereType<File>()
-        .where((file) => file.path.endsWith('.json'))
-        .toList();
+    // Modifikasi listSync() menjadi try-catch aman
+    try {
+      List<FileSystemEntity> files = checklistDir.listSync();
+      return files
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.json'))
+          .toList();
+    } catch (e) {
+      return [];
+    }
   }
 
-  // 3. Mendapatkan/Membuat file spesifik berdasarkan ID Hub
   Future<File> getSpecificHubFile(String baseDirSetting, String hubId) async {
     final Directory checklistDir = await getChecklistDir(baseDirSetting);
     return File('${checklistDir.path}/$hubId.json');
   }
 
-  Future<String> loadOrInitializeDailyJson(File jsonFile) async {
-    if (!await jsonFile.exists()) {
-      // Menginisialisasi dengan template JSON kosong/bawaan sesuai struktur user
-      const String defaultDailyContent = '''
-{
-  "topics": "Rutinitas",
-  "subjects": []
-}
-''';
-      await jsonFile.writeAsString(defaultDailyContent);
-    }
-    return await jsonFile.readAsString();
-  }
-
   // =========================================================================
-  // === TAMBAHAN UNTUK FITUR JURNAL AKTIVITAS ===
+  // === JURNAL AKTIVITAS STORAGE ===
   // =========================================================================
 
   Future<File> getJurnalJsonFile(String baseDirSetting) async {
-    // Membuat folder 'jurnal_aktivitas' sejajar dengan folder 'mytask' dan 'daily'
     final Directory jurnalDir = Directory('$baseDirSetting/jurnal_aktivitas');
 
     if (!await jurnalDir.exists()) {
@@ -117,7 +97,6 @@ class StorageService {
 
   Future<String> loadOrInitializeJurnalJson(File jsonFile) async {
     if (!await jsonFile.exists()) {
-      // Menginisialisasi dengan list kosong [] jika file belum ada
       const String defaultJurnalContent = '[]';
       await jsonFile.writeAsString(defaultJurnalContent);
     }
