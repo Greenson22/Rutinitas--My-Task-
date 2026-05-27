@@ -251,3 +251,61 @@ class SubMateriItem {
     }
   }
 }
+
+// Model untuk Level 1: Checklist Hub (File JSON)
+class ChecklistHub {
+  String id;
+  String namaHub;
+  String ikon;
+  List<ChecklistSection> semuaList;
+
+  ChecklistHub({
+    required this.id,
+    required this.namaHub,
+    required this.ikon,
+    required this.semuaList,
+  });
+
+  factory ChecklistHub.fromJson(Map<String, dynamic> json) {
+    var list = json['semua_list'] as List? ?? [];
+    return ChecklistHub(
+      id: json['id'] ?? '',
+      namaHub: json['nama_hub'] ?? 'Hub Baru',
+      ikon: json['ikon'] ?? '📁',
+      semuaList: list.map((i) => ChecklistSection.fromJson(i)).toList(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'nama_hub': namaHub,
+      'ikon': ikon,
+      'semua_list': semuaList.map((e) => e.toJson()).toList(),
+    };
+  }
+}
+
+// Model untuk Level 2: Seksi Dinamis di dalam Hub
+class ChecklistSection {
+  String namaSeksi;
+  List<DailySubject>
+  items; // Mempertahankan DailySubject agar fitur warna, progress, dan tanggal tidak hilang!
+
+  ChecklistSection({required this.namaSeksi, required this.items});
+
+  factory ChecklistSection.fromJson(Map<String, dynamic> json) {
+    var list = json['items'] as List? ?? [];
+    return ChecklistSection(
+      namaSeksi: json['nama_seksi'] ?? 'Seksi Baru',
+      items: list.map((i) => DailySubject.fromJson(i)).toList(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'nama_seksi': namaSeksi,
+      'items': items.map((e) => e.toJson()).toList(),
+    };
+  }
+}

@@ -89,8 +89,8 @@ class DrawerMenu extends StatelessWidget {
             },
           ),
           _buildDrawerItem(
-            Icons.wb_sunny_outlined,
-            'Daily',
+            Icons.checklist_rtl, // Ubah ikon
+            'My Checklist', // Ubah teks
             isSelected: isDailyActive,
             onTap: () {
               Navigator.pop(context);
@@ -98,6 +98,7 @@ class DrawerMenu extends StatelessWidget {
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(builder: (context) => const DailyScreen()),
+                  // (Nama screen nanti bisa kita rename, biarkan dulu DailyScreen)
                 );
               }
             },

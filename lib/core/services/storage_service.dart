@@ -55,6 +55,37 @@ class StorageService {
     return File('${dailyDir.path}/my_rutinitas.json');
   }
 
+  // =========================================================================
+  // === TAHAP 1: FITUR MY CHECKLIST (PENGGANTI DAILY) ===
+  // =========================================================================
+
+  // 1. Mendapatkan path folder utama My Checklist
+  Future<Directory> getChecklistDir(String baseDirSetting) async {
+    final Directory checklistDir = Directory('$baseDirSetting/my_checklist');
+    if (!await checklistDir.exists()) {
+      await checklistDir.create(recursive: true);
+    }
+    return checklistDir;
+  }
+
+  // 2. Scan semua file Checklist Hub (.json) di dalam folder
+  Future<List<File>> getAllChecklistHubs(String baseDirSetting) async {
+    final Directory checklistDir = await getChecklistDir(baseDirSetting);
+    List<FileSystemEntity> files = checklistDir.listSync();
+
+    // Filter hanya file .json
+    return files
+        .whereType<File>()
+        .where((file) => file.path.endsWith('.json'))
+        .toList();
+  }
+
+  // 3. Mendapatkan/Membuat file spesifik berdasarkan ID Hub
+  Future<File> getSpecificHubFile(String baseDirSetting, String hubId) async {
+    final Directory checklistDir = await getChecklistDir(baseDirSetting);
+    return File('${checklistDir.path}/$hubId.json');
+  }
+
   Future<String> loadOrInitializeDailyJson(File jsonFile) async {
     if (!await jsonFile.exists()) {
       // Menginisialisasi dengan template JSON kosong/bawaan sesuai struktur user
