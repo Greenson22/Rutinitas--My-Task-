@@ -27,6 +27,9 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
   bool _isPageEditMode = false;
   late ChecklistHub _currentHub;
 
+  // Konstanta untuk menandai nama seksi unik/default
+  static const String _defaultSectionName = "Checklist Standar";
+
   @override
   void initState() {
     super.initState();
@@ -65,7 +68,6 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
   }
 
   void _showAddSectionDialog() {
-    // Fungsi baru untuk menambah Seksi Kustom (Misal: "Sembako Bulanan")
     final _sectionController = TextEditingController();
     showDialog(
       context: context,
@@ -84,6 +86,14 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
             onPressed: () {
               if (_sectionController.text.isNotEmpty) {
                 setState(() {
+                  // LOGIKA: Jika seksi pertama masih berupa seksi unik default, otomatis ubah namanya
+                  if (_currentHub.semuaList.length == 1 &&
+                      _currentHub.semuaList.first.namaSeksi ==
+                          _defaultSectionName) {
+                    _currentHub.semuaList.first.namaSeksi = "Seksi Utama";
+                  }
+
+                  // Tambahkan seksi baru pilihan pengguna
                   _currentHub.semuaList.add(
                     ChecklistSection(
                       namaSeksi: _sectionController.text,
@@ -98,6 +108,36 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
             child: const Text('Simpan'),
           ),
         ],
+      ),
+    );
+  }
+
+  void _tambahItemKeSeksi(
+    BuildContext context,
+    ChecklistSection? targetSection,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) => AddDailySubjectDialog(
+        existingSections: _currentHub.semuaList.isEmpty
+            ? [_defaultSectionName]
+            : _currentHub.semuaList.map((sec) => sec.namaSeksi).toList(),
+        onSave: (newSubject) {
+          setState(() {
+            // Jika ditambahkan saat kosong, buat seksi unik terlebih dahulu
+            if (_currentHub.semuaList.isEmpty) {
+              final newSection = ChecklistSection(
+                namaSeksi: _defaultSectionName,
+                items: [newSubject],
+              );
+              _currentHub.semuaList.add(newSection);
+            } else {
+              // Jika seksi target ada, langsung masukkan ke seksi tersebut
+              targetSection?.items.add(newSubject);
+            }
+          });
+          _saveHubData();
+        },
       ),
     );
   }
@@ -126,10 +166,17 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
           ),
         ],
       ),
+
+      // MODIFIKASI: Jika kosong, tampilkan tombol untuk langsung menambah item pertama
       body: _currentHub.semuaList.isEmpty
-          ? const Center(
-              child: Text(
-                'Belum ada seksi list di Hub ini. Tambahkan seksi baru!',
+          ? Center(
+              child: ElevatedButton.icon(
+                onPressed: () => _tambahItemKeSeksi(context, null),
+                icon: const Icon(Icons.add_box),
+                label: const Text('Tambah Item Pertama'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.teal[700],
+                ),
               ),
             )
           : LayoutBuilder(
@@ -137,41 +184,31 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                 return ListView.builder(
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   itemCount: _currentHub.semuaList.length,
-
                   itemBuilder: (context, index) {
                     final section = _currentHub.semuaList[index];
+
+                    // LOGIKA: Sembunyikan header jika hanya ada seksi default tunggal ini saja
+                    final bool hideHeader =
+                        _currentHub.semuaList.length == 1 &&
+                        section.namaSeksi == _defaultSectionName;
+
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // 1. Kirim fungsi dialog tambah item ke header seksi baru
-                        _buildSectionHeader(
-                          section.namaSeksi,
-                          Colors.teal[800]!,
-                          () {
-                            showDialog(
-                              context: context,
-                              builder: (context) => AddDailySubjectDialog(
-                                existingSections: _currentHub.semuaList
-                                    .map((sec) => sec.namaSeksi)
-                                    .toList(),
-                                onSave: (newSubject) {
-                                  setState(() => section.items.add(newSubject));
-                                  _saveHubData();
-                                },
-                              ),
-                            );
-                          },
-                        ),
-
+                        if (!hideHeader)
+                          _buildSectionHeader(
+                            section.namaSeksi,
+                            Colors.teal[800]!,
+                            () => _tambahItemKeSeksi(context, section),
+                          ),
                         _buildCategoryGrid(section.items, constraints),
-
-                        // 2. BAGIAN INI DIHAPUS: Blok 'if (_isPageEditMode)' yang berisi TextButton.icon lama sudah dibersihkan dari sini.
                       ],
                     );
                   },
                 );
               },
             ),
+
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddSectionDialog,
         backgroundColor: Colors.teal[800],
