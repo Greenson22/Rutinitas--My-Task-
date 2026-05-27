@@ -118,6 +118,121 @@ class _DailyScreenState extends State<DailyScreen> {
     );
   }
 
+  // Taruh fungsi ini di dalam class _DailyScreenState
+
+  void _showEditHubDialog(ChecklistHub hub) {
+    final _nameController = TextEditingController(text: hub.namaHub);
+    final _iconController = TextEditingController(text: hub.ikon);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Ubah Checklist Hub'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _nameController,
+              decoration: const InputDecoration(labelText: 'Nama Hub'),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _iconController,
+              decoration: const InputDecoration(labelText: 'Ikon Emoji'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (_nameController.text.isNotEmpty) {
+                setState(() {
+                  hub.namaHub = _nameController.text.trim();
+                  hub.ikon = _iconController.text.trim();
+                });
+
+                // Menyimpan perubahan ke file JSON spesifik milik Hub ini
+                File hubFile = await _storageService.getSpecificHubFile(
+                  _selectedBaseDir,
+                  hub.id,
+                );
+                final String jsonString = const JsonEncoder.withIndent(
+                  '  ',
+                ).convert(hub.toJson());
+                await _storageService.saveJsonData(hubFile, jsonString);
+
+                Navigator.pop(context);
+                _loadHubsData(); // Refresh UI
+              }
+            },
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Taruh fungsi ini di dalam class _DailyScreenState
+
+  void _deleteHub(ChecklistHub hub) async {
+    final bool confirm =
+        await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Hapus Checklist Hub?'),
+            content: Text(
+              'Apakah Anda yakin ingin menghapus Hub "${hub.namaHub}" secara permanen beserta seluruh isinya?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Batal'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                child: const Text('Hapus'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (confirm) {
+      try {
+        File hubFile = await _storageService.getSpecificHubFile(
+          _selectedBaseDir,
+          hub.id,
+        );
+        if (await hubFile.exists()) {
+          await hubFile.delete(); // Menghapus file fisik JSON
+        }
+        _loadHubsData(); // Refresh list Hub setelah dihapus
+      } catch (e) {
+        debugPrint("Error deleting hub file: $e");
+      }
+    }
+  }
+
+  // Taruh fungsi ini di dalam class _DailyScreenState
+
+  void _moveHubOrder(int currentIndex, int direction) {
+    int newIndex = currentIndex + direction;
+    if (newIndex < 0 || newIndex >= _hubs.length) return;
+
+    setState(() {
+      final temp = _hubs[currentIndex];
+      _hubs[currentIndex] = _hubs[newIndex];
+      _hubs[newIndex] = temp;
+    });
+    // Catatan: Jika ingin urutan ini permanen di penyimpanan offline,
+    // Anda memerlukan mekanisme file indeks tambahan atau memanipulasi timestamp nama file.
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -163,75 +278,130 @@ class _DailyScreenState extends State<DailyScreen> {
                   itemCount: _hubs.length,
                   itemBuilder: (context, index) {
                     final hub = _hubs[index];
+
+                    // MODIFIKASI bagian GridView.builder -> Card -> Stack/Row di daily_screen.dart
+
                     return Card(
-                      elevation: 3, // Menyamakan tingkat elevasi bayangan
+                      elevation: 3,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
-                        // Memberikan aksen border teal penanda Hub agar senada dengan dekorasi Level 2
                         side: BorderSide(color: Colors.teal[800]!, width: 3.5),
                       ),
                       color: Colors.white,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(16),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => ChecklistDetailScreen(
-                                hub: hub,
-                                baseDir: _selectedBaseDir,
+                      child: Stack(
+                        // Menggunakan Stack agar bisa menaruh tombol menu di pojok kanan atas kartu
+                        children: [
+                          InkWell(
+                            borderRadius: BorderRadius.circular(16),
+                            onTap: () {
+                              // ... kode Navigator.push lama Anda tetap di sini ...
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.all(12.0),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    hub.ikon,
+                                    style: const TextStyle(fontSize: 28),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    hub.namaHub,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                    overflow: TextOverflow.ellipsis,
+                                    maxLines: 1,
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Container(
+                                    // ... kode kontainer jumlah Seksi List lama Anda ...
+                                  ),
+                                ],
                               ),
                             ),
-                          ).then((_) => _loadHubsData());
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.all(
-                            12.0,
-                          ), // Menyamakan padding dalam card
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Text(
-                                hub.ikon,
-                                style: const TextStyle(
-                                  fontSize: 28,
-                                ), // Ukuran ikon yang proporsional
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                hub.namaHub,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                  color: Colors.black87,
-                                ),
-                                textAlign: TextAlign.center,
-                                overflow: TextOverflow.ellipsis,
-                                maxLines: 1,
-                              ),
-                              const SizedBox(height: 6),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 3,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.teal[800]!.withOpacity(0.12),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  '${hub.semuaList.length} Seksi List',
-                                  style: TextStyle(
-                                    color: Colors.teal[800],
-                                    fontSize: 9,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
                           ),
-                        ),
+
+                          // === TOMBOL POPUP MENU BARU DI POJOK KANAN ATAS KARTU HUB ===
+                          Positioned(
+                            top: 4,
+                            right: 4,
+                            child: PopupMenuButton<String>(
+                              icon: const Icon(
+                                Icons.more_vert,
+                                color: Colors.grey,
+                                size: 20,
+                              ),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              onSelected: (value) {
+                                if (value == 'edit') {
+                                  _showEditHubDialog(hub);
+                                } else if (value == 'delete') {
+                                  _deleteHub(hub);
+                                } else if (value == 'move_left') {
+                                  _moveHubOrder(index, -1);
+                                } else if (value == 'move_right') {
+                                  _moveHubOrder(index, 1);
+                                }
+                              },
+                              itemBuilder: (BuildContext context) => [
+                                PopupMenuItem<String>(
+                                  value: 'move_left',
+                                  enabled: index > 0,
+                                  child: const ListTile(
+                                    leading: Icon(Icons.arrow_back, size: 18),
+                                    title: Text('Pindah Kiri/Atas'),
+                                    dense: true,
+                                    contentPadding: EdgeInsets.zero,
+                                  ),
+                                ),
+                                PopupMenuItem<String>(
+                                  value: 'move_right',
+                                  enabled: index < _hubs.length - 1,
+                                  child: const ListTile(
+                                    leading: Icon(
+                                      Icons.arrow_forward,
+                                      size: 18,
+                                    ),
+                                    title: Text('Pindah Kanan/Bawah'),
+                                    dense: true,
+                                    contentPadding: EdgeInsets.zero,
+                                  ),
+                                ),
+                                const PopupMenuItem<String>(
+                                  value: 'edit',
+                                  child: ListTile(
+                                    leading: Icon(Icons.edit, size: 18),
+                                    title: Text('Ubah Nama & Ikon'),
+                                    dense: true,
+                                    contentPadding: EdgeInsets.zero,
+                                  ),
+                                ),
+                                const PopupMenuItem<String>(
+                                  value: 'delete',
+                                  child: ListTile(
+                                    leading: Icon(
+                                      Icons.delete,
+                                      color: Colors.red,
+                                      size: 18,
+                                    ),
+                                    title: Text(
+                                      'Hapus Hub',
+                                      style: TextStyle(color: Colors.red),
+                                    ),
+                                    dense: true,
+                                    contentPadding: EdgeInsets.zero,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     );
                   },
