@@ -394,9 +394,14 @@ class _DailyScreenState extends State<DailyScreen> {
           color: Colors.white,
           child: Stack(
             children: [
-              // PERBAIKAN UTAMA: Bungkus isi InkWell dengan komponen bertata letak tengah sempurna
               InkWell(
                 borderRadius: BorderRadius.circular(16),
+                // MENAHAN KOTAK (LONG PRESS): memicu masuk/keluar dari mode edit halaman
+                onLongPress: () {
+                  setState(() {
+                    _isPageEditMode = !_isPageEditMode;
+                  });
+                },
                 onTap: _isPageEditMode
                     ? null
                     : () {
@@ -411,13 +416,11 @@ class _DailyScreenState extends State<DailyScreen> {
                         ).then((_) => _loadHubsData());
                       },
                 child: SizedBox.expand(
-                  // <--- Memaksa area deteksi klik memenuhi seluruh ruang kotak
                   child: Padding(
                     padding: const EdgeInsets.all(12.0),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment
-                          .center, // <--- Memaksa komponen Column rata tengah horizontal
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Text(
                           hub.ikon,
@@ -439,7 +442,6 @@ class _DailyScreenState extends State<DailyScreen> {
                           maxLines: 1,
                         ),
                         const SizedBox(height: 6),
-                        // RE-DRAFT KONTEN SEKSI: Mengisi kontainer jumlah list seksi agar kembali muncul
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 8,
