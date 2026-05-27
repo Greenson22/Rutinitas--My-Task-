@@ -270,12 +270,7 @@ class _DailyScreenState extends State<DailyScreen> {
           ),
         ],
       ),
-      drawer: DrawerMenu(
-        selectedBaseDir: _selectedBaseDir,
-        fullJsonPath: _fullJsonPath,
-        onOpenSettings: () {},
-        isDailyActive: true,
-      ),
+      drawer: const DrawerMenu(isDailyActive: true),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _allHubsRaw.isEmpty

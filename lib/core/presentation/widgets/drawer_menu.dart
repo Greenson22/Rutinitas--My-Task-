@@ -1,26 +1,68 @@
-// lib/features/task_master/presentation/widgets/drawer_menu.dart
+// lib/core/presentation/widgets/drawer_menu.dart
 
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../../features/task_master/presentation/screens/home_screen.dart';
 import '../../../features/daily/presentation/screens/daily_screen.dart';
 import '../../../features/jurnal_aktivitas/presentation/screens/jurnal_aktivitas_screen.dart';
-import '../../../features/about/presentation/pages/about_page.dart'; // <--- IMPORT SEUSAI PATH ABOUT PAGE
+import '../../../features/about/presentation/pages/about_page.dart';
+import '../../../features/task_master/presentation/widgets/settings_dialog.dart';
+import '../../services/storage_service.dart';
 
-class DrawerMenu extends StatelessWidget {
-  final String selectedBaseDir;
-  final String fullJsonPath;
-  final VoidCallback onOpenSettings;
+class DrawerMenu extends StatefulWidget {
   final bool isDailyActive;
   final bool isJurnalActive;
 
   const DrawerMenu({
     super.key,
-    required this.selectedBaseDir,
-    required this.fullJsonPath,
-    required this.onOpenSettings,
     this.isDailyActive = false,
     this.isJurnalActive = false,
   });
+
+  @override
+  State<DrawerMenu> createState() => _DrawerMenuState();
+}
+
+class _DrawerMenuState extends State<DrawerMenu> {
+  final StorageService _storageService = StorageService();
+  String _selectedBaseDir = 'Documents';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBaseDir();
+  }
+
+  Future<void> _loadBaseDir() async {
+    String baseDir = await _storageService.getBaseDirSetting();
+    if (mounted) setState(() => _selectedBaseDir = baseDir);
+  }
+
+  void _showSettingsDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => SettingsDialog(
+        currentBaseDir: _selectedBaseDir,
+        onSave: (newDir) async {
+          await _storageService.saveBaseDirSetting(newDir);
+          if (mounted) {
+            setState(() => _selectedBaseDir = newDir);
+            // Me-refresh halaman yang sedang aktif agar data dari folder baru dimuat
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => widget.isDailyActive
+                    ? const DailyScreen()
+                    : widget.isJurnalActive
+                    ? const JurnalAktivitasScreen()
+                    : const HomeScreen(),
+              ),
+            );
+          }
+        },
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,30 +78,14 @@ class DrawerMenu extends StatelessWidget {
               ),
             ),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Stack(
-                  alignment: Alignment.bottomRight,
-                  children: [
-                    Text(
-                      'M',
-                      style: TextStyle(
-                        color: Colors.indigo[900],
-                        fontSize: 44,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -2,
-                      ),
-                    ),
-                    Positioned(
-                      bottom: 4,
-                      right: 0,
-                      child: Icon(
-                        Icons.edit_calendar_outlined,
-                        color: Colors.indigo[700],
-                        size: 26,
-                      ),
-                    ),
-                  ],
+                Text(
+                  'M',
+                  style: TextStyle(
+                    color: Colors.indigo[900],
+                    fontSize: 44,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Text(
@@ -73,14 +99,17 @@ class DrawerMenu extends StatelessWidget {
               ],
             ),
           ),
-
-          _buildDrawerItem(
-            Icons.format_list_bulleted,
-            'Task Master',
-            isSelected: !isDailyActive && !isJurnalActive,
+          ListTile(
+            leading: Icon(
+              Icons.format_list_bulleted,
+              color: !widget.isDailyActive && !widget.isJurnalActive
+                  ? Colors.indigo
+                  : Colors.grey[700],
+            ),
+            title: const Text('Task Master'),
             onTap: () {
               Navigator.pop(context);
-              if (isDailyActive || isJurnalActive) {
+              if (widget.isDailyActive || widget.isJurnalActive) {
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(builder: (context) => const HomeScreen()),
@@ -88,28 +117,31 @@ class DrawerMenu extends StatelessWidget {
               }
             },
           ),
-          _buildDrawerItem(
-            Icons.checklist_rtl, // Ubah ikon
-            'My Checklist', // Ubah teks
-            isSelected: isDailyActive,
+          ListTile(
+            leading: Icon(
+              Icons.checklist_rtl,
+              color: widget.isDailyActive ? Colors.indigo : Colors.grey[700],
+            ),
+            title: const Text('My Checklist'),
             onTap: () {
               Navigator.pop(context);
-              if (!isDailyActive) {
+              if (!widget.isDailyActive) {
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(builder: (context) => const DailyScreen()),
-                  // (Nama screen nanti bisa kita rename, biarkan dulu DailyScreen)
                 );
               }
             },
           ),
-          _buildDrawerItem(
-            Icons.menu_book,
-            'Jurnal Aktivitas',
-            isSelected: isJurnalActive,
+          ListTile(
+            leading: Icon(
+              Icons.menu_book,
+              color: widget.isJurnalActive ? Colors.indigo : Colors.grey[700],
+            ),
+            title: const Text('Jurnal Aktivitas'),
             onTap: () {
               Navigator.pop(context);
-              if (!isJurnalActive) {
+              if (!widget.isJurnalActive) {
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(
@@ -119,76 +151,35 @@ class DrawerMenu extends StatelessWidget {
               }
             },
           ),
-
-          // PERBAIKAN: Item Weekly dan Monthly telah dihapus dari sini
           const Divider(),
-          _buildDrawerItem(
-            Icons.settings,
-            'Settings',
-            subtitle: '~/mytask/',
+          ListTile(
+            leading: Icon(Icons.settings, color: Colors.grey[700]),
+            title: const Text('Settings'),
+            subtitle: Text(
+              _selectedBaseDir,
+              style: const TextStyle(fontSize: 11, color: Colors.blueGrey),
+            ),
             onTap: () {
               Navigator.pop(context);
-              onOpenSettings();
+              _showSettingsDialog(); // Tombol Settings sekarang memanggil dialog secara mandiri
             },
           ),
           const Divider(),
-          _buildDrawerItem(
-            Icons.info_outline,
-            'About',
+          ListTile(
+            leading: Icon(Icons.info_outline, color: Colors.grey[700]),
+            title: const Text('About'),
             onTap: () {
-              Navigator.pop(context); // Tutup drawer menu terlebih dahulu
-
-              // Membuka AboutPage sebagai sebuah Dialog Box
+              Navigator.pop(context);
               showDialog(
                 context: context,
                 builder: (context) => const Dialog(
-                  insetPadding: EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 40,
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.all(Radius.circular(16)),
-                    child: SizedBox(
-                      width:
-                          500, // Batasan lebar agar proporsional di tablet/desktop
-                      height:
-                          650, // Batasan tinggi wajib agar TabBarView tidak meluber (unbounded height)
-                      child: AboutPage(),
-                    ),
-                  ),
+                  child: SizedBox(width: 500, height: 650, child: AboutPage()),
                 ),
               );
             },
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildDrawerItem(
-    IconData icon,
-    String title, {
-    String? subtitle,
-    bool isSelected = false,
-    required VoidCallback onTap,
-  }) {
-    return ListTile(
-      leading: Icon(icon, color: isSelected ? Colors.indigo : Colors.grey[700]),
-      title: Text(
-        title,
-        style: TextStyle(
-          color: isSelected ? Colors.indigo : Colors.black87,
-          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-          fontSize: 16,
-        ),
-      ),
-      subtitle: subtitle != null
-          ? Text(
-              subtitle,
-              style: const TextStyle(fontSize: 11, color: Colors.blueGrey),
-            )
-          : null,
-      onTap: onTap,
     );
   }
 }

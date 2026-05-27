@@ -418,12 +418,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      drawer: DrawerMenu(
-        selectedBaseDir: _selectedBaseDir,
-        fullJsonPath: _fullJsonPath,
-        onOpenSettings: _showSettingsDialog,
-        isDailyActive: false,
-      ),
+      drawer: const DrawerMenu(),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : LayoutBuilder(

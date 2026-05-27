@@ -642,12 +642,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
           ),
         ],
       ),
-      drawer: DrawerMenu(
-        selectedBaseDir: _baseDir,
-        fullJsonPath: _fullJsonPath,
-        onOpenSettings: () {},
-        isJurnalActive: true,
-      ),
+      drawer: const DrawerMenu(isJurnalActive: true),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Column(
