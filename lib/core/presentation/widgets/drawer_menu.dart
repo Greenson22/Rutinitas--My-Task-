@@ -134,7 +134,6 @@ class DrawerMenu extends StatelessWidget {
           _buildDrawerItem(
             Icons.info_outline,
             'About',
-            subtitle: 'Path: $fullJsonPath',
             onTap: () {
               Navigator.pop(context); // Tutup drawer menu terlebih dahulu
 
