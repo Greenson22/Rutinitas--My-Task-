@@ -187,7 +187,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                   itemBuilder: (context, index) {
                     final section = _currentHub.semuaList[index];
 
-                    // LOGIKA: Sembunyikan header jika hanya ada seksi default tunggal ini saja
+                    // Evaluasi apakah ini seksi default tunggal yang perlu disembunyikan judulnya
                     final bool hideHeader =
                         _currentHub.semuaList.length == 1 &&
                         section.namaSeksi == _defaultSectionName;
@@ -195,12 +195,13 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (!hideHeader)
-                          _buildSectionHeader(
-                            section.namaSeksi,
-                            Colors.teal[800]!,
-                            () => _addItemToSection(context, section),
-                          ),
+                        // Fungsi header sekarang dipanggil tanpa pembungkus 'if'
+                        _buildSectionHeader(
+                          section.namaSeksi,
+                          Colors.teal[800]!,
+                          hideHeader, // Status boolean disalurkan ke sini
+                          () => _addItemToSection(context, section),
+                        ),
                         _buildCategoryGrid(section.items, constraints),
                       ],
                     );
@@ -221,6 +222,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
   Widget _buildSectionHeader(
     String title,
     Color color,
+    bool hideTitle,
     VoidCallback onAddPressed,
   ) {
     return Padding(
@@ -231,15 +233,18 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                ),
-              ),
-              // Tombol tambah item dipindahkan ke sini di samping nama seksi
+              // Jika dikonfigurasi untuk sembunyi, tampilkan Container kosong untuk teks judul
+              hideTitle
+                  ? const SizedBox.shrink()
+                  : Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: color,
+                      ),
+                    ),
+              // Tombol ini akan selalu muncul di sebelah kanan seksi manapun
               IconButton(
                 icon: const Icon(Icons.add_circle_outline, color: Colors.teal),
                 tooltip: 'Tambah Item ke Seksi Ini',
@@ -249,7 +254,8 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
               ),
             ],
           ),
-          const Divider(height: 8, thickness: 1),
+          // Garis pembatas (Divider) hanya muncul jika judul seksi sedang ditampilkan
+          if (!hideTitle) const Divider(height: 8, thickness: 1),
         ],
       ),
     );
