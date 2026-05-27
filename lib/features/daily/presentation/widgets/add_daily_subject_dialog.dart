@@ -110,23 +110,27 @@ class _AddDailySubjectDialogState extends State<AddDailySubjectDialog> {
 
               const Divider(),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Daftar Sub-Materi Checklist (Opsional):',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  // 1. Membungkus teks dengan Expanded agar fleksibel di layar kecil
+                  const Expanded(
+                    child: Text(
+                      'Daftar Sub-Materi Checklist (Opsional):',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
                   ),
-                  // === TOMBOL BARU: PASTE BANYAK LIST DARI CLIPBOARD ===
-                  TextButton.icon(
+
+                  // 2. Mengubah tombol Paste dari clipboard menjadi sebuah IconButton di sebelah tombol tambah
+                  IconButton(
                     icon: const Icon(
                       Icons.assignment_returned_outlined,
-                      size: 16,
                       color: Colors.teal,
                     ),
-                    label: const Text(
-                      'Paste dari Clipboard',
-                      style: TextStyle(fontSize: 11, color: Colors.teal),
-                    ),
+                    tooltip: 'Paste dari Clipboard',
+                    constraints: const BoxConstraints(),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
                     onPressed: () async {
                       ClipboardData? data = await Clipboard.getData(
                         Clipboard.kTextPlain,
@@ -141,13 +145,12 @@ class _AddDailySubjectDialogState extends State<AddDailySubjectDialog> {
 
                         if (lines.isEmpty) return;
 
-                        // === TAHAP 1: DIALOG KONFIRMASI SEBELUM PASTE ===
                         bool? konfirmasi = await showDialog<bool>(
                           context: context,
                           builder: (ctx) => AlertDialog(
                             title: const Text('Konfirmasi Paste List'),
                             content: Text(
-                              'Apakah Anda yakin ingin memasukkan ${lines.length} item dari clipboard Anda ke daftar sub-materi?',
+                              'Apakah Anda yakin ingin memasukkan ${lines.length} item dari clipboard?',
                             ),
                             actions: [
                               TextButton(
@@ -165,36 +168,19 @@ class _AddDailySubjectDialogState extends State<AddDailySubjectDialog> {
                           ),
                         );
 
-                        if (konfirmasi != true)
-                          return; // Batalkan jika memilih tidak/batal
+                        if (konfirmasi != true) return;
 
-                        // Proses memasukkan data setelah dikonfirmasi
                         setState(() {
                           for (var line in lines) {
                             _subMateriItems.add(line.trim());
                           }
                         });
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Berhasil menempelkan ${lines.length} item list!',
-                            ),
-                            duration: const Duration(seconds: 1),
-                          ),
-                        );
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Clipboard kosong atau tidak valid.'),
-                          ),
-                        );
                       }
                     },
                   ),
                 ],
               ),
               const SizedBox(height: 8),
-
               // Input Manual Satu per Satu (Tetap Dipertahankan)
               Row(
                 children: [
