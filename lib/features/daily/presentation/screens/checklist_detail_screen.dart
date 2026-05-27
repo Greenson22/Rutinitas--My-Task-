@@ -137,50 +137,35 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                 return ListView.builder(
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   itemCount: _currentHub.semuaList.length,
+
                   itemBuilder: (context, index) {
                     final section = _currentHub.semuaList[index];
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // 1. Kirim fungsi dialog tambah item ke header seksi baru
                         _buildSectionHeader(
                           section.namaSeksi,
                           Colors.teal[800]!,
+                          () {
+                            showDialog(
+                              context: context,
+                              builder: (context) => AddDailySubjectDialog(
+                                existingSections: _currentHub.semuaList
+                                    .map((sec) => sec.namaSeksi)
+                                    .toList(),
+                                onSave: (newSubject) {
+                                  setState(() => section.items.add(newSubject));
+                                  _saveHubData();
+                                },
+                              ),
+                            );
+                          },
                         ),
+
                         _buildCategoryGrid(section.items, constraints),
-                        if (_isPageEditMode)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16.0,
-                            ),
-                            child: TextButton.icon(
-                              onPressed: () {
-                                // Tambah item ke dalam seksi ini
-                                // Membuka dialog tambah item subjek ke seksi tertentu
-                                showDialog(
-                                  context: context,
-                                  builder: (context) => AddDailySubjectDialog(
-                                    // Salurkan daftar seluruh nama seksi yang ada di Hub ini
-                                    existingSections: _currentHub.semuaList
-                                        .map((sec) => sec.namaSeksi)
-                                        .toList(),
-                                    onSave: (newSubject) {
-                                      setState(
-                                        () => section.items.add(newSubject),
-                                      );
-                                      _saveHubData();
-                                    },
-                                  ),
-                                );
-                              },
-                              icon: const Icon(
-                                Icons.add_box,
-                                color: Colors.teal,
-                              ),
-                              label: Text(
-                                'Tambah Item ke "${section.namaSeksi}"',
-                              ),
-                            ),
-                          ),
+
+                        // 2. BAGIAN INI DIHAPUS: Blok 'if (_isPageEditMode)' yang berisi TextButton.icon lama sudah dibersihkan dari sini.
                       ],
                     );
                   },
@@ -196,21 +181,38 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
     );
   }
 
-  Widget _buildSectionHeader(String title, Color color) {
+  Widget _buildSectionHeader(
+    String title,
+    Color color,
+    VoidCallback onAddPressed,
+  ) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
+              // Tombol tambah item dipindahkan ke sini di samping nama seksi
+              IconButton(
+                icon: const Icon(Icons.add_circle_outline, color: Colors.teal),
+                tooltip: 'Tambah Item ke Seksi Ini',
+                constraints: const BoxConstraints(),
+                padding: EdgeInsets.zero,
+                onPressed: onAddPressed,
+              ),
+            ],
           ),
-          const Divider(height: 1, thickness: 1),
+          const Divider(height: 8, thickness: 1),
         ],
       ),
     );
