@@ -213,6 +213,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
 
   // === UI PROGRESS BAR & KARTU LAMA ANDA TETAP AMAN DI SINI ===
   // === UI KOTAK UTUH DAN LENGKAP LAMA ANDA SEKARANG SUDAH DIKEMBALIKAN ===
+  // === UI KOTAK UTUH DAN LENGKAP DENGAN FITUR MOVE POSISI YANG SUDAH DIPULIHKAN ===
   Widget _buildCategoryGrid(
     List<DailySubject> subjectsList,
     BoxConstraints constraints,
@@ -232,7 +233,6 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
       padding: const EdgeInsets.all(12),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
-        // Responsif childAspectRatio berdasarkan mode edit aktif atau tidak
         childAspectRatio: _isPageEditMode ? 0.95 : 1.15,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
@@ -286,7 +286,6 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        // PERBAIKAN: Ikon emoji '${subject.icon}' TELAH DIHAPUS
                         Text(
                           subject.namaMateri,
                           style: const TextStyle(
@@ -360,8 +359,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                               width: double.infinity,
                               height: 22,
                               decoration: BoxDecoration(
-                                color: Colors
-                                    .grey[200], // Background bar lebih kontras
+                                color: Colors.grey[200],
                                 borderRadius: BorderRadius.circular(6),
                                 border: Border.all(
                                   color: Color(subject.backgroundColor),
@@ -379,18 +377,15 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                                       height: double.infinity,
                                       color: solidProgressBarColor,
                                     ),
-                                    // PERBAIKAN: Menggunakan jaminan warna teks kontras tinggi (Putih Bayangan / Hitam Outline)
                                     Center(
                                       child: Text(
                                         isAllDone
                                             ? 'Selesai Semua'
                                             : '$selesaiSub / $totalSub List',
                                         style: const TextStyle(
-                                          color: Colors
-                                              .white, // Teks warna putih murni
+                                          color: Colors.white,
                                           fontSize: 9,
                                           fontWeight: FontWeight.bold,
-                                          // Ditambahkan shadow agar teks selalu terbaca di warna bar apapun
                                           shadows: [
                                             Shadow(
                                               offset: Offset(0.5, 0.5),
@@ -412,6 +407,97 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                   ),
                 ),
               ),
+
+              // === PERBAIKAN: KONTROL MOVE (PINDAH POSISI URUTAN KARTU) TELAH DIKEMBALIKAN ===
+              if (_isPageEditMode) ...[
+                Divider(height: 1, color: Colors.grey[300]),
+                Container(
+                  color: Colors.grey[50],
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 2,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      // Tombol Move Kiri / Atas Urutan Posisi Kartu
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back, size: 16),
+                        color: index > 0 ? Colors.teal[700] : Colors.grey[300],
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: index > 0
+                            ? () {
+                                setState(() {
+                                  // Logika tukar posisi di dalam seksi kustom yang aktif
+                                  final temp = subjectsList[index];
+                                  subjectsList[index] = subjectsList[index - 1];
+                                  subjectsList[index - 1] = temp;
+                                });
+                                _saveHubData(); // Auto-save urutan posisi baru ke JSON lokal
+                              }
+                            : null,
+                      ),
+
+                      // Popup Menu Pindah Seksi Penempatan secara Dinamis
+                      PopupMenuButton<String>(
+                        tooltip: 'Pindah Seksi',
+                        icon: const Icon(
+                          Icons.swap_horiz,
+                          size: 16,
+                          color: Colors.blueGrey,
+                        ),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onSelected: (targetSectionName) {
+                          setState(() {
+                            final itemToMove = subjectsList.removeAt(index);
+                            _currentHub.semuaList
+                                .firstWhere(
+                                  (sec) => sec.namaSeksi == targetSectionName,
+                                )
+                                .items
+                                .add(itemToMove);
+                          });
+                          _saveHubData();
+                        },
+                        itemBuilder: (context) => _currentHub.semuaList
+                            .map(
+                              (sec) => PopupMenuItem<String>(
+                                value: sec.namaSeksi,
+                                child: Text(
+                                  sec.namaSeksi,
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
+
+                      // Tombol Move Kanan / Bawah Urutan Posisi Kartu
+                      IconButton(
+                        icon: const Icon(Icons.arrow_forward, size: 16),
+                        color: index < subjectsList.length - 1
+                            ? Colors.teal[700]
+                            : Colors.grey[300],
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: index < subjectsList.length - 1
+                            ? () {
+                                setState(() {
+                                  // Logika tukar posisi di dalam seksi kustom yang aktif
+                                  final temp = subjectsList[index];
+                                  subjectsList[index] = subjectsList[index + 1];
+                                  subjectsList[index + 1] = temp;
+                                });
+                                _saveHubData(); // Auto-save urutan posisi baru ke JSON lokal
+                              }
+                            : null,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         );
