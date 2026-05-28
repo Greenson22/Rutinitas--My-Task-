@@ -47,36 +47,34 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
 
     // 2. Buat koneksi WebSocket dengan memaksa parameter menjadi dynamic (Object mentah)
     // Ini menghindari bentrok class WebSocketChannel antara shelf dan web_socket_channel
-    var handler = webSocketHandler(
-      (dynamic webSocket) {
-            // Paket data dibungkus json sederhana
-            Map<String, dynamic> paketKirim = {
-              'nama_file': namaFileAsli,
-              'konten': isiKontenFile,
-            };
+    var handler = webSocketHandler((dynamic webSocket, dynamic protocol) {
+      // Paket data dibungkus json sederhana
+      Map<String, dynamic> paketKirim = {
+        'nama_file': namaFileAsli,
+        'konten': isiKontenFile,
+      };
 
-            // Kirim data menggunakan sink data stream umum
-            try {
-              webSocket.sink.add(jsonEncode(paketKirim));
+      // Kirim data menggunakan sink data stream umum
+      try {
+        // Tergantung versi shelf_web_socket, jika webSocket berupa WebSocketChannel,
+        // kirim via webSocket.sink.add.
+        webSocket.sink.add(jsonEncode(paketKirim));
 
-              // Karena kita hanya kirim file sekali, beri sedikit delay lalu tutup koneksinya demi keamanan
-              Future.delayed(const Duration(seconds: 1), () {
-                webSocket.sink.close();
-              });
+        // Beri sedikit delay lalu tutup koneksinya demi keamanan
+        Future.delayed(const Duration(seconds: 1), () {
+          webSocket.sink.close();
+        });
 
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Data berhasil ditransfer ke client!'),
-                  backgroundColor: Colors.teal,
-                ),
-              );
-            } catch (e) {
-              debugPrint("Gagal mengirim data lewat stream: $e");
-            }
-          }
-          as ConnectionCallback,
-    );
-
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Data berhasil ditransfer ke client!'),
+            backgroundColor: Colors.teal,
+          ),
+        );
+      } catch (e) {
+        debugPrint("Gagal mengirim data lewat stream: $e");
+      }
+    });
     // 3. Jalankan server di IP internal perangkat pada port kustom
     try {
       // Jika server lama masih menyala, matikan dulu agar tidak terjadi "Address already in use"
