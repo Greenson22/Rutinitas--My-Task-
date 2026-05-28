@@ -1,21 +1,23 @@
-// lib/features/task_master/presentation/widgets/category_card.dart
-
 import 'package:flutter/material.dart';
 import '../../data/models/task_model.dart';
 
 class CategoryCard extends StatelessWidget {
   final TaskCategory category;
-  final VoidCallback onTap;
+  final bool isEditMode; // <-- TAMBAHAN BARU
+  final VoidCallback onLongPress; // <-- TAMBAHAN BARU
+  final VoidCallback? onTap; // <--- Tambahkan tanda tanya (?) di sini
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final VoidCallback onToggleVisibility;
-  final VoidCallback? onMoveUp; // <--- TAMBAHAN UNTUK URUTAN MANUAL
-  final VoidCallback? onMoveDown; // <--- TAMBAHAN UNTUK URUTAN MANUAL
+  final VoidCallback? onMoveUp;
+  final VoidCallback? onMoveDown;
 
   const CategoryCard({
     super.key,
     required this.category,
-    required this.onTap,
+    required this.isEditMode,
+    required this.onLongPress,
+    this.onTap, // <--- Sekarang tidak required lagi (bisa menerima null)
     required this.onEdit,
     required this.onDelete,
     required this.onToggleVisibility,
@@ -27,124 +29,130 @@ class CategoryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Row(
-            children: [
-              CircleAvatar(
-                backgroundColor: Colors.indigo[50],
-                radius: 24,
-                child: Text(
-                  category.icon,
-                  style: const TextStyle(fontSize: 22),
-                ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Column(
+        // Menggunakan Column agar panel tombol bisa berada di bawah
+        children: [
+          // Area Konten Utama Kategori
+          Expanded(
+            child: InkWell(
+              onTap: onTap,
+              onLongPress: onLongPress, // Ditahan untuk masuk/keluar mode edit
+              borderRadius: BorderRadius.only(
+                topLeft: const Radius.circular(12),
+                topRight: const Radius.circular(12),
+                bottomLeft: Radius.circular(isEditMode ? 0 : 12),
+                bottomRight: Radius.circular(isEditMode ? 0 : 12),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12.0,
+                  vertical: 8.0,
+                ),
+                child: Row(
                   children: [
-                    Text(
-                      category.name,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                        color: category.isHidden ? Colors.grey : Colors.black87,
+                    CircleAvatar(
+                      backgroundColor: Colors.indigo[50],
+                      radius: 20,
+                      child: Text(
+                        category.icon,
+                        style: const TextStyle(fontSize: 18),
                       ),
-                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${category.tasks.length} tasks',
-                      style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            category.name,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
+                              color: category.isHidden
+                                  ? Colors.grey
+                                  : Colors.black87,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${category.tasks.length} tasks',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
+                    // Keterangan mata coret jika disembunyikan (opsional agar user tahu statusnya)
+                    if (category.isHidden)
+                      const Icon(
+                        Icons.visibility_off,
+                        size: 16,
+                        color: Colors.blueGrey,
+                      ),
                   ],
                 ),
               ),
-              PopupMenuButton<String>(
-                icon: const Icon(Icons.more_vert, color: Colors.grey, size: 20),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                onSelected: (value) {
-                  if (value == 'edit') {
-                    onEdit();
-                  } else if (value == 'delete') {
-                    onDelete();
-                  } else if (value == 'toggle_visibility') {
-                    onToggleVisibility();
-                  } else if (value == 'move_up' && onMoveUp != null) {
-                    onMoveUp!();
-                  } else if (value == 'move_down' && onMoveDown != null) {
-                    onMoveDown!();
-                  }
-                },
-                itemBuilder: (BuildContext context) => [
-                  // Menu Naik Posisi
-                  if (onMoveUp != null)
-                    const PopupMenuItem<String>(
-                      value: 'move_up',
-                      child: ListTile(
-                        leading: Icon(Icons.arrow_left, size: 20),
-                        title: Text('Pindahkan ke Kiri'),
-                        contentPadding: EdgeInsets.zero,
-                        dense: true,
-                      ),
-                    ),
-                  // Menu Turun Posisi
-                  if (onMoveDown != null)
-                    const PopupMenuItem<String>(
-                      value: 'move_down',
-                      child: ListTile(
-                        leading: Icon(Icons.arrow_right, size: 20),
-                        title: Text('Pindahkan ke Kanan'),
-                        contentPadding: EdgeInsets.zero,
-                        dense: true,
-                      ),
-                    ),
-                  const PopupMenuItem<String>(
-                    value: 'edit',
-                    child: ListTile(
-                      leading: Icon(Icons.edit, size: 20),
-                      title: Text('Ubah'),
-                      contentPadding: EdgeInsets.zero,
-                      dense: true,
-                    ),
+            ),
+          ),
+
+          // PANEL TOMBOL KONTROL DI BAWAH (Hanya muncul saat Mode Edit Aktif / Ditahan)
+          if (isEditMode) ...[
+            const Divider(height: 1, color: Colors.black12),
+            Container(
+              color: Colors.grey[50],
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  // 1. Tombol Pindah Kiri
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back, size: 18),
+                    color: onMoveUp != null ? Colors.indigo : Colors.grey[300],
+                    onPressed: onMoveUp,
                   ),
-                  PopupMenuItem<String>(
-                    value: 'toggle_visibility',
-                    child: ListTile(
-                      leading: Icon(
-                        category.isHidden
-                            ? Icons.visibility
-                            : Icons.visibility_off,
-                        size: 20,
-                      ),
-                      title: Text(
-                        category.isHidden ? 'Tampilkan' : 'Sembunyikan',
-                      ),
-                      contentPadding: EdgeInsets.zero,
-                      dense: true,
-                    ),
+                  // 2. Tombol Ubah/Edit
+                  IconButton(
+                    icon: const Icon(Icons.edit, size: 18, color: Colors.blue),
+                    onPressed: onEdit,
                   ),
-                  const PopupMenuItem<String>(
-                    value: 'delete',
-                    child: ListTile(
-                      leading: Icon(Icons.delete, color: Colors.red, size: 20),
-                      title: Text('Hapus', style: TextStyle(color: Colors.red)),
-                      contentPadding: EdgeInsets.zero,
-                      dense: true,
+                  // 3. Tombol Sembunyikan/Tampilkan
+                  IconButton(
+                    icon: Icon(
+                      category.isHidden
+                          ? Icons.visibility
+                          : Icons.visibility_off,
+                      size: 18,
+                      color: Colors.blueGrey,
                     ),
+                    onPressed: onToggleVisibility,
+                  ),
+                  // 4. Tombol Pindah Kanan
+                  IconButton(
+                    icon: const Icon(Icons.arrow_forward, size: 18),
+                    color: onMoveDown != null
+                        ? Colors.indigo
+                        : Colors.grey[300],
+                    onPressed: onMoveDown,
+                  ),
+                  // 5. Tombol Hapus
+                  IconButton(
+                    icon: const Icon(
+                      Icons.delete_outline,
+                      size: 18,
+                      color: Colors.redAccent,
+                    ),
+                    onPressed: onDelete,
                   ),
                 ],
               ),
-            ],
-          ),
-        ),
+            ),
+          ],
+        ],
       ),
     );
   }

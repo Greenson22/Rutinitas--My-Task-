@@ -28,8 +28,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String _selectedBaseDir = 'Documents';
   String _fullJsonPath = '';
   bool _isLoading = true;
-
-  bool _isSortedAZ = false;
+  bool _isPageEditMode = false;
   bool _showHiddenSection = false;
 
   @override
@@ -91,15 +90,6 @@ class _HomeScreenState extends State<HomeScreen> {
         .where((cat) => cat.isHidden)
         .toList();
 
-    if (_isSortedAZ) {
-      visible.sort(
-        (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
-      );
-      hidden.sort(
-        (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
-      );
-    }
-
     setState(() {
       _visibleCategories = visible;
       _hiddenCategories = hidden;
@@ -131,23 +121,6 @@ class _HomeScreenState extends State<HomeScreen> {
       await _saveAllCategoriesToFile(shouldRefresh: false);
       _processCategoriesDisplay();
     }
-  }
-
-  void _toggleSortOrder() {
-    setState(() {
-      _isSortedAZ = !_isSortedAZ;
-    });
-    _processCategoriesDisplay();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          _isSortedAZ
-              ? 'Kategori diurutkan A-Z (Urutan manual dinonaktifkan)'
-              : 'Kembali ke Urutan Manual',
-        ),
-        duration: const Duration(seconds: 1),
-      ),
-    );
   }
 
   Future<void> _toggleCategoryVisibility(TaskCategory category) async {
@@ -389,13 +362,12 @@ class _HomeScreenState extends State<HomeScreen> {
     BoxConstraints constraints,
   ) {
     int crossAxisCount = 2;
-    if (constraints.maxWidth >= 1200) {
+    if (constraints.maxWidth >= 1200)
       crossAxisCount = 5;
-    } else if (constraints.maxWidth >= 900) {
+    else if (constraints.maxWidth >= 900)
       crossAxisCount = 4;
-    } else if (constraints.maxWidth >= 600) {
+    else if (constraints.maxWidth >= 600)
       crossAxisCount = 3;
-    }
 
     return GridView.builder(
       shrinkWrap: true,
@@ -403,7 +375,8 @@ class _HomeScreenState extends State<HomeScreen> {
       padding: const EdgeInsets.all(12),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
-        childAspectRatio: 1.8,
+        // MODIFIKASI: Jika mode edit aktif, buat kotak sedikit lebih tinggi (memanjang ke bawah)
+        childAspectRatio: _isPageEditMode ? 1.3 : 1.8,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
       ),
@@ -412,14 +385,24 @@ class _HomeScreenState extends State<HomeScreen> {
         final category = categoriesList[index];
         return CategoryCard(
           category: category,
-          onTap: () => _showCategoryTasksDialog(category),
+          isEditMode: _isPageEditMode, // <-- Kirim status edit ke kartu
+          onLongPress: () {
+            // <-- Callback saat kartu ditahan
+            setState(() {
+              _isPageEditMode = !_isPageEditMode;
+            });
+          },
+          onTap: _isPageEditMode
+              ? () {} // <--- Berikan fungsi kosong, bukan null
+              : () => _showCategoryTasksDialog(category),
           onEdit: () {},
           onDelete: () => _deleteCategory(category),
           onToggleVisibility: () => _toggleCategoryVisibility(category),
-          onMoveUp: !_isSortedAZ && index > 0
+          // Hapus pengecekan _isSortedAZ karena fiturnya sudah dihilangkan
+          onMoveUp: index > 0
               ? () => _moveCategoryOrder(categoriesList, index, -1)
               : null,
-          onMoveDown: !_isSortedAZ && index < categoriesList.length - 1
+          onMoveDown: index < categoriesList.length - 1
               ? () => _moveCategoryOrder(categoriesList, index, 1)
               : null,
         );
@@ -447,11 +430,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 _showHiddenSection = !_showHiddenSection;
               });
             },
-          ),
-          IconButton(
-            icon: Icon(_isSortedAZ ? Icons.sort_by_alpha : Icons.unfold_more),
-            tooltip: 'Ganti Mode Urutan (Manual / A-Z)',
-            onPressed: _toggleSortOrder,
           ),
         ],
       ),
