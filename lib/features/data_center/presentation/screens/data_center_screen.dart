@@ -38,16 +38,37 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
   // =========================================================================
   void _exportTaskMaster() async {
     try {
-      // Ambil file JSON asli dari storage service
-      File file = await _storageService.getTargetJsonFile(_baseDir);
-      if (await file.exists()) {
-        // Share file tersebut ke luar agar pengguna bisa menyimpannya
-        await Share.shareXFiles([
-          XFile(file.path),
-        ], text: 'Backup Task Master Data');
+      // Ambil path direktori saat ini dan file datanya
+      String currentDir = await _storageService.getBaseDirSetting();
+      File fileAsli = await _storageService.getTargetJsonFile(currentDir);
+
+      if (await fileAsli.exists()) {
+        if (Platform.isLinux) {
+          // --- LOGIKA KHUSUS LINUX (Save As) ---
+          String? lokasiSimpan = await FilePicker.saveFile(
+            dialogTitle: 'Simpan Backup Task Master',
+            fileName: 'my_tasks_backup.json',
+            type: FileType.custom,
+            allowedExtensions: ['json'],
+          );
+
+          if (lokasiSimpan != null) {
+            await fileAsli.copy(lokasiSimpan);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Backup Berhasil Disimpan di Linux!'),
+              ),
+            );
+          }
+        } else {
+          // --- LOGIKA KHUSUS ANDROID / OS LAIN (Share Pop-up) ---
+          await Share.shareXFiles([
+            XFile(fileAsli.path),
+          ], text: 'Backup Task Master Data');
+        }
       }
     } catch (e) {
-      debugPrint("Gagal export Task Master: $e");
+      debugPrint("Gagal export: $e");
     }
   }
 
@@ -83,11 +104,33 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
   // =========================================================================
   void _exportJurnal() async {
     try {
-      File file = await _storageService.getJurnalJsonFile(_baseDir);
-      if (await file.exists()) {
-        await Share.shareXFiles([
-          XFile(file.path),
-        ], text: 'Backup Jurnal Aktivitas Data');
+      String currentDir = await _storageService.getBaseDirSetting();
+      File fileAsli = await _storageService.getJurnalJsonFile(currentDir);
+
+      if (await fileAsli.exists()) {
+        if (Platform.isLinux) {
+          // --- LINUX: Save As ---
+          String? lokasiSimpan = await FilePicker.saveFile(
+            dialogTitle: 'Simpan Backup Jurnal Aktivitas',
+            fileName: 'time_log_backup.json',
+            type: FileType.custom,
+            allowedExtensions: ['json'],
+          );
+
+          if (lokasiSimpan != null) {
+            await fileAsli.copy(lokasiSimpan);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Backup Jurnal Berhasil Disimpan di Linux!'),
+              ),
+            );
+          }
+        } else {
+          // --- ANDROID: Share Pop-up ---
+          await Share.shareXFiles([
+            XFile(fileAsli.path),
+          ], text: 'Backup Jurnal Aktivitas Data');
+        }
       }
     } catch (e) {
       debugPrint("Gagal export Jurnal: $e");
@@ -96,6 +139,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
 
   void _importJurnal() async {
     try {
+      // Universal untuk Android & Linux
       FilePickerResult? result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['json'],
@@ -105,7 +149,8 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
         String templatePath = result.files.single.path!;
         String fileContent = await File(templatePath).readAsString();
 
-        File targetFile = await _storageService.getJurnalJsonFile(_baseDir);
+        String currentDir = await _storageService.getBaseDirSetting();
+        File targetFile = await _storageService.getJurnalJsonFile(currentDir);
         await _storageService.saveJsonData(targetFile, fileContent);
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -124,23 +169,48 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
   // =========================================================================
   void _exportChecklist() async {
     try {
-      // Ambil daftar seluruh file (.json) hub yang ada di dalam folder checklist
-      List<File> hubFiles = await _storageService.getAllChecklistHubs(_baseDir);
+      String currentDir = await _storageService.getBaseDirSetting();
+      List<File> hubFiles = await _storageService.getAllChecklistHubs(
+        currentDir,
+      );
 
-      if (hubFiles.isNotEmpty) {
-        // Konversi ke dalam bentuk daftar XFile untuk dibagikan secara masal sekaligus
+      if (hubFiles.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Tidak ada data checklist untuk di-backup.'),
+          ),
+        );
+        return;
+      }
+
+      if (Platform.isLinux) {
+        // --- LINUX: Pilih Folder Tujuan Ekspor ---
+        String? folderTujuan = await FilePicker.getDirectoryPath(
+          dialogTitle: 'Pilih Folder untuk Menyimpan Ekspor Checklist',
+        );
+
+        if (folderTujuan != null) {
+          // Salin semua file hub json satu per satu ke folder tujuan tersebut
+          for (var file in hubFiles) {
+            String namaFile = file.path.split('/').last;
+            await file.copy('$folderTujuan/$namaFile');
+          }
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Semua file Hub Checklist berhasil diekspor ke folder!',
+              ),
+            ),
+          );
+        }
+      } else {
+        // --- ANDROID: Share Banyak File Sekaligus ---
         List<XFile> filesToShare = hubFiles
             .map((file) => XFile(file.path))
             .toList();
         await Share.shareXFiles(
           filesToShare,
           text: 'Backup Semua Hub Checklist Data',
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Tidak ada data checklist untuk di-backup.'),
-          ),
         );
       }
     } catch (e) {
@@ -150,7 +220,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
 
   void _importChecklist() async {
     try {
-      // Izinkan pengguna memilih banyak file JSON sekaligus (karena checklist per Hub dipisah per file)
+      // Mengizinkan pilih banyak file (Berlaku untuk Android & Linux)
       FilePickerResult? result = await FilePicker.pickFiles(
         allowMultiple: true,
         type: FileType.custom,
@@ -158,16 +228,15 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
       );
 
       if (result != null && result.files.isNotEmpty) {
-        // Ambil path direktori folder checklist di aplikasi
+        String currentDir = await _storageService.getBaseDirSetting();
         String targetFolder = await _storageService.getChecklistDirPath(
-          _baseDir,
+          currentDir,
         );
         int hitungSukses = 0;
 
         for (var pickedFile in result.files) {
           if (pickedFile.path != null && pickedFile.name != null) {
             String isiFile = await File(pickedFile.path!).readAsString();
-            // Buat file baru di folder tujuan aplikasi menggunakan nama file yang sama
             File fileBaru = File('$targetFolder/${pickedFile.name}');
             await _storageService.saveJsonData(fileBaru, isiFile);
             hitungSukses++;
