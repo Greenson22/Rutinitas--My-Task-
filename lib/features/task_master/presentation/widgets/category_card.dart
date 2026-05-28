@@ -102,7 +102,6 @@ class CategoryCard extends StatelessWidget {
 
           // PANEL TOMBOL KONTROL DI BAWAH (Hanya muncul saat Mode Edit Aktif / Ditahan)
           if (isEditMode) ...[
-            // const Divider(height: 1, color: Colors.black12),
             Container(
               color: Colors.transparent,
               padding: const EdgeInsets.symmetric(vertical: 2),

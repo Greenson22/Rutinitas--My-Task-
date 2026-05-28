@@ -635,9 +635,8 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
 
               // === PERBAIKAN: KONTROL MOVE (PINDAH POSISI URUTAN KARTU) TELAH DIKEMBALIKAN ===
               if (_isPageEditMode) ...[
-                Divider(height: 1, color: Colors.grey[300]),
                 Container(
-                  color: Colors.grey[50],
+                  color: Colors.transparent,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 4,
                     vertical: 2,
