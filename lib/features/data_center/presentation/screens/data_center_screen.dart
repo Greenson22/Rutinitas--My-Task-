@@ -711,41 +711,11 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
         body: TabBarView(
           children: [
             // Konten TAB 1: Manajemen Berkas / Backup Lokal (Fitur Lama Anda)
+            // Konten TAB 1: Manajemen Berkas / Backup Lokal
             ListView(
               padding: const EdgeInsets.symmetric(vertical: 16),
               children: [
-                _buildDataManagementRow(
-                  title: 'Task Master Data',
-                  icon: Icons.format_list_bulleted,
-                  onExport: () => _exportTaskMaster(),
-                  onImport: () => _importTaskMaster(),
-                ),
-                _buildDataManagementRow(
-                  title: 'My Checklist Data',
-                  icon: Icons.checklist_rtl,
-                  onExport: () => _exportChecklist(),
-                  onImport: () => _importChecklist(),
-                ),
-                _buildDataManagementRow(
-                  title: 'Jurnal Aktivitas Data',
-                  icon: Icons.menu_book,
-                  onExport: () => _exportJurnal(),
-                  onImport: () => _importJurnal(),
-                ),
-
-                // ==================== FITUR BARU MULAI DI SINI ====================
-                const Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: 16.0,
-                    vertical: 12.0,
-                  ),
-                  child: Divider(
-                    thickness: 2,
-                    color: Colors.grey,
-                  ), // Garis pemisah fitur
-                ),
-
-                // Header section untuk daftar backup
+                // 1. TOMBOL MENDATAR (Fitur Baru Anda)
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16.0,
@@ -754,21 +724,18 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      // 1. Tombol Manajemen Task Master
                       _buildCompactBackupButton(
                         label: 'Task Master',
                         icon: Icons.format_list_bulleted,
                         onBackup: () => _exportTaskMaster(),
                         onRestore: () => _importTaskMaster(),
                       ),
-                      // 2. Tombol Manajemen My Checklist
                       _buildCompactBackupButton(
                         label: 'Checklist',
                         icon: Icons.checklist_rtl,
                         onBackup: () => _exportChecklist(),
                         onRestore: () => _importChecklist(),
                       ),
-                      // 3. Tombol Manajemen Jurnal Aktivitas
                       _buildCompactBackupButton(
                         label: 'Jurnal',
                         icon: Icons.menu_book,
@@ -778,8 +745,61 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                     ],
                   ),
                 ),
+
                 const SizedBox(height: 8),
-                // List render file backup yang tersedia di storage/backup
+
+                // 2. GARIS PEMISAH DENGAN TEKS JUDUL & TOMBOL BUAT BACKUP
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Divider(thickness: 2, color: Colors.grey),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 8.0,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: const [
+                          Icon(
+                            Icons.folder_zip_outlined,
+                            color: Colors.blueGrey,
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            'Daftar Berkas Backup',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: Colors.blueGrey,
+                            ),
+                          ),
+                        ],
+                      ),
+                      // TOMBOL BARU: Untuk memicu proses backup semua fitur ke lokal (.zip)
+                      ElevatedButton.icon(
+                        onPressed: () => _buatBackupSemuaFitur(),
+                        icon: const Icon(Icons.add, size: 18),
+                        label: const Text(
+                          'Buat Backup (.zip)',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.teal,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // 3. DAFTAR FILE ZIP BACKUP LOKAL
                 _localBackupFiles.isEmpty
                     ? const Padding(
                         padding: EdgeInsets.all(24.0),
@@ -799,8 +819,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                           final String namaFile = file.path.split('/').last;
 
                           return ListTile(
-                            dense:
-                                true, // Menjaga list tetap rapat dan hemat ruang
+                            dense: true,
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 20,
                             ),
@@ -811,10 +830,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                             ),
                             title: Text(
                               namaFile,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w400,
-                              ),
+                              style: const TextStyle(fontSize: 12),
                             ),
                             trailing: IconButton(
                               icon: const Icon(
@@ -823,7 +839,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                                 size: 18,
                               ),
                               onPressed: () async {
-                                // TAMPILKAN DIALOG KONFIRMASI SEBELUM MENGHAPUS
                                 final bool konfirmasiHapus =
                                     await showDialog<bool>(
                                       context: context,
@@ -851,7 +866,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                                     ) ??
                                     false;
 
-                                // JIKA USER SETUJU, PROSES HAPUS DIJALANKAN
                                 if (konfirmasiHapus && await file.exists()) {
                                   await file.delete();
                                   _loadLocalBackups();
