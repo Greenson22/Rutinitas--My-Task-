@@ -25,6 +25,7 @@ class ChecklistDetailScreen extends StatefulWidget {
 class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
   final StorageService _storageService = StorageService();
   bool _isPageEditMode = false;
+  bool _isSectionEditMode = false;
   late ChecklistHub _currentHub;
 
   // Konstanta untuk menandai nama seksi unik/default
@@ -180,6 +181,75 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
     }
   }
 
+  void _editSectionName(ChecklistSection section) {
+    final editController = TextEditingController(text: section.namaSeksi);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Ubah Nama Seksi'),
+        content: TextField(controller: editController),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (editController.text.isNotEmpty) {
+                setState(() => section.namaSeksi = editController.text.trim());
+                _saveHubData();
+                Navigator.pop(context);
+              }
+            },
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _deleteSection(ChecklistSection section) async {
+    final bool confirm =
+        await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Hapus Seksi?'),
+            content: Text(
+              'Apakah Anda yakin ingin menghapus seksi "${section.namaSeksi}" beserta seluruh item di dalamnya?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Batal'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                child: const Text('Hapus'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (confirm) {
+      setState(() => _currentHub.semuaList.remove(section));
+      _saveHubData();
+    }
+  }
+
+  void _moveSectionOrder(int currentIndex, int direction) {
+    int newIndex = currentIndex + direction;
+    if (newIndex < 0 || newIndex >= _currentHub.semuaList.length) return;
+
+    setState(() {
+      final temp = _currentHub.semuaList[currentIndex];
+      _currentHub.semuaList[currentIndex] = _currentHub.semuaList[newIndex];
+      _currentHub.semuaList[newIndex] = temp;
+    });
+    _saveHubData();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -221,14 +291,16 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                         _currentHub.semuaList.length == 1 &&
                         section.namaSeksi == _defaultSectionName;
 
+                    // Di dalam ListView.builder milik widget build:
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Fungsi header sekarang dipanggil tanpa pembungkus 'if'
+                        // PERBAIKAN: Masukkan data index dan section ke fungsi header
                         _buildSectionHeader(
-                          section.namaSeksi,
+                          index, // Berikan index saat ini
+                          section, // Berikan objek seksi saat ini
                           Colors.teal[800]!,
-                          hideHeader, // Status boolean disalurkan ke sini
+                          hideHeader,
                           () => _addItemToSection(context, section),
                         ),
                         _buildCategoryGrid(section.items, constraints),
@@ -249,43 +321,100 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
   }
 
   Widget _buildSectionHeader(
-    String title,
+    int index, // TAMBAH PARAMETER INDEX
+    ChecklistSection section, // TAMBAH PARAMETER OBJECT SEKSI
     Color color,
     bool hideTitle,
     VoidCallback onAddPressed,
   ) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // Jika dikonfigurasi untuk sembunyi, tampilkan Container kosong untuk teks judul
-              hideTitle
-                  ? const SizedBox.shrink()
-                  : Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: color,
+    return GestureDetector(
+      // LOGIKA: Ketika area seksi ditahan lama, aktifkan/matikan mode edit seksi
+      onLongPress: () {
+        setState(() {
+          _isSectionEditMode = !_isSectionEditMode;
+        });
+      },
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                hideTitle
+                    ? const SizedBox.shrink()
+                    : Text(
+                        section.namaSeksi, // Menggunakan objek seksi langsung
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: color,
+                        ),
                       ),
+
+                // KONDISI: Jika sedang dalam Mode Edit Seksi, tampilkan tombol kontrol seksi
+                if (_isSectionEditMode) ...[
+                  Row(
+                    children: [
+                      // Tombol Pindah Atas
+                      IconButton(
+                        icon: const Icon(
+                          Icons.arrow_upward,
+                          size: 18,
+                          color: Colors.blueGrey,
+                        ),
+                        onPressed: index > 0
+                            ? () => _moveSectionOrder(index, -1)
+                            : null,
+                      ),
+                      // Tombol Pindah Bawah
+                      IconButton(
+                        icon: const Icon(
+                          Icons.arrow_downward,
+                          size: 18,
+                          color: Colors.blueGrey,
+                        ),
+                        onPressed: index < _currentHub.semuaList.length - 1
+                            ? () => _moveSectionOrder(index, 1)
+                            : null,
+                      ),
+                      // Tombol Ganti Nama
+                      IconButton(
+                        icon: const Icon(
+                          Icons.edit,
+                          size: 18,
+                          color: Colors.teal,
+                        ),
+                        onPressed: () => _editSectionName(section),
+                      ),
+                      // Tombol Hapus Seksi
+                      IconButton(
+                        icon: const Icon(
+                          Icons.delete,
+                          size: 18,
+                          color: Colors.redAccent,
+                        ),
+                        onPressed: () => _deleteSection(section),
+                      ),
+                    ],
+                  ),
+                ] else ...[
+                  // Jika tidak dalam mode edit, tampilkan tombol tambah item biasa
+                  IconButton(
+                    icon: const Icon(
+                      Icons.add_circle_outline,
+                      color: Colors.teal,
                     ),
-              // Tombol ini akan selalu muncul di sebelah kanan seksi manapun
-              IconButton(
-                icon: const Icon(Icons.add_circle_outline, color: Colors.teal),
-                tooltip: 'Tambah Item ke Seksi Ini',
-                constraints: const BoxConstraints(),
-                padding: EdgeInsets.zero,
-                onPressed: onAddPressed,
-              ),
-            ],
-          ),
-          // Garis pembatas (Divider) hanya muncul jika judul seksi sedang ditampilkan
-          if (!hideTitle) const Divider(height: 8, thickness: 1),
-        ],
+                    tooltip: 'Tambah Item ke Seksi Ini',
+                    onPressed: onAddPressed,
+                  ),
+                ],
+              ],
+            ),
+            if (!hideTitle) const Divider(height: 8, thickness: 1),
+          ],
+        ),
       ),
     );
   }
