@@ -72,9 +72,9 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
     }
   }
 
+  // Jalur File: lib/features/data_center/presentation/screens/data_center_screen.dart
   void _importTaskMaster() async {
     try {
-      // Buka window pemilih file di HP/Laptop khusus file JSON
       FilePickerResult? result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['json'],
@@ -82,13 +82,15 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
 
       if (result != null && result.files.single.path != null) {
         String templatePath = result.files.single.path!;
-        // Baca isi file yang dipilih pengguna
         String fileContent = await File(templatePath).readAsString();
 
-        // Ambil path file target aplikasi
         File targetFile = await _storageService.getTargetJsonFile(_baseDir);
-        // Timpa file lama aplikasi dengan data baru
         await _storageService.saveJsonData(targetFile, fileContent);
+
+        // KETERANGAN UBAH: Segarkan state lokal screen data center agar me-sync ulang path direktori dasar
+        setState(() {
+          _loadBaseDirectory();
+        });
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Data Task Master berhasil di-import!')),

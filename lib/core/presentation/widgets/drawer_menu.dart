@@ -112,13 +112,12 @@ class _DrawerMenuState extends State<DrawerMenu> {
             ),
             title: const Text('Task Master'),
             onTap: () {
-              Navigator.pop(context);
-              if (widget.isDailyActive || widget.isJurnalActive) {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => const HomeScreen()),
-                );
-              }
+              Navigator.pop(context); // Tutup drawer
+              // Ubah logika push agar selalu memaksa pemuatan ulang state secara bersih
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const HomeScreen()),
+              );
             },
           ),
           ListTile(
