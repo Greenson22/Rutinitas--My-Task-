@@ -697,7 +697,10 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
             indicatorWeight: 3,
             labelStyle: TextStyle(fontWeight: FontWeight.bold),
             tabs: [
-              Tab(icon: Icon(Icons.import_export), text: 'Export & Import'),
+              Tab(
+                icon: Icon(Icons.backup_outlined),
+                text: 'Backup',
+              ), // Diubah menjadi Backup dengan ikon yang sesuai
               Tab(icon: Icon(Icons.wifi_find_outlined), text: 'Local Sharing'),
             ],
           ),
@@ -746,42 +749,31 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16.0,
-                    vertical: 4.0,
+                    vertical: 8.0,
                   ),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      Row(
-                        children: const [
-                          Icon(
-                            Icons.inventory_2_outlined,
-                            color: Colors.indigo,
-                          ),
-                          SizedBox(width: 8),
-                          Text(
-                            'Daftar Backup Aplikasi',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                            ),
-                          ),
-                        ],
+                      // 1. Tombol Manajemen Task Master
+                      _buildCompactBackupButton(
+                        label: 'Task Master',
+                        icon: Icons.format_list_bulleted,
+                        onBackup: () => _exportTaskMaster(),
+                        onRestore: () => _importTaskMaster(),
                       ),
-                      // Tombol untuk melakukan Backup Semua Fitur sekaligus (.zip)
-                      ElevatedButton.icon(
-                        onPressed: _buatBackupSemuaFitur,
-                        icon: const Icon(
-                          Icons.gamepad,
-                          size: 16,
-                          color: Colors.white,
-                        ), // ganti icon jika diperlukan
-                        label: const Text(
-                          'Buat Backup (.zip)',
-                          style: TextStyle(color: Colors.white, fontSize: 12),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.indigo,
-                        ),
+                      // 2. Tombol Manajemen My Checklist
+                      _buildCompactBackupButton(
+                        label: 'Checklist',
+                        icon: Icons.checklist_rtl,
+                        onBackup: () => _exportChecklist(),
+                        onRestore: () => _importChecklist(),
+                      ),
+                      // 3. Tombol Manajemen Jurnal Aktivitas
+                      _buildCompactBackupButton(
+                        label: 'Jurnal',
+                        icon: Icons.menu_book,
+                        onBackup: () => _exportJurnal(),
+                        onRestore: () => _importJurnal(),
                       ),
                     ],
                   ),
@@ -972,6 +964,66 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
               ],
             ),
           ),
+        ),
+      ],
+    );
+  }
+
+  // Helper baru untuk membuat tombol kontrol backup yang sangat ringkas dan masuk dalam satu baris
+  Widget _buildCompactBackupButton({
+    required String label,
+    required IconData icon,
+    required VoidCallback onBackup,
+    required VoidCallback onRestore,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Lingkaran Ikon Utama Fitur
+        CircleAvatar(
+          radius: 20,
+          backgroundColor: Colors.indigo.withOpacity(0.1),
+          child: Icon(icon, color: Colors.indigo, size: 20),
+        ),
+        const SizedBox(height: 4),
+        // Nama Fitur Singkat
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+        ),
+        // Baris Tombol Aksi (Ikon Cloud untuk Backup & Restore yang sesuai)
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(
+                Icons.cloud_upload_outlined,
+                color: Colors.blue,
+                size: 18,
+              ),
+              tooltip:
+                  'Backup Data', // Menggunakan ikon cloud upload yang sesuai untuk backup
+              constraints: const BoxConstraints(),
+              padding: const EdgeInsets.all(6),
+              onPressed: onBackup,
+            ),
+            IconButton(
+              icon: const Icon(
+                Icons.cloud_download_outlined,
+                color: Colors.green,
+                size: 18,
+              ),
+              tooltip:
+                  'Pulihkan Data', // Menggunakan ikon cloud download yang sesuai untuk restore
+              constraints: const BoxConstraints(),
+              padding: const EdgeInsets.all(6),
+              onPressed: onRestore,
+            ),
+          ],
         ),
       ],
     );
