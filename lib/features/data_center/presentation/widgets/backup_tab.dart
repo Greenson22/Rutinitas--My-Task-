@@ -137,68 +137,6 @@ class BackupTab extends StatelessWidget {
                   );
                 },
               ),
-
-        // TAMBAHKAN kode UI ini di dalam ListView bagian paling bawah (di bawah localBackupFiles)
-        const Divider(thickness: 2),
-
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: const Text(
-            'Daftar Berkas Backup (Dari Server)',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-        ),
-
-        serverBackupFiles.isEmpty
-            ? const Center(child: Text('Belum ada file backup dari server.'))
-            : ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: serverBackupFiles.length,
-                itemBuilder: (context, index) {
-                  final file = serverBackupFiles[index];
-                  return ListTile(
-                    leading: const Icon(
-                      Icons.cloud_download,
-                      color: Colors.teal,
-                    ),
-                    title: Text(file.path.split('/').last),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.delete_outline, color: Colors.red),
-                      onPressed: () async {
-                        // Tampilkan Dialog Konfirmasi Hapus
-                        final bool? confirm = await showDialog<bool>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: const Text('Hapus Backup Server?'),
-                            content: const Text(
-                              'Apakah Anda yakin ingin menghapus berkas backup dari server ini?',
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx, false),
-                                child: const Text('Batal'),
-                              ),
-                              ElevatedButton(
-                                onPressed: () => Navigator.pop(ctx, true),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.red,
-                                ),
-                                child: const Text('Hapus'),
-                              ),
-                            ],
-                          ),
-                        );
-
-                        // Jika setuju hapus, jalankan fungsi penghapusan
-                        if (confirm == true) {
-                          onDeleteServerBackup(file);
-                        }
-                      },
-                    ),
-                  );
-                },
-              ),
       ],
     );
   }
