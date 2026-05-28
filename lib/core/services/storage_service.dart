@@ -8,6 +8,7 @@ import '../config/default_json.dart';
 
 class StorageService {
   static const String _keyBaseDir = 'ubuntu_base_dir';
+  static const String _keyIpHistory = 'sharing_ip_history';
 
   // MODIFIKASI: Menyesuaikan base directory untuk Android secara otomatis
   Future<String> getBaseDirSetting() async {
@@ -158,5 +159,38 @@ class StorageService {
     } catch (e) {
       return [];
     }
+  }
+
+  // 1. Fungsi Ambil Riwayat IP (IP terakhir akan berada di urutan pertama)
+  Future<List<String>> getIpHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getStringList(_keyIpHistory) ?? [];
+  }
+
+  // 2. Fungsi Simpan IP Baru ke dalam Riwayat
+  Future<void> saveIpToHistory(String ip) async {
+    final prefs = await SharedPreferences.getInstance();
+    List<String> currentHistory = prefs.getStringList(_keyIpHistory) ?? [];
+
+    // Hapus jika IP sudah ada sebelumnya agar tidak duplikat
+    currentHistory.remove(ip);
+
+    // Masukkan IP baru di posisi paling depan (index 0) agar menjadi IP terakhir yang digunakan
+    currentHistory.insert(0, ip);
+
+    // Batasi riwayat misalnya maksimal hanya menyimpan 5 IP terakhir
+    if (currentHistory.length > 5) {
+      currentHistory = currentHistory.sublist(0, 5);
+    }
+
+    await prefs.setStringList(_keyIpHistory, currentHistory);
+  }
+
+  // 3. Fungsi Hapus IP tertentu dari Riwayat
+  Future<void> deleteIpFromHistory(String ip) async {
+    final prefs = await SharedPreferences.getInstance();
+    List<String> currentHistory = prefs.getStringList(_keyIpHistory) ?? [];
+    currentHistory.remove(ip);
+    await prefs.setStringList(_keyIpHistory, currentHistory);
   }
 }

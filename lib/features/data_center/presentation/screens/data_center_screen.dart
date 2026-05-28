@@ -145,31 +145,123 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
     }
   }
 
-  void _tampilkanDialogHubungkanKeServer() {
-    final ipController = TextEditingController(text: 'Contoh: 192.168.1.5');
+  // lib/features/data_center/presentation/screens/data_center_screen.dart
+
+  void _tampilkanDialogHubungkanKeServer() async {
+    // Ambil data riwayat IP dari SharedPreferences
+    List<String> ipHistory = await _storageService.getIpHistory();
+
+    // Otomatis isi text field dengan IP terakhir jika ada riwayat
+    final ipController = TextEditingController(
+      text: ipHistory.isNotEmpty ? ipHistory.first : '',
+    );
+
+    if (!mounted) return;
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Masukkan IP Pengirim'),
-        content: TextField(
-          controller: ipController,
-          decoration: const InputDecoration(labelText: 'Alamat IP Server'),
-          keyboardType: TextInputType.values.first, // teks biasa/angka
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _prosesTerimaDataDariServer(ipController.text.trim());
-            },
-            child: const Text('Hubungkan & Ambil'),
-          ),
-        ],
+      builder: (ctx) => StatefulBuilder(
+        // Menggunakan StatefulBuilder agar list IP bisa update saat dihapus
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text('Hubungkan ke Server'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: ipController,
+                  decoration: const InputDecoration(
+                    labelText: 'Alamat IP Server Pengirim',
+                    hintText: 'Contoh: 192.168.1.5',
+                  ),
+                  keyboardType: TextInputType.text,
+                ),
+
+                // Tampilkan section riwayat jika list tidak kosong
+                if (ipHistory.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const Text(
+                    'IP yang pernah digunakan:',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+
+                  // Bungkus dengan kontainer agar tidak meluber jika list panjang
+                  SizedBox(
+                    height: 120,
+                    width: double.maxFinite,
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: ipHistory.length,
+                      itemBuilder: (c, index) {
+                        final savedIp = ipHistory[index];
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          leading: const Icon(Icons.history, size: 18),
+                          title: Text(savedIp),
+                          trailing: IconButton(
+                            icon: const Icon(
+                              Icons.delete_outline,
+                              color: Colors.red,
+                              size: 18,
+                            ),
+                            onPressed: () async {
+                              // Hapus dari penyimpanan lokal
+                              await _storageService.deleteIpFromHistory(
+                                savedIp,
+                              );
+                              // Perbarui state di dalam dialog
+                              setDialogState(() {
+                                ipHistory.remove(savedIp);
+                                if (ipController.text == savedIp) {
+                                  ipController.clear();
+                                }
+                              });
+                            },
+                          ),
+                          onTap: () {
+                            // Jika IP di-tap, otomatis masukkan ke TextField
+                            setDialogState(() {
+                              ipController.text = savedIp;
+                            });
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Batal'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  String targetIp = ipController.text.trim();
+                  if (targetIp.isNotEmpty) {
+                    // Simpan IP yang sukses dimasukkan ke dalam riwayat
+                    await _storageService.saveIpToHistory(targetIp);
+
+                    if (!mounted) return;
+                    Navigator.pop(ctx);
+
+                    // Jalankan fungsi bawaan Anda untuk mengambil data
+                    _prosesTerimaDataDariServer(targetIp);
+                  }
+                },
+                child: const Text('Hubungkan & Ambil'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
