@@ -4,6 +4,7 @@ import '../../../../core/services/storage_service.dart';
 import '../../../../core/presentation/widgets/drawer_menu.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:archive/archive_io.dart';
 // Import library tambahan seperti share_plus atau file_picker sesuai kebutuhan backup Anda
 
 class DataCenterScreen extends StatefulWidget {
@@ -185,44 +186,57 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
         return;
       }
 
+      // --- KETERANGAN UBAH DI SINI: Proses Membuat File ZIP ---
+      // 1. Buat encoder / penampung data berkas ZIP
+      final Archive archive = Archive();
+
+      // 2. Masukkan semua file JSON checklist ke dalam data archive ZIP
+      for (var file in hubFiles) {
+        final String namaFile = file.path.split('/').last;
+        final List<int> bytes = await file.readAsBytes();
+        archive.addFile(ArchiveFile(namaFile, bytes.length, bytes));
+      }
+
+      // 3. Kompres data menjadi berkas berkode ZIP (.zip)
+      final List<int>? zipBytes = ZipEncoder().encode(archive);
+      if (zipBytes == null) return;
+
+      // 4. Simpan file ZIP sementara di direktori temporary sistem
+      final String tempPath =
+          '${Directory.systemTemp.path}/checklist_backup.zip';
+      final File zipFile = File(tempPath);
+      await zipFile.writeAsBytes(zipBytes);
+      // --------------------------------------------------------
+
+      // Proses Pengiriman Berkas ZIP berdasarkan Platform OS
       if (Platform.isLinux) {
-        // --- LINUX: Pilih Folder Tujuan Ekspor ---
-        String? folderTujuan = await FilePicker.getDirectoryPath(
-          dialogTitle: 'Pilih Folder untuk Menyimpan Ekspor Checklist',
+        // --- LINUX: Pilih lokasi simpan berkas ZIP langsung ---
+        String? lokasiSimpan = await FilePicker.saveFile(
+          dialogTitle: 'Simpan Backup Checklist (ZIP)',
+          fileName: 'checklist_backup.zip',
+          type: FileType.custom,
+          allowedExtensions: ['zip'],
         );
 
-        if (folderTujuan != null) {
-          // Salin semua file hub json satu per satu ke folder tujuan tersebut
-          for (var file in hubFiles) {
-            String namaFile = file.path.split('/').last;
-            await file.copy('$folderTujuan/$namaFile');
-          }
+        if (lokasiSimpan != null) {
+          await zipFile.copy(lokasiSimpan);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Semua file Hub Checklist berhasil diekspor ke folder!',
-              ),
-            ),
+            const SnackBar(content: Text('Backup ZIP Berhasil Disimpan!')),
           );
         }
       } else {
-        // --- ANDROID: Share Banyak File Sekaligus ---
-        List<XFile> filesToShare = hubFiles
-            .map((file) => XFile(file.path))
-            .toList();
-        await Share.shareXFiles(
-          filesToShare,
-          text: 'Backup Semua Hub Checklist Data',
-        );
+        // --- ANDROID: Share Pop-up satu file ZIP ---
+        await Share.shareXFiles([
+          XFile(zipFile.path),
+        ], text: 'Backup Semua Hub Checklist Data (ZIP)');
       }
     } catch (e) {
-      debugPrint("Gagal export Checklist: $e");
+      debugPrint("Gagal export ZIP Checklist: $e");
     }
   }
 
   void _importChecklist() async {
     try {
-      // Mengizinkan pilih banyak file (Berlaku untuk Android & Linux)
       FilePickerResult? result = await FilePicker.pickFiles(
         allowMultiple: true,
         type: FileType.custom,
@@ -239,7 +253,24 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
         for (var pickedFile in result.files) {
           if (pickedFile.path != null && pickedFile.name != null) {
             String isiFile = await File(pickedFile.path!).readAsString();
-            File fileBaru = File('$targetFolder/${pickedFile.name}');
+
+            // --- KETERANGAN UBAH DI SINI: Logika Cek Nama Unik ---
+            String namaFileBaru = pickedFile.name!;
+            File fileBaru = File('$targetFolder/$namaFileBaru');
+
+            // Jika file sudah ada di folder tujuan, buat nama baru yang unik
+            if (await fileBaru.exists()) {
+              final String timestamp = DateTime.now().millisecondsSinceEpoch
+                  .toString();
+              // Mengubah "hub_data.json" menjadi "hub_data_1716942... .json"
+              namaFileBaru = namaFileBaru.replaceAll(
+                '.json',
+                '_$timestamp.json',
+              );
+              fileBaru = File('$targetFolder/$namaFileBaru');
+            }
+            // -----------------------------------------------------
+
             await _storageService.saveJsonData(fileBaru, isiFile);
             hitungSukses++;
           }
