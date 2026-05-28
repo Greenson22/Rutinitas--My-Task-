@@ -46,8 +46,15 @@ class StorageService {
     return await jsonFile.readAsString();
   }
 
+  // Fungsi ini sebenarnya sudah ada di kode Anda, pastikan bisa digunakan untuk menimpa data lama
   Future<void> saveJsonData(File jsonFile, String jsonContent) async {
     await jsonFile.writeAsString(jsonContent);
+  }
+
+  // Tambahkan helper ini untuk memudahkan pengecekan struktur folder my_checklist saat eksport/import massal
+  Future<String> getChecklistDirPath(String baseDirSetting) async {
+    final Directory checklistDir = Directory('$baseDirSetting/my_checklist');
+    return checklistDir.path;
   }
 
   // =========================================================================

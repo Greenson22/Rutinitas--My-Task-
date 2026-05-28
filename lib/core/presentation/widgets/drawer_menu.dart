@@ -8,15 +8,19 @@ import '../../../features/jurnal_aktivitas/presentation/screens/jurnal_aktivitas
 import '../../../features/about/presentation/pages/about_page.dart';
 import '../../../features/task_master/presentation/widgets/settings_dialog.dart';
 import '../../services/storage_service.dart';
+import '../../../features/data_center/presentation/screens/data_center_screen.dart';
 
 class DrawerMenu extends StatefulWidget {
   final bool isDailyActive;
   final bool isJurnalActive;
+  final bool isDataCenterActive;
 
   const DrawerMenu({
     super.key,
     this.isDailyActive = false,
     this.isJurnalActive = false,
+    this.isDataCenterActive =
+        false, // Default-nya false agar halaman lain tidak error
   });
 
   @override
@@ -149,6 +153,23 @@ class _DrawerMenuState extends State<DrawerMenu> {
                   ),
                 );
               }
+            },
+          ),
+          ListTile(
+            leading: Icon(
+              Icons.storage,
+              color: Colors
+                  .grey[700], // Sesuaikan logika warna aktif jika memakai parameter
+            ),
+            title: const Text('Data Center'),
+            onTap: () {
+              Navigator.pop(context); // Tutup drawer
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const DataCenterScreen(),
+                ),
+              );
             },
           ),
           const Divider(),
