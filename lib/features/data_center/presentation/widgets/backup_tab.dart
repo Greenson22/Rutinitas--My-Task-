@@ -11,6 +11,7 @@ class BackupTab extends StatelessWidget {
   final VoidCallback onRestoreChecklist;
   final VoidCallback onBackupJurnal;
   final VoidCallback onRestoreJurnal;
+  final VoidCallback onRestoreAllZip;
 
   const BackupTab({
     super.key,
@@ -23,6 +24,7 @@ class BackupTab extends StatelessWidget {
     required this.onRestoreChecklist,
     required this.onBackupJurnal,
     required this.onRestoreJurnal,
+    required this.onRestoreAllZip,
   });
 
   @override
@@ -70,11 +72,28 @@ class BackupTab extends StatelessWidget {
                 'Daftar Berkas Backup',
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
-              ElevatedButton.icon(
-                onPressed: onCreateBackup,
-                icon: const Icon(Icons.add),
-                label: const Text('Buat Backup (.zip)'),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+              Row(
+                children: [
+                  // === TOMBOL BARU UNTUK IMPORT/RESTORE ZIP ===
+                  ElevatedButton.icon(
+                    onPressed: onRestoreAllZip,
+                    icon: const Icon(Icons.unarchive),
+                    label: const Text('Import (.zip)'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.indigo,
+                    ),
+                  ),
+                  const SizedBox(width: 8), // Jarak antar tombol
+                  // Tombol buat backup yang sudah ada sebelumnya
+                  ElevatedButton.icon(
+                    onPressed: onCreateBackup,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Buat Backup (.zip)'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.teal,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

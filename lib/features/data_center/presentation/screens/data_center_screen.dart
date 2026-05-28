@@ -620,6 +620,76 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
     }
   }
 
+  // Letakkan fungsi ini di dalam class _DataCenterScreenState
+
+  void _importSemuaDariZip() async {
+    try {
+      // 1. Pilih file ZIP menggunakan File Picker
+      FilePickerResult? result = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['zip'],
+      );
+
+      if (result != null && result.files.single.path != null) {
+        File zipFile = File(result.files.single.path!);
+        List<int> bytes = await zipFile.readAsBytes();
+
+        // 2. Dekode/Ekstrak file ZIP
+        Archive archive = ZipDecoder().decodeBytes(bytes);
+
+        int hitungChecklist = 0;
+
+        // 3. Iterasi setiap file yang ada di dalam ZIP
+        for (ArchiveFile file in archive) {
+          if (file.isFile) {
+            // A. Jika itu file Task Master
+            if (file.name == 'my_tasks.json') {
+              File target = await _storageService.getTargetJsonFile(_baseDir);
+              await target.writeAsBytes(file.content);
+            }
+            // B. Jika itu file Jurnal Aktivitas
+            else if (file.name == 'time_log.json') {
+              File target = await _storageService.getJurnalJsonFile(_baseDir);
+              await target.writeAsBytes(file.content);
+            }
+            // C. Jika itu file-file di dalam folder my_checklist
+            else if (file.name.startsWith('my_checklist/')) {
+              String namaFileHub = file.name.split('/').last;
+              if (namaFileHub.isNotEmpty) {
+                String folderChecklist = await _storageService
+                    .getChecklistDirPath(_baseDir);
+                File target = File('$folderChecklist/$namaFileHub');
+                await target.writeAsBytes(file.content);
+                hitungChecklist++;
+              }
+            }
+          }
+        }
+
+        // 4. Segarkan halaman UI dan berikan notifikasi sukses
+        setState(() {
+          _loadBaseDirectory();
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Restore Berhasil! Task Master, Jurnal, dan $hitungChecklist Hub Checklist dipulihkan.',
+            ),
+            backgroundColor: Colors.teal,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint("Gagal mengimpor file ZIP: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Terjadi kesalahan saat mengekstrak berkas ZIP.'),
+        ),
+      );
+    }
+  }
+
   String _getFormattedFileName(String prefix, String extension) {
     final now = DateTime.now();
 
@@ -685,6 +755,10 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                   _loadLocalBackups(); // Memperbarui data list setelah dihapus
                 }
               },
+
+              // ==================================================
+              // TULIS BARIS BARU INI DI SINI (Jangan hapus kode di atas atau di bawahnya)
+              onRestoreAllZip: () => _importSemuaDariZip(),
               onBackupTaskMaster: () => _exportTaskMaster(),
               onRestoreTaskMaster: () => _importTaskMaster(),
               onBackupChecklist: () => _exportChecklist(),
