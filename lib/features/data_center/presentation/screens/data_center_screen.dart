@@ -881,10 +881,36 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
             LocalSharingTab(
               onSendFile: () => _startMulaiServerSharing(),
               onReceiveFile: () => _tampilkanDialogHubungkanKeServer(),
-              // TAMBAHKAN DUA BARIS DI BAWAH INI:
               serverBackupFiles: _serverBackupFiles,
               onDeleteServerBackup: (file) async {
-                if (await file.exists()) {
+                // === UBAH BAGIAN DI DALAM SINI ===
+                final bool confirm =
+                    await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('Hapus Berkas Server?'),
+                        content: Text(
+                          'Apakah Anda yakin ingin menghapus berkas "${file.path.split('/').last}" ini secara permanen?',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx, false),
+                            child: const Text('Batal'),
+                          ),
+                          ElevatedButton(
+                            onPressed: () => Navigator.pop(ctx, true),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                            ),
+                            child: const Text('Hapus'),
+                          ),
+                        ],
+                      ),
+                    ) ??
+                    false;
+
+                // Jika user menekan tombol Hapus (true), maka file baru dihapus
+                if (confirm && await file.exists()) {
                   await file.delete();
                   _loadServerBackups(); // Menyegarkan daftar setelah dihapus
                 }
