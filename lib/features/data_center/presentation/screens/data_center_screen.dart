@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:shelf_web_socket/src/web_socket_handler.dart';
+import 'package:rutinitasku/features/data_center/presentation/widgets/backup_tab.dart';
+import 'package:rutinitasku/features/data_center/presentation/widgets/local_sharing_tab.dart';
 import '../../../../core/services/storage_service.dart';
 import '../../../../core/presentation/widgets/drawer_menu.dart';
 import 'package:file_picker/file_picker.dart';
@@ -581,11 +582,11 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
         int hitungSukses = 0;
 
         for (var pickedFile in result.files) {
-          if (pickedFile.path != null && pickedFile.name != null) {
+          if (pickedFile.path != null) {
             String isiFile = await File(pickedFile.path!).readAsString();
 
             // --- KETERANGAN UBAH DI SINI: Logika Cek Nama Unik ---
-            String namaFileBaru = pickedFile.name!;
+            String namaFileBaru = pickedFile.name;
             File fileBaru = File('$targetFolder/$namaFileBaru');
 
             // Jika file sudah ada di folder tujuan, buat nama baru yang unik
@@ -646,43 +647,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
     return "${prefix}_${tanggal}_${namaHari}_$waktu.$extension";
   }
 
-  Widget _buildDataManagementRow({
-    required String title,
-    required IconData icon,
-    required VoidCallback onExport,
-    required VoidCallback onImport,
-  }) {
-    return ListTile(
-      dense: true, // Membuat baris lebih tipis & hemat tempat
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 0),
-      leading: Icon(
-        icon,
-        color: Colors.indigo,
-        size: 22,
-      ), // Ukuran ikon diperkecil
-      title: Text(
-        title,
-        style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13.5),
-      ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            icon: const Icon(Icons.upload, color: Colors.blue, size: 20),
-            tooltip: 'Backup Keluar', // Mengubah istilah export menjadi Backup
-            onPressed: onExport,
-          ),
-          IconButton(
-            icon: const Icon(Icons.download, color: Colors.green, size: 20),
-            tooltip:
-                'Pulihkan Backup', // Mengubah istilah import menjadi Pulihkan
-            onPressed: onImport,
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
@@ -710,336 +674,33 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
         // TabBarView untuk menampilkan konten sesuai Tab yang dipilih
         body: TabBarView(
           children: [
-            // Konten TAB 1: Manajemen Berkas / Backup Lokal (Fitur Lama Anda)
-            // Konten TAB 1: Manajemen Berkas / Backup Lokal
-            ListView(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              children: [
-                // 1. TOMBOL MENDATAR (Fitur Baru Anda)
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16.0,
-                    vertical: 8.0,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _buildCompactBackupButton(
-                        label: 'Task Master',
-                        icon: Icons.format_list_bulleted,
-                        onBackup: () => _exportTaskMaster(),
-                        onRestore: () => _importTaskMaster(),
-                      ),
-                      _buildCompactBackupButton(
-                        label: 'Checklist',
-                        icon: Icons.checklist_rtl,
-                        onBackup: () => _exportChecklist(),
-                        onRestore: () => _importChecklist(),
-                      ),
-                      _buildCompactBackupButton(
-                        label: 'Jurnal',
-                        icon: Icons.menu_book,
-                        onBackup: () => _exportJurnal(),
-                        onRestore: () => _importJurnal(),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 8),
-
-                // 2. GARIS PEMISAH DENGAN TEKS JUDUL & TOMBOL BUAT BACKUP
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Divider(thickness: 2, color: Colors.grey),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16.0,
-                    vertical: 8.0,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: const [
-                          Icon(
-                            Icons.folder_zip_outlined,
-                            color: Colors.blueGrey,
-                          ),
-                          SizedBox(width: 8),
-                          Text(
-                            'Daftar Berkas Backup',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                              color: Colors.blueGrey,
-                            ),
-                          ),
-                        ],
-                      ),
-                      // TOMBOL BARU: Untuk memicu proses backup semua fitur ke lokal (.zip)
-                      ElevatedButton.icon(
-                        onPressed: () => _buatBackupSemuaFitur(),
-                        icon: const Icon(Icons.add, size: 18),
-                        label: const Text(
-                          'Buat Backup (.zip)',
-                          style: TextStyle(fontSize: 12),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.teal,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // 3. DAFTAR FILE ZIP BACKUP LOKAL
-                _localBackupFiles.isEmpty
-                    ? const Padding(
-                        padding: EdgeInsets.all(24.0),
-                        child: Center(
-                          child: Text(
-                            'Belum ada file backup yang disimpan di storage/backup',
-                            style: TextStyle(color: Colors.grey, fontSize: 12),
-                          ),
-                        ),
-                      )
-                    : ListView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: _localBackupFiles.length,
-                        itemBuilder: (context, index) {
-                          final file = _localBackupFiles[index];
-                          final String namaFile = file.path.split('/').last;
-
-                          return ListTile(
-                            dense: true,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                            ),
-                            leading: const Icon(
-                              Icons.folder_zip,
-                              color: Colors.amber,
-                              size: 20,
-                            ),
-                            title: Text(
-                              namaFile,
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                            trailing: IconButton(
-                              icon: const Icon(
-                                Icons.delete_outline,
-                                color: Colors.redAccent,
-                                size: 18,
-                              ),
-                              onPressed: () async {
-                                final bool konfirmasiHapus =
-                                    await showDialog<bool>(
-                                      context: context,
-                                      builder: (ctx) => AlertDialog(
-                                        title: const Text('Hapus File Backup?'),
-                                        content: Text(
-                                          'Apakah Anda yakin ingin menghapus "$namaFile" secara permanen?',
-                                        ),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () =>
-                                                Navigator.pop(ctx, false),
-                                            child: const Text('Batal'),
-                                          ),
-                                          ElevatedButton(
-                                            onPressed: () =>
-                                                Navigator.pop(ctx, true),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: Colors.red,
-                                            ),
-                                            child: const Text('Hapus'),
-                                          ),
-                                        ],
-                                      ),
-                                    ) ??
-                                    false;
-
-                                if (konfirmasiHapus && await file.exists()) {
-                                  await file.delete();
-                                  _loadLocalBackups();
-                                }
-                              },
-                            ),
-                          );
-                        },
-                      ),
-              ],
+            // TAB 1: Memanggil file/widget khusus Backup yang sudah dipisahkan
+            BackupTab(
+              localBackupFiles: _localBackupFiles,
+              onCreateBackup: () => _buatBackupSemuaFitur(),
+              onDeleteBackup: (file) async {
+                // Logika konfirmasi hapus dipanggil di sini, lalu:
+                if (await file.exists()) {
+                  await file.delete();
+                  _loadLocalBackups(); // Memperbarui data list setelah dihapus
+                }
+              },
+              onBackupTaskMaster: () => _exportTaskMaster(),
+              onRestoreTaskMaster: () => _importTaskMaster(),
+              onBackupChecklist: () => _exportChecklist(),
+              onRestoreChecklist: () => _importChecklist(),
+              onBackupJurnal: () => _exportJurnal(),
+              onRestoreJurnal: () => _importJurnal(),
             ),
-            // Konten TAB 2: Fitur Baru Local Sharing (WebSocket)
-            _buildLocalSharingTab(),
+
+            // TAB 2: Memanggil file/widget khusus Local Sharing yang sudah dipisahkan
+            LocalSharingTab(
+              onSendFile: () => _startMulaiServerSharing(),
+              onReceiveFile: () => _tampilkanDialogHubungkanKeServer(),
+            ),
           ],
         ),
       ),
-    );
-  }
-
-  // Widget tampilan untuk Tab Local Sharing
-  Widget _buildLocalSharingTab() {
-    return ListView(
-      padding: const EdgeInsets.all(16.0),
-      children: [
-        Card(
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.share_location,
-                      color: Colors.indigo[700],
-                      size: 24,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Kirim & Terima Data Lokal',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.indigo[900],
-                      ),
-                    ),
-                  ],
-                ),
-                const Divider(height: 24),
-                Text(
-                  'Fitur ini memungkinkan Anda mengirim atau menerima file data secara langsung antar perangkat (Android/Linux) yang terhubung dalam satu jaringan Wi-Fi yang sama.',
-                  style: TextStyle(color: Colors.grey[700], fontSize: 13),
-                ),
-                const SizedBox(height: 20),
-
-                // Pilihan Operasi 1: Menjadi Server (Pengirim)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: CircleAvatar(
-                    backgroundColor: Colors.indigo[50],
-                    child: const Icon(Icons.cloud_upload, color: Colors.indigo),
-                  ),
-                  title: const Text(
-                    'Mode Pengirim (Server)',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                  ),
-                  subtitle: const Text(
-                    'Pilih file dari perangkat ini untuk dikirim ke perangkat lain',
-                    style: TextStyle(fontSize: 11),
-                  ),
-                  trailing: ElevatedButton(
-                    onPressed:
-                        _startMulaiServerSharing, // Memanggil fungsi server Anda
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.indigo,
-                    ),
-                    child: const Text('Kirim File'),
-                  ),
-                ),
-                const Divider(),
-
-                // Pilihan Operasi 2: Menjadi Client (Penerima)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: CircleAvatar(
-                    backgroundColor: Colors.teal[50],
-                    child: const Icon(Icons.cloud_download, color: Colors.teal),
-                  ),
-                  title: const Text(
-                    'Mode Penerima (Client)',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                  ),
-                  subtitle: const Text(
-                    'Masukkan alamat IP pengirim untuk mengunduh file data',
-                    style: TextStyle(fontSize: 11),
-                  ),
-                  trailing: ElevatedButton(
-                    onPressed:
-                        _tampilkanDialogHubungkanKeServer, // Memanggil fungsi client Anda
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.teal[700],
-                    ),
-                    child: const Text('Terima File'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // Helper baru untuk membuat tombol kontrol backup yang sangat ringkas dan masuk dalam satu baris
-  Widget _buildCompactBackupButton({
-    required String label,
-    required IconData icon,
-    required VoidCallback onBackup,
-    required VoidCallback onRestore,
-  }) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Lingkaran Ikon Utama Fitur
-        CircleAvatar(
-          radius: 20,
-          backgroundColor: Colors.indigo.withOpacity(0.1),
-          child: Icon(icon, color: Colors.indigo, size: 20),
-        ),
-        const SizedBox(height: 4),
-        // Nama Fitur Singkat
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
-          ),
-        ),
-        // Baris Tombol Aksi (Ikon Cloud untuk Backup & Restore yang sesuai)
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: const Icon(
-                Icons.cloud_upload_outlined,
-                color: Colors.blue,
-                size: 18,
-              ),
-              tooltip:
-                  'Backup Data', // Menggunakan ikon cloud upload yang sesuai untuk backup
-              constraints: const BoxConstraints(),
-              padding: const EdgeInsets.all(6),
-              onPressed: onBackup,
-            ),
-            IconButton(
-              icon: const Icon(
-                Icons.cloud_download_outlined,
-                color: Colors.green,
-                size: 18,
-              ),
-              tooltip:
-                  'Pulihkan Data', // Menggunakan ikon cloud download yang sesuai untuk restore
-              constraints: const BoxConstraints(),
-              padding: const EdgeInsets.all(6),
-              onPressed: onRestore,
-            ),
-          ],
-        ),
-      ],
     );
   }
 }
