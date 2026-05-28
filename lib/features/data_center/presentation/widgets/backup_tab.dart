@@ -112,22 +112,38 @@ class BackupTab extends StatelessWidget {
   ) {
     return Column(
       children: [
-        CircleAvatar(child: Icon(icon, color: Colors.indigo)),
+        CircleAvatar(child: Icon(icon, color: Colors.white)),
         Text(
           label,
           style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
         ),
+        // SESUDAH DIUBAH (Berikan pembatas jarak dan perkecil ukuran tombol):
         Row(
+          mainAxisSize:
+              MainAxisSize.min, // Agar baris tidak memakan tempat terlalu lebar
           children: [
             IconButton(
-              icon: const Icon(Icons.cloud_upload_outlined, color: Colors.blue),
+              padding:
+                  EdgeInsets.zero, // Menghilangkan ruang kosong bawaan tombol
+              constraints: const BoxConstraints(), // Membantu merapatkan tombol
+              icon: const Icon(
+                Icons.cloud_upload_outlined,
+                color: Colors.blue,
+                size: 20,
+              ), // Ditambahkan ukuran (size) 20
               onPressed: onUp,
             ),
+            const SizedBox(
+              width: 8,
+            ), // Memberikan jarak horizontal agar tidak menempel
             IconButton(
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
               icon: const Icon(
                 Icons.cloud_download_outlined,
                 color: Colors.green,
-              ),
+                size: 20,
+              ), // Ditambahkan ukuran (size) 20
               onPressed: onDown,
             ),
           ],
