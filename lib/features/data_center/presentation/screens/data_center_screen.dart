@@ -880,6 +880,14 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
             LocalSharingTab(
               onSendFile: () => _startMulaiServerSharing(),
               onReceiveFile: () => _tampilkanDialogHubungkanKeServer(),
+              // TAMBAHKAN DUA BARIS DI BAWAH INI:
+              serverBackupFiles: _serverBackupFiles,
+              onDeleteServerBackup: (file) async {
+                if (await file.exists()) {
+                  await file.delete();
+                  _loadServerBackups(); // Menyegarkan daftar setelah dihapus
+                }
+              },
             ),
           ],
         ),

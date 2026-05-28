@@ -1,13 +1,19 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 class LocalSharingTab extends StatelessWidget {
   final VoidCallback onSendFile;
   final VoidCallback onReceiveFile;
+  final List<File> serverBackupFiles;
+  final Function(File) onDeleteServerBackup;
 
   const LocalSharingTab({
     super.key,
     required this.onSendFile,
     required this.onReceiveFile,
+    required this.serverBackupFiles,
+    required this.onDeleteServerBackup,
   });
 
   @override
@@ -63,6 +69,42 @@ class LocalSharingTab extends StatelessWidget {
             ),
           ),
         ),
+        const Divider(thickness: 2),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          child: Text(
+            'Daftar Berkas Backup (Dari Server)',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+        ),
+
+        // Menampilkan daftar berkas server
+        serverBackupFiles.isEmpty
+            ? const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: Text('Belum ada file backup dari server.'),
+                ),
+              )
+            : ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: serverBackupFiles.length,
+                itemBuilder: (context, index) {
+                  final file = serverBackupFiles[index];
+                  return ListTile(
+                    leading: const Icon(
+                      Icons.cloud_download,
+                      color: Colors.teal,
+                    ),
+                    title: Text(file.path.split('/').last),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.red),
+                      onPressed: () => onDeleteServerBackup(file),
+                    ),
+                  );
+                },
+              ),
       ],
     );
   }
