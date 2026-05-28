@@ -193,4 +193,21 @@ class StorageService {
     currentHistory.remove(ip);
     await prefs.setStringList(_keyIpHistory, currentHistory);
   }
+
+  // TAMBAHKAN fungsi ini di dalam kelas StorageService
+  Future<List<File>> getAllServerBackupFiles(String baseDirSetting) async {
+    final Directory backupDir = Directory(
+      '$baseDirSetting/storage/backup_from_server',
+    );
+    if (!await backupDir.exists()) return [];
+    try {
+      List<FileSystemEntity> entities = backupDir.listSync();
+      return entities
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.zip'))
+          .toList();
+    } catch (e) {
+      return [];
+    }
+  }
 }

@@ -28,6 +28,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
   HttpServer? _serverEksternal;
 
   List<File> _localBackupFiles = [];
+  List<File> _serverBackupFiles = [];
 
   // === 2. TAMBAHKAN INIT STATE UNTUK MEMBACA SETTING DIRECTORY ===
   @override
@@ -782,6 +783,14 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
     }
   }
 
+  // TAMBAHKAN fungsi baru ini untuk memuat file dari server
+  Future<void> _loadServerBackups() async {
+    List<File> files = await _storageService.getAllServerBackupFiles(_baseDir);
+    setState(() {
+      _serverBackupFiles = files;
+    });
+  }
+
   String _getFormattedFileName(String prefix, String extension) {
     final now = DateTime.now();
 
@@ -839,12 +848,20 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
             // TAB 1: Memanggil file/widget khusus Backup yang sudah dipisahkan
             BackupTab(
               localBackupFiles: _localBackupFiles,
+              serverBackupFiles: _serverBackupFiles,
               onCreateBackup: () => _buatBackupSemuaFitur(),
               onDeleteBackup: (file) async {
                 // Logika konfirmasi hapus dipanggil di sini, lalu:
                 if (await file.exists()) {
                   await file.delete();
                   _loadLocalBackups(); // Memperbarui data list setelah dihapus
+                }
+              },
+              // TAMBAHKAN callback baru untuk menghapus file backup server
+              onDeleteServerBackup: (file) async {
+                if (await file.exists()) {
+                  await file.delete();
+                  _loadServerBackups(); // Refresh daftar file server setelah dihapus
                 }
               },
 
