@@ -48,7 +48,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
           // --- LOGIKA KHUSUS LINUX (Save As) ---
           String? lokasiSimpan = await FilePicker.saveFile(
             dialogTitle: 'Simpan Backup Task Master',
-            fileName: 'my_tasks_backup.json',
+            fileName: _getFormattedFileName('my_tasks_backup', 'json'),
             type: FileType.custom,
             allowedExtensions: ['json'],
           );
@@ -63,8 +63,12 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
           }
         } else {
           // --- LOGIKA KHUSUS ANDROID / OS LAIN (Share Pop-up) ---
+          String namaDinamis = _getFormattedFileName('my_tasks_backup', 'json');
+          final tempFile = await fileAsli.copy(
+            '${Directory.systemTemp.path}/$namaDinamis',
+          );
           await Share.shareXFiles([
-            XFile(fileAsli.path),
+            XFile(tempFile.path),
           ], text: 'Backup Task Master Data');
         }
       }
@@ -115,7 +119,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
           // --- LINUX: Save As ---
           String? lokasiSimpan = await FilePicker.saveFile(
             dialogTitle: 'Simpan Backup Jurnal Aktivitas',
-            fileName: 'time_log_backup.json',
+            fileName: _getFormattedFileName('time_log_backup', 'json'),
             type: FileType.custom,
             allowedExtensions: ['json'],
           );
@@ -130,8 +134,12 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
           }
         } else {
           // --- ANDROID: Share Pop-up ---
+          String namaDinamis = _getFormattedFileName('time_log_backup', 'json');
+          final tempFile = await fileAsli.copy(
+            '${Directory.systemTemp.path}/$namaDinamis',
+          );
           await Share.shareXFiles([
-            XFile(fileAsli.path),
+            XFile(tempFile.path),
           ], text: 'Backup Jurnal Aktivitas Data');
         }
       }
@@ -202,8 +210,9 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
       if (zipBytes == null) return;
 
       // 4. Simpan file ZIP sementara di direktori temporary sistem
-      final String tempPath =
-          '${Directory.systemTemp.path}/checklist_backup.zip';
+      // Ubah pembuatan file ZIP sementara
+      String namaZipDinamis = _getFormattedFileName('checklist_backup', 'zip');
+      final String tempPath = '${Directory.systemTemp.path}/$namaZipDinamis';
       final File zipFile = File(tempPath);
       await zipFile.writeAsBytes(zipBytes);
       // --------------------------------------------------------
@@ -213,7 +222,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
         // --- LINUX: Pilih lokasi simpan berkas ZIP langsung ---
         String? lokasiSimpan = await FilePicker.saveFile(
           dialogTitle: 'Simpan Backup Checklist (ZIP)',
-          fileName: 'checklist_backup.zip',
+          fileName: namaZipDinamis,
           type: FileType.custom,
           allowedExtensions: ['zip'],
         );
@@ -287,6 +296,33 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
     } catch (e) {
       debugPrint("Gagal import Checklist: $e");
     }
+  }
+
+  String _getFormattedFileName(String prefix, String extension) {
+    final now = DateTime.now();
+
+    // Array bantuan untuk penamaan hari dalam Bahasa Indonesia
+    const daftarHari = [
+      'Senin',
+      'Selasa',
+      'Rabu',
+      'Kamis',
+      'Jumat',
+      'Sabtu',
+      'Minggu',
+    ];
+    String namaHari = daftarHari[now.weekday - 1];
+
+    // Format tanggal: YYYY-MM-DD
+    String tanggal =
+        "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+
+    // Format jam, menit, dan detik: HH-mm-ss
+    String waktu =
+        "${now.hour.toString().padLeft(2, '0')}-${now.minute.toString().padLeft(2, '0')}-${now.second.toString().padLeft(2, '0')}";
+
+    // Menghasilkan format: prefix_2026-05-28_Kamis_18-05-12.extension
+    return "${prefix}_${tanggal}_${namaHari}_$waktu.$extension";
   }
 
   // Fungsi pembantu untuk membuat baris tombol manajemen data
