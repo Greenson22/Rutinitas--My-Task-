@@ -1,10 +1,17 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:shelf_web_socket/src/web_socket_handler.dart';
 import '../../../../core/services/storage_service.dart';
 import '../../../../core/presentation/widgets/drawer_menu.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:archive/archive_io.dart';
+
+import 'package:shelf/shelf_io.dart' as shelf_io;
+import 'package:shelf_web_socket/shelf_web_socket.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
+
 // Import library tambahan seperti share_plus atau file_picker sesuai kebutuhan backup Anda
 
 class DataCenterScreen extends StatefulWidget {
@@ -17,12 +24,203 @@ class DataCenterScreen extends StatefulWidget {
 class _DataCenterScreenState extends State<DataCenterScreen> {
   final StorageService _storageService = StorageService();
   String _baseDir = 'Documents';
+  HttpServer? _serverEksternal;
 
   // === 2. TAMBAHKAN INIT STATE UNTUK MEMBACA SETTING DIRECTORY ===
   @override
   void initState() {
     super.initState();
     _loadBaseDirectory();
+  }
+
+  void _startMulaiServerSharing() async {
+    // 1. Minta pengguna memilih file JSON data yang mau dikirim
+    FilePickerResult? result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['json'],
+    );
+    if (result == null || result.files.single.path == null) return;
+
+    File fileTarget = File(result.files.single.path!);
+    String isiKontenFile = await fileTarget.readAsString();
+    String namaFileAsli = result.files.single.name;
+
+    // 2. Buat koneksi WebSocket dengan memaksa parameter menjadi dynamic (Object mentah)
+    // Ini menghindari bentrok class WebSocketChannel antara shelf dan web_socket_channel
+    var handler = webSocketHandler(
+      (dynamic webSocket) {
+            // Paket data dibungkus json sederhana
+            Map<String, dynamic> paketKirim = {
+              'nama_file': namaFileAsli,
+              'konten': isiKontenFile,
+            };
+
+            // Kirim data menggunakan sink data stream umum
+            try {
+              webSocket.sink.add(jsonEncode(paketKirim));
+
+              // Karena kita hanya kirim file sekali, beri sedikit delay lalu tutup koneksinya demi keamanan
+              Future.delayed(const Duration(seconds: 1), () {
+                webSocket.sink.close();
+              });
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Data berhasil ditransfer ke client!'),
+                  backgroundColor: Colors.teal,
+                ),
+              );
+            } catch (e) {
+              debugPrint("Gagal mengirim data lewat stream: $e");
+            }
+          }
+          as ConnectionCallback,
+    );
+
+    // 3. Jalankan server di IP internal perangkat pada port kustom
+    try {
+      // Jika server lama masih menyala, matikan dulu agar tidak terjadi "Address already in use"
+      if (_serverEksternal != null) {
+        await _serverEksternal!.close(force: true);
+      }
+
+      _serverEksternal = await shelf_io.serve(
+        handler,
+        InternetAddress.anyIPv4,
+        8090,
+      );
+
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Server Sharing Aktif'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Status: Menunggu perangkat penerima terhubung...'),
+              const SizedBox(height: 12),
+              Text(
+                'Port: 8090\nFile siap kirim: $namaFileAsli',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.blueGrey,
+                  fontFamily: 'monospace',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                if (_serverEksternal != null) {
+                  await _serverEksternal!.close(force: true);
+                  _serverEksternal = null;
+                }
+                if (ctx.mounted) Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Server sharing telah dimatikan.'),
+                  ),
+                );
+              },
+              child: const Text(
+                'Matikan Server',
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      debugPrint("Gagal membuat server sharing: $e");
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal membuka port server: $e')));
+    }
+  }
+
+  void _tampilkanDialogHubungkanKeServer() {
+    final ipController = TextEditingController(text: 'Contoh: 192.168.1.5');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Masukkan IP Pengirim'),
+        content: TextField(
+          controller: ipController,
+          decoration: const InputDecoration(labelText: 'Alamat IP Server'),
+          keyboardType: TextInputType.values.first, // teks biasa/angka
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _prosesTerimaDataDariServer(ipController.text.trim());
+            },
+            child: const Text('Hubungkan & Ambil'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _prosesTerimaDataDariServer(String alamatIP) async {
+    final urlWebSocket = 'ws://$alamatIP:8090';
+
+    try {
+      // 1. Hubungkan ke server WebSocket pengirim
+      final channel = WebSocketChannel.connect(Uri.parse(urlWebSocket));
+
+      // 2. Dengarkan data masuk
+      channel.stream.listen(
+        (pesanMasuk) async {
+          Map<String, dynamic> dataDiterima = jsonDecode(pesanMasuk);
+          String namaFileBaru = dataDiterima['nama_file'];
+          String kontenFileBaru = dataDiterima['konten'];
+
+          // 3. Deteksi tipe file berdasarkan namanya dan simpan otomatis ke folder yang tepat
+          File fileTujuan;
+          if (namaFileBaru.contains('my_tasks')) {
+            fileTujuan = await _storageService.getTargetJsonFile(_baseDir);
+          } else if (namaFileBaru.contains('time_log')) {
+            fileTujuan = await _storageService.getJurnalJsonFile(_baseDir);
+          } else {
+            // Jika file checklist kustom
+            String folderChecklist = await _storageService.getChecklistDirPath(
+              _baseDir,
+            );
+            fileTujuan = File('$folderChecklist/$namaFileBaru');
+          }
+
+          await _storageService.saveJsonData(fileTujuan, kontenFileBaru);
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Sukses Menerima & Menyimpan file: $namaFileBaru!'),
+            ),
+          );
+
+          channel.sink
+              .close(); // Tutup koneksi setelah selesai menerima data tunggal
+        },
+        onError: (err) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Koneksi terputus atau gagal terhubung!'),
+            ),
+          );
+        },
+      );
+    } catch (e) {
+      debugPrint("Gagal mengambil data dari server: $e");
+    }
   }
 
   Future<void> _loadBaseDirectory() async {
@@ -358,38 +556,156 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Data Center'),
-        backgroundColor: Colors.indigo[700],
+    return DefaultTabController(
+      length: 2, // Mengatur 2 Tab halaman
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Data Center'),
+          backgroundColor: Colors.indigo[700],
+          // Tambahkan bilah Tab di bagian bawah AppBar
+          bottom: const TabBar(
+            indicatorColor: Colors.amberAccent,
+            indicatorWeight: 3,
+            labelStyle: TextStyle(fontWeight: FontWeight.bold),
+            tabs: [
+              Tab(icon: Icon(Icons.import_export), text: 'Export & Import'),
+              Tab(icon: Icon(Icons.wifi_find_outlined), text: 'Local Sharing'),
+            ],
+          ),
+        ),
+        // Menerapkan Drawer Menu bawaan aplikasi Anda
+        drawer: const DrawerMenu(isDataCenterActive: true),
+        // TabBarView untuk menampilkan konten sesuai Tab yang dipilih
+        body: TabBarView(
+          children: [
+            // Konten TAB 1: Manajemen Berkas / Backup Lokal (Fitur Lama Anda)
+            ListView(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              children: [
+                _buildDataManagementRow(
+                  title: 'Task Master Data',
+                  icon: Icons.format_list_bulleted,
+                  onExport: () => _exportTaskMaster(),
+                  onImport: () => _importTaskMaster(),
+                ),
+                _buildDataManagementRow(
+                  title: 'My Checklist Data',
+                  icon: Icons.checklist_rtl,
+                  onExport: () => _exportChecklist(),
+                  onImport: () => _importChecklist(),
+                ),
+                _buildDataManagementRow(
+                  title: 'Jurnal Aktivitas Data',
+                  icon: Icons.menu_book,
+                  onExport: () => _exportJurnal(),
+                  onImport: () => _importJurnal(),
+                ),
+              ],
+            ),
+
+            // Konten TAB 2: Fitur Baru Local Sharing (WebSocket)
+            _buildLocalSharingTab(),
+          ],
+        ),
       ),
-      // Menerapkan Drawer Menu agar bisa berpindah halaman
-      drawer: const DrawerMenu(
-        isDataCenterActive: true,
-      ), // Tambahkan parameter penanda jika perlu
-      body: ListView(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        children: [
-          _buildDataManagementRow(
-            title: 'Task Master Data',
-            icon: Icons.format_list_bulleted,
-            onExport: () => _exportTaskMaster(),
-            onImport: () => _importTaskMaster(),
+    );
+  }
+
+  // Widget tampilan untuk Tab Local Sharing
+  Widget _buildLocalSharingTab() {
+    return ListView(
+      padding: const EdgeInsets.all(16.0),
+      children: [
+        Card(
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
           ),
-          _buildDataManagementRow(
-            title: 'My Checklist Data',
-            icon: Icons.checklist_rtl,
-            onExport: () => _exportChecklist(),
-            onImport: () => _importChecklist(),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.share_location,
+                      color: Colors.indigo[700],
+                      size: 24,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Kirim & Terima Data Lokal',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.indigo[900],
+                      ),
+                    ),
+                  ],
+                ),
+                const Divider(height: 24),
+                Text(
+                  'Fitur ini memungkinkan Anda mengirim atau menerima file data secara langsung antar perangkat (Android/Linux) yang terhubung dalam satu jaringan Wi-Fi yang sama.',
+                  style: TextStyle(color: Colors.grey[700], fontSize: 13),
+                ),
+                const SizedBox(height: 20),
+
+                // Pilihan Operasi 1: Menjadi Server (Pengirim)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: CircleAvatar(
+                    backgroundColor: Colors.indigo[50],
+                    child: const Icon(Icons.cloud_upload, color: Colors.indigo),
+                  ),
+                  title: const Text(
+                    'Mode Pengirim (Server)',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                  subtitle: const Text(
+                    'Pilih file dari perangkat ini untuk dikirim ke perangkat lain',
+                    style: TextStyle(fontSize: 11),
+                  ),
+                  trailing: ElevatedButton(
+                    onPressed:
+                        _startMulaiServerSharing, // Memanggil fungsi server Anda
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.indigo,
+                    ),
+                    child: const Text('Kirim File'),
+                  ),
+                ),
+                const Divider(),
+
+                // Pilihan Operasi 2: Menjadi Client (Penerima)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: CircleAvatar(
+                    backgroundColor: Colors.teal[50],
+                    child: const Icon(Icons.cloud_download, color: Colors.teal),
+                  ),
+                  title: const Text(
+                    'Mode Penerima (Client)',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                  subtitle: const Text(
+                    'Masukkan alamat IP pengirim untuk mengunduh file data',
+                    style: TextStyle(fontSize: 11),
+                  ),
+                  trailing: ElevatedButton(
+                    onPressed:
+                        _tampilkanDialogHubungkanKeServer, // Memanggil fungsi client Anda
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.teal[700],
+                    ),
+                    child: const Text('Terima File'),
+                  ),
+                ),
+              ],
+            ),
           ),
-          _buildDataManagementRow(
-            title: 'Jurnal Aktivitas Data',
-            icon: Icons.menu_book,
-            onExport: () => _exportJurnal(),
-            onImport: () => _importJurnal(),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
