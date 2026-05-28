@@ -646,33 +646,39 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
     return "${prefix}_${tanggal}_${namaHari}_$waktu.$extension";
   }
 
-  // Fungsi pembantu untuk membuat baris tombol manajemen data
   Widget _buildDataManagementRow({
     required String title,
     required IconData icon,
     required VoidCallback onExport,
     required VoidCallback onImport,
   }) {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-      child: ListTile(
-        leading: Icon(icon, color: Colors.indigo, size: 28),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.upload, color: Colors.blue),
-              tooltip: 'Export JSON',
-              onPressed: onExport,
-            ),
-            IconButton(
-              icon: const Icon(Icons.download, color: Colors.green),
-              tooltip: 'Import JSON',
-              onPressed: onImport,
-            ),
-          ],
-        ),
+    return ListTile(
+      dense: true, // Membuat baris lebih tipis & hemat tempat
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 0),
+      leading: Icon(
+        icon,
+        color: Colors.indigo,
+        size: 22,
+      ), // Ukuran ikon diperkecil
+      title: Text(
+        title,
+        style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13.5),
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.upload, color: Colors.blue, size: 20),
+            tooltip: 'Backup Keluar', // Mengubah istilah export menjadi Backup
+            onPressed: onExport,
+          ),
+          IconButton(
+            icon: const Icon(Icons.download, color: Colors.green, size: 20),
+            tooltip:
+                'Pulihkan Backup', // Mengubah istilah import menjadi Pulihkan
+            onPressed: onImport,
+          ),
+        ],
       ),
     );
   }
@@ -800,44 +806,65 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                           final file = _localBackupFiles[index];
                           final String namaFile = file.path.split('/').last;
 
-                          return Card(
-                            margin: const EdgeInsets.symmetric(
-                              vertical: 4,
-                              horizontal: 16,
+                          return ListTile(
+                            dense:
+                                true, // Menjaga list tetap rapat dan hemat ruang
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 20,
                             ),
-                            color: Colors.grey[50],
-                            child: ListTile(
-                              dense: true,
-                              leading: const Icon(
-                                Icons.folder_zip,
-                                color: Colors.amber,
-                                size: 24,
+                            leading: const Icon(
+                              Icons.folder_zip,
+                              color: Colors.amber,
+                              size: 20,
+                            ),
+                            title: Text(
+                              namaFile,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w400,
                               ),
-                              title: Text(
-                                namaFile,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                ),
+                            ),
+                            trailing: IconButton(
+                              icon: const Icon(
+                                Icons.delete_outline,
+                                color: Colors.redAccent,
+                                size: 18,
                               ),
-                              subtitle: const Text(
-                                'Isi: Semua Data Fitur Terkompresi',
-                                style: TextStyle(fontSize: 10),
-                              ),
-                              trailing: IconButton(
-                                icon: const Icon(
-                                  Icons.delete_outline,
-                                  color: Colors.redAccent,
-                                  size: 18,
-                                ),
-                                onPressed: () async {
-                                  // Logika hapus file backup langsung dari list
-                                  if (await file.exists()) {
-                                    await file.delete();
-                                    _loadLocalBackups(); // muat ulang list visual
-                                  }
-                                },
-                              ),
+                              onPressed: () async {
+                                // TAMPILKAN DIALOG KONFIRMASI SEBELUM MENGHAPUS
+                                final bool konfirmasiHapus =
+                                    await showDialog<bool>(
+                                      context: context,
+                                      builder: (ctx) => AlertDialog(
+                                        title: const Text('Hapus File Backup?'),
+                                        content: Text(
+                                          'Apakah Anda yakin ingin menghapus "$namaFile" secara permanen?',
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.pop(ctx, false),
+                                            child: const Text('Batal'),
+                                          ),
+                                          ElevatedButton(
+                                            onPressed: () =>
+                                                Navigator.pop(ctx, true),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.red,
+                                            ),
+                                            child: const Text('Hapus'),
+                                          ),
+                                        ],
+                                      ),
+                                    ) ??
+                                    false;
+
+                                // JIKA USER SETUJU, PROSES HAPUS DIJALANKAN
+                                if (konfirmasiHapus && await file.exists()) {
+                                  await file.delete();
+                                  _loadLocalBackups();
+                                }
+                              },
                             ),
                           );
                         },
