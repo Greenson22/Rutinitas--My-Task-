@@ -109,4 +109,25 @@ class StorageService {
     }
     return await jsonFile.readAsString();
   }
+
+  // =========================================================================
+  // === STORAGE BACKUP FROM SERVER ===
+  // =========================================================================
+
+  /// Fungsi untuk mendapatkan direktori folder storage/backup_from_server
+  Future<Directory> getBackupFromServerDir(
+    String baseDirSetting,
+    String folderNameDinamis,
+  ) async {
+    // Membuat struktur path: baseDir/storage/backup_from_server/nama_folder_dinamis
+    final Directory backupDir = Directory(
+      '$baseDirSetting/storage/backup_from_server/$folderNameDinamis',
+    );
+
+    // Jika folder belum ada, otomatis buat foldernya (termasuk folder storage dan backup_from_server)
+    if (!await backupDir.exists()) {
+      await backupDir.create(recursive: true);
+    }
+    return backupDir;
+  }
 }

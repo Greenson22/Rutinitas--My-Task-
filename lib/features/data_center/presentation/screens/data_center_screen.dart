@@ -186,47 +186,62 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
           String kontenJurnal = dataDiterima['jurnal_aktivitas'];
           String kontenZipBase64 = dataDiterima['checklist_zip'];
 
-          // 2. Simpan otomatis file Task Master
-          File fileTasksTarget = await _storageService.getTargetJsonFile(
-            _baseDir,
-          );
+          // --- KODE BARU: Membuat nama folder dinamis berdasarkan format eksport ---
+          // Kita memanfaatkan fungsi _getFormattedFileName yang sudah Anda buat sebelumnya
+          // Contoh hasil: server_backup_2026-05-28_Kamis_19-01-00
+          String namaFolderDinamis = _getFormattedFileName('server_backup', '');
+          // Hapus tanda titik di akhir jika extensi dikosongkan agar nama folder rapi
+          if (namaFolderDinamis.endsWith('.')) {
+            namaFolderDinamis = namaFolderDinamis.substring(
+              0,
+              namaFolderDinamis.length - 1,
+            );
+          }
+
+          // Ambil referensi direktori folder tujuan di storage/backup_from_server/
+          Directory targetBackupDir = await _storageService
+              .getBackupFromServerDir(_baseDir, namaFolderDinamis);
+          String pathBackupLokal = targetBackupDir.path;
+          // ---------------------------------------------------------------------
+
+          // 2. Simpan file Task Master ke folder backup baru
+          File fileTasksTarget = File('$pathBackupLokal/my_tasks.json');
           await _storageService.saveJsonData(fileTasksTarget, kontenTasks);
 
-          // 3. Simpan otomatis file Jurnal Aktivitas
-          File fileJurnalTarget = await _storageService.getJurnalJsonFile(
-            _baseDir,
-          );
+          // 3. Simpan file Jurnal Aktivitas ke folder backup baru
+          File fileJurnalTarget = File('$pathBackupLokal/time_log.json');
           await _storageService.saveJsonData(fileJurnalTarget, kontenJurnal);
 
-          // 4. Ekstrak berkas ZIP Checklist Hub dan simpan ke folder checklist
+          // 4. Ekstrak berkas ZIP Checklist Hub dan simpan ke subfolder 'my_checklist' di dalam folder backup
           if (kontenZipBase64.isNotEmpty) {
             List<int> zipBytes = base64Decode(kontenZipBase64);
             Archive archive = ZipDecoder().decodeBytes(zipBytes);
-            String folderChecklist = await _storageService.getChecklistDirPath(
-              _baseDir,
-            );
+
+            // Buat subfolder khusus checklist di dalam folder backup tersebut
+            String folderChecklistBackup = '$pathBackupLokal/my_checklist';
+            await Directory(folderChecklistBackup).create(recursive: true);
 
             for (ArchiveFile file in archive) {
-              // PERBAIKAN: Mengubah 'dalam' menjadi 'in'
               if (file.isFile) {
-                File fileHubLokal = File('$folderChecklist/${file.name}');
-                // PERBAIKAN: Gunakan List<int>.from agar konversi data biner dari ZIP lebih aman
+                File fileHubLokal = File('$folderChecklistBackup/${file.name}');
                 await fileHubLokal.writeAsBytes(List<int>.from(file.content));
               }
             }
           }
 
-          // Segarkan state halaman agar data baru langsung tersinkronisasi di UI
+          // Segarkan state halaman data center
           setState(() {
             _loadBaseDirectory();
           });
 
+          // Perbarui pesan notifikasi agar user tahu lokasi penyimpanannya
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
+            SnackBar(
               content: Text(
-                'Sukses menerima & memperbarui seluruh data aplikasi!',
+                'Sukses menerima data! Disimpan di: storage/backup_from_server/$namaFolderDinamis',
               ),
               backgroundColor: Colors.teal,
+              duration: const Duration(seconds: 4),
             ),
           );
 
