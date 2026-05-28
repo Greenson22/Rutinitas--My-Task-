@@ -103,29 +103,30 @@ class _DrawerMenuState extends State<DrawerMenu> {
               ],
             ),
           ),
-          ListTile(
-            leading: Icon(
-              Icons.format_list_bulleted,
-              color: !widget.isDailyActive && !widget.isJurnalActive
-                  ? Colors.indigo
-                  : Colors.grey[700],
-            ),
-            title: const Text('Task Master'),
+          // DI DALAM WIDGET BUILD (CHILDREN LISTVIEW):
+
+          // 1. Menu Task Master
+          _buildMenuTile(
+            icon: Icons.format_list_bulleted,
+            title: 'Task Master',
+            isActive:
+                !widget.isDailyActive &&
+                !widget.isJurnalActive &&
+                !widget.isDataCenterActive,
             onTap: () {
-              Navigator.pop(context); // Tutup drawer
-              // Ubah logika push agar selalu memaksa pemuatan ulang state secara bersih
+              Navigator.pop(context);
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(builder: (context) => const HomeScreen()),
               );
             },
           ),
-          ListTile(
-            leading: Icon(
-              Icons.checklist_rtl,
-              color: widget.isDailyActive ? Colors.indigo : Colors.grey[700],
-            ),
-            title: const Text('My Checklist'),
+
+          // 2. Menu My Checklist
+          _buildMenuTile(
+            icon: Icons.checklist_rtl,
+            title: 'My Checklist',
+            isActive: widget.isDailyActive,
             onTap: () {
               Navigator.pop(context);
               if (!widget.isDailyActive) {
@@ -136,12 +137,12 @@ class _DrawerMenuState extends State<DrawerMenu> {
               }
             },
           ),
-          ListTile(
-            leading: Icon(
-              Icons.menu_book,
-              color: widget.isJurnalActive ? Colors.indigo : Colors.grey[700],
-            ),
-            title: const Text('Jurnal Aktivitas'),
+
+          // 3. Menu Jurnal Aktivitas
+          _buildMenuTile(
+            icon: Icons.menu_book,
+            title: 'Jurnal Aktivitas',
+            isActive: widget.isJurnalActive,
             onTap: () {
               Navigator.pop(context);
               if (!widget.isJurnalActive) {
@@ -154,15 +155,14 @@ class _DrawerMenuState extends State<DrawerMenu> {
               }
             },
           ),
-          ListTile(
-            leading: Icon(
-              Icons.storage,
-              color: Colors
-                  .grey[700], // Sesuaikan logika warna aktif jika memakai parameter
-            ),
-            title: const Text('Data Center'),
+
+          // 4. Menu Data Center
+          _buildMenuTile(
+            icon: Icons.storage,
+            title: 'Data Center',
+            isActive: widget.isDataCenterActive,
             onTap: () {
-              Navigator.pop(context); // Tutup drawer
+              Navigator.pop(context);
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(
@@ -200,6 +200,36 @@ class _DrawerMenuState extends State<DrawerMenu> {
           ),
         ],
       ),
+    );
+  }
+
+  // FUNGSI HELPER UNTUK MEMBUAT MENU TILE SECARA OTOMATIS
+  Widget _buildMenuTile({
+    required IconData icon,
+    required String title,
+    required bool isActive,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      selected: isActive,
+      selectedTileColor: Colors.indigo.withOpacity(
+        0.15,
+      ), // Efek highlight mengelilingi
+      selectedColor: Colors.indigo[900], // Warna ikon & teks saat aktif
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(
+          12,
+        ), // Membuat sudut melengkung/capsule
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      leading: Icon(icon),
+      title: Text(
+        title,
+        style: TextStyle(
+          fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+      onTap: onTap,
     );
   }
 }
