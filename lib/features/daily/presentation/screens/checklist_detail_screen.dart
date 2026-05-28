@@ -321,99 +321,104 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
   }
 
   Widget _buildSectionHeader(
-    int index, // TAMBAH PARAMETER INDEX
-    ChecklistSection section, // TAMBAH PARAMETER OBJECT SEKSI
+    int index,
+    ChecklistSection section,
     Color color,
     bool hideTitle,
     VoidCallback onAddPressed,
   ) {
-    return GestureDetector(
-      // LOGIKA: Ketika area seksi ditahan lama, aktifkan/matikan mode edit seksi
-      onLongPress: () {
-        setState(() {
-          _isSectionEditMode = !_isSectionEditMode;
-        });
-      },
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                hideTitle
-                    ? const SizedBox.shrink()
-                    : Text(
-                        section.namaSeksi, // Menggunakan objek seksi langsung
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: color,
-                        ),
-                      ),
+    // Ganti GestureDetector dengan Material + InkWell untuk efek visual sentuhan
+    return Material(
+      color: Colors
+          .transparent, // Tetap transparan agar mengikuti background utama
+      child: InkWell(
+        // Efek highlight saat seksi ditahan/disentuh
+        splashColor: Colors.teal.withOpacity(0.1),
+        highlightColor: Colors.teal.withOpacity(0.05),
 
-                // KONDISI: Jika sedang dalam Mode Edit Seksi, tampilkan tombol kontrol seksi
-                if (_isSectionEditMode) ...[
-                  Row(
-                    children: [
-                      // Tombol Pindah Atas
-                      IconButton(
-                        icon: const Icon(
-                          Icons.arrow_upward,
-                          size: 18,
-                          color: Colors.blueGrey,
+        // Aksi ketika ditahan lama (sama seperti sebelumnya)
+        onLongPress: () {
+          setState(() {
+            _isSectionEditMode = !_isSectionEditMode;
+          });
+        },
+        // Mengaktifkan tap biasa (opsional, memberikan feedback instan saat diklik)
+        onTap: () {},
+
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  hideTitle
+                      ? const SizedBox.shrink()
+                      : Text(
+                          section.namaSeksi,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: color,
+                          ),
                         ),
-                        onPressed: index > 0
-                            ? () => _moveSectionOrder(index, -1)
-                            : null,
-                      ),
-                      // Tombol Pindah Bawah
-                      IconButton(
-                        icon: const Icon(
-                          Icons.arrow_downward,
-                          size: 18,
-                          color: Colors.blueGrey,
+                  if (_isSectionEditMode) ...[
+                    Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(
+                            Icons.arrow_upward,
+                            size: 18,
+                            color: Colors.blueGrey,
+                          ),
+                          onPressed: index > 0
+                              ? () => _moveSectionOrder(index, -1)
+                              : null,
                         ),
-                        onPressed: index < _currentHub.semuaList.length - 1
-                            ? () => _moveSectionOrder(index, 1)
-                            : null,
-                      ),
-                      // Tombol Ganti Nama
-                      IconButton(
-                        icon: const Icon(
-                          Icons.edit,
-                          size: 18,
-                          color: Colors.teal,
+                        IconButton(
+                          icon: const Icon(
+                            Icons.arrow_downward,
+                            size: 18,
+                            color: Colors.blueGrey,
+                          ),
+                          onPressed: index < _currentHub.semuaList.length - 1
+                              ? () => _moveSectionOrder(index, 1)
+                              : null,
                         ),
-                        onPressed: () => _editSectionName(section),
-                      ),
-                      // Tombol Hapus Seksi
-                      IconButton(
-                        icon: const Icon(
-                          Icons.delete,
-                          size: 18,
-                          color: Colors.redAccent,
+                        IconButton(
+                          icon: const Icon(
+                            Icons.edit,
+                            size: 18,
+                            color: Colors.teal,
+                          ),
+                          onPressed: () => _editSectionName(section),
                         ),
-                        onPressed: () => _deleteSection(section),
-                      ),
-                    ],
-                  ),
-                ] else ...[
-                  // Jika tidak dalam mode edit, tampilkan tombol tambah item biasa
-                  IconButton(
-                    icon: const Icon(
-                      Icons.add_circle_outline,
-                      color: Colors.teal,
+                        IconButton(
+                          icon: const Icon(
+                            Icons.delete,
+                            size: 18,
+                            color: Colors.redAccent,
+                          ),
+                          onPressed: () => _deleteSection(section),
+                        ),
+                      ],
                     ),
-                    tooltip: 'Tambah Item ke Seksi Ini',
-                    onPressed: onAddPressed,
-                  ),
+                  ] else ...[
+                    IconButton(
+                      icon: const Icon(
+                        Icons.add_circle_outline,
+                        color: Colors.teal,
+                      ),
+                      tooltip: 'Tambah Item ke Seksi Ini',
+                      onPressed: onAddPressed,
+                    ),
+                  ],
                 ],
-              ],
-            ),
-            if (!hideTitle) const Divider(height: 8, thickness: 1),
-          ],
+              ),
+              if (!hideTitle) const Divider(height: 8, thickness: 1),
+            ],
+          ),
         ),
       ),
     );
