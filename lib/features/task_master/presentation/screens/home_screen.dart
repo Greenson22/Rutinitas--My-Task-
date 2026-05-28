@@ -308,7 +308,8 @@ class _HomeScreenState extends State<HomeScreen> {
           setState(() {
             category.tasks.removeWhere((t) => t.id == task.id);
           });
-          await _saveAllCategoriesToFile();
+          // TAMBAHKAN baris auto-save ini agar perubahan tersimpan ke file JSON lokal:
+          await _saveAllCategoriesToFile(shouldRefresh: false);
           return true;
         },
         onBulkAction: (tasksToUpdate, action) async {
@@ -347,6 +348,42 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // lib/features/task_master/presentation/screens/home_screen.dart
+
+  Future<void> _deleteCategory(TaskCategory category) async {
+    // 1. Tampilkan dialog konfirmasi terlebih dahulu
+    final bool confirm =
+        await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Hapus Kategori?'),
+            content: Text(
+              'Apakah Anda yakin ingin menghapus kategori "${category.name}" beserta seluruh tugas di dalamnya secara permanen?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Batal'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                child: const Text('Hapus'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    // 2. Jika pengguna memilih Ya/Konfirmasi, hapus dari list utama dan simpan ke file
+    if (confirm) {
+      setState(() {
+        _allCategoriesRaw.removeWhere((cat) => cat.name == category.name);
+      });
+      await _saveAllCategoriesToFile(); // Otomatis menyimpan perubahan ke JSON lokal
+    }
+  }
+
   Widget _buildCategoryGrid(
     List<TaskCategory> categoriesList,
     BoxConstraints constraints,
@@ -377,7 +414,7 @@ class _HomeScreenState extends State<HomeScreen> {
           category: category,
           onTap: () => _showCategoryTasksDialog(category),
           onEdit: () {},
-          onDelete: () {},
+          onDelete: () => _deleteCategory(category),
           onToggleVisibility: () => _toggleCategoryVisibility(category),
           onMoveUp: !_isSortedAZ && index > 0
               ? () => _moveCategoryOrder(categoriesList, index, -1)
