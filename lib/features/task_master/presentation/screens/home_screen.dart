@@ -321,6 +321,34 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _showEditCategoryDialog(TaskCategory category) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AddCategoryDialog(
+        categoryToEdit: category, // Mengirim data kategori lama
+        onSave: (newName, newIcon) async {
+          setState(() {
+            // 1. Cari indeks kategori lama di list utama berdasarkan nama lama
+            int idx = _allCategoriesRaw.indexWhere(
+              (cat) => cat.name == category.name,
+            );
+            if (idx != -1) {
+              // 2. Buat objek kategori baru dengan nama & ikon yang sudah diubah
+              _allCategoriesRaw[idx] = TaskCategory(
+                name: newName,
+                icon: newIcon,
+                isHidden: category.isHidden,
+                tasks: category.tasks, // Mempertahankan list tugas di dalamnya
+              );
+            }
+          });
+          // 3. Simpan perubahan ke file JSON lokal
+          await _saveAllCategoriesToFile();
+        },
+      ),
+    );
+  }
+
   // lib/features/task_master/presentation/screens/home_screen.dart
 
   Future<void> _deleteCategory(TaskCategory category) async {
@@ -395,7 +423,7 @@ class _HomeScreenState extends State<HomeScreen> {
           onTap: _isPageEditMode
               ? () {} // <--- Berikan fungsi kosong, bukan null
               : () => _showCategoryTasksDialog(category),
-          onEdit: () {},
+          onEdit: () => _showEditCategoryDialog(category),
           onDelete: () => _deleteCategory(category),
           onToggleVisibility: () => _toggleCategoryVisibility(category),
           // Hapus pengecekan _isSortedAZ karena fiturnya sudah dihilangkan
