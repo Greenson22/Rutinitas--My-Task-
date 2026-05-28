@@ -700,64 +700,32 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                     size: 18,
                                   ),
                                 ),
-                                title: Row(
+                                // 1. Bagian Judul Tugas (title)
+                                title: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Expanded(
-                                      child: Text(
-                                        task.nama,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 13.5,
-                                        ),
+                                    // Judul tugas selalu berada di paling atas
+                                    Text(
+                                      task.nama,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13.5,
                                       ),
                                     ),
-                                    if (isLinked)
-                                      Container(
-                                        margin: const EdgeInsets.only(left: 6),
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 6,
-                                          vertical: 2,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.teal[50],
-                                          borderRadius: BorderRadius.circular(
-                                            4,
-                                          ),
-                                          border: Border.all(
-                                            color: Colors.teal.shade200,
-                                          ),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: const [
-                                            Icon(
-                                              Icons.link,
-                                              size: 10,
-                                              color: Colors.teal,
-                                            ),
-                                            SizedBox(width: 2),
-                                            Text(
-                                              'Terhubung',
-                                              style: TextStyle(
-                                                fontSize: 9,
-                                                color: Colors.teal,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                                trailing: _isEditMode
-                                    ? Row(
-                                        mainAxisSize: MainAxisSize.min,
+                                    // Jika Mode Edit AKTIF, tampilkan kumpulan tombol kontrol di bawah judul
+                                    if (_isEditMode) ...[
+                                      const SizedBox(
+                                        height: 8,
+                                      ), // Jarak antara judul dan tombol
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.start,
                                         children: [
-                                          // === TOMBOL PENGURUTAN DI MODE EDIT ===
+                                          // Tombol Naik Posisi
                                           IconButton(
                                             icon: const Icon(
                                               Icons.arrow_upward,
-                                              size: 20,
+                                              size: 18,
                                             ),
                                             color: index > 0
                                                 ? Colors.indigo
@@ -769,12 +737,12 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                                     -1,
                                                   )
                                                 : null,
-                                            tooltip: 'Naikkan Posisi',
                                           ),
+                                          // Tombol Turun Posisi
                                           IconButton(
                                             icon: const Icon(
                                               Icons.arrow_downward,
-                                              size: 20,
+                                              size: 18,
                                             ),
                                             color: index < todayTasks.length - 1
                                                 ? Colors.indigo
@@ -787,38 +755,46 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                                     1,
                                                   )
                                                 : null,
-                                            tooltip: 'Turunkan Posisi',
                                           ),
-                                          const SizedBox(width: 4),
+                                          // Tombol Hubungkan / Kelola Hubungan Tugas
                                           IconButton(
                                             icon: const Icon(
                                               Icons.link,
                                               color: Colors.teal,
+                                              size: 18,
                                             ),
-                                            tooltip: 'Kelola Hubungan Tugas',
                                             onPressed: () =>
                                                 _tampilkanDialogLinkTugas(task),
                                           ),
+                                          // Tombol Ubah Nama Aktivitas
                                           IconButton(
                                             icon: const Icon(
                                               Icons.edit_note,
                                               color: Colors.blueGrey,
+                                              size: 18,
                                             ),
                                             onPressed: () =>
                                                 _tampilkanDialogUbahAktivitas(
                                                   task,
                                                 ),
                                           ),
+                                          // Tombol Hapus Aktivitas
                                           IconButton(
                                             icon: const Icon(
                                               Icons.delete_outline,
                                               color: Colors.redAccent,
+                                              size: 18,
                                             ),
                                             onPressed: () =>
                                                 _hapusAktivitas(task),
                                           ),
                                         ],
-                                      )
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                trailing: _isEditMode
+                                    ? const SizedBox.shrink()
                                     : Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
