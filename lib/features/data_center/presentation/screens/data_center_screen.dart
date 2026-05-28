@@ -34,81 +34,91 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
   }
 
   void _startMulaiServerSharing() async {
-    // 1. Minta pengguna memilih file JSON data yang mau dikirim
-    FilePickerResult? result = await FilePicker.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['json'],
-    );
-    if (result == null || result.files.single.path == null) return;
-
-    File fileTarget = File(result.files.single.path!);
-    String isiKontenFile = await fileTarget.readAsString();
-    String namaFileAsli = result.files.single.name;
-
-    // 2. Buat koneksi WebSocket dengan memaksa parameter menjadi dynamic (Object mentah)
-    // Ini menghindari bentrok class WebSocketChannel antara shelf dan web_socket_channel
-    var handler = webSocketHandler((dynamic webSocket, dynamic protocol) {
-      // Paket data dibungkus json sederhana
-      Map<String, dynamic> paketKirim = {
-        'nama_file': namaFileAsli,
-        'konten': isiKontenFile,
-      };
-
-      // Kirim data menggunakan sink data stream umum
-      try {
-        // Tergantung versi shelf_web_socket, jika webSocket berupa WebSocketChannel,
-        // kirim via webSocket.sink.add.
-        webSocket.sink.add(jsonEncode(paketKirim));
-
-        // Beri sedikit delay lalu tutup koneksinya demi keamanan
-        Future.delayed(const Duration(seconds: 1), () {
-          webSocket.sink.close();
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Data berhasil ditransfer ke client!'),
-            backgroundColor: Colors.teal,
+    setState(() {
+      // Berikan keterangan kepada pengguna apa saja yang sedang dipersiapkan untuk dikirim
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Menyiapkan paket data: Task Master, Jurnal, dan ZIP Checklist...',
           ),
-        );
-      } catch (e) {
-        debugPrint("Gagal mengirim data lewat stream: $e");
-      }
+          backgroundColor: Colors.indigo,
+        ),
+      );
     });
-    // 3. Jalankan server di IP internal perangkat pada port kustom
+
     try {
-      // Jika server lama masih menyala, matikan dulu agar tidak terjadi "Address already in use"
+      String currentDir = await _storageService.getBaseDirSetting();
+
+      // A. Membaca data Task Master
+      File fileTasks = await _storageService.getTargetJsonFile(currentDir);
+      String kontenTasks = await fileTasks.readAsString();
+
+      // B. Membaca data Jurnal Aktivitas
+      File fileJurnal = await _storageService.getJurnalJsonFile(currentDir);
+      String kontenJurnal = await fileJurnal.readAsString();
+
+      // C. Membuat berkas ZIP Checklist (Logika dari fungsi _exportChecklist)
+      List<File> hubFiles = await _storageService.getAllChecklistHubs(
+        currentDir,
+      );
+      final Archive archive = Archive();
+      for (var file in hubFiles) {
+        final String namaFile = file.path.split('/').last;
+        final List<int> bytes = await file.readAsBytes();
+        archive.addFile(ArchiveFile(namaFile, bytes.length, bytes));
+      }
+      final List<int>? zipBytes = ZipEncoder().encode(archive);
+
+      // Konversi bytes ZIP ke String Base64 agar aman dikirim via teks JSON WebSocket
+      String kontenZipBase64 = zipBytes != null ? base64Encode(zipBytes) : "";
+
+      // Buat koneksi server WebSocket
+      var handler = webSocketHandler((dynamic webSocket, dynamic protocol) {
+        // Bungkus ketiga data tersebut ke dalam SATU paket JSON besar
+        Map<String, dynamic> paketBesarKirim = {
+          'task_master': kontenTasks,
+          'jurnal_aktivitas': kontenJurnal,
+          'checklist_zip': kontenZipBase64,
+        };
+
+        try {
+          // Kirim paket data lengkap ke client penerima
+          webSocket.sink.add(jsonEncode(paketBesarKirim));
+
+          Future.delayed(const Duration(seconds: 1), () {
+            webSocket.sink.close();
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Semua paket data sukses ditransfer ke penerima!'),
+              backgroundColor: Colors.teal,
+            ),
+          );
+        } catch (e) {
+          debugPrint("Gagal mengirim data lewat stream: $e");
+        }
+      });
+
+      // Jalankan server di port 8090
       if (_serverEksternal != null) {
         await _serverEksternal!.close(force: true);
       }
-
       _serverEksternal = await shelf_io.serve(
         handler,
         InternetAddress.anyIPv4,
         8090,
       );
 
+      // Tampilkan dialog server aktif (Sesuaikan visual informasi filenya)
       if (!mounted) return;
       showDialog(
         context: context,
         barrierDismissible: false,
         builder: (ctx) => AlertDialog(
           title: const Text('Server Sharing Aktif'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Status: Menunggu perangkat penerima terhubung...'),
-              const SizedBox(height: 12),
-              Text(
-                'Port: 8090\nFile siap kirim: $namaFileAsli',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.blueGrey,
-                  fontFamily: 'monospace',
-                ),
-              ),
-            ],
+          content: const Text(
+            'Status: Menunggu perangkat penerima terhubung...\n\nPaket yang akan dikirim:\n1. Task Master (.json)\n2. Jurnal Aktivitas (.json)\n3. Semua Hub Checklist (.zip)',
           ),
           actions: [
             TextButton(
@@ -117,12 +127,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                   await _serverEksternal!.close(force: true);
                   _serverEksternal = null;
                 }
-                if (ctx.mounted) Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Server sharing telah dimatikan.'),
-                  ),
-                );
+                Navigator.pop(ctx);
               },
               child: const Text(
                 'Matikan Server',
@@ -133,10 +138,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
         ),
       );
     } catch (e) {
-      debugPrint("Gagal membuat server sharing: $e");
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Gagal membuka port server: $e')));
+      debugPrint("Gagal menyiapkan server backup: $e");
     }
   }
 
@@ -173,40 +175,62 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
     final urlWebSocket = 'ws://$alamatIP:8090';
 
     try {
-      // 1. Hubungkan ke server WebSocket pengirim
       final channel = WebSocketChannel.connect(Uri.parse(urlWebSocket));
 
-      // 2. Dengarkan data masuk
       channel.stream.listen(
         (pesanMasuk) async {
+          // 1. Dekode paket besar yang diterima
           Map<String, dynamic> dataDiterima = jsonDecode(pesanMasuk);
-          String namaFileBaru = dataDiterima['nama_file'];
-          String kontenFileBaru = dataDiterima['konten'];
 
-          // 3. Deteksi tipe file berdasarkan namanya dan simpan otomatis ke folder yang tepat
-          File fileTujuan;
-          if (namaFileBaru.contains('my_tasks')) {
-            fileTujuan = await _storageService.getTargetJsonFile(_baseDir);
-          } else if (namaFileBaru.contains('time_log')) {
-            fileTujuan = await _storageService.getJurnalJsonFile(_baseDir);
-          } else {
-            // Jika file checklist kustom
+          String kontenTasks = dataDiterima['task_master'];
+          String kontenJurnal = dataDiterima['jurnal_aktivitas'];
+          String kontenZipBase64 = dataDiterima['checklist_zip'];
+
+          // 2. Simpan otomatis file Task Master
+          File fileTasksTarget = await _storageService.getTargetJsonFile(
+            _baseDir,
+          );
+          await _storageService.saveJsonData(fileTasksTarget, kontenTasks);
+
+          // 3. Simpan otomatis file Jurnal Aktivitas
+          File fileJurnalTarget = await _storageService.getJurnalJsonFile(
+            _baseDir,
+          );
+          await _storageService.saveJsonData(fileJurnalTarget, kontenJurnal);
+
+          // 4. Ekstrak berkas ZIP Checklist Hub dan simpan ke folder checklist
+          if (kontenZipBase64.isNotEmpty) {
+            List<int> zipBytes = base64Decode(kontenZipBase64);
+            Archive archive = ZipDecoder().decodeBytes(zipBytes);
             String folderChecklist = await _storageService.getChecklistDirPath(
               _baseDir,
             );
-            fileTujuan = File('$folderChecklist/$namaFileBaru');
+
+            for (ArchiveFile file in archive) {
+              // PERBAIKAN: Mengubah 'dalam' menjadi 'in'
+              if (file.isFile) {
+                File fileHubLokal = File('$folderChecklist/${file.name}');
+                // PERBAIKAN: Gunakan List<int>.from agar konversi data biner dari ZIP lebih aman
+                await fileHubLokal.writeAsBytes(List<int>.from(file.content));
+              }
+            }
           }
 
-          await _storageService.saveJsonData(fileTujuan, kontenFileBaru);
+          // Segarkan state halaman agar data baru langsung tersinkronisasi di UI
+          setState(() {
+            _loadBaseDirectory();
+          });
 
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Sukses Menerima & Menyimpan file: $namaFileBaru!'),
+            const SnackBar(
+              content: Text(
+                'Sukses menerima & memperbarui seluruh data aplikasi!',
+              ),
+              backgroundColor: Colors.teal,
             ),
           );
 
-          channel.sink
-              .close(); // Tutup koneksi setelah selesai menerima data tunggal
+          channel.sink.close();
         },
         onError: (err) {
           ScaffoldMessenger.of(context).showSnackBar(
