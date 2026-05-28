@@ -130,4 +130,33 @@ class StorageService {
     // Kembalikan objek file ZIP di dalam folder tersebut
     return File('${backupDir.path}/$namaZipDinamis');
   }
+
+  // === TAMBAHAN UNTUK BACKUP LOKAL (ZIP) ===
+
+  /// Fungsi untuk menyiapkan folder 'storage/backup' dan mengembalikan file target ZIP
+  Future<File> getLocalBackupZipFile(
+    String baseDirSetting,
+    String namaZipDinamis,
+  ) async {
+    final Directory backupDir = Directory('$baseDirSetting/storage/backup');
+    if (!await backupDir.exists()) {
+      await backupDir.create(recursive: true);
+    }
+    return File('${backupDir.path}/$namaZipDinamis');
+  }
+
+  /// Fungsi untuk mengambil daftar semua file ZIP yang ada di folder 'storage/backup'
+  Future<List<File>> getAllLocalBackupFiles(String baseDirSetting) async {
+    final Directory backupDir = Directory('$baseDirSetting/storage/backup');
+    if (!await backupDir.exists()) return [];
+    try {
+      List<FileSystemEntity> entities = backupDir.listSync();
+      return entities
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.zip'))
+          .toList();
+    } catch (e) {
+      return [];
+    }
+  }
 }

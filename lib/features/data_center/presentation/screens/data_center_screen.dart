@@ -26,6 +26,8 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
   String _baseDir = 'Documents';
   HttpServer? _serverEksternal;
 
+  List<File> _localBackupFiles = [];
+
   // === 2. TAMBAHKAN INIT STATE UNTUK MEMBACA SETTING DIRECTORY ===
   @override
   void initState() {
@@ -272,6 +274,84 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
       setState(() {
         _baseDir = dir;
       });
+      // Ambil daftar file backup yang sudah ada di folder storage/backup
+      _loadLocalBackups();
+    }
+  }
+
+  Future<void> _loadLocalBackups() async {
+    List<File> files = await _storageService.getAllLocalBackupFiles(_baseDir);
+    setState(() {
+      _localBackupFiles = files;
+    });
+  }
+
+  // C. Tambahkan fungsi untuk melakukan Backup Semua Fitur (Menghasilkan berkas ZIP)
+  void _buatBackupSemuaFitur() async {
+    try {
+      // 1. Membaca semua konten data yang ada saat ini
+      File fileTasks = await _storageService.getTargetJsonFile(_baseDir);
+      String kontenTasks = await fileTasks.exists()
+          ? await fileTasks.readAsString()
+          : "{}";
+
+      File fileJurnal = await _storageService.getJurnalJsonFile(_baseDir);
+      String kontenJurnal = await fileJurnal.exists()
+          ? await fileJurnal.readAsString()
+          : "[]";
+
+      List<File> hubFiles = await _storageService.getAllChecklistHubs(_baseDir);
+
+      // 2. Satukan semua berkas ke dalam satu objek Archive ZIP
+      final Archive backupArchive = Archive();
+
+      // Masukkan Task Master
+      List<int> tasksBytes = utf8.encode(kontenTasks);
+      backupArchive.addFile(
+        ArchiveFile('my_tasks.json', tasksBytes.length, tasksBytes),
+      );
+
+      // Masukkan Jurnal Aktivitas
+      List<int> jurnalBytes = utf8.encode(kontenJurnal);
+      backupArchive.addFile(
+        ArchiveFile('time_log.json', jurnalBytes.length, jurnalBytes),
+      );
+
+      // Masukkan semua Hub Checklist ke folder my_checklist di dalam ZIP
+      for (var file in hubFiles) {
+        final String namaFile = file.path.split('/').last;
+        final List<int> bytes = await file.readAsBytes();
+        backupArchive.addFile(
+          ArchiveFile('my_checklist/$namaFile', bytes.length, bytes),
+        );
+      }
+
+      // 3. Kompres menjadi format ZIP bytes
+      final List<int>? finalZipBytes = ZipEncoder().encode(backupArchive);
+      if (finalZipBytes == null) return;
+
+      // 4. Berikan penamaan file yang sama seperti format di server_backup (menggunakan _getFormattedFileName)
+      String namaZipDinamis = _getFormattedFileName('local_backup', 'zip');
+
+      // 5. Simpan file ZIP ke folder storage/backup
+      File fileZipTarget = await _storageService.getLocalBackupZipFile(
+        _baseDir,
+        namaZipDinamis,
+      );
+      await fileZipTarget.writeAsBytes(finalZipBytes);
+
+      // 6. Refresh UI dan tampilkan notifikasi sukses
+      _loadLocalBackups();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Backup semua fitur berhasil disimpan: $namaZipDinamis',
+          ),
+          backgroundColor: Colors.teal,
+        ),
+      );
+    } catch (e) {
+      debugPrint("Gagal membuat backup lokal: $e");
     }
   }
 
@@ -643,9 +723,127 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                   onExport: () => _exportJurnal(),
                   onImport: () => _importJurnal(),
                 ),
+
+                // ==================== FITUR BARU MULAI DI SINI ====================
+                const Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 12.0,
+                  ),
+                  child: Divider(
+                    thickness: 2,
+                    color: Colors.grey,
+                  ), // Garis pemisah fitur
+                ),
+
+                // Header section untuk daftar backup
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 4.0,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: const [
+                          Icon(
+                            Icons.inventory_2_outlined,
+                            color: Colors.indigo,
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            'Daftar Backup Aplikasi',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ],
+                      ),
+                      // Tombol untuk melakukan Backup Semua Fitur sekaligus (.zip)
+                      ElevatedButton.icon(
+                        onPressed: _buatBackupSemuaFitur,
+                        icon: const Icon(
+                          Icons.gamepad,
+                          size: 16,
+                          color: Colors.white,
+                        ), // ganti icon jika diperlukan
+                        label: const Text(
+                          'Buat Backup (.zip)',
+                          style: TextStyle(color: Colors.white, fontSize: 12),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.indigo,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // List render file backup yang tersedia di storage/backup
+                _localBackupFiles.isEmpty
+                    ? const Padding(
+                        padding: EdgeInsets.all(24.0),
+                        child: Center(
+                          child: Text(
+                            'Belum ada file backup yang disimpan di storage/backup',
+                            style: TextStyle(color: Colors.grey, fontSize: 12),
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: _localBackupFiles.length,
+                        itemBuilder: (context, index) {
+                          final file = _localBackupFiles[index];
+                          final String namaFile = file.path.split('/').last;
+
+                          return Card(
+                            margin: const EdgeInsets.symmetric(
+                              vertical: 4,
+                              horizontal: 16,
+                            ),
+                            color: Colors.grey[50],
+                            child: ListTile(
+                              dense: true,
+                              leading: const Icon(
+                                Icons.folder_zip,
+                                color: Colors.amber,
+                                size: 24,
+                              ),
+                              title: Text(
+                                namaFile,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              subtitle: const Text(
+                                'Isi: Semua Data Fitur Terkompresi',
+                                style: TextStyle(fontSize: 10),
+                              ),
+                              trailing: IconButton(
+                                icon: const Icon(
+                                  Icons.delete_outline,
+                                  color: Colors.redAccent,
+                                  size: 18,
+                                ),
+                                onPressed: () async {
+                                  // Logika hapus file backup langsung dari list
+                                  if (await file.exists()) {
+                                    await file.delete();
+                                    _loadLocalBackups(); // muat ulang list visual
+                                  }
+                                },
+                              ),
+                            ),
+                          );
+                        },
+                      ),
               ],
             ),
-
             // Konten TAB 2: Fitur Baru Local Sharing (WebSocket)
             _buildLocalSharingTab(),
           ],
