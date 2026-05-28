@@ -111,23 +111,23 @@ class StorageService {
   }
 
   // =========================================================================
-  // === STORAGE BACKUP FROM SERVER ===
+  // === STORAGE BACKUP FROM SERVER (ZIP VERSION) ===
   // =========================================================================
 
-  /// Fungsi untuk mendapatkan direktori folder storage/backup_from_server
-  Future<Directory> getBackupFromServerDir(
+  /// Fungsi untuk menyiapkan folder induk backup dan mengembalikan file target ZIP
+  Future<File> getBackupZipFile(
     String baseDirSetting,
-    String folderNameDinamis,
+    String namaZipDinamis,
   ) async {
-    // Membuat struktur path: baseDir/storage/backup_from_server/nama_folder_dinamis
+    // Buat folder induk 'storage/backup_from_server' jika belum ada
     final Directory backupDir = Directory(
-      '$baseDirSetting/storage/backup_from_server/$folderNameDinamis',
+      '$baseDirSetting/storage/backup_from_server',
     );
-
-    // Jika folder belum ada, otomatis buat foldernya (termasuk folder storage dan backup_from_server)
     if (!await backupDir.exists()) {
       await backupDir.create(recursive: true);
     }
-    return backupDir;
+
+    // Kembalikan objek file ZIP di dalam folder tersebut
+    return File('${backupDir.path}/$namaZipDinamis');
   }
 }
