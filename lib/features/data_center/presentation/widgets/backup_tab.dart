@@ -72,28 +72,43 @@ class BackupTab extends StatelessWidget {
                 'Daftar Berkas Backup',
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
-              Row(
-                children: [
-                  // === TOMBOL BARU UNTUK IMPORT/RESTORE ZIP ===
-                  ElevatedButton.icon(
-                    onPressed: onRestoreAllZip,
-                    icon: const Icon(Icons.unarchive),
-                    label: const Text('Import (.zip)'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.indigo,
+              FittedBox(
+                child: Row(
+                  children: [
+                    // Memperpendek teks agar muat di layar HP
+                    ElevatedButton.icon(
+                      onPressed: onRestoreAllZip,
+                      icon: const Icon(Icons.unarchive, size: 16),
+                      label: const Text(
+                        'Import',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.indigo,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8), // Jarak antar tombol
-                  // Tombol buat backup yang sudah ada sebelumnya
-                  ElevatedButton.icon(
-                    onPressed: onCreateBackup,
-                    icon: const Icon(Icons.add),
-                    label: const Text('Buat Backup (.zip)'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.teal,
+                    const SizedBox(width: 6),
+                    ElevatedButton.icon(
+                      onPressed: onCreateBackup,
+                      icon: const Icon(Icons.add, size: 16),
+                      label: const Text(
+                        'Backup',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.teal,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
