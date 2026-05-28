@@ -75,36 +75,43 @@ class _DrawerMenuState extends State<DrawerMenu> {
         padding: EdgeInsets.zero,
         children: [
           DrawerHeader(
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              border: Border(
-                bottom: BorderSide(color: Colors.black12, width: 1),
+            decoration: BoxDecoration(
+              // Mengubah background putih polos menjadi gradasi Indigo yang modern
+              gradient: LinearGradient(
+                colors: [Colors.indigo[800]!, Colors.indigo[600]!],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
             ),
             child: Row(
               children: [
-                Text(
-                  'M',
-                  style: TextStyle(
-                    color: Colors.indigo[900],
-                    fontSize: 44,
-                    fontWeight: FontWeight.w900,
+                // Menambahkan lingkaran avatar berwarna putih untuk logo huruf 'M'
+                CircleAvatar(
+                  radius: 28,
+                  backgroundColor: Colors.white,
+                  child: Text(
+                    'M',
+                    style: TextStyle(
+                      color: Colors.indigo[900],
+                      fontSize: 32,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 16),
+                // Mengubah warna teks judul menjadi putih agar kontras dengan background indigo
                 Text(
                   'My Tasks',
-                  style: TextStyle(
-                    color: Colors.indigo[900],
-                    fontSize: 26,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
                     fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
                   ),
                 ),
               ],
             ),
           ),
-          // DI DALAM WIDGET BUILD (CHILDREN LISTVIEW):
-
           // 1. Menu Task Master
           _buildMenuTile(
             icon: Icons.format_list_bulleted,
@@ -173,21 +180,29 @@ class _DrawerMenuState extends State<DrawerMenu> {
           ),
           const Divider(),
           ListTile(
-            leading: Icon(Icons.settings, color: Colors.grey[700]),
-            title: const Text('Settings'),
+            // Mengubah ikon abu-abu datar menjadi warna biru jeans/slate yang menarik
+            leading: Icon(Icons.settings_outlined, color: Colors.blueGrey[700]),
+            title: const Text(
+              'Settings',
+              style: TextStyle(fontWeight: FontWeight.w500),
+            ),
             subtitle: Text(
               _selectedBaseDir,
-              style: const TextStyle(fontSize: 11, color: Colors.blueGrey),
+              style: TextStyle(fontSize: 11, color: Colors.blueGrey[400]),
             ),
             onTap: () {
               Navigator.pop(context);
-              _showSettingsDialog(); // Tombol Settings sekarang memanggil dialog secara mandiri
+              _showSettingsDialog();
             },
           ),
           const Divider(),
           ListTile(
-            leading: Icon(Icons.info_outline, color: Colors.grey[700]),
-            title: const Text('About'),
+            // Mengubah ikon menjadi warna oranye lembut untuk menarik perhatian secara halus
+            leading: const Icon(Icons.info_outline, color: Colors.orangeAccent),
+            title: const Text(
+              'About',
+              style: TextStyle(fontWeight: FontWeight.w500),
+            ),
             onTap: () {
               Navigator.pop(context);
               showDialog(
@@ -210,26 +225,33 @@ class _DrawerMenuState extends State<DrawerMenu> {
     required bool isActive,
     required VoidCallback onTap,
   }) {
-    return ListTile(
-      selected: isActive,
-      selectedTileColor: Colors.indigo.withOpacity(
-        0.15,
-      ), // Efek highlight mengelilingi
-      selectedColor: Colors.indigo[900], // Warna ikon & teks saat aktif
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(
-          12,
-        ), // Membuat sudut melengkung/capsule
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      leading: Icon(icon),
-      title: Text(
-        title,
-        style: TextStyle(
-          fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+    return Padding(
+      // Memberikan jarak vertikal & horizontal agar menu tidak menempel satu sama lain
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: ListTile(
+        selected: isActive,
+        // Saat aktif, latar belakang menggunakan warna Indigo transparan yang halus
+        selectedTileColor: Colors.indigo.withOpacity(0.12),
+        // Memberikan efek bentuk kapsul membulat pada latar belakang menu
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        // Warna ikon: Indigo cerah jika aktif, abu-abu jika tidak aktif
+        leading: Icon(
+          icon,
+          color: isActive ? Colors.indigo[700] : Colors.grey[600],
+          size: 24,
         ),
+        // Warna teks & ketebalan huruf menyesuaikan status aktif
+        title: Text(
+          title,
+          style: TextStyle(
+            color: isActive ? Colors.indigo[900] : Colors.black87,
+            fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
+            fontSize: 15,
+          ),
+        ),
+        onTap: onTap,
       ),
-      onTap: onTap,
     );
   }
 }
