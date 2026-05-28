@@ -327,24 +327,17 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
     bool hideTitle,
     VoidCallback onAddPressed,
   ) {
-    // Ganti GestureDetector dengan Material + InkWell untuk efek visual sentuhan
     return Material(
-      color: Colors
-          .transparent, // Tetap transparan agar mengikuti background utama
+      color: Colors.transparent,
       child: InkWell(
-        // Efek highlight saat seksi ditahan/disentuh
         splashColor: Colors.teal.withOpacity(0.1),
         highlightColor: Colors.teal.withOpacity(0.05),
-
-        // Aksi ketika ditahan lama (sama seperti sebelumnya)
         onLongPress: () {
           setState(() {
             _isSectionEditMode = !_isSectionEditMode;
           });
         },
-        // Mengaktifkan tap biasa (opsional, memberikan feedback instan saat diklik)
         onTap: () {},
-
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
           child: Column(
@@ -363,9 +356,12 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                             color: color,
                           ),
                         ),
+
+                  // MODIFIKASI DI SINI: Tombol hanya muncul dideretan saat Mode Edit Aktif
                   if (_isSectionEditMode) ...[
                     Row(
                       children: [
+                        // Tombol Naik Posisi
                         IconButton(
                           icon: const Icon(
                             Icons.arrow_upward,
@@ -376,6 +372,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                               ? () => _moveSectionOrder(index, -1)
                               : null,
                         ),
+                        // Tombol Turun Posisi
                         IconButton(
                           icon: const Icon(
                             Icons.arrow_downward,
@@ -386,6 +383,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                               ? () => _moveSectionOrder(index, 1)
                               : null,
                         ),
+                        // Tombol Ganti Nama
                         IconButton(
                           icon: const Icon(
                             Icons.edit,
@@ -394,6 +392,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                           ),
                           onPressed: () => _editSectionName(section),
                         ),
+                        // Tombol Hapus Seksi
                         IconButton(
                           icon: const Icon(
                             Icons.delete,
@@ -402,17 +401,22 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                           ),
                           onPressed: () => _deleteSection(section),
                         ),
+
+                        // TAMBAHAN: Tombol Tambah Item disisipkan di deretan paling kanan saat mode edit
+                        IconButton(
+                          icon: const Icon(
+                            Icons.add_circle_outline,
+                            color: Colors.teal,
+                            size: 18,
+                          ),
+                          tooltip: 'Tambah Item ke Seksi Ini',
+                          onPressed: onAddPressed,
+                        ),
                       ],
                     ),
                   ] else ...[
-                    IconButton(
-                      icon: const Icon(
-                        Icons.add_circle_outline,
-                        color: Colors.teal,
-                      ),
-                      tooltip: 'Tambah Item ke Seksi Ini',
-                      onPressed: onAddPressed,
-                    ),
+                    // Jika tidak dalam mode edit, deretan tombol kosong agar judul seksi terlihat bersih
+                    const SizedBox.shrink(),
                   ],
                 ],
               ),
