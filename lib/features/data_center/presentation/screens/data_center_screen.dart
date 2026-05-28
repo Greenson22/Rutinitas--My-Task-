@@ -368,8 +368,9 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
       setState(() {
         _baseDir = dir;
       });
-      // Ambil daftar file backup yang sudah ada di folder storage/backup
+      // Ambil daftar file backup lokal dan juga dari server
       _loadLocalBackups();
+      _loadServerBackups(); // <-- TAMBAHKAN BARIS INI
     }
   }
 
