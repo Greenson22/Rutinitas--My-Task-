@@ -331,12 +331,12 @@ class TasksDialog extends StatelessWidget {
                     : ListView.builder(
                         shrinkWrap: true,
                         itemCount: category.tasks.length,
+                        // Bagian fungsi itemBuilder utuh di dalam TasksDialog
+                        // Bagian fungsi itemBuilder utuh di dalam TasksDialog
                         itemBuilder: (context, index) {
                           final task = category.tasks[index];
-
                           String? todayText;
                           Color? todayColor;
-
                           if (task.targetCountToday == 0) {
                             if (task.countToday > 0) {
                               todayText = '+${task.countToday} hari ini';
@@ -366,11 +366,49 @@ class TasksDialog extends StatelessWidget {
                                 : ' | Total: ${task.count}';
                           }
 
-                          // Hitung persentase progress untuk LinearProgressIndicator jika bertipe progress (1)
+                          // Menghitung persentase murni tanpa batasan clamp
                           double progressPercentage = 0.0;
                           if (task.type == 1 && task.targetCount > 0) {
-                            progressPercentage = (task.count / task.targetCount)
-                                .clamp(0.0, 1.0);
+                            progressPercentage =
+                                (task.count / task.targetCount);
+                          }
+
+                          // ==========================================
+                          // LOGIKA DINAMIS WARNA PROGRESS YANG MULUS
+                          // ==========================================
+                          Color dynamicProgressColor = Colors.grey;
+
+                          if (task.isActive) {
+                            if (progressPercentage <= 0.5) {
+                              // 0% sampai 50%: Transisi mulus dari Merah ke Jingga
+                              double t =
+                                  progressPercentage / 0.5; // Skala 0.0 - 1.0
+                              dynamicProgressColor = Color.lerp(
+                                Colors.red,
+                                Colors.orange,
+                                t,
+                              )!;
+                            } else if (progressPercentage <= 1.0) {
+                              // 50% sampai 100%: Transisi mulus dari Jingga ke Hijau Sukses
+                              double t =
+                                  (progressPercentage - 0.5) /
+                                  0.5; // Skala 0.0 - 1.0
+                              dynamicProgressColor = Color.lerp(
+                                Colors.orange,
+                                Colors.green,
+                                t,
+                              )!;
+                            } else {
+                              // Di atas 100%: Transisi mulus dari Hijau ke Biru/Ungu (Bonus Tahap)
+                              // Dibatasi sampai 2.0 (200%) agar warna tidak berubah tanpa batas, bisa disesuaikan
+                              double t = ((progressPercentage - 1.0) / 1.0)
+                                  .clamp(0.0, 1.0);
+                              dynamicProgressColor = Color.lerp(
+                                Colors.green,
+                                Colors.teal,
+                                t,
+                              )!;
+                            }
                           }
 
                           return Padding(
@@ -538,16 +576,15 @@ class TasksDialog extends StatelessWidget {
                                               4,
                                             ),
                                             child: LinearProgressIndicator(
-                                              value: progressPercentage,
+                                              // Visual bar di-clamp maksimal penuh (1.0) agar tidak merusak layout UI
+                                              value: progressPercentage.clamp(
+                                                0.0,
+                                                1.0,
+                                              ),
                                               backgroundColor: Colors.grey[300],
                                               valueColor:
                                                   AlwaysStoppedAnimation<Color>(
-                                                    task.isActive
-                                                        ? (progressPercentage >=
-                                                                  1.0
-                                                              ? Colors.green
-                                                              : Colors.indigo)
-                                                        : Colors.grey,
+                                                    dynamicProgressColor,
                                                   ),
                                               minHeight: 6,
                                             ),
@@ -555,13 +592,13 @@ class TasksDialog extends StatelessWidget {
                                         ),
                                         const SizedBox(width: 8),
                                         Text(
+                                          // Angka persentase tetap terus naik murni (misal: 125%)
                                           '${(progressPercentage * 100).toStringAsFixed(0)}%',
                                           style: TextStyle(
                                             fontSize: 10,
                                             fontWeight: FontWeight.bold,
-                                            color: task.isActive
-                                                ? Colors.grey[700]
-                                                : Colors.grey,
+                                            color:
+                                                dynamicProgressColor, // Warna teks mengikuti warna bar yang mulus
                                           ),
                                         ),
                                       ],
