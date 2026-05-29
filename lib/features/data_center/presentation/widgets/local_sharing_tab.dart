@@ -102,7 +102,6 @@ class _LocalSharingTabState extends State<LocalSharingTab> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                // --- TOMBOL PILIH / BATAL SEMUA SERVER VERSI MOBILE ---
                 IconButton(
                   icon: Icon(
                     _selectedServerFiles.length ==
@@ -132,7 +131,6 @@ class _LocalSharingTabState extends State<LocalSharingTab> {
                   },
                 ),
                 const SizedBox(width: 4),
-                // Info jumlah file yang sedang dicentang
                 Text(
                   '${_selectedServerFiles.length} Terpilih',
                   style: const TextStyle(
@@ -142,21 +140,32 @@ class _LocalSharingTabState extends State<LocalSharingTab> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                // --- TOMBOL HAPUS MASSAL SERVER VERSI MOBILE ---
+
+                // PERBAIKAN DI SINI: Logika Hapus Massal yang sinkron dengan State Parent
                 InkWell(
                   onTap: _selectedServerFiles.isEmpty
                       ? null
                       : () async {
+                          // 1. Eksekusi penghapusan seluruh file fisik yang dipilih
                           for (var file in _selectedServerFiles) {
                             if (await file.exists()) {
                               await file.delete();
                             }
                           }
+
+                          // 2. Bersihkan state penampung file terpilih di widget local_sharing_tab
                           setState(() {
                             _selectedServerFiles.clear();
                             _isServerSelectionMode = false;
                           });
-                          widget.onDeleteServerBackup(File(''));
+
+                          // 3. Pemicu fungsi hapus dummy khusus untuk memanggil _loadServerBackups() di parent screen
+                          // Menggunakan file pertama dari daftar (atau file apa saja) sebelum dihapus,
+                          // namun karena file fisiknya sudah dihapus di atas, kita lewatkan pengecekan file.exists() di parent.
+                          // Solusi terbaik: Kita panggil onDeleteServerBackup dengan file yang memicu pembaruan data.
+                          widget.onDeleteServerBackup(
+                            File('trigger_refresh_after_bulk_delete'),
+                          );
                         },
                   borderRadius: BorderRadius.circular(6),
                   child: Container(
@@ -184,8 +193,8 @@ class _LocalSharingTabState extends State<LocalSharingTab> {
                     ),
                   ),
                 ),
+
                 const SizedBox(width: 4),
-                // --- TOMBOL BATAL SERVER VERSI MOBILE ---
                 TextButton(
                   style: TextButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -207,7 +216,6 @@ class _LocalSharingTabState extends State<LocalSharingTab> {
             ),
           ),
         ],
-
         // Menampilkan daftar berkas dari server
         widget.serverBackupFiles.isEmpty
             ? const Center(

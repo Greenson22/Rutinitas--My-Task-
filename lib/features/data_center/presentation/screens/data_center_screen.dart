@@ -1227,52 +1227,42 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 2, // Mengatur 2 Tab halaman
+      length: 2,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Data Center'),
           backgroundColor: Colors.indigo[700],
-          // Tambahkan bilah Tab di bagian bawah AppBar
           bottom: const TabBar(
             indicatorColor: Colors.amberAccent,
             indicatorWeight: 3,
             labelStyle: TextStyle(fontWeight: FontWeight.bold),
             tabs: [
-              Tab(
-                icon: Icon(Icons.backup_outlined),
-                text: 'Backup',
-              ), // Diubah menjadi Backup dengan ikon yang sesuai
+              Tab(icon: Icon(Icons.backup_outlined), text: 'Backup'),
               Tab(icon: Icon(Icons.wifi_find_outlined), text: 'Local Sharing'),
             ],
           ),
         ),
-        // Menerapkan Drawer Menu bawaan aplikasi Anda
         drawer: const DrawerMenu(isDataCenterActive: true),
-        // TabBarView untuk menampilkan konten sesuai Tab yang dipilih
         body: TabBarView(
           children: [
-            // TAB 1: Memanggil file/widget khusus Backup yang sudah dipisahkan
+            // TAB 1: Backup
             BackupTab(
               localBackupFiles: _localBackupFiles,
               serverBackupFiles: _serverBackupFiles,
               onCreateBackup: () => _buatBackupSemuaFitur(),
               onDeleteBackup: (file) async {
-                // Logika konfirmasi hapus dipanggil di sini, lalu:
                 if (await file.exists()) {
                   await file.delete();
-                  _loadLocalBackups(); // Memperbarui data list setelah dihapus
+                  _loadLocalBackups();
                 }
               },
-              // TAMBAHKAN callback baru untuk menghapus file backup server
+              // PERBAIKAN: Pastikan memanggil _loadServerBackups() setelah file dihapus
               onDeleteServerBackup: (file) async {
                 if (await file.exists()) {
                   await file.delete();
-                  _loadServerBackups(); // Refresh daftar file server setelah dihapus
+                  await _loadServerBackups(); // Memperbarui data list server backup secara real-time
                 }
               },
-
-              // ==================================================
-              // TULIS BARIS BARU INI DI SINI (Jangan hapus kode di atas atau di bawahnya)
               onRestoreAllZip: (file) => _importSemuaDariZip(file),
               onBackupTaskMaster: () => _exportTaskMaster(),
               onRestoreTaskMaster: () => _importTaskMaster(),
@@ -1282,13 +1272,19 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
               onRestoreJurnal: () => _importJurnal(),
             ),
 
-            // TAB 2: Memanggil file/widget khusus Local Sharing yang sudah dipisahkan
+            // TAB 2: Local Sharing
             LocalSharingTab(
               onSendFile: () => _startMulaiServerSharing(),
               onReceiveFile: () => _tampilkanDialogHubungkanKeServer(),
               serverBackupFiles: _serverBackupFiles,
               onDeleteServerBackup: (file) async {
-                // === UBAH BAGIAN DI DALAM SINI ===
+                // Jika ini adalah trigger hapus masal dari tab sharing
+                if (file.path == 'trigger_refresh_after_bulk_delete') {
+                  await _loadServerBackups(); // Langsung segarkan UI tanpa cek file fisik
+                  return;
+                }
+
+                // Logika hapus satuan bawaan Anda tetap berjalan normal di bawah ini
                 final bool confirm =
                     await showDialog<bool>(
                       context: context,
@@ -1314,10 +1310,9 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                     ) ??
                     false;
 
-                // Jika user menekan tombol Hapus (true), maka file baru dihapus
                 if (confirm && await file.exists()) {
                   await file.delete();
-                  _loadServerBackups(); // Menyegarkan daftar setelah dihapus
+                  await _loadServerBackups(); // Segarkan UI setelah hapus satuan
                 }
               },
               onRestoreAllZip: (file) => _importSemuaDariZip(file),
