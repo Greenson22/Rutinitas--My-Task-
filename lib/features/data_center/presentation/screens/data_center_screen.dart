@@ -48,7 +48,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
         ),
       );
     });
-
     try {
       String localIp = await _getLocalIpAddress();
 
@@ -57,22 +56,24 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
         await _serverEksternal!.close(force: true);
       }
 
-      // === DAFTAR STATE BARU UNTUK HALAMAN DATA CENTER SERVER ===
-      // Catatan: Anda bisa memindahkan variabel ini ke tingkat class state jika ingin
-      // memantau jumlah client secara global di widget build utama.
+      // Variabel untuk menyimpan list koneksi websocket client yang aktif
       List<dynamic> daftarClientAktif = [];
+      // Variabel bantuan untuk menjembatani update UI ke dalam Dialog
+      StateSetter? dialogState;
 
       var handler = webSocketHandler((dynamic webSocket, dynamic protocol) {
-        // Ambil info identitas unik atau gunakan hash kode dari objek WebSocket sebagai ID sementara
         final String clientId =
             "Client_${webSocket.hashCode.toString().substring(0, 4)}";
 
-        // A. LOGIKA SAAT CLIENT BARU TERHUBUNG
+        // A. KONDISI: CLIENT BARU TERHUBUNG
         setState(() {
           daftarClientAktif.add(webSocket);
         });
+        // Picu penyegaran UI di dalam dialog secara instan jika dialog sedang terbuka
+        if (dialogState != null) {
+          dialogState!(() {});
+        }
 
-        // Tampilkan notifikasi SnackBar bahwa client terhubung
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('🔌 [$clientId] Berhasil Terhubung ke Server!'),
@@ -86,7 +87,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
           (pesanMasuk) async {
             try {
               Map<String, dynamic> dataDiterima = jsonDecode(pesanMasuk);
-
               // LOGIKA A: Jika menerima paket data aplikasi dari Client
               if (dataDiterima['tipe_pesan'] == 'data_transfer') {
                 String clientTasks = dataDiterima['task_master'];
@@ -141,7 +141,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(
-                        'Sukses menerima data dari [$clientId]! Tersimpan: $namaZipDinamis',
+                        'Sukses menerima data dari Client! Tersimpan: $namaZipDinamis',
                       ),
                       backgroundColor: Colors.teal,
                     ),
@@ -149,24 +149,27 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                 }
               }
             } catch (err) {
-              debugPrint("Server gagal memproses pesan dari $clientId: $err");
+              debugPrint("Server gagal memproses pesan: $err");
             }
           },
-          // B. LOGIKA SAAT CLIENT TERPUTUS (DISCONNECT)
+          // B. KONDISI: CLIENT TERPUTUS (DISCONNECT)
           onDone: () {
             setState(() {
               daftarClientAktif.remove(webSocket);
             });
+            // Picu kembali penyegaran UI di dalam dialog secara instan
+            if (dialogState != null) {
+              dialogState!(() {});
+            }
 
-            // Tampilkan notifikasi SnackBar bahwa client terputus
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('❌ [$clientId] Memutuskan Koneksi / Terputus.'),
+                content: Text('❌ [$clientId] Koneksi Terputus.'),
                 backgroundColor: Colors.red[700],
                 duration: const Duration(seconds: 3),
               ),
             );
-            debugPrint("Koneksi perangkat $clientId terputus.");
+            debugPrint("Koneksi perangkat client terputus.");
           },
         );
       });
@@ -179,13 +182,13 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
 
       if (!mounted) return;
 
-      // Fungsi pembantu untuk membungkus dan mengirim data lokal milik Server ke seluruh Client
+      // Fungsi pembantu untuk membungkus dan mengirim data lokal milik Server ke Client
       Future<void> fungsiKirimDataServer() async {
         if (daftarClientAktif.isEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text(
-                'Gagal! Belum ada perangkat penerima (Client) yang terhubung.',
+                'Gagal! Belum ada perangkat penerima yang terhubung.',
               ),
               backgroundColor: Colors.orange,
             ),
@@ -223,7 +226,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
           'checklist_zip': kontenZipBase64,
         };
 
-        // Kirim data ke setiap client yang sedang aktif terhubung (Broadcast)
+        // Lakukan broadcast kirim data ke semua client terhubung
         for (var socket in daftarClientAktif) {
           socket.sink.add(jsonEncode(paketBesarKirim));
         }
@@ -238,21 +241,33 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
         );
       }
 
-      // Tampilkan dialog kontrol server aktif beserta informasi jumlah client terhubung
+      // Tampilkan dialog kontrol server aktif
       showDialog(
         context: context,
         barrierDismissible: false,
         builder: (ctx) => StatefulBuilder(
-          // StatefulBuilder digunakan agar informasi Client Terhubung update secara real-time di dalam dialog
           builder: (context, setDialogState) {
-            // Pasang listener perubahan state utama ke dalam dialog state
-            // (Memastikan UI di dalam dialog ikut ter-refresh saat callback handler memicu setState global)
+            // Daftarkan setter internal milik dialog ke variabel luar agar bisa dipicu oleh WebSocket stream
+            dialogState = setDialogState;
+
+            bool adaClient = daftarClientAktif.isNotEmpty;
+
             return AlertDialog(
-              title: const Row(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: Row(
                 children: [
-                  Icon(Icons.wifi_tethering, color: Colors.indigo),
-                  SizedBox(width: 8),
-                  Text('Server Sharing Aktif'),
+                  Icon(Icons.wifi_tethering, color: Colors.indigo[700]),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Server Sharing Aktif',
+                    style: TextStyle(
+                      color: Colors.indigo[900],
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
                 ],
               ),
               content: Column(
@@ -293,62 +308,107 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // === INFORMASI JUMLAH CLIENT PRODUKTIF YANG TERHUBUNG ===
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.devices,
-                        color: daftarClientAktif.isNotEmpty
-                            ? Colors.green
-                            : Colors.grey,
-                        size: 18,
+                  // === KOTAK INFORMASI CLIENT YANG DINAMIS DAN BERWARNA ===
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: adaClient
+                          ? Colors.green.shade50
+                          : Colors.amber.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: adaClient
+                            ? Colors.green.shade200
+                            : Colors.amber.shade200,
                       ),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Perangkat Client Terhubung: ',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      Text(
-                        '${daftarClientAktif.length}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: daftarClientAktif.isNotEmpty
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          adaClient
+                              ? Icons.gpp_good_rounded
+                              : Icons.hourglass_empty_rounded,
+                          color: adaClient
                               ? Colors.green[800]
-                              : Colors.grey[700],
+                              : Colors.amber[800],
+                          size: 20,
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            adaClient
+                                ? 'Client Terhubung Aktif'
+                                : 'Menunggu Perangkat...',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: adaClient
+                                  ? Colors.green[900]
+                                  : Colors.amber[900],
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: adaClient
+                                ? Colors.green[700]
+                                : Colors.amber[700],
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            '${daftarClientAktif.length}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Status: Siap digunakan.\n\nSilakan tekan tombol di bawah jika Anda ingin mengirim data aktif komputer/HP ini ke Client.',
-                    style: TextStyle(fontSize: 13, height: 1.4),
+                  const SizedBox(height: 16),
+                  Text(
+                    adaClient
+                        ? 'Silakan tekan tombol di bawah jika Anda ingin mendistribusikan data lokal ke perangkat yang terhubung.'
+                        : 'Server siap menerima koneksi pipa baru secara lokal dari aplikasi client.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.4,
+                      color: Colors.grey[700],
+                    ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
 
                   // === TOMBOL MANUAL UNTUK MENGIRIM DATA SISI SERVER ===
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: daftarClientAktif.isEmpty
-                          ? null // Tombol dinonaktifkan jika tidak ada client terhubung
-                          : () => fungsiKirimDataServer().then(
-                              (_) => setDialogState(() {}),
-                            ),
+                      onPressed: adaClient
+                          ? () => fungsiKirimDataServer()
+                          : null,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.teal,
+                        backgroundColor: Colors.teal[700],
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: Colors.grey[200],
+                        disabledForegroundColor: Colors.grey[400],
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
                       ),
-                      icon: const Icon(
-                        Icons.send_and_archive,
-                        color: Colors.white,
-                      ),
+                      icon: const Icon(Icons.send_and_archive),
                       label: const Text(
                         'Kirim Data Ke Client',
-                        style: TextStyle(color: Colors.white),
+                        style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
                   ),
@@ -361,7 +421,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                       await _serverEksternal!.close(force: true);
                       _serverEksternal = null;
                     }
-                    daftarClientAktif.clear();
                     Navigator.pop(ctx);
                   },
                   child: const Text(
@@ -376,7 +435,10 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
             );
           },
         ),
-      );
+      ).then((_) {
+        // Hapus referensi setter jika dialog ditutup secara manual agar tidak memory leak
+        dialogState = null;
+      });
     } catch (e) {
       debugPrint("Gagal menyiapkan server dua arah: $e");
     }
