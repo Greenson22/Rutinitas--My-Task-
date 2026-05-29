@@ -263,6 +263,7 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (context) => TasksDialog(
         category: category,
+        allCategories: _allCategoriesRaw,
         onIncrementTask: (task) => _incrementTaskCount(task),
         onUpdateTargetToday: (task, target) {},
         onEditTaskDetail:
@@ -497,6 +498,18 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
           );
+        },
+        // LOGIKA TERIMA PINDAH KATEGORI
+        onMoveTaskCategory: (task, source, target) async {
+          setState(() {
+            source.tasks.removeWhere((t) => t.id == task.id);
+            target.tasks.add(task);
+          });
+          await _saveAllCategoriesToFile(shouldRefresh: true);
+        },
+        // LOGIKA SIMPAN PERUBAHAN POSISI URUTAN (REORDER)
+        onReorderTasks: () async {
+          await _saveAllCategoriesToFile(shouldRefresh: false);
         },
       ),
     );

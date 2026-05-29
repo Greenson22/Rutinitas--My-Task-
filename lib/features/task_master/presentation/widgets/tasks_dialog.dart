@@ -6,6 +6,7 @@ import 'edit_task_dialog.dart';
 
 class TasksDialog extends StatelessWidget {
   final TaskCategory category;
+  final List<TaskCategory> allCategories;
   final Future<bool> Function(TaskItem) onIncrementTask;
   final Function(TaskItem, int) onUpdateTargetToday;
   final Function(TaskItem, String, int, int, int, int, String?, bool, int)
@@ -13,16 +14,22 @@ class TasksDialog extends StatelessWidget {
   final Future<bool> Function(TaskItem) onDeleteTask;
   final Function(List<String>, String) onBulkAction;
   final VoidCallback onAddTask; // <--- CALLBACK BARU UNTUK TAMBAH TUGAS
+  final Function(TaskItem task, TaskCategory source, TaskCategory target)
+  onMoveTaskCategory;
+  final Function() onReorderTasks;
 
   const TasksDialog({
     super.key,
     required this.category,
+    required this.allCategories,
     required this.onIncrementTask,
     required this.onUpdateTargetToday,
     required this.onEditTaskDetail,
     required this.onDeleteTask,
     required this.onBulkAction,
-    required this.onAddTask, // <--- WAJIB DIISI
+    required this.onAddTask,
+    required this.onMoveTaskCategory,
+    required this.onReorderTasks,
   });
 
   List<TextSpan> _buildIndonesianDateSpans(String? dateStr, bool isActive) {
@@ -332,7 +339,6 @@ class TasksDialog extends StatelessWidget {
                         shrinkWrap: true,
                         itemCount: category.tasks.length,
                         // Bagian fungsi itemBuilder utuh di dalam TasksDialog
-                        // Bagian fungsi itemBuilder utuh di dalam TasksDialog
                         itemBuilder: (context, index) {
                           final task = category.tasks[index];
                           String? todayText;
@@ -373,34 +379,24 @@ class TasksDialog extends StatelessWidget {
                                 (task.count / task.targetCount);
                           }
 
-                          // ==========================================
                           // LOGIKA DINAMIS WARNA PROGRESS YANG MULUS
-                          // ==========================================
                           Color dynamicProgressColor = Colors.grey;
-
                           if (task.isActive) {
                             if (progressPercentage <= 0.5) {
-                              // 0% sampai 50%: Transisi mulus dari Merah ke Jingga
-                              double t =
-                                  progressPercentage / 0.5; // Skala 0.0 - 1.0
+                              double t = progressPercentage / 0.5;
                               dynamicProgressColor = Color.lerp(
                                 Colors.red,
                                 Colors.orange,
                                 t,
                               )!;
                             } else if (progressPercentage <= 1.0) {
-                              // 50% sampai 100%: Transisi mulus dari Jingga ke Hijau Sukses
-                              double t =
-                                  (progressPercentage - 0.5) /
-                                  0.5; // Skala 0.0 - 1.0
+                              double t = (progressPercentage - 0.5) / 0.5;
                               dynamicProgressColor = Color.lerp(
                                 Colors.orange,
                                 Colors.green,
                                 t,
                               )!;
                             } else {
-                              // Di atas 100%: Transisi mulus dari Hijau ke Biru/Ungu (Bonus Tahap)
-                              // Dibatasi sampai 2.0 (200%) agar warna tidak berubah tanpa batas, bisa disesuaikan
                               double t = ((progressPercentage - 1.0) / 1.0)
                                   .clamp(0.0, 1.0);
                               dynamicProgressColor = Color.lerp(
@@ -433,28 +429,96 @@ class TasksDialog extends StatelessWidget {
                                             });
                                           },
                                         )
-                                      : IconButton(
-                                          icon: Icon(
-                                            Icons.add_circle_outline,
-                                            color: task.isActive
-                                                ? Colors.blue
-                                                : Colors.grey[400],
-                                            size: 28,
-                                          ),
-                                          onPressed: task.isActive
-                                              ? () => _showConfirmIncrementDialog(
-                                                  context,
-                                                  task,
-                                                  () async {
-                                                    bool isUpdated =
-                                                        await onIncrementTask(
-                                                          task,
-                                                        );
-                                                    if (isUpdated)
-                                                      setDialogState(() {});
-                                                  },
-                                                )
-                                              : null,
+                                      : Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            IconButton(
+                                              icon: Icon(
+                                                Icons.add_circle_outline,
+                                                color: task.isActive
+                                                    ? Colors.blue
+                                                    : Colors.grey[400],
+                                                size: 24,
+                                              ),
+                                              onPressed: task.isActive
+                                                  ? () => _showConfirmIncrementDialog(
+                                                      context,
+                                                      task,
+                                                      () async {
+                                                        bool isUpdated =
+                                                            await onIncrementTask(
+                                                              task,
+                                                            );
+                                                        if (isUpdated)
+                                                          setDialogState(() {});
+                                                      },
+                                                    )
+                                                  : null,
+                                            ),
+                                            // KONTROL URUTAN: Tombol Naik Posisi
+                                            IconButton(
+                                              icon: Icon(
+                                                Icons.arrow_upward,
+                                                size: 16,
+                                                color: index > 0
+                                                    ? Colors.indigo
+                                                    : Colors.grey[300],
+                                              ),
+                                              padding: EdgeInsets.zero,
+                                              constraints:
+                                                  const BoxConstraints(),
+                                              onPressed: index > 0
+                                                  ? () {
+                                                      setDialogState(() {
+                                                        final temp = category
+                                                            .tasks[index];
+                                                        category.tasks[index] =
+                                                            category
+                                                                .tasks[index -
+                                                                1];
+                                                        category.tasks[index -
+                                                                1] =
+                                                            temp;
+                                                      });
+                                                      onReorderTasks(); // Memanggil callback simpan urutan lokal
+                                                    }
+                                                  : null,
+                                            ),
+                                            // KONTROL URUTAN: Tombol Turun Posisi
+                                            IconButton(
+                                              icon: Icon(
+                                                Icons.arrow_downward,
+                                                size: 16,
+                                                color:
+                                                    index <
+                                                        category.tasks.length -
+                                                            1
+                                                    ? Colors.indigo
+                                                    : Colors.grey[300],
+                                              ),
+                                              padding: EdgeInsets.zero,
+                                              constraints:
+                                                  const BoxConstraints(),
+                                              onPressed:
+                                                  index <
+                                                      category.tasks.length - 1
+                                                  ? () {
+                                                      setDialogState(() {
+                                                        final temp = category
+                                                            .tasks[index];
+                                                        category.tasks[index] =
+                                                            category
+                                                                .tasks[index +
+                                                                1];
+                                                        category.tasks[index +
+                                                                1] =
+                                                            temp;
+                                                      });
+                                                      onReorderTasks(); // Memanggil callback simpan urutan lokal
+                                                    }
+                                                  : null,
+                                            ),
+                                          ],
                                         ),
                                   title: Text(
                                     task.name,
@@ -520,50 +584,120 @@ class TasksDialog extends StatelessWidget {
                                                   await onDeleteTask(task);
                                               if (isDeleted)
                                                 setDialogState(() {});
+                                            } else if (value.startsWith(
+                                              'move_to_',
+                                            )) {
+                                              String targetCategoryName = value
+                                                  .replaceFirst('move_to_', '');
+                                              final targetCategory =
+                                                  allCategories.firstWhere(
+                                                    (cat) =>
+                                                        cat.name ==
+                                                        targetCategoryName,
+                                                  );
+
+                                              // PERBAIKAN UTAMA: Memanggil langsung dari parameter instansiasi objek tanpa 'widget.' karena TasksDialog adalah StatelessWidget
+                                              onMoveTaskCategory(
+                                                task,
+                                                category,
+                                                targetCategory,
+                                              );
+                                              setDialogState(() {});
                                             }
                                           },
-                                          itemBuilder: (BuildContext context) =>
-                                              [
-                                                const PopupMenuItem<String>(
-                                                  value: 'edit_detail',
-                                                  child: ListTile(
-                                                    leading: Icon(
-                                                      Icons.edit_note,
-                                                      size: 20,
-                                                    ),
-                                                    title: Text('Edit Detail'),
-                                                    contentPadding:
-                                                        EdgeInsets.zero,
-                                                    dense: true,
+                                          itemBuilder: (BuildContext context) => [
+                                            const PopupMenuItem<String>(
+                                              value: 'edit_detail',
+                                              child: ListTile(
+                                                leading: Icon(
+                                                  Icons.edit_note,
+                                                  size: 20,
+                                                ),
+                                                title: Text('Edit Detail'),
+                                                contentPadding: EdgeInsets.zero,
+                                                dense: true,
+                                              ),
+                                            ),
+                                            if (allCategories.length > 1)
+                                              PopupMenuItem<String>(
+                                                enabled: false,
+                                                child: Text(
+                                                  'Pindahkan Kategori:',
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Colors.indigo[700],
                                                   ),
                                                 ),
-                                                const PopupMenuItem<String>(
-                                                  value: 'delete_task',
-                                                  child: ListTile(
-                                                    leading: Icon(
-                                                      Icons.delete_outline,
-                                                      color: Colors.red,
-                                                      size: 20,
-                                                    ),
-                                                    title: Text(
-                                                      'Hapus',
-                                                      style: TextStyle(
-                                                        color: Colors.red,
+                                              ),
+                                            ...allCategories
+                                                .where(
+                                                  (cat) =>
+                                                      cat.name != category.name,
+                                                )
+                                                .map((cat) {
+                                                  return PopupMenuItem<String>(
+                                                    value:
+                                                        'move_to_${cat.name}',
+                                                    child: Padding(
+                                                      padding:
+                                                          const EdgeInsets.only(
+                                                            left: 8.0,
+                                                          ),
+                                                      child: Row(
+                                                        children: [
+                                                          Text(
+                                                            cat.icon,
+                                                            style:
+                                                                const TextStyle(
+                                                                  fontSize: 14,
+                                                                ),
+                                                          ),
+                                                          const SizedBox(
+                                                            width: 8,
+                                                          ),
+                                                          Expanded(
+                                                            child: Text(
+                                                              cat.name,
+                                                              style:
+                                                                  const TextStyle(
+                                                                    fontSize:
+                                                                        13,
+                                                                  ),
+                                                            ),
+                                                          ),
+                                                        ],
                                                       ),
                                                     ),
-                                                    contentPadding:
-                                                        EdgeInsets.zero,
-                                                    dense: true,
+                                                  );
+                                                })
+                                                .toList(),
+                                            const PopupMenuDivider(),
+                                            const PopupMenuItem<String>(
+                                              value: 'delete_task',
+                                              child: ListTile(
+                                                leading: Icon(
+                                                  Icons.delete_outline,
+                                                  color: Colors.red,
+                                                  size: 20,
+                                                ),
+                                                title: Text(
+                                                  'Hapus',
+                                                  style: TextStyle(
+                                                    color: Colors.red,
                                                   ),
                                                 ),
-                                              ],
+                                                contentPadding: EdgeInsets.zero,
+                                                dense: true,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                 ),
-                                // RENDER PROGRESS BAR HANYA UNTUK TIPE TUGAS 1 (PROGRESS TASK)
                                 if (task.type == 1)
                                   Padding(
                                     padding: const EdgeInsets.only(
-                                      left: 64.0,
+                                      left: 110.0,
                                       right: 24.0,
                                       bottom: 8.0,
                                       top: 2.0,
@@ -576,7 +710,6 @@ class TasksDialog extends StatelessWidget {
                                               4,
                                             ),
                                             child: LinearProgressIndicator(
-                                              // Visual bar di-clamp maksimal penuh (1.0) agar tidak merusak layout UI
                                               value: progressPercentage.clamp(
                                                 0.0,
                                                 1.0,
@@ -592,13 +725,11 @@ class TasksDialog extends StatelessWidget {
                                         ),
                                         const SizedBox(width: 8),
                                         Text(
-                                          // Angka persentase tetap terus naik murni (misal: 125%)
                                           '${(progressPercentage * 100).toStringAsFixed(0)}%',
                                           style: TextStyle(
                                             fontSize: 10,
                                             fontWeight: FontWeight.bold,
-                                            color:
-                                                dynamicProgressColor, // Warna teks mengikuti warna bar yang mulus
+                                            color: dynamicProgressColor,
                                           ),
                                         ),
                                       ],
