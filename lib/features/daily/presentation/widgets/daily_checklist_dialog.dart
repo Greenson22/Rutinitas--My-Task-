@@ -177,13 +177,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     final text = _singleInputController.text.trim();
     if (text.isEmpty) return;
 
-    final confirm = await _showConfirmDialog(
-      title: 'Tambah Sub-Materi Utama',
-      content: 'Apakah Anda yakin ingin menambahkan sub-materi "$text"?',
-    );
-
-    if (!confirm) return;
-
     setState(() {
       widget.subject.subMateri.add(
         SubMateriItem(namaMateri: text, progress: 'belum'),
