@@ -673,7 +673,9 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                           itemCount: todayTasks.length,
                           itemBuilder: (context, index) {
                             final task = todayTasks[index];
-                            final bool isLinked = _isTaskTrulyLinked(task);
+                            final bool isLinked = _isTaskTrulyLinked(
+                              task,
+                            ); // Menghitung status tautan tugas
                             return Card(
                               elevation: 2,
                               margin: const EdgeInsets.symmetric(
@@ -703,30 +705,48 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                     size: 18,
                                   ),
                                 ),
-                                // 1. Bagian Judul Tugas dan Kontrol Panel Mode Edit
                                 title: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    // Judul tugas selalu berada di paling atas
-                                    Text(
-                                      task.nama,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 14,
-                                      ),
+                                    // MODIFIKASI DI SINI: Membungkus Judul Tugas dengan Row untuk menyisipkan ikon terhubung
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            task.nama,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                        ),
+                                        // Jikalau tugas terhubung dengan Tasks Master, munculkan ikon tautan berwarna teal
+                                        if (isLinked)
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                              left: 6.0,
+                                            ),
+                                            child: Tooltip(
+                                              message:
+                                                  'Terhubung dengan Task Master',
+                                              triggerMode:
+                                                  TooltipTriggerMode.tap,
+                                              child: const Icon(
+                                                Icons.link,
+                                                size: 16,
+                                                color: Colors.teal,
+                                              ),
+                                            ),
+                                          ),
+                                      ],
                                     ),
                                     // Jika Mode Edit AKTIF, tampilkan kumpulan tombol kontrol dengan Wrap agar ramah mobile
                                     if (_isEditMode) ...[
-                                      const SizedBox(
-                                        height: 10,
-                                      ), // Jarak antara judul dan tombol
+                                      const SizedBox(height: 10),
                                       Wrap(
-                                        spacing:
-                                            8.0, // Jarak horizontal antar tombol
-                                        runSpacing:
-                                            6.0, // Jarak vertikal jika tombol turun ke baris baru di layar kecil
+                                        spacing: 8.0,
+                                        runSpacing: 6.0,
                                         children: [
-                                          // Tombol Naik Posisi
                                           _buildMobileEditButton(
                                             icon: Icons.arrow_upward,
                                             color: index > 0
@@ -740,7 +760,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                                   )
                                                 : null,
                                           ),
-                                          // Tombol Turun Posisi
                                           _buildMobileEditButton(
                                             icon: Icons.arrow_downward,
                                             color: index < todayTasks.length - 1
@@ -755,14 +774,12 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                                   )
                                                 : null,
                                           ),
-                                          // Tombol Hubungkan Tugas
                                           _buildMobileEditButton(
                                             icon: Icons.link,
                                             color: Colors.teal,
                                             onPressed: () =>
                                                 _tampilkanDialogLinkTugas(task),
                                           ),
-                                          // Tombol Ubah Nama Aktivitas
                                           _buildMobileEditButton(
                                             icon: Icons.edit_note,
                                             color: Colors.blueGrey,
@@ -771,7 +788,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                                   task,
                                                 ),
                                           ),
-                                          // Tombol Hapus Aktivitas
                                           _buildMobileEditButton(
                                             icon: Icons.delete_outline,
                                             color: Colors.redAccent,
