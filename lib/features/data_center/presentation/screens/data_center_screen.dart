@@ -43,70 +43,104 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
     setState(() {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Menyiapkan paket data: Task Master, Jurnal, dan ZIP Checklist...',
-          ),
+          content: Text('Menyiapkan server komunikasi dua arah...'),
           backgroundColor: Colors.indigo,
         ),
       );
     });
 
     try {
-      String currentDir = await _storageService.getBaseDirSetting();
-
-      // A. Membaca data Task Master
-      File fileTasks = await _storageService.getTargetJsonFile(currentDir);
-      String kontenTasks = await fileTasks.readAsString();
-
-      // B. Membaca data Jurnal Aktivitas
-      File fileJurnal = await _storageService.getJurnalJsonFile(currentDir);
-      String kontenJurnal = await fileJurnal.readAsString();
-
-      // C. Membuat berkas ZIP Checklist
-      List<File> hubFiles = await _storageService.getAllChecklistHubs(
-        currentDir,
-      );
-      final Archive archive = Archive();
-      for (var file in hubFiles) {
-        final String namaFile = file.path.split('/').last;
-        final List<int> bytes = await file.readAsBytes();
-        archive.addFile(ArchiveFile(namaFile, bytes.length, bytes));
-      }
-      final List<int>? zipBytes = ZipEncoder().encode(archive);
-      String kontenZipBase64 = zipBytes != null ? base64Encode(zipBytes) : "";
-
-      // Ambil alamat IP lokal perangkat secara dinamis sebelum memunculkan dialog
       String localIp = await _getLocalIpAddress();
 
-      // Buat koneksi server WebSocket
-      var handler = webSocketHandler((dynamic webSocket, dynamic protocol) {
-        Map<String, dynamic> paketBesarKirim = {
-          'task_master': kontenTasks,
-          'jurnal_aktivitas': kontenJurnal,
-          'checklist_zip': kontenZipBase64,
-        };
-
-        try {
-          webSocket.sink.add(jsonEncode(paketBesarKirim));
-          Future.delayed(const Duration(seconds: 1), () {
-            webSocket.sink.close();
-          });
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Semua paket data sukses ditransfer ke penerima!'),
-              backgroundColor: Colors.teal,
-            ),
-          );
-        } catch (e) {
-          debugPrint("Gagal mengirim data lewat stream: $e");
-        }
-      });
-
-      // Jalankan server di port 8090
+      // Jalankan server WebSocket di port 8090
       if (_serverEksternal != null) {
         await _serverEksternal!.close(force: true);
       }
+
+      // Variabel untuk menyimpan koneksi websocket yang sedang aktif
+      dynamic socketAktif;
+
+      var handler = webSocketHandler((dynamic webSocket, dynamic protocol) {
+        socketAktif = webSocket;
+
+        // Mendengarkan data atau perintah yang masuk dari Client
+        webSocket.stream.listen(
+          (pesanMasuk) async {
+            try {
+              Map<String, dynamic> dataDiterima = jsonDecode(pesanMasuk);
+
+              // LOGIKA A: Jika menerima paket data aplikasi dari Client
+              if (dataDiterima['tipe_pesan'] == 'data_transfer') {
+                String clientTasks = dataDiterima['task_master'];
+                String clientJurnal = dataDiterima['jurnal_aktivitas'];
+                String clientZipBase64 = dataDiterima['checklist_zip'];
+
+                final Archive clientArchive = Archive();
+                List<int> tasksBytes = utf8.encode(clientTasks);
+                clientArchive.addFile(
+                  ArchiveFile('my_tasks.json', tasksBytes.length, tasksBytes),
+                );
+
+                List<int> jurnalBytes = utf8.encode(clientJurnal);
+                clientArchive.addFile(
+                  ArchiveFile('time_log.json', jurnalBytes.length, jurnalBytes),
+                );
+
+                if (clientZipBase64.isNotEmpty) {
+                  List<int> chkBytes = base64Decode(clientZipBase64);
+                  Archive checklistArchive = ZipDecoder().decodeBytes(chkBytes);
+                  for (ArchiveFile file in checklistArchive) {
+                    if (file.isFile) {
+                      clientArchive.addFile(
+                        ArchiveFile(
+                          'my_checklist/${file.name}',
+                          file.content.length,
+                          file.content,
+                        ),
+                      );
+                    }
+                  }
+                }
+
+                final List<int>? finalZipBytes = ZipEncoder().encode(
+                  clientArchive,
+                );
+                if (finalZipBytes != null) {
+                  String namaZipDinamis = _getFormattedFileName(
+                    'client_backup',
+                    'zip',
+                  );
+                  File fileZipTarget = await _storageService.getBackupZipFile(
+                    _baseDir,
+                    namaZipDinamis,
+                  );
+                  await fileZipTarget.writeAsBytes(finalZipBytes);
+
+                  setState(() {
+                    _loadBaseDirectory();
+                  });
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Sukses menerima data dari Client! Tersimpan: $namaZipDinamis',
+                      ),
+                      backgroundColor: Colors.teal,
+                    ),
+                  );
+                }
+              }
+            } catch (err) {
+              debugPrint("Server gagal memproses pesan: $err");
+            }
+          },
+          onDone: () {
+            socketAktif = null;
+            debugPrint("Koneksi perangkat client terputus.");
+          },
+        );
+      });
+
       _serverEksternal = await shelf_io.serve(
         handler,
         InternetAddress.anyIPv4,
@@ -115,13 +149,65 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
 
       if (!mounted) return;
 
-      // Tampilkan dialog server aktif lengkap dengan petunjuk IP Address-nya
+      // Fungsi pembantu untuk membungkus dan mengirim data lokal milik Server ke Client
+      Future<void> fungsiKirimDataServer() async {
+        if (socketAktif == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Gagal! Belum ada perangkat penerima yang terhubung.',
+              ),
+            ),
+          );
+          return;
+        }
+
+        String currentDir = await _storageService.getBaseDirSetting();
+        File fileTasks = await _storageService.getTargetJsonFile(currentDir);
+        String kontenTasks = await fileTasks.exists()
+            ? await fileTasks.readAsString()
+            : "{}";
+
+        File fileJurnal = await _storageService.getJurnalJsonFile(currentDir);
+        String kontenJurnal = await fileJurnal.exists()
+            ? await fileJurnal.readAsString()
+            : "[]";
+
+        List<File> hubFiles = await _storageService.getAllChecklistHubs(
+          currentDir,
+        );
+        final Archive archive = Archive();
+        for (var file in hubFiles) {
+          final String namaFile = file.path.split('/').last;
+          final List<int> bytes = await file.readAsBytes();
+          archive.addFile(ArchiveFile(namaFile, bytes.length, bytes));
+        }
+        final List<int>? zipBytes = ZipEncoder().encode(archive);
+        String kontenZipBase64 = zipBytes != null ? base64Encode(zipBytes) : "";
+
+        Map<String, dynamic> paketBesarKirim = {
+          'tipe_pesan': 'data_transfer',
+          'task_master': kontenTasks,
+          'jurnal_aktivitas': kontenJurnal,
+          'checklist_zip': kontenZipBase64,
+        };
+
+        socketAktif.sink.add(jsonEncode(paketBesarKirim));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Berhasil memicu pengiriman data ke Client!'),
+            backgroundColor: Colors.teal,
+          ),
+        );
+      }
+
+      // Tampilkan dialog kontrol server aktif
       showDialog(
         context: context,
         barrierDismissible: false,
         builder: (ctx) => AlertDialog(
-          title: Row(
-            children: const [
+          title: const Row(
+            children: [
               Icon(Icons.wifi_tethering, color: Colors.indigo),
               SizedBox(width: 8),
               Text('Server Sharing Aktif'),
@@ -152,7 +238,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      localIp, // <--- Menampilkan IP Address hasil deteksi dinamis
+                      localIp,
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
@@ -165,8 +251,23 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
               ),
               const SizedBox(height: 16),
               const Text(
-                'Status: Menunggu perangkat penerima terhubung...\n\nPaket yang akan dikirim:\n1. Task Master (.json)\n2. Jurnal Aktivitas (.json)\n3. Semua Hub Checklist (.zip)',
+                'Status: Siap digunakan.\n\nSilakan tekan tombol di bawah jika Anda ingin mengirim data aktif komputer/HP ini ke Client.',
                 style: TextStyle(fontSize: 13, height: 1.4),
+              ),
+              const SizedBox(height: 12),
+
+              // === TOMBOL MANUAL UNTUK MENGIRIM DATA SISI SERVER ===
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => fungsiKirimDataServer(),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+                  icon: const Icon(Icons.send_and_archive, color: Colors.white),
+                  label: const Text(
+                    'Kirim Data Ke Client',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
               ),
             ],
           ),
@@ -191,7 +292,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
         ),
       );
     } catch (e) {
-      debugPrint("Gagal menyiapkan server backup: $e");
+      debugPrint("Gagal menyiapkan server dua arah: $e");
     }
   }
 
@@ -318,94 +419,198 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
     final urlWebSocket = 'ws://$alamatIP:8090';
 
     try {
+      // Hubungkan koneksi pipa komunikasi ke Server
       final channel = WebSocketChannel.connect(Uri.parse(urlWebSocket));
 
+      // Fungsi pembantu untuk membungkus dan mengirim data lokal milik Client ke Server
+      Future<void> fungsiKirimDataClient() async {
+        String currentDir = await _storageService.getBaseDirSetting();
+        File fileTasks = await _storageService.getTargetJsonFile(currentDir);
+        String kontenTasks = await fileTasks.exists()
+            ? await fileTasks.readAsString()
+            : "{}";
+
+        File fileJurnal = await _storageService.getJurnalJsonFile(currentDir);
+        String kontenJurnal = await fileJurnal.exists()
+            ? await fileJurnal.readAsString()
+            : "[]";
+
+        List<File> hubFiles = await _storageService.getAllChecklistHubs(
+          currentDir,
+        );
+        final Archive archive = Archive();
+        for (var file in hubFiles) {
+          final String namaFile = file.path.split('/').last;
+          final List<int> bytes = await file.readAsBytes();
+          archive.addFile(ArchiveFile(namaFile, bytes.length, bytes));
+        }
+        final List<int>? zipBytes = ZipEncoder().encode(archive);
+        String kontenZipBase64 = zipBytes != null ? base64Encode(zipBytes) : "";
+
+        Map<String, dynamic> paketBesarClient = {
+          'tipe_pesan': 'data_transfer',
+          'task_master': kontenTasks,
+          'jurnal_aktivitas': kontenJurnal,
+          'checklist_zip': kontenZipBase64,
+        };
+
+        channel.sink.add(jsonEncode(paketBesarClient));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Data Anda sukses dikirimkan ke Server!'),
+            backgroundColor: Colors.teal,
+          ),
+        );
+      }
+
+      // Dengarkan kiriman data yang dikirim oleh Server
       channel.stream.listen(
         (pesanMasuk) async {
-          // 1. Dekode paket besar yang diterima dari server
-          Map<String, dynamic> dataDiterima = jsonDecode(pesanMasuk);
-          String kontenTasks = dataDiterima['task_master'];
-          String kontenJurnal = dataDiterima['jurnal_aktivitas'];
-          String kontenZipBase64 = dataDiterima['checklist_zip'];
+          try {
+            Map<String, dynamic> dataDiterima = jsonDecode(pesanMasuk);
 
-          // 2. Buat wadah Archive baru untuk menyatukan semua data ke satu ZIP
-          final Archive backupArchive = Archive();
+            if (dataDiterima['tipe_pesan'] == 'data_transfer') {
+              String serverTasks = dataDiterima['task_master'];
+              String serverJurnal = dataDiterima['jurnal_aktivitas'];
+              String serverZipBase64 = dataDiterima['checklist_zip'];
 
-          // A. Masukkan data Task Master berupa file JSON ke dalam archive
-          List<int> tasksBytes = utf8.encode(kontenTasks);
-          backupArchive.addFile(
-            ArchiveFile('my_tasks.json', tasksBytes.length, tasksBytes),
-          );
+              final Archive backupArchive = Archive();
+              List<int> tasksBytes = utf8.encode(serverTasks);
+              backupArchive.addFile(
+                ArchiveFile('my_tasks.json', tasksBytes.length, tasksBytes),
+              );
 
-          // B. Masukkan data Jurnal Aktivitas berupa file JSON ke dalam archive
-          List<int> jurnalBytes = utf8.encode(kontenJurnal);
-          backupArchive.addFile(
-            ArchiveFile('time_log.json', jurnalBytes.length, jurnalBytes),
-          );
+              List<int> jurnalBytes = utf8.encode(serverJurnal);
+              backupArchive.addFile(
+                ArchiveFile('time_log.json', jurnalBytes.length, jurnalBytes),
+              );
 
-          // C. Masukkan semua isi file Checklist dari server ke dalam archive
-          if (kontenZipBase64.isNotEmpty) {
-            List<int> checklistZipBytes = base64Decode(kontenZipBase64);
-            Archive checklistArchive = ZipDecoder().decodeBytes(
-              checklistZipBytes,
-            );
-
-            // Memindahkan file-file di dalam zip checklist ke dalam folder khusus di ZIP utama
-            for (ArchiveFile file in checklistArchive) {
-              if (file.isFile) {
-                backupArchive.addFile(
-                  ArchiveFile(
-                    'my_checklist/${file.name}',
-                    file.content.length,
-                    file.content,
-                  ),
+              if (serverZipBase64.isNotEmpty) {
+                List<int> checklistZipBytes = base64Decode(serverZipBase64);
+                Archive checklistArchive = ZipDecoder().decodeBytes(
+                  checklistZipBytes,
                 );
+                for (ArchiveFile file in checklistArchive) {
+                  if (file.isFile) {
+                    backupArchive.addFile(
+                      ArchiveFile(
+                        'my_checklist/${file.name}',
+                        file.content.length,
+                        file.content,
+                      ),
+                    );
+                  }
+                }
               }
+
+              final List<int>? finalZipBytes = ZipEncoder().encode(
+                backupArchive,
+              );
+              if (finalZipBytes == null) return;
+
+              String namaZipDinamis = _getFormattedFileName(
+                'server_backup',
+                'zip',
+              );
+              File fileZipTarget = await _storageService.getBackupZipFile(
+                _baseDir,
+                namaZipDinamis,
+              );
+              await fileZipTarget.writeAsBytes(finalZipBytes);
+
+              setState(() {
+                _loadBaseDirectory();
+              });
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Sukses menerima berkas dari Server! Disimpan: $namaZipDinamis',
+                  ),
+                  backgroundColor: Colors.teal,
+                  duration: const Duration(seconds: 3),
+                ),
+              );
             }
+          } catch (e) {
+            debugPrint("Client gagal memproses data: $e");
           }
-
-          // 3. Kompres seluruh materi archive di atas menjadi bytes berkas ZIP
-          final List<int>? finalZipBytes = ZipEncoder().encode(backupArchive);
-          if (finalZipBytes == null) return;
-
-          // 4. Buat nama file ZIP dinamis berdasarkan format tanggal-hari-waktu yang Anda miliki
-          String namaZipDinamis = _getFormattedFileName('server_backup', 'zip');
-
-          // 5. Simpan file ZIP tersebut ke folder storage/backup_from_server
-          File fileZipTarget = await _storageService.getBackupZipFile(
-            _baseDir,
-            namaZipDinamis,
-          );
-          await fileZipTarget.writeAsBytes(finalZipBytes);
-
-          // Segarkan state halaman
-          setState(() {
-            _loadBaseDirectory();
-          });
-
-          // Tampilkan notifikasi sukses berupa nama file ZIP-nya
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Sukses menerima data! Disimpan dalam bentuk file: $namaZipDinamis',
-              ),
-              backgroundColor: Colors.teal,
-              duration: const Duration(seconds: 4),
-            ),
-          );
-
-          channel.sink.close();
         },
         onError: (err) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Koneksi terputus atau gagal terhubung!'),
+              content: Text('Koneksi terputus atau gagal terhubung ke server!'),
             ),
           );
         },
+        onDone: () {
+          debugPrint("Koneksi client selesai.");
+        },
+      );
+
+      if (!mounted) return;
+
+      // Munculkan dialog kontrol kendali di sisi Client yang terhubung
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.cloud_done, color: Colors.teal),
+              const SizedBox(width: 8),
+              Text('Terhubung ke Server'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Sukses tersambung dengan alamat IP: $alamatIP'),
+              const SizedBox(height: 16),
+              const Text(
+                'Anda bisa memantau proses penerimaan otomatis, atau menekan tombol di bawah jika ingin mengirim balik data lokal HP ini ke Server tujuan.',
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.4,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // === TOMBOL MANUAL UNTUK MENGIRIM DATA SISI CLIENT ===
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => fungsiKirimDataClient(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.indigo,
+                  ),
+                  icon: const Icon(Icons.upload_file, color: Colors.white),
+                  label: const Text(
+                    'Kirim Data Saya Ke Server',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                channel.sink.close();
+                Navigator.pop(ctx);
+              },
+              child: const Text(
+                'Putuskan Koneksi',
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+          ],
+        ),
       );
     } catch (e) {
-      debugPrint("Gagal mengambil data dari server: $e");
+      debugPrint("Gagal menjalankan transfer data client: $e");
     }
   }
 
