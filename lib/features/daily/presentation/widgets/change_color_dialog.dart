@@ -73,14 +73,19 @@ class _ChangeColorDialogState extends State<ChangeColorDialog> {
     if (cleanHex.length == 6) {
       cleanHex = 'FF$cleanHex';
     }
-
     final int? parsedValue = int.tryParse(cleanHex, radix: 16);
     if (parsedValue != null) {
+      final Color newBgColor = Color(parsedValue);
+      final Brightness brightness = ThemeData.estimateBrightnessForColor(
+        newBgColor,
+      );
+
       setState(() {
-        _selectedBgColor = Color(parsedValue);
-        _selectedTextColor = _isTextDarkForCustom
-            ? Colors.black87
-            : Colors.white;
+        _selectedBgColor = newBgColor;
+        // Mengabaikan dropdown manual dan mendeteksi otomatis kecerahan kode HEX
+        _selectedTextColor = (brightness == Brightness.dark)
+            ? Colors.white
+            : Colors.black87;
       });
     }
   }
@@ -243,9 +248,14 @@ class _ChangeColorDialogState extends State<ChangeColorDialog> {
 
                     return InkWell(
                       onTap: () {
+                        final Brightness brightness =
+                            ThemeData.estimateBrightnessForColor(bg);
                         setState(() {
                           _selectedBgColor = bg;
-                          _selectedTextColor = text;
+                          // Mengabaikan warna teks bawaan palet dan menghitung kecerahan murninya
+                          _selectedTextColor = (brightness == Brightness.dark)
+                              ? Colors.white
+                              : Colors.black87;
                           _updateHexTextField(bg);
                         });
                       },
@@ -281,9 +291,19 @@ class _ChangeColorDialogState extends State<ChangeColorDialog> {
         ElevatedButton(
           onPressed: () {
             if (_formKey.currentState!.validate()) {
-              // PERBAIKAN: Mengambil nilai integer (.value) untuk disimpan ke model data yang bertipe int
+              // 1. Tentukan tingkat kecerahan dari warna latar belakang yang dipilih
+              final Brightness brightness =
+                  ThemeData.estimateBrightnessForColor(_selectedBgColor);
+
+              // 2. Jika warna latar belakang cenderung GELAP, ubah teks menjadi PUTIH.
+              //    Jika warna latar belakang cenderung TERANG, ubah teks menjadi HITAM/GELAP.
+              final Color adaptiveTextColor = (brightness == Brightness.dark)
+                  ? Colors.white
+                  : Colors.black87;
+
+              // 3. Simpan nilai integer (.value) ke model data
               widget.subject.backgroundColor = _selectedBgColor.value;
-              widget.subject.textColor = _selectedTextColor.value;
+              widget.subject.textColor = adaptiveTextColor.value;
 
               widget.onColorSaved();
               Navigator.pop(context);
