@@ -281,7 +281,6 @@ class _HomeScreenState extends State<HomeScreen> {
           setState(() {
             category.tasks.removeWhere((t) => t.id == task.id);
           });
-          // TAMBAHKAN baris auto-save ini agar perubahan tersimpan ke file JSON lokal:
           await _saveAllCategoriesToFile(shouldRefresh: false);
           return true;
         },
@@ -302,11 +301,92 @@ class _HomeScreenState extends State<HomeScreen> {
           await _saveAllCategoriesToFile();
         },
         onAddTask: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Membuka menu tambah tugas untuk Kategori ${category.name}',
+          // ===================================================================
+          // PERBAIKAN LOGIKA: Membuka Dialog Input Tugas Baru Secara Utuh
+          // ===================================================================
+          final TextEditingController taskNameController =
+              TextEditingController();
+          final TextEditingController targetTodayController =
+              TextEditingController(text: '0');
+          final formKey = GlobalKey<FormState>();
+
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: Text('Tambah Tugas ke ${category.name}'),
+              content: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextFormField(
+                      controller: taskNameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Nama Tugas Baru',
+                        hintText: 'Contoh: Olahraga Sore',
+                      ),
+                      validator: (v) => v!.trim().isEmpty
+                          ? 'Nama tugas tidak boleh kosong'
+                          : null,
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: targetTodayController,
+                      decoration: const InputDecoration(
+                        labelText: 'Target Hitungan Hari Ini',
+                        hintText: '0 jika tidak ada target',
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ],
+                ),
               ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Batal'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    if (formKey.currentState!.validate()) {
+                      final String newName = taskNameController.text.trim();
+                      final int newTargetToday =
+                          int.tryParse(targetTodayController.text.trim()) ?? 0;
+
+                      // Membuat instance TaskItem baru dengan ID acak unik bawaan model Anda
+                      final newTask = TaskItem(
+                        id: TaskItem.generateRandomId(),
+                        name: newName,
+                        count: 0,
+                        checked: false,
+                        countToday: 0,
+                        lastUpdated: '',
+                        targetCountToday: newTargetToday,
+                        type: 0, // 0 untuk tugas biasa, 1 untuk progress task
+                        targetCount: 0,
+                        isActive: true,
+                        date: _getTodayDateString(),
+                      );
+
+                      // Menyisipkan ke list tugas kategori ini, lalu simpan ke penyimpanan lokal
+                      setState(() {
+                        category.tasks.add(newTask);
+                      });
+
+                      await _saveAllCategoriesToFile();
+
+                      if (ctx.mounted) Navigator.pop(ctx);
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.indigo,
+                  ),
+                  child: const Text(
+                    'Simpan Tugas',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
             ),
           );
         },
