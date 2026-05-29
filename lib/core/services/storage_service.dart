@@ -12,14 +12,19 @@ class StorageService {
 
   // MODIFIKASI: Menyesuaikan base directory untuk Android secara otomatis
   Future<String> getBaseDirSetting() async {
+    // 1. Jika dijalankan di platform Android, gunakan path internal dokumen aplikasi secara otomatis
     if (!kIsWeb && Platform.isAndroid) {
-      // Jika di Android, ambil path internal documents app
       final directory = await getApplicationDocumentsDirectory();
       return directory.path;
     }
 
+    // 2. Jika dijalankan di Linux/Desktop, pisahkan folder default antara versi rilis dan debug
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_keyBaseDir) ?? 'Documents';
+
+    // Tentukan folder default berdasarkan build mode (Debug vs Release)
+    String defaultFolder = kDebugMode ? 'Documents_Debug' : 'Documents';
+
+    return prefs.getString(_keyBaseDir) ?? defaultFolder;
   }
 
   Future<void> saveBaseDirSetting(String value) async {
