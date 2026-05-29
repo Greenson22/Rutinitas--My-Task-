@@ -68,43 +68,67 @@ class _AboutPageState extends State<AboutPage>
   }
 
   Widget _buildFeaturesTab(BuildContext context) {
-    // Disesuaikan dengan fitur aplikasi Task Master, Daily, dan Jurnal Aktivitas
+    // Informasi fitur yang telah diperluas dan dilengkapi sesuai pembaruan sistem aplikasi
     final features = [
       {
         'icon': Icons.format_list_bulleted,
         'title': 'Task Master',
         'subtitle':
-            'Kelola tugas Anda berdasarkan kategori dengan target hitungan harian.',
+            'Kelola tugas Anda berdasarkan kategori dengan target hitungan harian. Mendukung fitur penambahan hitungan berkala yang terintegrasi langsung.',
       },
       {
-        'icon': Icons.wb_sunny_outlined,
-        'title': 'Daily Checklist',
+        'icon': Icons.stacked_line_chart,
+        'title': 'Tipe Tugas Fleksibel',
         'subtitle':
-            'Atur prioritas rutinitas ke dalam Fokus Utama, Rutinitas Inti, dan Pelengkap.',
+            'Pilih antara Tugas Biasa untuk hitungan rutinitas atau Tugas Progress yang dilengkapi Progress Bar dengan visualisasi warna dinamis yang mulus (Merah-Oranye-Hijau-Teal).',
+      },
+      {
+        'icon': Icons.checklist_rtl,
+        'title': 'My Checklist Hubs',
+        'subtitle':
+            'Atur berbagai kategori rutinitas ke dalam multi-hub kustom. Dilengkapi struktur sub-materi bersarang (nested tree list) yang bisa dikelola secara tak terbatas.',
+      },
+      {
+        'icon': Icons.palette_outlined,
+        'title': 'Kustomisasi Warna Adaptif',
+        'subtitle':
+            'Ubah warna latar belakang kartu materi menggunakan kode HEX bebas atau palet kustom eksternal. Warna teks akan otomatis menyesuaikan tingkat kecerahan latar (Gelap/Terang).',
       },
       {
         'icon': Icons.menu_book,
         'title': 'Jurnal Aktivitas',
         'subtitle':
-            'Lacak waktu produktif Anda dan hubungkan durasi dengan tugas yang ada.',
+            'Lacak durasi waktu produktif harian Anda. Setiap kali Anda melakukan increment count pada Task Master, sistem akan otomatis menambahkan durasi produktif +30 menit ke jurnal yang terhubung.',
       },
       {
         'icon': Icons.analytics_outlined,
-        'title': 'Statistik & Analitik',
+        'title': 'Statistik & Analitik Tren',
         'subtitle':
-            'Visualisasikan distribusi waktu dan tren harian melalui grafik interaktif.',
+            'Visualisasikan distribusi waktu produktif dan tren harian melalui grafik Stacked Bar Chart (Batang Bertumpuk) interaktif yang ramah mobile berdasarkan filter rentang waktu.',
+      },
+      {
+        'icon': Icons.backup_outlined,
+        'title': 'Data Center (Backup & Restore)',
+        'subtitle':
+            'Ekspor dan impor data secara parsial (per fitur) dalam bentuk JSON atau gunakan fitur Backup Utama untuk mengompresi seluruh ekosistem data aplikasi menjadi satu berkas ZIP cadangan.',
+      },
+      {
+        'icon': Icons.wifi_find_outlined,
+        'title': 'Local Sharing (Pipa Komunikasi)',
+        'subtitle':
+            'Kirim dan terima data antar-perangkat secara instan dalam satu jaringan lokal WiFi/LAN menggunakan protokol komunikasi dua arah WebSocket Server-Client.',
       },
       {
         'icon': Icons.folder_shared_outlined,
-        'title': 'Penyimpanan Offline',
+        'title': 'Penyimpanan Offline Lokal',
         'subtitle':
-            'Data disimpan sepenuhnya secara lokal (JSON) untuk menjamin privasi Anda.',
+            'Data disimpan sepenuhnya di memori lokal perangkat Anda (subfolder /mytask, /my_checklist, /jurnal_aktivitas) untuk menjamin privasi data 100% tanpa ketergantungan cloud.',
       },
       {
         'icon': Icons.tune,
-        'title': 'Kustomisasi Fleksibel',
+        'title': 'Pengaturan Direktori Kustom',
         'subtitle':
-            'Ubah warna, ikon kategori, dan letak folder penyimpanan sesuai keinginan.',
+            'Kebebasan penuh untuk memindahkan dan memilih folder penyimpanan data utama (base directory) aplikasi, sangat fleksibel dan ramah untuk pengguna Linux maupun Android.',
       },
     ];
 
