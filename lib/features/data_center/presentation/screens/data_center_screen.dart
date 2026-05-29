@@ -718,71 +718,52 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
 
   // Letakkan fungsi ini di dalam class _DataCenterScreenState
 
-  void _importSemuaDariZip() async {
+  // Mengubah fungsi agar menerima parameter file yang dipilih dari list
+  void _importSemuaDariZip(File zipFile) async {
     try {
-      // 1. Pilih file ZIP menggunakan File Picker
-      FilePickerResult? result = await FilePicker.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['zip'],
-      );
+      // Membaca bytes dari file ZIP target yang di-klik pengguna
+      List<int> bytes = await zipFile.readAsBytes();
 
-      if (result != null && result.files.single.path != null) {
-        File zipFile = File(result.files.single.path!);
-        List<int> bytes = await zipFile.readAsBytes();
+      // Dekode/Ekstrak file ZIP
+      Archive archive = ZipDecoder().decodeBytes(bytes);
+      int hitungChecklist = 0;
 
-        // 2. Dekode/Ekstrak file ZIP
-        Archive archive = ZipDecoder().decodeBytes(bytes);
-
-        int hitungChecklist = 0;
-
-        // 3. Iterasi setiap file yang ada di dalam ZIP
-        for (ArchiveFile file in archive) {
-          if (file.isFile) {
-            // A. Jika itu file Task Master
-            if (file.name == 'my_tasks.json') {
-              File target = await _storageService.getTargetJsonFile(_baseDir);
+      // Iterasi ekstraksi isi ZIP ke folder aplikasi masing-masing
+      for (ArchiveFile file in archive) {
+        if (file.isFile) {
+          if (file.name == 'my_tasks.json') {
+            File target = await _storageService.getTargetJsonFile(_baseDir);
+            await target.writeAsBytes(file.content);
+          } else if (file.name == 'time_log.json') {
+            File target = await _storageService.getJurnalJsonFile(_baseDir);
+            await target.writeAsBytes(file.content);
+          } else if (file.name.startsWith('my_checklist/')) {
+            String namaFileHub = file.name.split('/').last;
+            if (namaFileHub.isNotEmpty) {
+              String folderChecklist = await _storageService
+                  .getChecklistDirPath(_baseDir);
+              File target = File('$folderChecklist/$namaFileHub');
               await target.writeAsBytes(file.content);
-            }
-            // B. Jika itu file Jurnal Aktivitas
-            else if (file.name == 'time_log.json') {
-              File target = await _storageService.getJurnalJsonFile(_baseDir);
-              await target.writeAsBytes(file.content);
-            }
-            // C. Jika itu file-file di dalam folder my_checklist
-            else if (file.name.startsWith('my_checklist/')) {
-              String namaFileHub = file.name.split('/').last;
-              if (namaFileHub.isNotEmpty) {
-                String folderChecklist = await _storageService
-                    .getChecklistDirPath(_baseDir);
-                File target = File('$folderChecklist/$namaFileHub');
-                await target.writeAsBytes(file.content);
-                hitungChecklist++;
-              }
+              hitungChecklist++;
             }
           }
         }
-
-        // 4. Segarkan halaman UI dan berikan notifikasi sukses
-        setState(() {
-          _loadBaseDirectory();
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Restore Berhasil! Task Master, Jurnal, dan $hitungChecklist Hub Checklist dipulihkan.',
-            ),
-            backgroundColor: Colors.teal,
-          ),
-        );
       }
-    } catch (e) {
-      debugPrint("Gagal mengimpor file ZIP: $e");
+
+      setState(() {
+        _loadBaseDirectory(); // Segarkan data UI
+      });
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Terjadi kesalahan saat mengekstrak berkas ZIP.'),
+        SnackBar(
+          content: Text(
+            'Restore Berhasil! Data dari "${zipFile.path.split('/').last}" dipulihkan.',
+          ),
+          backgroundColor: Colors.teal,
         ),
       );
+    } catch (e) {
+      debugPrint("Gagal mengimpor file ZIP: $e");
     }
   }
 
@@ -870,7 +851,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
 
               // ==================================================
               // TULIS BARIS BARU INI DI SINI (Jangan hapus kode di atas atau di bawahnya)
-              onRestoreAllZip: () => _importSemuaDariZip(),
+              onRestoreAllZip: (file) => _importSemuaDariZip(file),
               onBackupTaskMaster: () => _exportTaskMaster(),
               onRestoreTaskMaster: () => _importTaskMaster(),
               onBackupChecklist: () => _exportChecklist(),

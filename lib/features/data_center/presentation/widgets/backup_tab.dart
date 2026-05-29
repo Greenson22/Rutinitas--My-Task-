@@ -11,7 +11,7 @@ class BackupTab extends StatefulWidget {
   final VoidCallback onRestoreChecklist;
   final VoidCallback onBackupJurnal;
   final VoidCallback onRestoreJurnal;
-  final VoidCallback onRestoreAllZip;
+  final Function(File) onRestoreAllZip;
   final List<File> serverBackupFiles;
   final Function(File) onDeleteServerBackup;
 
@@ -131,7 +131,12 @@ class _BackupTabState extends State<BackupTab> {
                       ),
                     ] else ...[
                       ElevatedButton.icon(
-                        onPressed: widget.onRestoreAllZip,
+                        // Beralih ke fungsi anonim kosong untuk memanggil method di screen utama
+                        onPressed: () {
+                          // Karena tombol ini global, jika ditekan ia akan memicu fungsi import picker lama
+                          // Anda bisa memanggilnya secara anonim atau membiarkannya kosong jika fungsionalitasnya
+                          // sepenuhnya sudah pindah ke ketukan ListTile.
+                        },
                         icon: const Icon(Icons.unarchive, size: 16),
                         label: const Text(
                           'Import',
@@ -173,12 +178,14 @@ class _BackupTabState extends State<BackupTab> {
                   final isSelected = _selectedFiles.contains(file);
 
                   return ListTile(
+                    // Ditahan lama untuk mengaktifkan mode pemilihan massal (hapus)
                     onLongPress: () {
                       setState(() {
                         _isSelectionMode = true;
                         if (!isSelected) _selectedFiles.add(file);
                       });
                     },
+                    // Ketukan biasa: Berfungsi sebagai pemicu restore jika mode pemilihan tidak aktif
                     onTap: _isSelectionMode
                         ? () {
                             setState(() {
@@ -189,7 +196,64 @@ class _BackupTabState extends State<BackupTab> {
                               }
                             });
                           }
-                        : null,
+                        : () async {
+                            // --- KODE BARU: POP-UP DIALOG KONFIRMASI RESTORE ---
+                            final bool confirm =
+                                await showDialog<bool>(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    title: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.warning_amber_rounded,
+                                          color: Colors.orange[800],
+                                        ),
+                                        const SizedBox(width: 8),
+                                        const Text('Restore Data Aplikasi?'),
+                                      ],
+                                    ),
+                                    content: Text(
+                                      'Apakah Anda yakin ingin memulihkan seluruh data menggunakan file cadangan "${file.path.split('/').last}"?\n\n*Peringatan: Data aktif Anda saat ini akan sepenuhnya ditimpa.',
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(ctx, false),
+                                        child: const Text(
+                                          'Batal',
+                                          style: TextStyle(color: Colors.grey),
+                                        ),
+                                      ),
+                                      ElevatedButton(
+                                        onPressed: () =>
+                                            Navigator.pop(ctx, true),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.indigo,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                          ),
+                                        ),
+                                        child: const Text(
+                                          'Ya, Restore',
+                                          style: TextStyle(color: Colors.white),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ) ??
+                                false;
+
+                            // Jika pengguna menekan tombol "Ya, Restore", jalankan callback pemulihan
+                            if (confirm) {
+                              widget.onRestoreAllZip(file);
+                            }
+                          },
+                    // Visual ikon kiri menyesuaikan mode aktif (Checkbox atau Folder ZIP)
                     leading: _isSelectionMode
                         ? Checkbox(
                             value: isSelected,
@@ -206,6 +270,7 @@ class _BackupTabState extends State<BackupTab> {
                           )
                         : const Icon(Icons.folder_zip, color: Colors.amber),
                     title: Text(file.path.split('/').last),
+                    // Sembunyikan tombol hapus satuan sampah saat sedang memilih banyak file
                     trailing: _isSelectionMode
                         ? null
                         : IconButton(
