@@ -101,22 +101,27 @@ class CategoryCard extends StatelessWidget {
           ),
 
           // PANEL TOMBOL KONTROL DI BAWAH (Hanya muncul saat Mode Edit Aktif / Ditahan)
+          // PANEL TOMBOL KONTROL DI BAWAH (Hanya muncul saat Mode Edit Aktif / Ditahan)
           if (isEditMode) ...[
             Container(
               color: Colors.transparent,
-              padding: const EdgeInsets.symmetric(vertical: 2),
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   // 1. Tombol Pindah Kiri
                   IconButton(
-                    icon: const Icon(Icons.arrow_back, size: 18),
+                    icon: const Icon(Icons.arrow_back, size: 16),
                     color: onMoveUp != null ? Colors.indigo : Colors.grey[300],
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
                     onPressed: onMoveUp,
                   ),
                   // 2. Tombol Ubah/Edit
                   IconButton(
-                    icon: const Icon(Icons.edit, size: 18, color: Colors.blue),
+                    icon: const Icon(Icons.edit, size: 16, color: Colors.blue),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
                     onPressed: onEdit,
                   ),
                   // 3. Tombol Sembunyikan/Tampilkan
@@ -125,26 +130,32 @@ class CategoryCard extends StatelessWidget {
                       category.isHidden
                           ? Icons.visibility
                           : Icons.visibility_off,
-                      size: 18,
+                      size: 16,
                       color: Colors.blueGrey,
                     ),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
                     onPressed: onToggleVisibility,
                   ),
                   // 4. Tombol Pindah Kanan
                   IconButton(
-                    icon: const Icon(Icons.arrow_forward, size: 18),
+                    icon: const Icon(Icons.arrow_forward, size: 16),
                     color: onMoveDown != null
                         ? Colors.indigo
                         : Colors.grey[300],
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
                     onPressed: onMoveDown,
                   ),
                   // 5. Tombol Hapus
                   IconButton(
                     icon: const Icon(
                       Icons.delete_outline,
-                      size: 18,
+                      size: 16,
                       color: Colors.redAccent,
                     ),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
                     onPressed: onDelete,
                   ),
                 ],
