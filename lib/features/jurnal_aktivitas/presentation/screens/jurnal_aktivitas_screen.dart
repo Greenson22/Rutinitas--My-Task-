@@ -674,7 +674,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                           itemBuilder: (context, index) {
                             final task = todayTasks[index];
                             final bool isLinked = _isTaskTrulyLinked(task);
-
                             return Card(
                               elevation: 2,
                               margin: const EdgeInsets.symmetric(
@@ -685,6 +684,10 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: ListTile(
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
                                 leading: CircleAvatar(
                                   backgroundColor: _isEditMode
                                       ? Colors.amber[50]
@@ -692,7 +695,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                   radius: 16,
                                   child: Icon(
                                     _isEditMode
-                                        ? Icons.edit
+                                        ? Icons.edit_attributes
                                         : Icons.check_circle_outline,
                                     color: _isEditMode
                                         ? Colors.amber[800]
@@ -700,7 +703,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                     size: 18,
                                   ),
                                 ),
-                                // 1. Bagian Judul Tugas (title)
+                                // 1. Bagian Judul Tugas dan Kontrol Panel Mode Edit
                                 title: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
@@ -709,27 +712,26 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                       task.nama,
                                       style: const TextStyle(
                                         fontWeight: FontWeight.w600,
-                                        fontSize: 13.5,
+                                        fontSize: 14,
                                       ),
                                     ),
-                                    // Jika Mode Edit AKTIF, tampilkan kumpulan tombol kontrol di bawah judul
+                                    // Jika Mode Edit AKTIF, tampilkan kumpulan tombol kontrol dengan Wrap agar ramah mobile
                                     if (_isEditMode) ...[
                                       const SizedBox(
-                                        height: 8,
+                                        height: 10,
                                       ), // Jarak antara judul dan tombol
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.start,
+                                      Wrap(
+                                        spacing:
+                                            8.0, // Jarak horizontal antar tombol
+                                        runSpacing:
+                                            6.0, // Jarak vertikal jika tombol turun ke baris baru di layar kecil
                                         children: [
                                           // Tombol Naik Posisi
-                                          IconButton(
-                                            icon: const Icon(
-                                              Icons.arrow_upward,
-                                              size: 18,
-                                            ),
+                                          _buildMobileEditButton(
+                                            icon: Icons.arrow_upward,
                                             color: index > 0
                                                 ? Colors.indigo
-                                                : Colors.grey[300],
+                                                : Colors.grey[300]!,
                                             onPressed: index > 0
                                                 ? () => _moveTaskOrder(
                                                     todayTasks,
@@ -739,14 +741,11 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                                 : null,
                                           ),
                                           // Tombol Turun Posisi
-                                          IconButton(
-                                            icon: const Icon(
-                                              Icons.arrow_downward,
-                                              size: 18,
-                                            ),
+                                          _buildMobileEditButton(
+                                            icon: Icons.arrow_downward,
                                             color: index < todayTasks.length - 1
                                                 ? Colors.indigo
-                                                : Colors.grey[300],
+                                                : Colors.grey[300]!,
                                             onPressed:
                                                 index < todayTasks.length - 1
                                                 ? () => _moveTaskOrder(
@@ -756,35 +755,26 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                                   )
                                                 : null,
                                           ),
-                                          // Tombol Hubungkan / Kelola Hubungan Tugas
-                                          IconButton(
-                                            icon: const Icon(
-                                              Icons.link,
-                                              color: Colors.teal,
-                                              size: 18,
-                                            ),
+                                          // Tombol Hubungkan Tugas
+                                          _buildMobileEditButton(
+                                            icon: Icons.link,
+                                            color: Colors.teal,
                                             onPressed: () =>
                                                 _tampilkanDialogLinkTugas(task),
                                           ),
                                           // Tombol Ubah Nama Aktivitas
-                                          IconButton(
-                                            icon: const Icon(
-                                              Icons.edit_note,
-                                              color: Colors.blueGrey,
-                                              size: 18,
-                                            ),
+                                          _buildMobileEditButton(
+                                            icon: Icons.edit_note,
+                                            color: Colors.blueGrey,
                                             onPressed: () =>
                                                 _tampilkanDialogUbahAktivitas(
                                                   task,
                                                 ),
                                           ),
                                           // Tombol Hapus Aktivitas
-                                          IconButton(
-                                            icon: const Icon(
-                                              Icons.delete_outline,
-                                              color: Colors.redAccent,
-                                              size: 18,
-                                            ),
+                                          _buildMobileEditButton(
+                                            icon: Icons.delete_outline,
+                                            color: Colors.redAccent,
                                             onPressed: () =>
                                                 _hapusAktivitas(task),
                                           ),
@@ -821,7 +811,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                                 ),
                                               ),
                                               child: Text(
-                                                '⏱ ${task.durasiMenit} mnt',
+                                                ' ${task.durasiMenit} mnt',
                                                 style: TextStyle(
                                                   fontWeight: FontWeight.bold,
                                                   color: Colors.amber[900],
@@ -854,6 +844,36 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
         onPressed: _tampilkanDialogTambahAktivitas,
         backgroundColor: Colors.indigo[700],
         child: const Icon(Icons.add, size: 30, color: Colors.white),
+      ),
+    );
+  }
+
+  // Fungsi pembantu untuk membuat tombol edit yang rapi dan pas untuk ukuran layar HP
+  Widget _buildMobileEditButton({
+    required IconData icon,
+    required Color color,
+    required VoidCallback? onPressed,
+  }) {
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: onPressed == null ? Colors.grey[100] : color.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: onPressed == null
+                ? Colors.grey[200]!
+                : color.withOpacity(0.2),
+            width: 1,
+          ),
+        ),
+        child: Icon(
+          icon,
+          size: 18,
+          color: onPressed == null ? Colors.grey[400] : color,
+        ),
       ),
     );
   }
