@@ -45,6 +45,7 @@ class DailySubject {
   String? endDate;
 
   // Palet warna standar yang estetis untuk memudahkan pengguna memilih warna kustom
+  // Palet warna standar yang estetis untuk memudahkan pengguna memilih warna kustom
   static const List<Map<String, dynamic>> kustomPaletWarna = [
     {'nama': 'Teal', 'bg': 4281166415, 'text': 4294967295},
     {'nama': 'Indigo', 'bg': 4282340786, 'text': 4294967295},
@@ -56,6 +57,22 @@ class DailySubject {
     {'nama': 'Biru Slate', 'bg': 4284511612, 'text': 4294967295},
     {'nama': 'Kopi', 'bg': 4286734131, 'text': 4294967295},
     {'nama': 'Rose Pink', 'bg': 4293144195, 'text': 4294967295},
+    // --- TAMBAHAN PALET WARNA BARU ---
+    {'nama': 'Mint Pastel', 'bg': 0xFFE8F8F5, 'text': 0xFF117A65},
+    {'nama': 'Lavender', 'bg': 0xFFEBDEF0, 'text': 0xFF6C3483},
+    {'nama': 'Sky Blue', 'bg': 0xFFEBF5FB, 'text': 0xFF2E86C1},
+    {'nama': 'Desert Sand', 'bg': 0xFFFDF2E9, 'text': 0xFFA04000},
+    {'nama': 'Sakura', 'bg': 0xFFFCE4EC, 'text': 0xFFC2185B},
+    {'nama': 'Charcoal', 'bg': 0xFF2C3E50, 'text': 0xFFFFFFFF},
+    {'nama': 'Mustard', 'bg': 0xFFFEF9E7, 'text': 0xFFB7950B},
+    {'nama': 'Olive Green', 'bg': 0xFF1E8449, 'text': 0xFFFFFFFF},
+    {'nama': 'Deep Purple', 'bg': 0xFF4A235A, 'text': 0xFFFFFFFF},
+    {'nama': 'Coral Red', 'bg': 0xFFE74C3C, 'text': 0xFFFFFFFF},
+    {'nama': 'Ocean Cyan', 'bg': 0xFF117A65, 'text': 0xFFFFFFFF},
+    {'nama': 'Midnight Blue', 'bg': 0xFF1B4F72, 'text': 0xFFFFFFFF},
+    {'nama': 'Terracotta', 'bg': 0xFF6E2C00, 'text': 0xFFFFFFFF},
+    {'nama': 'Creamy Lime', 'bg': 0xFFF4F6F7, 'text': 0xFF1E8449},
+    {'nama': 'Soft Peach', 'bg': 0xFFFBEEE6, 'text': 0xFFBA4A00},
   ];
 
   DailySubject({

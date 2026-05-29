@@ -26,6 +26,7 @@ class _ChangeColorDialogState extends State<ChangeColorDialog> {
   bool _isTextDarkForCustom = true;
 
   // Daftar warna kustom tambahan (Menggunakan objek Color untuk UI Picker)
+  // Daftar warna kustom tambahan di dalam _ChangeColorDialogState
   final List<Map<String, Color>> _extendedPalette = [
     {'bg': const Color(0xFFFADBD8), 'text': const Color(0xFF78281F)},
     {'bg': const Color(0xFFD4EFDF), 'text': const Color(0xFF145A32)},
@@ -37,8 +38,13 @@ class _ChangeColorDialogState extends State<ChangeColorDialog> {
     {'bg': const Color(0xFFA2D9CE), 'text': const Color(0xFF0E6251)},
     {'bg': const Color(0xFFF5CBA7), 'text': const Color(0xFF784212)},
     {'bg': const Color(0xFFD7BDE2), 'text': const Color(0xFF4A235A)},
+    // Ekstra tambahan warna agar GridView meluas di UI
+    {'bg': const Color(0xFFE8F8F5), 'text': const Color(0xFF117A65)},
+    {'bg': const Color(0xFFEBDEF0), 'text': const Color(0xFF6C3483)},
+    {'bg': const Color(0xFFEBF5FB), 'text': const Color(0xFF2E86C1)},
+    {'bg': const Color(0xFFFDF2E9), 'text': const Color(0xFFA04000)},
+    {'bg': const Color(0xFFFCE4EC), 'text': const Color(0xFFC2185B)},
   ];
-
   @override
   void initState() {
     super.initState();
