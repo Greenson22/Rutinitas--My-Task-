@@ -898,6 +898,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                   _loadServerBackups(); // Menyegarkan daftar setelah dihapus
                 }
               },
+              onRestoreAllZip: (file) => _importSemuaDariZip(file),
             ),
           ],
         ),

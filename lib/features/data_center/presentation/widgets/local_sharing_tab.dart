@@ -8,6 +8,7 @@ class LocalSharingTab extends StatefulWidget {
   final VoidCallback onReceiveFile;
   final List<File> serverBackupFiles;
   final Function(File) onDeleteServerBackup;
+  final Function(File) onRestoreAllZip;
 
   const LocalSharingTab({
     super.key,
@@ -15,6 +16,7 @@ class LocalSharingTab extends StatefulWidget {
     required this.onReceiveFile,
     required this.serverBackupFiles,
     required this.onDeleteServerBackup,
+    required this.onRestoreAllZip,
   });
 
   @override
@@ -162,9 +164,8 @@ class _LocalSharingTabState extends State<LocalSharingTab> {
         ],
 
         // Menampilkan daftar berkas dari server
-        widget
-                .serverBackupFiles
-                .isEmpty // Menggunakan widget. untuk mengakses list file
+        // Menampilkan daftar berkas dari server
+        widget.serverBackupFiles.isEmpty
             ? const Center(
                 child: Padding(
                   padding: EdgeInsets.all(16.0),
@@ -174,11 +175,9 @@ class _LocalSharingTabState extends State<LocalSharingTab> {
             : ListView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                itemCount:
-                    widget.serverBackupFiles.length, // Menggunakan widget.
+                itemCount: widget.serverBackupFiles.length,
                 itemBuilder: (context, index) {
-                  final file =
-                      widget.serverBackupFiles[index]; // Menggunakan widget.
+                  final file = widget.serverBackupFiles[index];
                   final isSelected = _selectedServerFiles.contains(file);
 
                   return ListTile(
@@ -189,7 +188,7 @@ class _LocalSharingTabState extends State<LocalSharingTab> {
                         if (!isSelected) _selectedServerFiles.add(file);
                       });
                     },
-                    // Jika diklik biasa dalam mode pemilihan, lakukan toggle centang (tambah/hapus dari list)
+                    // Ketukan biasa: Jika dalam mode edit maka lakukan centang, jika mode normal jalankan fungsi Restore
                     onTap: _isServerSelectionMode
                         ? () {
                             setState(() {
@@ -200,7 +199,63 @@ class _LocalSharingTabState extends State<LocalSharingTab> {
                               }
                             });
                           }
-                        : null,
+                        : () async {
+                            // --- DIALOG KONFIRMASI RESTORE DARI SERVER ---
+                            final bool confirm =
+                                await showDialog<bool>(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    title: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.warning_amber_rounded,
+                                          color: Colors.orange[800],
+                                        ),
+                                        const SizedBox(width: 8),
+                                        const Text('Restore Data Aplikasi?'),
+                                      ],
+                                    ),
+                                    content: Text(
+                                      'Apakah Anda yakin ingin memulihkan seluruh data menggunakan file cadangan server "${file.path.split('/').last}"?\n\n*Peringatan: Data aktif Anda saat ini akan sepenuhnya ditimpa.',
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(ctx, false),
+                                        child: const Text(
+                                          'Batal',
+                                          style: TextStyle(color: Colors.grey),
+                                        ),
+                                      ),
+                                      ElevatedButton(
+                                        onPressed: () =>
+                                            Navigator.pop(ctx, true),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.indigo,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                          ),
+                                        ),
+                                        child: const Text(
+                                          'Ya, Restore',
+                                          style: TextStyle(color: Colors.white),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ) ??
+                                false;
+
+                            // Jika dikonfirmasi, panggil fungsi restore
+                            if (confirm) {
+                              widget.onRestoreAllZip(file);
+                            }
+                          },
                     // Ikon kiri berubah menjadi Checkbox apabila mode pemilihan masal sedang aktif
                     leading: _isServerSelectionMode
                         ? Checkbox(
@@ -218,7 +273,7 @@ class _LocalSharingTabState extends State<LocalSharingTab> {
                           )
                         : const Icon(Icons.cloud_download, color: Colors.teal),
                     title: Text(file.path.split('/').last),
-                    // Sembunyikan tombol hapus satuan sampah saat sedang memilih banyak file
+                    // Sembunyikan tombol hapus satuan saat sedang memilih banyak file
                     trailing: _isServerSelectionMode
                         ? null
                         : IconButton(
@@ -226,9 +281,7 @@ class _LocalSharingTabState extends State<LocalSharingTab> {
                               Icons.delete_outline,
                               color: Colors.red,
                             ),
-                            onPressed: () => widget.onDeleteServerBackup(
-                              file,
-                            ), // Menggunakan widget.
+                            onPressed: () => widget.onDeleteServerBackup(file),
                           ),
                   );
                 },
