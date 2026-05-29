@@ -29,6 +29,8 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
 
   List<File> _localBackupFiles = [];
   List<File> _serverBackupFiles = [];
+  bool _isServerSelectionMode = false;
+  final List<File> _selectedServerFiles = [];
 
   // === 2. TAMBAHKAN INIT STATE UNTUK MEMBACA SETTING DIRECTORY ===
   @override
