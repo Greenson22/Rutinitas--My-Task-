@@ -36,11 +36,50 @@ class BackupTab extends StatefulWidget {
 }
 
 class _BackupTabState extends State<BackupTab> {
-  // 1. Deklarasi variabel state diletakkan di sini
   bool _isSelectionMode = false;
   final List<File> _selectedFiles = [];
 
-  // 2. Fungsi build dipindahkan ke dalam State
+  // Fungsi pembantu untuk memunculkan dialog konfirmasi hapus
+  Future<bool> _showConfirmDeleteDialog({
+    required String title,
+    required String content,
+  }) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Row(
+              children: const [
+                Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
+                SizedBox(width: 8),
+                Text('Konfirmasi Hapus'),
+              ],
+            ),
+            content: Text(content),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text(
+                  'Batal',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                child: const Text(
+                  'Hapus',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListView(
@@ -55,8 +94,7 @@ class _BackupTabState extends State<BackupTab> {
               _buildCompactButton(
                 'Task Master',
                 Icons.format_list_bulleted,
-                widget
-                    .onBackupTaskMaster, // Menggunakan widget. untuk memanggil parameter
+                widget.onBackupTaskMaster,
                 widget.onRestoreTaskMaster,
               ),
               _buildCompactButton(
@@ -91,7 +129,6 @@ class _BackupTabState extends State<BackupTab> {
                 child: Row(
                   children: [
                     if (_isSelectionMode) ...[
-                      // --- TOMBOL PILIH / BATAL SEMUA VERSI MOBILE ---
                       IconButton(
                         icon: Icon(
                           _selectedFiles.length ==
@@ -130,18 +167,27 @@ class _BackupTabState extends State<BackupTab> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      // --- TOMBOL HAPUS MASSAL VERSI MOBILE ---
+
+                      // === FIX: TOMBOL HAPUS MASSAL DENGAN DIALOG KONFIRMASI ===
                       InkWell(
                         onTap: _selectedFiles.isEmpty
                             ? null
                             : () async {
-                                for (var file in _selectedFiles) {
-                                  widget.onDeleteBackup(file);
+                                final bool
+                                confirm = await _showConfirmDeleteDialog(
+                                  title: 'Hapus Masal',
+                                  content:
+                                      'Apakah Anda yakin ingin menghapus ${_selectedFiles.length} berkas cadangan terpilih secara permanen?',
+                                );
+                                if (confirm) {
+                                  for (var file in _selectedFiles) {
+                                    widget.onDeleteBackup(file);
+                                  }
+                                  setState(() {
+                                    _selectedFiles.clear();
+                                    _isSelectionMode = false;
+                                  });
                                 }
-                                setState(() {
-                                  _selectedFiles.clear();
-                                  _isSelectionMode = false;
-                                });
                               },
                         borderRadius: BorderRadius.circular(6),
                         child: Container(
@@ -170,7 +216,6 @@ class _BackupTabState extends State<BackupTab> {
                         ),
                       ),
                       const SizedBox(width: 4),
-                      // --- TOMBOL BATAL VERSI MOBILE ---
                       TextButton(
                         style: TextButton.styleFrom(
                           padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -229,7 +274,8 @@ class _BackupTabState extends State<BackupTab> {
             ],
           ),
         ),
-        // Daftar File ZIP Lokal dengan Checkbox & Mode Tahan Lama (Hanya Satu Blok)
+
+        // Daftar File ZIP Lokal
         widget.localBackupFiles.isEmpty
             ? const Center(child: Text('Belum ada file backup.'))
             : ListView.builder(
@@ -239,6 +285,7 @@ class _BackupTabState extends State<BackupTab> {
                 itemBuilder: (context, index) {
                   final file = widget.localBackupFiles[index];
                   final isSelected = _selectedFiles.contains(file);
+                  final String fileName = file.path.split('/').last;
 
                   return ListTile(
                     onLongPress: () {
@@ -276,7 +323,7 @@ class _BackupTabState extends State<BackupTab> {
                                       ],
                                     ),
                                     content: Text(
-                                      'Apakah Anda yakin ingin memulihkan seluruh data menggunakan file cadangan "${file.path.split('/').last}"?\n\n*Peringatan: Data aktif Anda saat ini akan sepenuhnya ditimpa.',
+                                      'Apakah Anda yakin ingin memulihkan seluruh data menggunakan file cadangan "$fileName"?\n\n*Peringatan: Data aktif Anda saat ini akan sepenuhnya ditimpa.',
                                     ),
                                     actions: [
                                       TextButton(
@@ -327,7 +374,9 @@ class _BackupTabState extends State<BackupTab> {
                             },
                           )
                         : const Icon(Icons.folder_zip, color: Colors.amber),
-                    title: Text(file.path.split('/').last),
+                    title: Text(fileName),
+
+                    // === FIX: TOMBOL HAPUS SATUAN DENGAN DIALOG KONFIRMASI ===
                     trailing: _isSelectionMode
                         ? null
                         : IconButton(
@@ -335,7 +384,17 @@ class _BackupTabState extends State<BackupTab> {
                               Icons.delete_outline,
                               color: Colors.red,
                             ),
-                            onPressed: () => widget.onDeleteBackup(file),
+                            onPressed: () async {
+                              final bool
+                              confirm = await _showConfirmDeleteDialog(
+                                title: 'Hapus Berkas Backup',
+                                content:
+                                    'Apakah Anda yakin ingin menghapus berkas cadangan "$fileName" secara permanen?',
+                              );
+                              if (confirm) {
+                                widget.onDeleteBackup(file);
+                              }
+                            },
                           ),
                   );
                 },
@@ -344,7 +403,6 @@ class _BackupTabState extends State<BackupTab> {
     );
   }
 
-  // 3. Helper widget dipindahkan ke dalam State agar rapi
   Widget _buildCompactButton(
     String label,
     IconData icon,
