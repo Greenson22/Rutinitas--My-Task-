@@ -141,31 +141,75 @@ class _LocalSharingTabState extends State<LocalSharingTab> {
                 ),
                 const SizedBox(width: 8),
 
-                // PERBAIKAN DI SINI: Logika Hapus Massal yang sinkron dengan State Parent
+                // === PERBAIKAN DI SINI: MENAMBAHKAN DIALOG KONFIRMASI HAPUS MASSAL SERVER ===
                 InkWell(
                   onTap: _selectedServerFiles.isEmpty
                       ? null
                       : () async {
-                          // 1. Eksekusi penghapusan seluruh file fisik yang dipilih
-                          for (var file in _selectedServerFiles) {
-                            if (await file.exists()) {
-                              await file.delete();
+                          // 1. Tampilkan dialog konfirmasi pop-up terlebih dahulu
+                          final bool confirm =
+                              await showDialog<bool>(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  title: Row(
+                                    children: const [
+                                      Icon(
+                                        Icons.warning_amber_rounded,
+                                        color: Colors.redAccent,
+                                      ),
+                                      SizedBox(width: 8),
+                                      Text('Konfirmasi Hapus Masal'),
+                                    ],
+                                  ),
+                                  content: Text(
+                                    'Apakah Anda yakin ingin menghapus ${_selectedServerFiles.length} berkas cadangan dari server terpilih secara permanen?',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(ctx, false),
+                                      child: const Text(
+                                        'Batal',
+                                        style: TextStyle(color: Colors.grey),
+                                      ),
+                                    ),
+                                    ElevatedButton(
+                                      onPressed: () => Navigator.pop(ctx, true),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.red,
+                                      ),
+                                      child: const Text(
+                                        'Hapus',
+                                        style: TextStyle(color: Colors.white),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ) ??
+                              false;
+
+                          // 2. Jika ditekan 'Hapus' (confirm == true), jalankan penghapusan fisik
+                          if (confirm) {
+                            for (var file in _selectedServerFiles) {
+                              if (await file.exists()) {
+                                await file.delete();
+                              }
                             }
+
+                            // 3. Bersihkan penampung state
+                            setState(() {
+                              _selectedServerFiles.clear();
+                              _isServerSelectionMode = false;
+                            });
+
+                            // 4. Picu pembaruan data di parent screen
+                            widget.onDeleteServerBackup(
+                              File('trigger_refresh_after_bulk_delete'),
+                            );
                           }
-
-                          // 2. Bersihkan state penampung file terpilih di widget local_sharing_tab
-                          setState(() {
-                            _selectedServerFiles.clear();
-                            _isServerSelectionMode = false;
-                          });
-
-                          // 3. Pemicu fungsi hapus dummy khusus untuk memanggil _loadServerBackups() di parent screen
-                          // Menggunakan file pertama dari daftar (atau file apa saja) sebelum dihapus,
-                          // namun karena file fisiknya sudah dihapus di atas, kita lewatkan pengecekan file.exists() di parent.
-                          // Solusi terbaik: Kita panggil onDeleteServerBackup dengan file yang memicu pembaruan data.
-                          widget.onDeleteServerBackup(
-                            File('trigger_refresh_after_bulk_delete'),
-                          );
                         },
                   borderRadius: BorderRadius.circular(6),
                   child: Container(

@@ -168,17 +168,20 @@ class _BackupTabState extends State<BackupTab> {
                       ),
                       const SizedBox(width: 8),
 
-                      // === FIX: TOMBOL HAPUS MASSAL DENGAN DIALOG KONFIRMASI ===
+                      // === PENYESUAIAN 2: KONFIRMASI DIALOG UNTUK HAPUS MASSAL ===
                       InkWell(
                         onTap: _selectedFiles.isEmpty
                             ? null
                             : () async {
+                                // Memanggil fungsi dialog konfirmasi massal
                                 final bool
                                 confirm = await _showConfirmDeleteDialog(
                                   title: 'Hapus Masal',
                                   content:
                                       'Apakah Anda yakin ingin menghapus ${_selectedFiles.length} berkas cadangan terpilih secara permanen?',
                                 );
+
+                                // Jika dikonfirmasi, lakukan perulangan penghapusan data
                                 if (confirm) {
                                   for (var file in _selectedFiles) {
                                     widget.onDeleteBackup(file);
@@ -376,7 +379,7 @@ class _BackupTabState extends State<BackupTab> {
                         : const Icon(Icons.folder_zip, color: Colors.amber),
                     title: Text(fileName),
 
-                    // === FIX: TOMBOL HAPUS SATUAN DENGAN DIALOG KONFIRMASI ===
+                    // === PENYESUAIAN 1: KONFIRMASI DIALOG UNTUK HAPUS SATUAN ===
                     trailing: _isSelectionMode
                         ? null
                         : IconButton(
@@ -385,12 +388,15 @@ class _BackupTabState extends State<BackupTab> {
                               color: Colors.red,
                             ),
                             onPressed: () async {
+                              // Memanggil fungsi dialog bawaan kode Anda
                               final bool
                               confirm = await _showConfirmDeleteDialog(
                                 title: 'Hapus Berkas Backup',
                                 content:
                                     'Apakah Anda yakin ingin menghapus berkas cadangan "$fileName" secara permanen?',
                               );
+
+                              // Jika ditekan 'Hapus' (true), jalankan callback penghapusan data
                               if (confirm) {
                                 widget.onDeleteBackup(file);
                               }
