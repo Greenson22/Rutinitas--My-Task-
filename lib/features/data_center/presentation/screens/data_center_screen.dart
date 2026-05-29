@@ -41,7 +41,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
 
   void _startMulaiServerSharing() async {
     setState(() {
-      // Berikan keterangan kepada pengguna apa saja yang sedang dipersiapkan untuk dikirim
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -63,7 +62,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
       File fileJurnal = await _storageService.getJurnalJsonFile(currentDir);
       String kontenJurnal = await fileJurnal.readAsString();
 
-      // C. Membuat berkas ZIP Checklist (Logika dari fungsi _exportChecklist)
+      // C. Membuat berkas ZIP Checklist
       List<File> hubFiles = await _storageService.getAllChecklistHubs(
         currentDir,
       );
@@ -74,13 +73,13 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
         archive.addFile(ArchiveFile(namaFile, bytes.length, bytes));
       }
       final List<int>? zipBytes = ZipEncoder().encode(archive);
-
-      // Konversi bytes ZIP ke String Base64 agar aman dikirim via teks JSON WebSocket
       String kontenZipBase64 = zipBytes != null ? base64Encode(zipBytes) : "";
+
+      // Ambil alamat IP lokal perangkat secara dinamis sebelum memunculkan dialog
+      String localIp = await _getLocalIpAddress();
 
       // Buat koneksi server WebSocket
       var handler = webSocketHandler((dynamic webSocket, dynamic protocol) {
-        // Bungkus ketiga data tersebut ke dalam SATU paket JSON besar
         Map<String, dynamic> paketBesarKirim = {
           'task_master': kontenTasks,
           'jurnal_aktivitas': kontenJurnal,
@@ -88,9 +87,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
         };
 
         try {
-          // Kirim paket data lengkap ke client penerima
           webSocket.sink.add(jsonEncode(paketBesarKirim));
-
           Future.delayed(const Duration(seconds: 1), () {
             webSocket.sink.close();
           });
@@ -116,15 +113,62 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
         8090,
       );
 
-      // Tampilkan dialog server aktif (Sesuaikan visual informasi filenya)
       if (!mounted) return;
+
+      // Tampilkan dialog server aktif lengkap dengan petunjuk IP Address-nya
       showDialog(
         context: context,
         barrierDismissible: false,
         builder: (ctx) => AlertDialog(
-          title: const Text('Server Sharing Aktif'),
-          content: const Text(
-            'Status: Menunggu perangkat penerima terhubung...\n\nPaket yang akan dikirim:\n1. Task Master (.json)\n2. Jurnal Aktivitas (.json)\n3. Semua Hub Checklist (.zip)',
+          title: Row(
+            children: const [
+              Icon(Icons.wifi_tethering, color: Colors.indigo),
+              SizedBox(width: 8),
+              Text('Server Sharing Aktif'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.indigo.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.indigo.shade100),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Masukkan IP ini di perangkat Penerima:',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.black54,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      localIp, // <--- Menampilkan IP Address hasil deteksi dinamis
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.indigo.shade900,
+                        fontFamily: 'monospace',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Status: Menunggu perangkat penerima terhubung...\n\nPaket yang akan dikirim:\n1. Task Master (.json)\n2. Jurnal Aktivitas (.json)\n3. Semua Hub Checklist (.zip)',
+                style: TextStyle(fontSize: 13, height: 1.4),
+              ),
+            ],
           ),
           actions: [
             TextButton(
@@ -137,7 +181,10 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
               },
               child: const Text(
                 'Matikan Server',
-                style: TextStyle(color: Colors.red),
+                style: TextStyle(
+                  color: Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ],
@@ -147,8 +194,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
       debugPrint("Gagal menyiapkan server backup: $e");
     }
   }
-
-  // lib/features/data_center/presentation/screens/data_center_screen.dart
 
   void _tampilkanDialogHubungkanKeServer() async {
     // Ambil data riwayat IP dari SharedPreferences
@@ -773,6 +818,30 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
     setState(() {
       _serverBackupFiles = files.reversed.toList();
     });
+  }
+
+  // Fungsi utuh untuk mendeteksi alamat IP lokal (WiFi/LAN) perangkat pengirim
+  Future<String> _getLocalIpAddress() async {
+    try {
+      // Mencari seluruh daftar antarmuka jaringan yang aktif pada perangkat
+      List<NetworkInterface> interfaces = await NetworkInterface.list(
+        includeLoopback: false, // Abaikan IP loopback lokal seperti 127.0.0.1
+        type: InternetAddressType.IPv4, // Hanya ambil format alamat IPv4
+      );
+
+      for (var interface in interfaces) {
+        for (var address in interface.addresses) {
+          // Memastikan alamat IP tidak kosong dan merupakan IP jaringan lokal yang valid
+          if (address.address.isNotEmpty) {
+            return address
+                .address; // Kembalikan IP pertama yang ditemukan (misal: 192.168.1.5)
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint("Gagal mendapatkan alamat IP: $e");
+    }
+    return "Tidak Diketahui"; // Kembalikan string default jika gagal atau offline
   }
 
   String _getFormattedFileName(String prefix, String extension) {
