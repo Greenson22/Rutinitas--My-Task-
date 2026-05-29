@@ -377,7 +377,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
   Future<void> _loadLocalBackups() async {
     List<File> files = await _storageService.getAllLocalBackupFiles(_baseDir);
     setState(() {
-      _localBackupFiles = files;
+      _localBackupFiles = files.reversed.toList();
     });
   }
 
@@ -788,7 +788,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
   Future<void> _loadServerBackups() async {
     List<File> files = await _storageService.getAllServerBackupFiles(_baseDir);
     setState(() {
-      _serverBackupFiles = files;
+      _serverBackupFiles = files.reversed.toList();
     });
   }
 
