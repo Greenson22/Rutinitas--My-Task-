@@ -229,7 +229,7 @@ class _BackupTabState extends State<BackupTab> {
             ],
           ),
         ),
-        // Daftar File ZIP Lokal dengan Checkbox & Mode Tahan Lama
+        // Daftar File ZIP Lokal dengan Checkbox & Mode Tahan Lama (Hanya Satu Blok)
         widget.localBackupFiles.isEmpty
             ? const Center(child: Text('Belum ada file backup.'))
             : ListView.builder(
@@ -328,123 +328,6 @@ class _BackupTabState extends State<BackupTab> {
                           )
                         : const Icon(Icons.folder_zip, color: Colors.amber),
                     title: Text(file.path.split('/').last),
-                    trailing: _isSelectionMode
-                        ? null
-                        : IconButton(
-                            icon: const Icon(
-                              Icons.delete_outline,
-                              color: Colors.red,
-                            ),
-                            onPressed: () => widget.onDeleteBackup(file),
-                          ),
-                  );
-                },
-              ),
-        // Daftar File ZIP Lokal dengan Checkbox & Mode Tahan Lama
-        widget.localBackupFiles.isEmpty
-            ? const Center(child: Text('Belum ada file backup.'))
-            : ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: widget.localBackupFiles.length,
-                itemBuilder: (context, index) {
-                  final file = widget.localBackupFiles[index];
-                  final isSelected = _selectedFiles.contains(file);
-
-                  return ListTile(
-                    // Ditahan lama untuk mengaktifkan mode pemilihan massal (hapus)
-                    onLongPress: () {
-                      setState(() {
-                        _isSelectionMode = true;
-                        if (!isSelected) _selectedFiles.add(file);
-                      });
-                    },
-                    // Ketukan biasa: Berfungsi sebagai pemicu restore jika mode pemilihan tidak aktif
-                    onTap: _isSelectionMode
-                        ? () {
-                            setState(() {
-                              if (isSelected) {
-                                _selectedFiles.remove(file);
-                              } else {
-                                _selectedFiles.add(file);
-                              }
-                            });
-                          }
-                        : () async {
-                            // --- KODE BARU: POP-UP DIALOG KONFIRMASI RESTORE ---
-                            final bool confirm =
-                                await showDialog<bool>(
-                                  context: context,
-                                  builder: (ctx) => AlertDialog(
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                    title: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.warning_amber_rounded,
-                                          color: Colors.orange[800],
-                                        ),
-                                        const SizedBox(width: 8),
-                                        const Text('Restore Data Aplikasi?'),
-                                      ],
-                                    ),
-                                    content: Text(
-                                      'Apakah Anda yakin ingin memulihkan seluruh data menggunakan file cadangan "${file.path.split('/').last}"?\n\n*Peringatan: Data aktif Anda saat ini akan sepenuhnya ditimpa.',
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () =>
-                                            Navigator.pop(ctx, false),
-                                        child: const Text(
-                                          'Batal',
-                                          style: TextStyle(color: Colors.grey),
-                                        ),
-                                      ),
-                                      ElevatedButton(
-                                        onPressed: () =>
-                                            Navigator.pop(ctx, true),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.indigo,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                          ),
-                                        ),
-                                        child: const Text(
-                                          'Ya, Restore',
-                                          style: TextStyle(color: Colors.white),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ) ??
-                                false;
-
-                            // Jika pengguna menekan tombol "Ya, Restore", jalankan callback pemulihan
-                            if (confirm) {
-                              widget.onRestoreAllZip(file);
-                            }
-                          },
-                    // Visual ikon kiri menyesuaikan mode aktif (Checkbox atau Folder ZIP)
-                    leading: _isSelectionMode
-                        ? Checkbox(
-                            value: isSelected,
-                            activeColor: Colors.red,
-                            onChanged: (bool? checked) {
-                              setState(() {
-                                if (checked == true) {
-                                  _selectedFiles.add(file);
-                                } else {
-                                  _selectedFiles.remove(file);
-                                }
-                              });
-                            },
-                          )
-                        : const Icon(Icons.folder_zip, color: Colors.amber),
-                    title: Text(file.path.split('/').last),
-                    // Sembunyikan tombol hapus satuan sampah saat sedang memilih banyak file
                     trailing: _isSelectionMode
                         ? null
                         : IconButton(
