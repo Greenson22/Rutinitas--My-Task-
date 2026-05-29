@@ -69,6 +69,10 @@ flutter_launcher_icons:
   image_path: "assets/icon/icon.png" # Path ke ikon baru Anda
   min_sdk_android: 21 # Sesuaikan dengan minSdk proyek Anda (bisa dilihat di android/app/build.gradle)
 
+  # Konfigurasi tambahan untuk ikon adaptif Android modern
+  # adaptive_icon_background: "#008080" # Contoh warna background Teal (Ganti sesuai warna tema aplikasi Anda)
+  # adaptive_icon_foreground: "assets/icon/app_icon_foreground.png" # Gambar utama transparan tanpa background
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
