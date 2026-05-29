@@ -7,32 +7,37 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../config/default_json.dart';
 
 class StorageService {
-  static const String _keyBaseDir = 'ubuntu_base_dir';
+  // 1. Definisikan dua key yang berbeda untuk memisahkan preferensi penyimpanan
+  static const String _keyBaseDirRelease = 'ubuntu_base_dir';
+  static const String _keyBaseDirDebug = 'ubuntu_base_dir_debug';
   static const String _keyIpHistory = 'sharing_ip_history';
 
-  // MODIFIKASI: Menyesuaikan base directory untuk Android secara otomatis
+  // Helper untuk mendapatkan key yang sesuai secara otomatis berdasarkan build mode
+  String _getBaseDirKey() {
+    return kDebugMode ? _keyBaseDirDebug : _keyBaseDirRelease;
+  }
+
+  // 2. Perbarui fungsi mengambil pengaturan path
   Future<String> getBaseDirSetting() async {
-    // 1. Jika dijalankan di platform Android, gunakan path internal dokumen aplikasi secara otomatis
     if (!kIsWeb && Platform.isAndroid) {
       final directory = await getApplicationDocumentsDirectory();
       return directory.path;
     }
 
-    // 2. Jika dijalankan di Linux/Desktop, pisahkan folder default antara versi rilis dan debug
     final prefs = await SharedPreferences.getInstance();
-
-    // Tentukan folder default berdasarkan build mode (Debug vs Release)
+    // Gunakan folder default yang berbeda sekaligus key SharedPreferences yang berbeda
     String defaultFolder = kDebugMode ? 'Documents_Debug' : 'Documents';
 
-    return prefs.getString(_keyBaseDir) ?? defaultFolder;
+    return prefs.getString(_getBaseDirKey()) ?? defaultFolder;
   }
 
+  // 3. Perbarui juga fungsi menyimpan pengaturan path
   Future<void> saveBaseDirSetting(String value) async {
-    // Di Android, kita bisa mengunci agar tidak bisa diubah sembarangan jika ingin aman
     if (!kIsWeb && Platform.isAndroid) return;
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keyBaseDir, value);
+    // Menyimpan ke key yang sesuai dengan mode aplikasi saat ini
+    await prefs.setString(_getBaseDirKey(), value);
   }
 
   Future<File> getTargetJsonFile(String baseDirSetting) async {
