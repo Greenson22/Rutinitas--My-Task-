@@ -290,11 +290,58 @@ class _HomeScreenState extends State<HomeScreen> {
               await _saveAllCategoriesToFile();
             },
         onDeleteTask: (task) async {
-          setState(() {
-            category.tasks.removeWhere((t) => t.id == task.id);
-          });
-          await _saveAllCategoriesToFile(shouldRefresh: false);
-          return true;
+          // 1. Tampilkan dialog konfirmasi sebelum menghapus tugas
+          final bool confirm =
+              await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  title: Row(
+                    children: const [
+                      Icon(Icons.warning_amber_rounded, color: Colors.red),
+                      SizedBox(width: 8),
+                      Text('Hapus Tugas?'),
+                    ],
+                  ),
+                  content: Text(
+                    'Apakah Anda yakin ingin menghapus tugas "${task.name}" secara permanen?',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text(
+                        'Batal',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    ),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                      ),
+                      child: const Text(
+                        'Hapus',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+              ) ??
+              false;
+
+          // 2. Jika dikonfirmasi (true), lakukan penghapusan dari list kategori
+          if (confirm) {
+            setState(() {
+              category.tasks.removeWhere((t) => t.id == task.id);
+            });
+            // Simpan perubahan secara otomatis ke file JSON lokal
+            await _saveAllCategoriesToFile(shouldRefresh: false);
+            return true;
+          }
+
+          return false;
         },
         onBulkAction: (tasksToUpdate, action) async {
           setState(() {
