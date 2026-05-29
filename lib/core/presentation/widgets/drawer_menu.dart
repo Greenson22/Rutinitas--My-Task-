@@ -74,9 +74,10 @@ class _DrawerMenuState extends State<DrawerMenu> {
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
+          // HEADER DIALOG (PERBAIKAN: Menampilkan Icon Tunggal Tanpa Duplikat)
           DrawerHeader(
             decoration: BoxDecoration(
-              // Mengubah background putih polos menjadi gradasi Indigo yang modern
+              // Background dengan gradasi Indigo modern
               gradient: LinearGradient(
                 colors: [Colors.indigo[800]!, Colors.indigo[600]!],
                 begin: Alignment.topLeft,
@@ -85,24 +86,30 @@ class _DrawerMenuState extends State<DrawerMenu> {
             ),
             child: Row(
               children: [
-                // Menambahkan lingkaran avatar berwarna putih untuk logo huruf 'M'
-                CircleAvatar(
-                  radius: 28,
-                  backgroundColor: Colors.white,
-                  child: Text(
-                    'M',
-                    style: TextStyle(
-                      color: Colors.indigo[900],
-                      fontSize: 32,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
+                // Mengganti CircleAvatar huruf 'M' sepenuhnya dengan Image.asset tunggal
+                Image.asset(
+                  '',
+                  width: 48,
+                  height: 48,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) {
+                    // Fallback visual jika file gambar belum terdaftar atau tidak ditemukan
+                    return CircleAvatar(
+                      radius: 24,
+                      backgroundColor: Colors.white,
+                      child: Icon(
+                        Icons.assignment_turned_in,
+                        color: Colors.indigo[900],
+                        size: 28,
+                      ),
+                    );
+                  },
                 ),
                 const SizedBox(width: 16),
-                // Mengubah warna teks judul menjadi putih agar kontras dengan background indigo
-                Text(
+                // Judul Aplikasi
+                const Text(
                   'My Tasks',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Colors.white,
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
@@ -112,6 +119,7 @@ class _DrawerMenuState extends State<DrawerMenu> {
               ],
             ),
           ),
+
           // 1. Menu Task Master
           _buildMenuTile(
             icon: Icons.format_list_bulleted,
@@ -180,7 +188,6 @@ class _DrawerMenuState extends State<DrawerMenu> {
           ),
           const Divider(),
           ListTile(
-            // Mengubah ikon abu-abu datar menjadi warna biru jeans/slate yang menarik
             leading: Icon(Icons.settings_outlined, color: Colors.blueGrey[700]),
             title: const Text(
               'Settings',
@@ -197,7 +204,6 @@ class _DrawerMenuState extends State<DrawerMenu> {
           ),
           const Divider(),
           ListTile(
-            // Mengubah ikon menjadi warna oranye lembut untuk menarik perhatian secara halus
             leading: const Icon(Icons.info_outline, color: Colors.orangeAccent),
             title: const Text(
               'About',
