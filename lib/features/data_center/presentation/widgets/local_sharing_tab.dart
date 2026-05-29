@@ -100,9 +100,38 @@ class _LocalSharingTabState extends State<LocalSharingTab> {
               vertical: 4.0,
             ),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment
-                  .end, // Menggeser deretan kontrol ke kanan layar
+              mainAxisAlignment: MainAxisAlignment.end,
               children: [
+                // --- FITUR BARU: TOMBOL PILIH SEMUA / BATAL PILIH SEMUA BARU ---
+                TextButton.icon(
+                  icon: Icon(
+                    _selectedServerFiles.length ==
+                            widget.serverBackupFiles.length
+                        ? Icons.deselect
+                        : Icons.select_all,
+                    size: 16,
+                    color: Colors.teal[700],
+                  ),
+                  label: Text(
+                    _selectedServerFiles.length ==
+                            widget.serverBackupFiles.length
+                        ? 'Batal Semua'
+                        : 'Pilih Semua',
+                    style: TextStyle(fontSize: 12, color: Colors.teal[700]),
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      if (_selectedServerFiles.length ==
+                          widget.serverBackupFiles.length) {
+                        _selectedServerFiles.clear();
+                      } else {
+                        _selectedServerFiles.clear();
+                        _selectedServerFiles.addAll(widget.serverBackupFiles);
+                      }
+                    });
+                  },
+                ),
+                const SizedBox(width: 4),
                 // Info jumlah file yang sedang dicentang
                 Text(
                   '${_selectedServerFiles.length} Terpilih  ',
@@ -125,20 +154,17 @@ class _LocalSharingTabState extends State<LocalSharingTab> {
                     style: TextStyle(color: Colors.white),
                   ),
                   onPressed: _selectedServerFiles.isEmpty
-                      ? null // Tombol tidak bisa diklik jika belum ada yang dicentang
+                      ? null
                       : () async {
-                          // Melakukan perulangan untuk menghapus setiap file yang dicentang dari penyimpanan lokal
                           for (var file in _selectedServerFiles) {
                             if (await file.exists()) {
                               await file.delete();
                             }
                           }
-                          // Reset state kembali ke mode normal setelah selesai menghapus
                           setState(() {
                             _selectedServerFiles.clear();
                             _isServerSelectionMode = false;
                           });
-                          // Memicu refresh data pada layar utama (DataCenterScreen) dengan mengirimkan objek file kosong
                           widget.onDeleteServerBackup(File(''));
                         },
                 ),
@@ -149,8 +175,7 @@ class _LocalSharingTabState extends State<LocalSharingTab> {
                   onPressed: () {
                     setState(() {
                       _selectedServerFiles.clear();
-                      _isServerSelectionMode =
-                          false; // Kembali ke mode tampilan biasa
+                      _isServerSelectionMode = false;
                     });
                   },
                   child: const Text(

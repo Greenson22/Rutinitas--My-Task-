@@ -78,6 +78,7 @@ class _BackupTabState extends State<BackupTab> {
         const Divider(thickness: 2),
 
         // Bagian Header Daftar Berkas & Tombol Dinamis
+        // Bagian Header Daftar Berkas & Tombol Dinamis
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
           child: Row(
@@ -91,6 +92,39 @@ class _BackupTabState extends State<BackupTab> {
                 child: Row(
                   children: [
                     if (_isSelectionMode) ...[
+                      // --- FITUR BARU: TOMBOL PILIH SEMUA / BATAL PILIH SEMUA ---
+                      TextButton.icon(
+                        icon: Icon(
+                          _selectedFiles.length ==
+                                  widget.localBackupFiles.length
+                              ? Icons.deselect
+                              : Icons.select_all,
+                          size: 16,
+                          color: Colors.teal[700],
+                        ),
+                        label: Text(
+                          _selectedFiles.length ==
+                                  widget.localBackupFiles.length
+                              ? 'Batal Semua'
+                              : 'Pilih Semua',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.teal[700],
+                          ),
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            if (_selectedFiles.length ==
+                                widget.localBackupFiles.length) {
+                              _selectedFiles.clear();
+                            } else {
+                              _selectedFiles.clear();
+                              _selectedFiles.addAll(widget.localBackupFiles);
+                            }
+                          });
+                        },
+                      ),
+                      const SizedBox(width: 4),
                       Text(
                         '${_selectedFiles.length} Terpilih  ',
                         style: const TextStyle(
@@ -131,12 +165,7 @@ class _BackupTabState extends State<BackupTab> {
                       ),
                     ] else ...[
                       ElevatedButton.icon(
-                        // Beralih ke fungsi anonim kosong untuk memanggil method di screen utama
-                        onPressed: () {
-                          // Karena tombol ini global, jika ditekan ia akan memicu fungsi import picker lama
-                          // Anda bisa memanggilnya secara anonim atau membiarkannya kosong jika fungsionalitasnya
-                          // sepenuhnya sudah pindah ke ketukan ListTile.
-                        },
+                        onPressed: () {},
                         icon: const Icon(Icons.unarchive, size: 16),
                         label: const Text(
                           'Import',
@@ -166,6 +195,117 @@ class _BackupTabState extends State<BackupTab> {
           ),
         ),
 
+        // Daftar File ZIP Lokal dengan Checkbox & Mode Tahan Lama
+        widget.localBackupFiles.isEmpty
+            ? const Center(child: Text('Belum ada file backup.'))
+            : ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: widget.localBackupFiles.length,
+                itemBuilder: (context, index) {
+                  final file = widget.localBackupFiles[index];
+                  final isSelected = _selectedFiles.contains(file);
+
+                  return ListTile(
+                    onLongPress: () {
+                      setState(() {
+                        _isSelectionMode = true;
+                        if (!isSelected) _selectedFiles.add(file);
+                      });
+                    },
+                    onTap: _isSelectionMode
+                        ? () {
+                            setState(() {
+                              if (isSelected) {
+                                _selectedFiles.remove(file);
+                              } else {
+                                _selectedFiles.add(file);
+                              }
+                            });
+                          }
+                        : () async {
+                            final bool confirm =
+                                await showDialog<bool>(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    title: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.warning_amber_rounded,
+                                          color: Colors.orange[800],
+                                        ),
+                                        const SizedBox(width: 8),
+                                        const Text('Restore Data Aplikasi?'),
+                                      ],
+                                    ),
+                                    content: Text(
+                                      'Apakah Anda yakin ingin memulihkan seluruh data menggunakan file cadangan "${file.path.split('/').last}"?\n\n*Peringatan: Data aktif Anda saat ini akan sepenuhnya ditimpa.',
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(ctx, false),
+                                        child: const Text(
+                                          'Batal',
+                                          style: TextStyle(color: Colors.grey),
+                                        ),
+                                      ),
+                                      ElevatedButton(
+                                        onPressed: () =>
+                                            Navigator.pop(ctx, true),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.indigo,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                          ),
+                                        ),
+                                        child: const Text(
+                                          'Ya, Restore',
+                                          style: TextStyle(color: Colors.white),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ) ??
+                                false;
+
+                            if (confirm) {
+                              widget.onRestoreAllZip(file);
+                            }
+                          },
+                    leading: _isSelectionMode
+                        ? Checkbox(
+                            value: isSelected,
+                            activeColor: Colors.red,
+                            onChanged: (bool? checked) {
+                              setState(() {
+                                if (checked == true) {
+                                  _selectedFiles.add(file);
+                                } else {
+                                  _selectedFiles.remove(file);
+                                }
+                              });
+                            },
+                          )
+                        : const Icon(Icons.folder_zip, color: Colors.amber),
+                    title: Text(file.path.split('/').last),
+                    trailing: _isSelectionMode
+                        ? null
+                        : IconButton(
+                            icon: const Icon(
+                              Icons.delete_outline,
+                              color: Colors.red,
+                            ),
+                            onPressed: () => widget.onDeleteBackup(file),
+                          ),
+                  );
+                },
+              ),
         // Daftar File ZIP Lokal dengan Checkbox & Mode Tahan Lama
         widget.localBackupFiles.isEmpty
             ? const Center(child: Text('Belum ada file backup.'))
