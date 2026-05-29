@@ -102,23 +102,23 @@ class _LocalSharingTabState extends State<LocalSharingTab> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                // --- FITUR BARU: TOMBOL PILIH SEMUA / BATAL PILIH SEMUA BARU ---
-                TextButton.icon(
+                // --- TOMBOL PILIH / BATAL SEMUA SERVER VERSI MOBILE ---
+                IconButton(
                   icon: Icon(
                     _selectedServerFiles.length ==
                             widget.serverBackupFiles.length
                         ? Icons.deselect
                         : Icons.select_all,
-                    size: 16,
+                    size: 18,
                     color: Colors.teal[700],
                   ),
-                  label: Text(
-                    _selectedServerFiles.length ==
-                            widget.serverBackupFiles.length
-                        ? 'Batal Semua'
-                        : 'Pilih Semua',
-                    style: TextStyle(fontSize: 12, color: Colors.teal[700]),
-                  ),
+                  tooltip:
+                      _selectedServerFiles.length ==
+                          widget.serverBackupFiles.length
+                      ? 'Batal Semua'
+                      : 'Pilih Semua',
+                  constraints: const BoxConstraints(),
+                  padding: const EdgeInsets.all(6),
                   onPressed: () {
                     setState(() {
                       if (_selectedServerFiles.length ==
@@ -134,26 +134,17 @@ class _LocalSharingTabState extends State<LocalSharingTab> {
                 const SizedBox(width: 4),
                 // Info jumlah file yang sedang dicentang
                 Text(
-                  '${_selectedServerFiles.length} Terpilih  ',
+                  '${_selectedServerFiles.length} Terpilih',
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     color: Colors.red,
+                    fontSize: 12,
                   ),
                 ),
-
-                // Tombol utama eksekusi hapus masal
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                  icon: const Icon(
-                    Icons.delete_sweep,
-                    size: 16,
-                    color: Colors.white,
-                  ),
-                  label: const Text(
-                    'Hapus Masal',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                  onPressed: _selectedServerFiles.isEmpty
+                const SizedBox(width: 8),
+                // --- TOMBOL HAPUS MASSAL SERVER VERSI MOBILE ---
+                InkWell(
+                  onTap: _selectedServerFiles.isEmpty
                       ? null
                       : () async {
                           for (var file in _selectedServerFiles) {
@@ -167,11 +158,40 @@ class _LocalSharingTabState extends State<LocalSharingTab> {
                           });
                           widget.onDeleteServerBackup(File(''));
                         },
+                  borderRadius: BorderRadius.circular(6),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _selectedServerFiles.isEmpty
+                          ? Colors.grey[200]
+                          : Colors.red.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: _selectedServerFiles.isEmpty
+                            ? Colors.grey[300]!
+                            : Colors.red.withOpacity(0.2),
+                      ),
+                    ),
+                    child: Icon(
+                      Icons.delete_sweep,
+                      size: 18,
+                      color: _selectedServerFiles.isEmpty
+                          ? Colors.grey[400]
+                          : Colors.red,
+                    ),
+                  ),
                 ),
-                const SizedBox(width: 8),
-
-                // Tombol untuk membatalkan pilihan masal
+                const SizedBox(width: 4),
+                // --- TOMBOL BATAL SERVER VERSI MOBILE ---
                 TextButton(
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
                   onPressed: () {
                     setState(() {
                       _selectedServerFiles.clear();
@@ -180,7 +200,7 @@ class _LocalSharingTabState extends State<LocalSharingTab> {
                   },
                   child: const Text(
                     'Batal',
-                    style: TextStyle(color: Colors.grey),
+                    style: TextStyle(color: Colors.grey, fontSize: 12),
                   ),
                 ),
               ],
@@ -188,7 +208,6 @@ class _LocalSharingTabState extends State<LocalSharingTab> {
           ),
         ],
 
-        // Menampilkan daftar berkas dari server
         // Menampilkan daftar berkas dari server
         widget.serverBackupFiles.isEmpty
             ? const Center(

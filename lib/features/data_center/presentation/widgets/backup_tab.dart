@@ -78,7 +78,6 @@ class _BackupTabState extends State<BackupTab> {
         const Divider(thickness: 2),
 
         // Bagian Header Daftar Berkas & Tombol Dinamis
-        // Bagian Header Daftar Berkas & Tombol Dinamis
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
           child: Row(
@@ -86,32 +85,29 @@ class _BackupTabState extends State<BackupTab> {
             children: [
               const Text(
                 'Daftar Berkas Backup',
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
               ),
               FittedBox(
                 child: Row(
                   children: [
                     if (_isSelectionMode) ...[
-                      // --- FITUR BARU: TOMBOL PILIH SEMUA / BATAL PILIH SEMUA ---
-                      TextButton.icon(
+                      // --- TOMBOL PILIH / BATAL SEMUA VERSI MOBILE ---
+                      IconButton(
                         icon: Icon(
                           _selectedFiles.length ==
                                   widget.localBackupFiles.length
                               ? Icons.deselect
                               : Icons.select_all,
-                          size: 16,
+                          size: 18,
                           color: Colors.teal[700],
                         ),
-                        label: Text(
-                          _selectedFiles.length ==
-                                  widget.localBackupFiles.length
-                              ? 'Batal Semua'
-                              : 'Pilih Semua',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.teal[700],
-                          ),
-                        ),
+                        tooltip:
+                            _selectedFiles.length ==
+                                widget.localBackupFiles.length
+                            ? 'Batal Semua'
+                            : 'Pilih Semua',
+                        constraints: const BoxConstraints(),
+                        padding: const EdgeInsets.all(6),
                         onPressed: () {
                           setState(() {
                             if (_selectedFiles.length ==
@@ -126,14 +122,17 @@ class _BackupTabState extends State<BackupTab> {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        '${_selectedFiles.length} Terpilih  ',
+                        '${_selectedFiles.length} Terpilih',
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           color: Colors.red,
+                          fontSize: 12,
                         ),
                       ),
-                      ElevatedButton.icon(
-                        onPressed: _selectedFiles.isEmpty
+                      const SizedBox(width: 8),
+                      // --- TOMBOL HAPUS MASSAL VERSI MOBILE ---
+                      InkWell(
+                        onTap: _selectedFiles.isEmpty
                             ? null
                             : () async {
                                 for (var file in _selectedFiles) {
@@ -144,47 +143,83 @@ class _BackupTabState extends State<BackupTab> {
                                   _isSelectionMode = false;
                                 });
                               },
-                        icon: const Icon(Icons.delete_sweep, size: 16),
-                        label: const Text(
-                          'Hapus',
-                          style: TextStyle(fontSize: 12),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
+                        borderRadius: BorderRadius.circular(6),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _selectedFiles.isEmpty
+                                ? Colors.grey[200]
+                                : Colors.red.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: _selectedFiles.isEmpty
+                                  ? Colors.grey[300]!
+                                  : Colors.red.withOpacity(0.2),
+                            ),
+                          ),
+                          child: Icon(
+                            Icons.delete_sweep,
+                            size: 18,
+                            color: _selectedFiles.isEmpty
+                                ? Colors.grey[400]
+                                : Colors.red,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 4),
+                      // --- TOMBOL BATAL VERSI MOBILE ---
                       TextButton(
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
                         onPressed: () {
                           setState(() {
                             _selectedFiles.clear();
                             _isSelectionMode = false;
                           });
                         },
-                        child: const Text('Batal'),
+                        child: const Text(
+                          'Batal',
+                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                        ),
                       ),
                     ] else ...[
                       ElevatedButton.icon(
                         onPressed: () {},
-                        icon: const Icon(Icons.unarchive, size: 16),
+                        icon: const Icon(Icons.unarchive, size: 14),
                         label: const Text(
                           'Import',
-                          style: TextStyle(fontSize: 12),
+                          style: TextStyle(fontSize: 11),
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.indigo,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          minimumSize: Size.zero,
                         ),
                       ),
                       const SizedBox(width: 6),
                       ElevatedButton.icon(
                         onPressed: widget.onCreateBackup,
-                        icon: const Icon(Icons.add, size: 16),
+                        icon: const Icon(Icons.add, size: 14),
                         label: const Text(
                           'Backup',
-                          style: TextStyle(fontSize: 12),
+                          style: TextStyle(fontSize: 11),
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.teal,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          minimumSize: Size.zero,
                         ),
                       ),
                     ],
@@ -194,7 +229,6 @@ class _BackupTabState extends State<BackupTab> {
             ],
           ),
         ),
-
         // Daftar File ZIP Lokal dengan Checkbox & Mode Tahan Lama
         widget.localBackupFiles.isEmpty
             ? const Center(child: Text('Belum ada file backup.'))
