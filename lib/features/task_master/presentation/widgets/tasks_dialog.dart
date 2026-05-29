@@ -8,7 +8,7 @@ class TasksDialog extends StatelessWidget {
   final TaskCategory category;
   final Future<bool> Function(TaskItem) onIncrementTask;
   final Function(TaskItem, int) onUpdateTargetToday;
-  final Function(TaskItem, String, int, int, int, int, String?, bool)
+  final Function(TaskItem, String, int, int, int, int, String?, bool, int)
   onEditTaskDetail;
   final Future<bool> Function(TaskItem) onDeleteTask;
   final Function(List<String>, String) onBulkAction;
@@ -125,6 +125,7 @@ class TasksDialog extends StatelessWidget {
               required newIsActive,
               required newType,
             }) {
+              // SEKARANG SUDAH AMAN: Parameter ke-9 sudah didefinisikan di konstruktor atas
               onEditTaskDetail(
                 task,
                 newName,
@@ -134,6 +135,7 @@ class TasksDialog extends StatelessWidget {
                 newTargetCountToday,
                 newDate,
                 newIsActive,
+                newType,
               );
               setDialogState(() {});
             },

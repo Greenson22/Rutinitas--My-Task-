@@ -265,18 +265,30 @@ class _HomeScreenState extends State<HomeScreen> {
         category: category,
         onIncrementTask: (task) => _incrementTaskCount(task),
         onUpdateTargetToday: (task, target) {},
-        onEditTaskDetail: (task, name, c, ct, tc, tct, d, active) async {
-          setState(() {
-            task.name = name;
-            task.count = c;
-            task.countToday = ct;
-            task.targetCount = tc;
-            task.targetCountToday = tct;
-            task.date = d;
-            task.isActive = active;
-          });
-          await _saveAllCategoriesToFile();
-        },
+        onEditTaskDetail:
+            (
+              TaskItem task,
+              String name,
+              int c,
+              int ct,
+              int tc,
+              int tct,
+              String? d,
+              bool active,
+              int type,
+            ) async {
+              setState(() {
+                task.name = name;
+                task.count = c;
+                task.countToday = ct;
+                task.targetCount = tc;
+                task.targetCountToday = tct;
+                task.date = d;
+                task.isActive = active;
+                task.type = type; // Menyimpan tipe progress saat edit detail
+              });
+              await _saveAllCategoriesToFile();
+            },
         onDeleteTask: (task) async {
           setState(() {
             category.tasks.removeWhere((t) => t.id == task.id);
@@ -302,91 +314,140 @@ class _HomeScreenState extends State<HomeScreen> {
         },
         onAddTask: () {
           // ===================================================================
-          // PERBAIKAN LOGIKA: Membuka Dialog Input Tugas Baru Secara Utuh
+          // LOGIKA UTAMA: Dialog Tambah Tugas Dengan Pilihan Tipe Tugas (Utuh)
           // ===================================================================
           final TextEditingController taskNameController =
               TextEditingController();
           final TextEditingController targetTodayController =
               TextEditingController(text: '0');
+          final TextEditingController targetTotalController =
+              TextEditingController(text: '0');
+          int selectedType = 0; // Default: 0 (Tugas Biasa)
           final formKey = GlobalKey<FormState>();
 
           showDialog(
             context: context,
-            builder: (ctx) => AlertDialog(
-              title: Text('Tambah Tugas ke ${category.name}'),
-              content: Form(
-                key: formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextFormField(
-                      controller: taskNameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Nama Tugas Baru',
-                        hintText: 'Contoh: Olahraga Sore',
+            builder: (ctx) => StatefulBuilder(
+              builder: (context, setDialogState) {
+                return AlertDialog(
+                  title: Text('Tambah Tugas ke ${category.name}'),
+                  content: Form(
+                    key: formKey,
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TextFormField(
+                            controller: taskNameController,
+                            decoration: const InputDecoration(
+                              labelText: 'Nama Tugas Baru',
+                              hintText: 'Contoh: Belajar Flutter',
+                            ),
+                            validator: (v) => v!.trim().isEmpty
+                                ? 'Nama tidak boleh kosong'
+                                : null,
+                          ),
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<int>(
+                            value: selectedType,
+                            decoration: const InputDecoration(
+                              labelText: 'Tipe Tugas',
+                              icon: Icon(Icons.stacked_line_chart),
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 0,
+                                child: Text('Tugas Biasa'),
+                              ),
+                              DropdownMenuItem(
+                                value: 1,
+                                child: Text(
+                                  'Tugas Progress (Ada Progress Bar)',
+                                ),
+                              ),
+                            ],
+                            onChanged: (val) {
+                              if (val != null) {
+                                setDialogState(() {
+                                  selectedType = val;
+                                });
+                              }
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: targetTodayController,
+                            decoration: const InputDecoration(
+                              labelText: 'Target Hitungan Hari Ini',
+                            ),
+                            keyboardType: TextInputType.number,
+                          ),
+                          // Form Target Total akan muncul secara dinamis jika tipe tugas Progress (1) dipilih
+                          if (selectedType == 1) ...[
+                            const SizedBox(height: 12),
+                            TextFormField(
+                              controller: targetTotalController,
+                              decoration: const InputDecoration(
+                                labelText: 'Target Total Keseluruhan Progress',
+                                hintText: 'Contoh: 100',
+                              ),
+                              keyboardType: TextInputType.number,
+                            ),
+                          ],
+                        ],
                       ),
-                      validator: (v) => v!.trim().isEmpty
-                          ? 'Nama tugas tidak boleh kosong'
-                          : null,
                     ),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: targetTodayController,
-                      decoration: const InputDecoration(
-                        labelText: 'Target Hitungan Hari Ini',
-                        hintText: '0 jika tidak ada target',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('Batal'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () async {
+                        if (formKey.currentState!.validate()) {
+                          final String newName = taskNameController.text.trim();
+                          final int newTargetToday =
+                              int.tryParse(targetTodayController.text.trim()) ??
+                              0;
+                          final int newTargetTotal =
+                              int.tryParse(targetTotalController.text.trim()) ??
+                              0;
+
+                          // Membuat objek TaskItem baru
+                          final newTask = TaskItem(
+                            id: TaskItem.generateRandomId(),
+                            name: newName,
+                            count: 0,
+                            checked: false,
+                            countToday: 0,
+                            lastUpdated: '',
+                            targetCountToday: newTargetToday,
+                            type: selectedType,
+                            targetCount: selectedType == 1 ? newTargetTotal : 0,
+                            isActive: true,
+                            date: _getTodayDateString(),
+                          );
+
+                          setState(() {
+                            category.tasks.add(newTask);
+                          });
+
+                          await _saveAllCategoriesToFile();
+                          if (ctx.mounted) Navigator.pop(ctx);
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.indigo,
                       ),
-                      keyboardType: TextInputType.number,
+                      child: const Text(
+                        'Simpan Tugas',
+                        style: TextStyle(color: Colors.white),
+                      ),
                     ),
                   ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Batal'),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    if (formKey.currentState!.validate()) {
-                      final String newName = taskNameController.text.trim();
-                      final int newTargetToday =
-                          int.tryParse(targetTodayController.text.trim()) ?? 0;
-
-                      // Membuat instance TaskItem baru dengan ID acak unik bawaan model Anda
-                      final newTask = TaskItem(
-                        id: TaskItem.generateRandomId(),
-                        name: newName,
-                        count: 0,
-                        checked: false,
-                        countToday: 0,
-                        lastUpdated: '',
-                        targetCountToday: newTargetToday,
-                        type: 0, // 0 untuk tugas biasa, 1 untuk progress task
-                        targetCount: 0,
-                        isActive: true,
-                        date: _getTodayDateString(),
-                      );
-
-                      // Menyisipkan ke list tugas kategori ini, lalu simpan ke penyimpanan lokal
-                      setState(() {
-                        category.tasks.add(newTask);
-                      });
-
-                      await _saveAllCategoriesToFile();
-
-                      if (ctx.mounted) Navigator.pop(ctx);
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.indigo,
-                  ),
-                  child: const Text(
-                    'Simpan Tugas',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
-              ],
+                );
+              },
             ),
           );
         },
