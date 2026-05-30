@@ -5,7 +5,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../../core/services/storage_service.dart';
 import '../../../../core/presentation/widgets/drawer_menu.dart';
-import '../../../task_master/presentation/widgets/settings_dialog.dart';
 import '../../data/models/daily_model.dart';
 import 'checklist_detail_screen.dart';
 
@@ -19,18 +18,16 @@ class DailyScreen extends StatefulWidget {
 class _DailyScreenState extends State<DailyScreen> {
   final StorageService _storageService = StorageService();
   List<ChecklistHub> _allHubsRaw = [];
-  List<ChecklistHub> _visibleHubs = [];
   List<ChecklistHub> _hiddenHubs = [];
 
   String _selectedBaseDir = 'Documents';
-  String _fullJsonPath = 'my_checklist/';
   bool _isLoading = true;
 
   bool _isPageEditMode = false;
   bool _showHiddenSection = false;
 
-  Map<String, List<ChecklistHub>> _groupedVisibleHubs = {};
-  Map<String, List<ChecklistHub>> _groupedHiddenHubs = {};
+  final Map<String, List<ChecklistHub>> _groupedVisibleHubs = {};
+  final Map<String, List<ChecklistHub>> _groupedHiddenHubs = {};
   bool _isSectionEditMode = false;
 
   @override
@@ -98,20 +95,19 @@ class _DailyScreenState extends State<DailyScreen> {
         _groupedHiddenHubs[kategori]!.add(hub);
       }
 
-      _visibleHubs = visibleList;
       _hiddenHubs = hiddenList;
       _isLoading = false;
     });
   }
 
   void _showAddMainSectionDialog() {
-    final _sectionController = TextEditingController();
+    final sectionController = TextEditingController();
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Tambah Seksi Kategori Baru'),
         content: TextField(
-          controller: _sectionController,
+          controller: sectionController,
           decoration: const InputDecoration(
             hintText: 'Nama Seksi Utama (Misal: PRIORITAS)...',
           ),
@@ -123,7 +119,7 @@ class _DailyScreenState extends State<DailyScreen> {
           ),
           ElevatedButton(
             onPressed: () {
-              final String namaSeksiBaru = _sectionController.text.trim();
+              final String namaSeksiBaru = sectionController.text.trim();
               if (namaSeksiBaru.isNotEmpty) {
                 setState(() {
                   // Menambahkan seksi kosong baru ke dalam map tampilan produktif produktif
@@ -150,8 +146,8 @@ class _DailyScreenState extends State<DailyScreen> {
 
   // MODIFIKASI: Menerima parameter target seksi utama agar Hub langsung masuk ke kategori yang benar
   void _showAddHubDialogAtSection(String targetMainSection) {
-    final _nameController = TextEditingController();
-    final _iconController = TextEditingController(text: '📁');
+    final nameController = TextEditingController();
+    final iconController = TextEditingController(text: '📁');
 
     showDialog(
       context: context,
@@ -161,14 +157,14 @@ class _DailyScreenState extends State<DailyScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
-              controller: _nameController,
+              controller: nameController,
               decoration: const InputDecoration(
                 labelText: 'Nama Hub (Misal: Pekerjaan)',
               ),
             ),
             const SizedBox(height: 8),
             TextField(
-              controller: _iconController,
+              controller: iconController,
               decoration: const InputDecoration(labelText: 'Ikon Emoji'),
             ),
           ],
@@ -180,15 +176,15 @@ class _DailyScreenState extends State<DailyScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              if (_nameController.text.isNotEmpty) {
+              if (nameController.text.isNotEmpty) {
                 int nextIndex = _allHubsRaw.length;
                 String newId =
                     '${nextIndex}_hub_${DateTime.now().millisecondsSinceEpoch}';
 
                 ChecklistHub newHub = ChecklistHub(
                   id: newId,
-                  namaHub: _nameController.text.trim(),
-                  ikon: _iconController.text.trim(),
+                  namaHub: nameController.text.trim(),
+                  ikon: iconController.text.trim(),
                   kategoriSeksi:
                       targetMainSection, // <--- Menyimpan relasi seksi utama
                   isHidden: false,
@@ -218,23 +214,6 @@ class _DailyScreenState extends State<DailyScreen> {
     await _storageService.saveJsonData(hubFile, jsonString);
   }
 
-  Future<void> _createNewHub(String nama, String ikon) async {
-    // Memberikan urutan indeks terakhir berdasarkan jumlah data saat ini
-    int nextIndex = _allHubsRaw.length;
-    String newId = '${nextIndex}_hub_${DateTime.now().millisecondsSinceEpoch}';
-
-    ChecklistHub newHub = ChecklistHub(
-      id: newId,
-      namaHub: nama,
-      ikon: ikon,
-      isHidden: false,
-      semuaList: [],
-    );
-
-    await _saveHubDataToFile(newHub);
-    _loadHubsData();
-  }
-
   Future<void> _toggleHubVisibility(ChecklistHub hub) async {
     setState(() {
       hub.isHidden = !hub.isHidden;
@@ -243,51 +222,9 @@ class _DailyScreenState extends State<DailyScreen> {
     _processHubsDisplay();
   }
 
-  void _showAddHubDialog() {
-    final _nameController = TextEditingController();
-    final _iconController = TextEditingController(text: '📁');
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Buat Checklist Hub Baru'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'Nama Hub (Misal: Pekerjaan)',
-              ),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _iconController,
-              decoration: const InputDecoration(labelText: 'Ikon Emoji'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (_nameController.text.isNotEmpty) {
-                _createNewHub(_nameController.text, _iconController.text);
-                Navigator.pop(context);
-              }
-            },
-            child: const Text('Buat Hub'),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _showEditHubDialog(ChecklistHub hub) {
-    final _nameController = TextEditingController(text: hub.namaHub);
-    final _iconController = TextEditingController(text: hub.ikon);
+    final nameController = TextEditingController(text: hub.namaHub);
+    final iconController = TextEditingController(text: hub.ikon);
 
     showDialog(
       context: context,
@@ -297,12 +234,12 @@ class _DailyScreenState extends State<DailyScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
-              controller: _nameController,
+              controller: nameController,
               decoration: const InputDecoration(labelText: 'Nama Hub'),
             ),
             const SizedBox(height: 8),
             TextField(
-              controller: _iconController,
+              controller: iconController,
               decoration: const InputDecoration(labelText: 'Ikon Emoji'),
             ),
           ],
@@ -314,9 +251,9 @@ class _DailyScreenState extends State<DailyScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              if (_nameController.text.isNotEmpty) {
-                hub.namaHub = _nameController.text.trim();
-                hub.ikon = _iconController.text.trim();
+              if (nameController.text.isNotEmpty) {
+                hub.namaHub = nameController.text.trim();
+                hub.ikon = iconController.text.trim();
 
                 await _saveHubDataToFile(hub);
                 Navigator.pop(context);
@@ -589,7 +526,7 @@ class _DailyScreenState extends State<DailyScreen> {
                               : _buildHubGrid(listHubDiSeksiIni, constraints),
                         ],
                       );
-                    }).toList(),
+                    }),
                     // === KATEGORI HUB TERSEMBUNYI ===
                     if (_hiddenHubs.isNotEmpty && _showHiddenSection) ...[
                       const Padding(
@@ -623,7 +560,7 @@ class _DailyScreenState extends State<DailyScreen> {
                             _buildHubGrid(grup.value, constraints),
                           ],
                         );
-                      }).toList(),
+                      }),
                     ],
                   ],
                 );
