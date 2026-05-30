@@ -492,6 +492,9 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            // Membalikkan urutan list agar date terakhir/terbaru berada di paling atas
+            final sortedLogs = _logs.reversed.toList();
+
             return AlertDialog(
               title: Row(
                 children: const [
@@ -503,12 +506,12 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
               content: SizedBox(
                 width: double.maxFinite,
                 height: MediaQuery.of(context).size.height * 0.6,
-                child: _logs.isEmpty
+                child: sortedLogs.isEmpty
                     ? const Center(child: Text("Belum ada riwayat aktivitas."))
                     : ListView.builder(
-                        itemCount: _logs.length,
+                        itemCount: sortedLogs.length,
                         itemBuilder: (context, index) {
-                          final log = _logs[index];
+                          final log = sortedLogs[index];
                           return Card(
                             margin: const EdgeInsets.symmetric(vertical: 6),
                             child: ExpansionTile(
@@ -545,7 +548,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                                   setDialogState(() {}),
                                             ),
                                         child: Text(
-                                          '⏱ ${task.durasiMenit} mnt',
+                                          '  ${task.durasiMenit} mnt',
                                           style: const TextStyle(
                                             decoration:
                                                 TextDecoration.underline,
