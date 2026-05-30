@@ -29,6 +29,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
   final List<List<SubSubjectItem>> _redoStack = [];
 
   SubSubjectItem? _highlightedItem;
+  bool _isNoteModified = false;
 
   @override
   void initState() {
@@ -364,6 +365,24 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     }
   }
 
+  // === TAMBAHKAN FUNGSI BARU INI DI DALAM _DailyChecklistDialogState ===
+  void _saveManualNote() {
+    setState(() {
+      widget.subject.noteContent = _noteController.text;
+      _isNoteModified = false; // Reset status karena sudah berhasil disimpan
+    });
+    widget.onDataChanged(); // Trigger menyimpan data ke JSON lokal
+
+    // Opsional: Memberi feedback visual singkat bahwa data tersimpan
+    FocusScope.of(context).unfocus(); // Menutup keyboard
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('📝 Catatan berhasil disimpan!'),
+        duration: Duration(seconds: 1),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     List<SubSubjectItem> allFlattened = [];
@@ -378,7 +397,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // HEADER DIALOG
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -415,7 +433,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                           ),
                       ],
                     ),
-                    // PERUBAHAN DI SINI: Properti overflow dibuang agar mendukung multi-baris kebawah
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -424,6 +441,24 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    // === TOMBOL BARU: SIMPAN CATATAN MANUAL ===
+                    // Hanya muncul jika tipe note dan ada perubahan teks yang belum disimpan
+                    if (widget.subject.type == 'note' && _isNoteModified) ...[
+                      IconButton(
+                        icon: const Icon(
+                          Icons.save_as,
+                          color: Colors
+                              .amberAccent, // Warna kontras penanda aksi penting
+                          size: 24,
+                        ),
+                        tooltip: 'Simpan Perubahan Catatan',
+                        constraints: const BoxConstraints(),
+                        padding: const EdgeInsets.all(4),
+                        onPressed: _saveManualNote,
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+
                     // Tombol Ubah Judul Materi
                     IconButton(
                       icon: const Icon(
@@ -860,8 +895,19 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                         hintStyle: TextStyle(color: Colors.grey[400]),
                       ),
                       onChanged: (text) {
-                        widget.subject.noteContent = text;
-                        widget.onDataChanged(); // Auto-save saat mengetik
+                        // Cek apakah teks sekarang berbeda dengan teks awal di model data
+                        final originalText = widget.subject.noteContent ?? '';
+                        if (text != originalText && !_isNoteModified) {
+                          setState(() {
+                            _isNoteModified =
+                                true; // Munculkan tombol simpan di atas
+                          });
+                        } else if (text == originalText && _isNoteModified) {
+                          setState(() {
+                            _isNoteModified =
+                                false; // Sembunyikan jika dikembalikan ke teks awal
+                          });
+                        }
                       },
                     ),
                   )
