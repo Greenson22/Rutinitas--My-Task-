@@ -619,7 +619,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
 
       channel.stream
           .timeout(
-            const Duration(seconds: 5),
+            const Duration(seconds: 45),
             onTimeout: (sink) {
               if (mounted) {
                 setState(() {
