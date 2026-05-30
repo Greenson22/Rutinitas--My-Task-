@@ -154,7 +154,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     await _saveData();
   }
 
-  void _tampilkanDialogLinkTugas(TimeLogTask jurnalTask) {
+  void _showDialogTaskLink(TimeLogTask jurnalTask) {
     final String todayStr = _getTodayDateString();
     final int todayLogIndex = _logs.indexWhere(
       (entry) => entry.tanggal == todayStr,
@@ -254,7 +254,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     );
   }
 
-  void _tambahDurasiAktivitas(TimeLogTask task, {VoidCallback? onDone}) async {
+  void _addActivityDuration(TimeLogTask task, {VoidCallback? onDone}) async {
     final bool? konfirmasi = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -294,10 +294,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     if (onDone != null) onDone();
   }
 
-  void _tampilkanDialogEditTimerLangsung(
-    TimeLogTask task, {
-    VoidCallback? onDone,
-  }) {
+  void _showTimerEditLiveDialog(TimeLogTask task, {VoidCallback? onDone}) {
     final TextEditingController timerController = TextEditingController(
       text: task.durasiMenit.toString(),
     );
@@ -352,7 +349,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     );
   }
 
-  void _tampilkanDialogTambahAktivitas() {
+  void _showAddActivityDialog() {
     final TextEditingController inputController = TextEditingController();
     final formKey = GlobalKey<FormState>();
 
@@ -411,7 +408,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     );
   }
 
-  void _tampilkanDialogUbahAktivitas(TimeLogTask task) {
+  void _showEditActivityDialog(TimeLogTask task) {
     final TextEditingController editController = TextEditingController(
       text: task.nama,
     );
@@ -486,14 +483,17 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     }
   }
 
-  void _tampilkanDialogRiwayat() {
+  void _showDialogHistory() {
     showDialog(
       context: context,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            // Membalikkan urutan list agar date terakhir/terbaru berada di paling atas
-            final sortedLogs = _logs.reversed.toList();
+            // Membuat duplikasi list agar tidak merusak data master _logs
+            final sortedLogs = List<TimeLogEntry>.from(_logs);
+
+            // Mengurutkan secara eksplisit berdasarkan string tanggal dari terbaru ke terlama
+            sortedLogs.sort((a, b) => b.tanggal.compareTo(a.tanggal));
 
             return AlertDialog(
               title: Row(
@@ -541,12 +541,10 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       InkWell(
-                                        onTap: () =>
-                                            _tampilkanDialogEditTimerLangsung(
-                                              task,
-                                              onDone: () =>
-                                                  setDialogState(() {}),
-                                            ),
+                                        onTap: () => _showTimerEditLiveDialog(
+                                          task,
+                                          onDone: () => setDialogState(() {}),
+                                        ),
                                         child: Text(
                                           '  ${task.durasiMenit} mnt',
                                           style: const TextStyle(
@@ -563,7 +561,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                           size: 18,
                                         ),
                                         onPressed: () =>
-                                            _tampilkanDialogLinkTugas(task),
+                                            _showDialogTaskLink(task),
                                       ),
                                       IconButton(
                                         icon: const Icon(
@@ -571,7 +569,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                           color: Colors.indigo,
                                           size: 20,
                                         ),
-                                        onPressed: () => _tambahDurasiAktivitas(
+                                        onPressed: () => _addActivityDuration(
                                           task,
                                           onDone: () => setDialogState(() {}),
                                         ),
@@ -636,7 +634,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.history, color: Colors.white),
-            onPressed: _tampilkanDialogRiwayat,
+            onPressed: _showDialogHistory,
           ),
         ],
       ),
@@ -782,15 +780,13 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                             icon: Icons.link,
                                             color: Colors.teal,
                                             onPressed: () =>
-                                                _tampilkanDialogLinkTugas(task),
+                                                _showDialogTaskLink(task),
                                           ),
                                           _buildMobileEditButton(
                                             icon: Icons.edit_note,
                                             color: Colors.blueGrey,
                                             onPressed: () =>
-                                                _tampilkanDialogUbahAktivitas(
-                                                  task,
-                                                ),
+                                                _showEditActivityDialog(task),
                                           ),
                                           _buildMobileEditButton(
                                             icon: Icons.delete_outline,
@@ -810,9 +806,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                         children: [
                                           InkWell(
                                             onTap: () =>
-                                                _tampilkanDialogEditTimerLangsung(
-                                                  task,
-                                                ),
+                                                _showTimerEditLiveDialog(task),
                                             borderRadius: BorderRadius.circular(
                                               6,
                                             ),
@@ -849,7 +843,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                             ),
                                             padding: const EdgeInsets.all(4),
                                             onPressed: () =>
-                                                _tambahDurasiAktivitas(task),
+                                                _addActivityDuration(task),
                                           ),
                                         ],
                                       ),
@@ -861,7 +855,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
               ],
             ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _tampilkanDialogTambahAktivitas,
+        onPressed: _showAddActivityDialog,
         backgroundColor: Colors.indigo[700],
         child: const Icon(Icons.add, size: 30, color: Colors.white),
       ),
