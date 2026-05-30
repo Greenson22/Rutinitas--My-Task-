@@ -278,10 +278,12 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
 
     if (konfirmasi != true) return;
 
+    // PERBAIKAN: Cari dan ubah langsung pada referensi list objek di dalam _logs
     for (var logEntry in _logs) {
       int idx = logEntry.tasks.indexWhere((t) => t.id == task.id);
       if (idx != -1) {
         setState(() {
+          // Mengubah durasiMenit milik item asli di dalam list state _logs
           logEntry.tasks[idx].durasiMenit += 30;
         });
         break;
