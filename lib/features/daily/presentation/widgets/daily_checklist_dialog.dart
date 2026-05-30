@@ -692,33 +692,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                                     ),
                                   ],
                                   const Spacer(),
-                                  // Menggeser tombol edit massal ke panel atas yang bisa dicollapse
-                                  TextButton.icon(
-                                    style: TextButton.styleFrom(
-                                      padding: EdgeInsets.zero,
-                                      minimumSize: const Size(0, 0),
-                                    ),
-                                    icon: Icon(
-                                      _isEditMode
-                                          ? Icons.check_circle
-                                          : Icons.edit,
-                                      size: 16,
-                                      color: Colors.teal,
-                                    ),
-                                    label: Text(
-                                      _isEditMode ? 'Selesai' : 'Mode Edit',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.teal,
-                                      ),
-                                    ),
-                                    onPressed: () {
-                                      setState(() {
-                                        _isEditMode = !_isEditMode;
-                                        _selectedItems.clear();
-                                      });
-                                    },
-                                  ),
                                 ],
                               ),
                               if (widget.subject.isDateActive)
@@ -1125,6 +1098,13 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                 child: _isEditMode
                     ? InkWell(
                         onTap: () => _showEditNameDialog(item),
+                        // TAMBAHAN: Menahan item saat di mode edit juga akan mengembalikan/mematikan mode edit
+                        onLongPress: () {
+                          setState(() {
+                            _isEditMode = false;
+                            _selectedItems.clear();
+                          });
+                        },
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
                             vertical: 8.0,
@@ -1217,18 +1197,30 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                                 _updateSubjectOverallProgress();
                                 widget.onDataChanged();
                               },
-                              child: Text(
-                                item.subjectName,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  decoration: isChecked
-                                      ? TextDecoration.lineThrough
-                                      : null,
-                                  color: isChecked
-                                      ? Colors.grey
-                                      : Colors.black87,
+                              // PERUBAHAN DI SINI: Menahan teks item saat mode biasa akan mengaktifkan Mode Edit
+                              onLongPress: () {
+                                setState(() {
+                                  _isEditMode = true;
+                                  _selectedItems.clear();
+                                });
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 8.0,
                                 ),
-                                softWrap: true,
+                                child: Text(
+                                  item.subjectName,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    decoration: isChecked
+                                        ? TextDecoration.lineThrough
+                                        : null,
+                                    color: isChecked
+                                        ? Colors.grey
+                                        : Colors.black87,
+                                  ),
+                                  softWrap: true,
+                                ),
                               ),
                             ),
                           ),
