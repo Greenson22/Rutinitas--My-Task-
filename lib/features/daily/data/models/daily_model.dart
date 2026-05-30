@@ -167,35 +167,21 @@ class DailySubject {
       'Desember',
     ];
 
-    // 1. Deteksi tingkat kecerahan latar belakang materi saat ini
-    final Color bgColor = Color(subject.backgroundColor);
-    final bool isDarkBackground =
-        ThemeData.estimateBrightnessForColor(bgColor) == Brightness.dark;
-
-    // 2. Tentukan warna dasar komponen berdasarkan mode (Header vs Grid)
-    //    dan kecerahan latar belakang yang aktif secara dinamis.
+    // Tentukan warna dasar komponen secara konsisten tanpa mendeteksi isDarkBackground
     Color? colorHari;
     Color? colorTgl;
     Color? colorBln;
 
     if (inHeader) {
-      // Jika di dalam Header Dialog
-      if (isDarkBackground) {
-        // Latar belakang gelap: Gunakan warna cerah/pastel agar kontras
-        colorHari = Colors.purple[100];
-        colorTgl = Colors.pink[200];
-        colorBln = Colors.teal[100];
-      } else {
-        // Latar belakang terang: Gunakan warna yang lebih pekat/gelap agar terbaca
-        colorHari = Colors.purple[900];
-        colorTgl = Colors.pink[800];
-        colorBln = Colors.teal[900];
-      }
+      // Jika di dalam Header Dialog (Gunakan warna pekat agar kontras di header)
+      colorHari = Colors.purple[900];
+      colorTgl = Colors.pink[800];
+      colorBln = Colors.teal[900];
     } else {
-      // Jika di dalam Grid Card Utama
-      colorHari = isDarkBackground ? Colors.purple[100] : Colors.purple[900];
-      colorTgl = isDarkBackground ? Colors.pink[200] : Colors.pink[700];
-      colorBln = isDarkBackground ? Colors.teal[100] : Colors.teal[700];
+      // Jika di dalam Grid Card Utama (Kunci ke shade standard yang seimbang kecerahannya)
+      colorHari = Colors.purple[700];
+      colorTgl = Colors.pink[700];
+      colorBln = Colors.teal[700];
     }
 
     try {
