@@ -14,6 +14,7 @@ class BackupTab extends StatefulWidget {
   final Function(File) onRestoreAllZip;
   final List<File> serverBackupFiles;
   final Function(File) onDeleteServerBackup;
+  final VoidCallback onImportZip;
 
   const BackupTab({
     super.key,
@@ -29,6 +30,7 @@ class BackupTab extends StatefulWidget {
     required this.onRestoreAllZip,
     required this.serverBackupFiles,
     required this.onDeleteServerBackup,
+    required this.onImportZip,
   });
 
   @override
@@ -85,7 +87,6 @@ class _BackupTabState extends State<BackupTab> {
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: 16),
       children: [
-        // Baris Tombol Ringkas (Task Master, Checklist, Jurnal)
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
           child: Row(
@@ -112,10 +113,7 @@ class _BackupTabState extends State<BackupTab> {
             ],
           ),
         ),
-
         const Divider(thickness: 2),
-
-        // Bagian Header Daftar Berkas & Tombol Dinamis
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
           child: Row(
@@ -167,21 +165,16 @@ class _BackupTabState extends State<BackupTab> {
                         ),
                       ),
                       const SizedBox(width: 8),
-
-                      // === PENYESUAIAN 2: KONFIRMASI DIALOG UNTUK HAPUS MASSAL ===
                       InkWell(
                         onTap: _selectedFiles.isEmpty
                             ? null
                             : () async {
-                                // Memanggil fungsi dialog konfirmasi massal
                                 final bool
                                 confirm = await _showConfirmDeleteDialog(
                                   title: 'Hapus Masal',
                                   content:
                                       'Apakah Anda yakin ingin menghapus ${_selectedFiles.length} berkas cadangan terpilih secara permanen?',
                                 );
-
-                                // Jika dikonfirmasi, lakukan perulangan penghapusan data
                                 if (confirm) {
                                   for (var file in _selectedFiles) {
                                     widget.onDeleteBackup(file);
@@ -238,7 +231,8 @@ class _BackupTabState extends State<BackupTab> {
                       ),
                     ] else ...[
                       ElevatedButton.icon(
-                        onPressed: () {},
+                        onPressed: widget
+                            .onImportZip, // <--- SEKARANG MEMANGGIL CALLBACK IMPORT ZIP
                         icon: const Icon(Icons.unarchive, size: 14),
                         label: const Text(
                           'Import',
@@ -277,8 +271,6 @@ class _BackupTabState extends State<BackupTab> {
             ],
           ),
         ),
-
-        // Daftar File ZIP Lokal
         widget.localBackupFiles.isEmpty
             ? const Center(child: Text('Belum ada file backup.'))
             : ListView.builder(
@@ -378,8 +370,6 @@ class _BackupTabState extends State<BackupTab> {
                           )
                         : const Icon(Icons.folder_zip, color: Colors.amber),
                     title: Text(fileName),
-
-                    // === PENYESUAIAN 1: KONFIRMASI DIALOG UNTUK HAPUS SATUAN ===
                     trailing: _isSelectionMode
                         ? null
                         : IconButton(
@@ -388,15 +378,12 @@ class _BackupTabState extends State<BackupTab> {
                               color: Colors.red,
                             ),
                             onPressed: () async {
-                              // Memanggil fungsi dialog bawaan kode Anda
                               final bool
                               confirm = await _showConfirmDeleteDialog(
                                 title: 'Hapus Berkas Backup',
                                 content:
                                     'Apakah Anda yakin ingin menghapus berkas cadangan "$fileName" secara permanen?',
                               );
-
-                              // Jika ditekan 'Hapus' (true), jalankan callback penghapusan data
                               if (confirm) {
                                 widget.onDeleteBackup(file);
                               }

@@ -1197,6 +1197,73 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
     return "Tidak Diketahui"; // Kembalikan string default jika gagal atau offline
   }
 
+  // === TAMBAHKAN FUNGSI INI DI DALAM KELAS _DataCenterScreenState ===
+  void _importZipLokal() async {
+    try {
+      // 1. Izinkan pengguna memilih file berekstensi .zip dari memori perangkat
+      FilePickerResult? result = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['zip'],
+      );
+
+      if (result != null && result.files.single.path != null) {
+        File selectedZipFile = File(result.files.single.path!);
+
+        // 2. Munculkan dialog konfirmasi overwrite data aktif sebelum melakukan pemulihan ekstrim
+        if (!mounted) return;
+        final bool confirm =
+            await showDialog<bool>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                title: Row(
+                  children: [
+                    Icon(
+                      Icons.warning_amber_rounded,
+                      color: Colors.orange[800],
+                    ),
+                    const SizedBox(width: 8),
+                    const Text('Import & Restore ZIP?'),
+                  ],
+                ),
+                content: Text(
+                  'Apakah Anda yakin ingin memulihkan data dari berkas luar "${selectedZipFile.path.split('/').last}"?\n\n*Peringatan: Seluruh data aktif aplikasi saat ini akan dihapus dan ditimpa secara permanen.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: const Text(
+                      'Batal',
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  ),
+                  ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.indigo,
+                    ),
+                    child: const Text(
+                      'Ya, Restore',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ],
+              ),
+            ) ??
+            false;
+
+        // 3. Jika disetujui, panggil fungsi restore bawaan aplikasi Anda yang sudah ada
+        if (confirm) {
+          _importSemuaDariZip(selectedZipFile);
+        }
+      }
+    } catch (e) {
+      debugPrint("Gagal mengimport file cadangan ZIP: $e");
+    }
+  }
+
   String _getFormattedFileName(String prefix, String extension) {
     final now = DateTime.now();
 
@@ -1270,6 +1337,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
               onRestoreChecklist: () => _importChecklist(),
               onBackupJurnal: () => _exportJurnal(),
               onRestoreJurnal: () => _importJurnal(),
+              onImportZip: () => _importZipLokal(),
             ),
 
             // TAB 2: Local Sharing
