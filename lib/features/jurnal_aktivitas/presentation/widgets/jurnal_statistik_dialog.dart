@@ -567,7 +567,6 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
                         ),
 
                   // TAB 2: GRAFIK TREN HARIAN (BERTUMPUK / STACKED BAR)
-                  // TAB 2: GRAFIK TREN HARIAN (BERTUMPUK / STACKED BAR)
                   dailyChartData.isEmpty
                       ? const Center(
                           child: Text(
@@ -601,7 +600,6 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
                                 ],
                               ),
                             ),
-                            // === LEGENDA WARNA TUGAS SECARA LANGSUNG (PERBAIKAN) ===
                             if (taskColorMap.isNotEmpty)
                               Padding(
                                 padding: const EdgeInsets.symmetric(
@@ -642,132 +640,156 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
                               ),
                             const SizedBox(height: 10),
                             Expanded(
-                              child: SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                ),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: dailyChartData.map((data) {
-                                    final int minutes = data['minutes'];
-                                    final Map<String, int> dailyTasks =
-                                        data['tasks'];
+                              child: Builder(
+                                builder: (context) {
+                                  // Inisialisasi ScrollController baru setiap kali build dipanggil
+                                  final scrollController = ScrollController();
 
-                                    return Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 6.0,
-                                      ),
-                                      child: Column(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.end,
-                                        children: [
-                                          Text(
-                                            minutes > 0
-                                                ? _formatDuration(minutes)
-                                                : '',
-                                            style: const TextStyle(
-                                              fontSize: 9,
-                                              fontWeight: FontWeight.w600,
-                                              color: Colors.black87,
-                                            ),
+                                  // Otomatis geser ke ujung paling kanan setelah layout selesai dirender
+                                  WidgetsBinding.instance.addPostFrameCallback((
+                                    _,
+                                  ) {
+                                    if (scrollController.hasClients) {
+                                      scrollController.jumpTo(
+                                        scrollController
+                                            .position
+                                            .maxScrollExtent,
+                                      );
+                                    }
+                                  });
+
+                                  return SingleChildScrollView(
+                                    controller:
+                                        scrollController, // Pasangkan controller di sini
+                                    scrollDirection: Axis.horizontal,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                    ),
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
+                                      children: dailyChartData.map((data) {
+                                        final int minutes = data['minutes'];
+                                        final Map<String, int> dailyTasks =
+                                            data['tasks'];
+
+                                        return Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6.0,
                                           ),
-                                          const SizedBox(height: 4),
-                                          // Area Grafik Batang Bertumpuk
-                                          Container(
-                                            height: 160,
-                                            width: 24,
-                                            decoration: BoxDecoration(
-                                              color: Colors.grey[100],
-                                              borderRadius:
-                                                  BorderRadius.circular(4),
-                                            ),
-                                            alignment: Alignment.bottomCenter,
-                                            child: ClipRRect(
-                                              borderRadius:
-                                                  BorderRadius.circular(4),
-                                              child: Column(
-                                                mainAxisAlignment:
-                                                    MainAxisAlignment.end,
-                                                children: dailyTasks.entries
-                                                    .map((taskEntry) {
-                                                      // Hitung tinggi proporsional masing-masing segmen tugas
-                                                      final double
-                                                      segmentHeight =
-                                                          (taskEntry.value /
-                                                              maxDailyMinutes) *
-                                                          160;
-                                                      final Color segColor =
-                                                          taskColorMap[taskEntry
-                                                              .key] ??
-                                                          Colors.indigo;
+                                          child: Column(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.end,
+                                            children: [
+                                              Text(
+                                                minutes > 0
+                                                    ? _formatDuration(minutes)
+                                                    : '',
+                                                style: const TextStyle(
+                                                  fontSize: 9,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Colors.black87,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Container(
+                                                height: 160,
+                                                width: 24,
+                                                decoration: BoxDecoration(
+                                                  color: Colors.grey[100],
+                                                  borderRadius:
+                                                      BorderRadius.circular(4),
+                                                ),
+                                                alignment:
+                                                    Alignment.bottomCenter,
+                                                child: ClipRRect(
+                                                  borderRadius:
+                                                      BorderRadius.circular(4),
+                                                  child: Column(
+                                                    mainAxisAlignment:
+                                                        MainAxisAlignment.end,
+                                                    children: dailyTasks.entries
+                                                        .map((taskEntry) {
+                                                          final double
+                                                          segmentHeight =
+                                                              (taskEntry.value /
+                                                                  maxDailyMinutes) *
+                                                              160;
+                                                          final Color segColor =
+                                                              taskColorMap[taskEntry
+                                                                  .key] ??
+                                                              Colors.indigo;
 
-                                                      return Tooltip(
-                                                        message:
-                                                            '${taskEntry.key}\n${_formatDuration(taskEntry.value)}',
-                                                        triggerMode:
-                                                            TooltipTriggerMode
-                                                                .tap,
-                                                        preferBelow: false,
-                                                        decoration: BoxDecoration(
-                                                          color: Colors.black87,
-                                                          borderRadius:
-                                                              BorderRadius.circular(
-                                                                8,
-                                                              ),
-                                                        ),
-                                                        child: AnimatedContainer(
-                                                          duration:
-                                                              const Duration(
-                                                                milliseconds:
-                                                                    500,
-                                                              ),
-                                                          height: segmentHeight,
-                                                          width: 24,
-                                                          decoration: BoxDecoration(
-                                                            color: segColor,
-                                                            // Berikan garis tepi tipis agar tumpukannya terlihat jelas
-                                                            border: Border(
-                                                              top: BorderSide(
-                                                                color: Colors
-                                                                    .white
-                                                                    .withOpacity(
-                                                                      0.5,
-                                                                    ),
-                                                                width: 0.5,
+                                                          return Tooltip(
+                                                            message:
+                                                                '${taskEntry.key}\n${_formatDuration(taskEntry.value)}',
+                                                            triggerMode:
+                                                                TooltipTriggerMode
+                                                                    .tap,
+                                                            preferBelow: false,
+                                                            decoration:
+                                                                BoxDecoration(
+                                                                  color: Colors
+                                                                      .black87,
+                                                                  borderRadius:
+                                                                      BorderRadius.circular(
+                                                                        8,
+                                                                      ),
+                                                                ),
+                                                            child: AnimatedContainer(
+                                                              duration:
+                                                                  const Duration(
+                                                                    milliseconds:
+                                                                        500,
+                                                                  ),
+                                                              height:
+                                                                  segmentHeight,
+                                                              width: 24,
+                                                              decoration: BoxDecoration(
+                                                                color: segColor,
+                                                                border: Border(
+                                                                  top: BorderSide(
+                                                                    color: Colors
+                                                                        .white
+                                                                        .withOpacity(
+                                                                          0.5,
+                                                                        ),
+                                                                    width: 0.5,
+                                                                  ),
+                                                                ),
                                                               ),
                                                             ),
-                                                          ),
-                                                        ),
-                                                      );
-                                                    })
-                                                    .toList()
-                                                    .reversed
-                                                    .toList(),
+                                                          );
+                                                        })
+                                                        .toList()
+                                                        .reversed
+                                                        .toList(),
+                                                  ),
+                                                ),
                                               ),
-                                            ),
+                                              const SizedBox(height: 6),
+                                              Text(
+                                                data['label'],
+                                                style: const TextStyle(
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                              Text(
+                                                data['subLabel'],
+                                                style: TextStyle(
+                                                  fontSize: 9,
+                                                  color: Colors.grey[600],
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                            ],
                                           ),
-                                          const SizedBox(height: 6),
-                                          Text(
-                                            data['label'],
-                                            style: const TextStyle(
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                          Text(
-                                            data['subLabel'],
-                                            style: TextStyle(
-                                              fontSize: 9,
-                                              color: Colors.grey[600],
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                        ],
-                                      ),
-                                    );
-                                  }).toList(),
-                                ),
+                                        );
+                                      }).toList(),
+                                    ),
+                                  );
+                                },
                               ),
                             ),
                           ],
