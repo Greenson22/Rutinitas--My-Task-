@@ -254,6 +254,15 @@ class SubSubjectItem {
     List<SubSubjectItem>? subMateri,
   }) : this.subMateri = subMateri ?? [];
 
+  SubSubjectItem clone() {
+    return SubSubjectItem(
+      subjectName: this.subjectName,
+      progress: this.progress,
+      finishedDate: this.finishedDate,
+      subMateri: this.subMateri.map((child) => child.clone()).toList(),
+    );
+  }
+
   factory SubSubjectItem.fromJson(Map<String, dynamic> json) {
     var subList = json['sub_materi'] as List? ?? [];
     List<SubSubjectItem> parsedSub = subList

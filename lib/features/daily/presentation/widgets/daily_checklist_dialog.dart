@@ -24,6 +24,8 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
   bool _isEditMode = false;
   bool _showControlPanel = false; // Default: tersembunyi (collapsed)
   final List<SubSubjectItem> _selectedItems = [];
+  final List<List<SubSubjectItem>> _undoStack = [];
+  final List<List<SubSubjectItem>> _redoStack = [];
 
   SubSubjectItem? _highlightedItem;
 
@@ -31,6 +33,54 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
   void dispose() {
     _singleInputController.dispose();
     super.dispose();
+  }
+
+  void _saveToHistory() {
+    // Melakukan deep copy seluruh struktur subMateri saat ini sebelum diubah
+    final List<SubSubjectItem> currentSnapshot = widget.subject.subMateri
+        .map((item) => item.clone())
+        .toList();
+
+    _undoStack.add(currentSnapshot);
+    _redoStack.clear(); // Aksi baru menghapus riwayat Redo ke depan
+  }
+
+  void _executeUndo() {
+    if (_undoStack.isEmpty) return;
+
+    setState(() {
+      // Simpan kondisi saat ini ke Redo Stack sebelum kembali ke masa lalu
+      final List<SubSubjectItem> currentSnapshot = widget.subject.subMateri
+          .map((item) => item.clone())
+          .toList();
+      _redoStack.add(currentSnapshot);
+
+      // Ambil status terakhir dari Undo Stack
+      final previousSnapshot = _undoStack.removeLast();
+      widget.subject.subMateri = previousSnapshot;
+
+      _updateSubjectOverallProgress();
+    });
+    widget.onDataChanged();
+  }
+
+  void _executeRedo() {
+    if (_redoStack.isEmpty) return;
+
+    setState(() {
+      // Simpan kondisi saat ini ke Undo Stack sebelum maju ke depan
+      final List<SubSubjectItem> currentSnapshot = widget.subject.subMateri
+          .map((item) => item.clone())
+          .toList();
+      _undoStack.add(currentSnapshot);
+
+      // Ambil status terdepan dari Redo Stack
+      final nextSnapshot = _redoStack.removeLast();
+      widget.subject.subMateri = nextSnapshot;
+
+      _updateSubjectOverallProgress();
+    });
+    widget.onDataChanged();
   }
 
   void _showEditSubjectNameDialog() {
@@ -432,7 +482,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         // 1. PANEL INPUT UTAMA
-                        // 1. PANEL INPUT UTAMA (DENGAN FITUR PASTE CLIPBOARD)
                         Padding(
                           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                           child: Row(
@@ -913,36 +962,60 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                     ),
                   ),
                 ] else ...[
-                  TextButton.icon(
-                    onPressed: () async {
-                      final confirm = await _showConfirmDialog(
-                        title: 'Reset Progress',
-                        content: 'Reset semua progress menjadi Belum Selesai?',
-                      );
-                      if (!confirm) return;
-                      void resetRecursive(List<SubSubjectItem> list) {
-                        for (var item in list) {
-                          item.progress = 'belum';
-                          item.finishedDate = null;
-                          resetRecursive(item.subMateri);
-                        }
-                      }
+                  // BARIS BARU: Wadah Tombol Undo, Redo, dan Reset
+                  Row(
+                    children: [
+                      // Tombol Undo (Hanya aktif/muncul saat stack tidak kosong)
+                      if (_undoStack.isNotEmpty)
+                        IconButton(
+                          icon: const Icon(Icons.undo, color: Colors.blueGrey),
+                          tooltip: 'Undo Checklist',
+                          onPressed: _executeUndo,
+                        ),
+                      // Tombol Redo (Hanya aktif/muncul saat stack tidak kosong)
+                      if (_redoStack.isNotEmpty)
+                        IconButton(
+                          icon: const Icon(Icons.redo, color: Colors.blueGrey),
+                          tooltip: 'Redo Checklist',
+                          onPressed: _executeRedo,
+                        ),
 
-                      setState(() {
-                        resetRecursive(widget.subject.subMateri);
-                      });
-                      _updateSubjectOverallProgress();
-                      widget.onDataChanged();
-                    },
-                    icon: const Icon(
-                      Icons.refresh,
-                      color: Colors.red,
-                      size: 18,
-                    ),
-                    label: const Text(
-                      'Reset',
-                      style: TextStyle(color: Colors.red),
-                    ),
+                      TextButton.icon(
+                        onPressed: () async {
+                          final confirm = await _showConfirmDialog(
+                            title: 'Reset Progress',
+                            content:
+                                'Reset semua progress menjadi Belum Selesai?',
+                          );
+                          if (!confirm) return;
+
+                          _saveToHistory(); // Simpan riwayat sebelum melakukan total reset
+
+                          void resetRecursive(List<SubSubjectItem> list) {
+                            for (var item in list) {
+                              item.progress = 'belum';
+                              item.finishedDate = null;
+                              resetRecursive(item.subMateri);
+                            }
+                          }
+
+                          setState(() {
+                            resetRecursive(widget.subject.subMateri);
+                          });
+                          _updateSubjectOverallProgress();
+                          widget.onDataChanged();
+                        },
+                        icon: const Icon(
+                          Icons.refresh,
+                          color: Colors.red,
+                          size: 18,
+                        ),
+                        label: const Text(
+                          'Reset',
+                          style: TextStyle(color: Colors.red),
+                        ),
+                      ),
+                    ],
                   ),
                   ElevatedButton(
                     onPressed: () => Navigator.pop(context),
@@ -1091,6 +1164,9 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                             value: isChecked,
                             activeColor: Colors.teal,
                             onChanged: (bool? checked) {
+                              // PANGGIL DI SINI SEBELUM PERUBAHAN DATA
+                              _saveToHistory();
+
                               setState(() {
                                 void changeStatusRecursive(
                                   SubSubjectItem target,
@@ -1122,9 +1198,14 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                               widget.onDataChanged();
                             },
                           ),
+
+                          // 2. Bagian InkWell teks pendamping klik checklist biasa
                           Expanded(
                             child: InkWell(
                               onTap: () {
+                                // PANGGIL DI SINI SEBELUM PERUBAHAN DATA
+                                _saveToHistory();
+
                                 if (item.progress != 'selesai') {
                                   setState(() => item.progress = 'selesai');
                                 } else {
