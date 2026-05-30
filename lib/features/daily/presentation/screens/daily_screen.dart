@@ -385,14 +385,33 @@ class _DailyScreenState extends State<DailyScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  grup.key.toUpperCase(),
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.teal[900],
-                                    letterSpacing: 0.8,
-                                  ),
+                                // MODIFIKASI: Menggunakan Row agar tombol berada di kanan atas seksi
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      grup.key.toUpperCase(),
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.teal[900],
+                                        letterSpacing: 0.8,
+                                      ),
+                                    ),
+                                    // TOMBOL BARU: Tambah Hub di kanan atas setiap seksi
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.add_circle_outline,
+                                      ),
+                                      color: Colors.teal[800],
+                                      constraints: const BoxConstraints(),
+                                      padding: EdgeInsets.zero,
+                                      tooltip: 'Tambah Hub ke Kategori Ini',
+                                      onPressed:
+                                          _showAddHubDialog, // Memanggil fungsi pembuat Hub bawaan Anda
+                                    ),
+                                  ],
                                 ),
                                 const Divider(height: 8, thickness: 1),
                               ],
@@ -448,13 +467,30 @@ class _DailyScreenState extends State<DailyScreen> {
                           children: [
                             Padding(
                               padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                              child: Text(
-                                '${grup.key} (Tersembunyi)',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.blueGrey,
-                                ),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    '${grup.key} (Tersembunyi)',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.blueGrey,
+                                    ),
+                                  ),
+                                  // TOMBOL BARU (Opsional): Ditambahkan juga pada seksi tersembunyi jika diperlukan
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.add_circle_outline,
+                                      size: 18,
+                                    ),
+                                    color: Colors.blueGrey,
+                                    constraints: const BoxConstraints(),
+                                    padding: EdgeInsets.zero,
+                                    onPressed: _showAddHubDialog,
+                                  ),
+                                ],
                               ),
                             ),
                             _buildHubGrid(grup.value, constraints),
