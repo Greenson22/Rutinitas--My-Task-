@@ -37,6 +37,7 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
     Colors.lightGreen.shade700,
     Colors.blue.shade700,
   ];
+  List<Map<String, dynamic>> dailyChartData = [];
 
   DateTime _stripTime(DateTime date) {
     return DateTime(date.year, date.month, date.day);
@@ -165,8 +166,6 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
           _barColors[i % _barColors.length];
     }
 
-    List<Map<String, dynamic>> dailyChartData = [];
-
     if (_selectedFilter == 'Minggu Ini') {
       final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
       final days = _getDaysInRange(
@@ -195,6 +194,20 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
           'tasks': dailyTaskBreakdown[key] ?? <String, int>{},
         });
       }
+    } else if (_selectedFilter == 'Tahun Ini') {
+      // Mengisi seluruh hari dari tanggal 1 Januari hingga 31 Desember di tahun berjalan
+      final startOfYear = DateTime(now.year, 1, 1);
+      final endOfYear = DateTime(now.year, 12, 31);
+      final days = _getDaysInRange(startOfYear, endOfYear);
+      for (var day in days) {
+        String key = DateFormat('yyyy-MM-dd').format(day);
+        dailyChartData.add({
+          'label': DateFormat('dd/MM').format(day),
+          'subLabel': DateFormat('yy').format(day),
+          'minutes': dailyTotals[key] ?? 0,
+          'tasks': dailyTaskBreakdown[key] ?? <String, int>{},
+        });
+      }
     } else if (_selectedFilter == 'Pilih Rentang' && _customRange != null) {
       final days = _getDaysInRange(
         _stripTime(_customRange!.start),
@@ -210,11 +223,16 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
         });
       }
     } else {
+      // Filter: 'Semua Waktu'
+      // Mengambil rentang tanggal penuh dari catatan pertama hingga catatan terakhir
       var sortedKeys = dailyTotals.keys.toList()..sort();
-      for (var key in sortedKeys) {
+      if (sortedKeys.isNotEmpty) {
         try {
-          DateTime day = DateTime.parse(key);
-          if (_selectedFilter == 'Semua Waktu' || day.year == now.year) {
+          DateTime minDate = DateTime.parse(sortedKeys.first);
+          DateTime maxDate = DateTime.parse(sortedKeys.last);
+          final days = _getDaysInRange(minDate, maxDate);
+          for (var day in days) {
+            String key = DateFormat('yyyy-MM-dd').format(day);
             dailyChartData.add({
               'label': DateFormat('dd/MM').format(day),
               'subLabel': DateFormat('yy').format(day),
@@ -222,7 +240,20 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
               'tasks': dailyTaskBreakdown[key] ?? <String, int>{},
             });
           }
-        } catch (_) {}
+        } catch (_) {
+          // Fallback apabila terjadi kesalahan parsing tanggal
+          for (var key in sortedKeys) {
+            try {
+              DateTime day = DateTime.parse(key);
+              dailyChartData.add({
+                'label': DateFormat('dd/MM').format(day),
+                'subLabel': DateFormat('yy').format(day),
+                'minutes': dailyTotals[key] ?? 0,
+                'tasks': dailyTaskBreakdown[key] ?? <String, int>{},
+              });
+            } catch (_) {}
+          }
+        }
       }
     }
 
