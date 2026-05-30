@@ -80,7 +80,7 @@ class StorageService {
     return checklistDir;
   }
 
-  Future<List<File>> getAllChecklistHubs(String baseDirSetting) async {
+  Future<List<File>> getAllChecklistGroups(String baseDirSetting) async {
     final Directory checklistDir = await getChecklistDir(baseDirSetting);
     // Modifikasi listSync() menjadi try-catch aman
     try {
@@ -94,7 +94,7 @@ class StorageService {
     }
   }
 
-  Future<File> getSpecificHubFile(String baseDirSetting, String hubId) async {
+  Future<File> getSpecificGroupFile(String baseDirSetting, String hubId) async {
     final Directory checklistDir = await getChecklistDir(baseDirSetting);
     return File('${checklistDir.path}/$hubId.json');
   }

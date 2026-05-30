@@ -298,29 +298,29 @@ class SubMateriItem {
 }
 
 // Model untuk Level 1: Checklist Hub (File JSON)
-class ChecklistHub {
+class ChecklistGroup {
   String id;
-  String namaHub;
-  String ikon;
+  String groupName;
+  String icon;
   String kategoriSeksi;
   List<ChecklistSection> semuaList;
   bool isHidden; // <--- TAMBAHKAN INI
 
-  ChecklistHub({
+  ChecklistGroup({
     required this.id,
-    required this.namaHub,
-    required this.ikon,
+    required this.groupName,
+    required this.icon,
     this.kategoriSeksi = "Lainnya",
     this.isHidden = false, // <--- TAMBAHKAN DEFAULT VALUE FALSE
     required this.semuaList,
   });
 
-  factory ChecklistHub.fromJson(Map<String, dynamic> json) {
+  factory ChecklistGroup.fromJson(Map<String, dynamic> json) {
     var list = json['semua_list'] as List? ?? [];
-    return ChecklistHub(
+    return ChecklistGroup(
       id: json['id'] ?? '',
-      namaHub: json['nama_hub'] ?? 'Hub Baru',
-      ikon: json['ikon'] ?? '📁',
+      groupName: json['nama_hub'] ?? 'Hub Baru',
+      icon: json['ikon'] ?? '📁',
       kategoriSeksi: json['kategori_seksi'] ?? 'Lainnya',
       isHidden: json['isHidden'] ?? false, // <--- BACA DARI JSON
       semuaList: list.map((i) => ChecklistSection.fromJson(i)).toList(),
@@ -330,8 +330,8 @@ class ChecklistHub {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'nama_hub': namaHub,
-      'ikon': ikon,
+      'nama_hub': groupName,
+      'ikon': icon,
       'kategori_seksi': kategoriSeksi,
       'isHidden': isHidden, // <--- SIMPAN KE JSON
       'semua_list': semuaList.map((e) => e.toJson()).toList(),

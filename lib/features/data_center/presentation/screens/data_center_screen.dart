@@ -214,7 +214,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
             ? await fileJurnal.readAsString()
             : "[]";
 
-        List<File> hubFiles = await _storageService.getAllChecklistHubs(
+        List<File> hubFiles = await _storageService.getAllChecklistGroups(
           currentDir,
         );
         final Archive archive = Archive();
@@ -589,7 +589,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
             ? await fileJurnal.readAsString()
             : "[]";
 
-        List<File> hubFiles = await _storageService.getAllChecklistHubs(
+        List<File> hubFiles = await _storageService.getAllChecklistGroups(
           currentDir,
         );
         final Archive archive = Archive();
@@ -931,7 +931,9 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
           ? await fileJurnal.readAsString()
           : "[]";
 
-      List<File> hubFiles = await _storageService.getAllChecklistHubs(_baseDir);
+      List<File> hubFiles = await _storageService.getAllChecklistGroups(
+        _baseDir,
+      );
 
       // 2. Satukan semua berkas ke dalam satu objek Archive ZIP
       final Archive backupArchive = Archive();
@@ -1187,7 +1189,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
   void _exportChecklist() async {
     try {
       String currentDir = await _storageService.getBaseDirSetting();
-      List<File> hubFiles = await _storageService.getAllChecklistHubs(
+      List<File> hubFiles = await _storageService.getAllChecklistGroups(
         currentDir,
       );
 

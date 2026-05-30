@@ -17,8 +17,8 @@ class DailyScreen extends StatefulWidget {
 
 class _DailyScreenState extends State<DailyScreen> {
   final StorageService _storageService = StorageService();
-  List<ChecklistHub> _allHubsRaw = [];
-  List<ChecklistHub> _hiddenHubs = [];
+  List<ChecklistGroup> _allGroupRaw = [];
+  List<ChecklistGroup> _hiddenGroup = [];
 
   String _selectedBaseDir = 'Documents';
   bool _isLoading = true;
@@ -26,8 +26,8 @@ class _DailyScreenState extends State<DailyScreen> {
   bool _isPageEditMode = false;
   bool _showHiddenSection = false;
 
-  final Map<String, List<ChecklistHub>> _groupedVisibleHubs = {};
-  final Map<String, List<ChecklistHub>> _groupedHiddenHubs = {};
+  final Map<String, List<ChecklistGroup>> _groupedVisibleGroup = {};
+  final Map<String, List<ChecklistGroup>> _groupedHiddenGroup = {};
   bool _isSectionEditMode = false;
 
   @override
@@ -40,62 +40,64 @@ class _DailyScreenState extends State<DailyScreen> {
     setState(() => _isLoading = true);
     try {
       _selectedBaseDir = await _storageService.getBaseDirSetting();
-      List<File> hubFiles = await _storageService.getAllChecklistHubs(
+      List<File> groupFiles = await _storageService.getAllChecklistGroups(
         _selectedBaseDir,
       );
 
       // SOLUSI PERMANEN LINUX: Urutkan file berdasarkan nama file secara alfabetis/numerik.
       // Dengan cara ini, prefix angka seperti 0_, 1_, 2_ akan memaksa Linux membaca sesuai urutan kustom kita.
-      hubFiles.sort((a, b) {
+      groupFiles.sort((a, b) {
         String nameA = a.path.split('/').last;
         String nameB = b.path.split('/').last;
         return nameA.compareTo(nameB);
       });
 
-      List<ChecklistHub> loadedHubs = [];
-      for (var file in hubFiles) {
+      List<ChecklistGroup> loadedGroups = [];
+      for (var file in groupFiles) {
         String jsonString = await file.readAsString();
         final Map<String, dynamic> parsedMap = jsonDecode(jsonString);
-        loadedHubs.add(ChecklistHub.fromJson(parsedMap));
+        loadedGroups.add(ChecklistGroup.fromJson(parsedMap));
       }
 
-      _allHubsRaw = loadedHubs;
+      _allGroupRaw = loadedGroups;
       _processGroupsDisplay();
     } catch (e) {
       setState(() => _isLoading = false);
-      debugPrint("Error loading hubs: $e");
+      debugPrint("Error loading groups: $e");
     }
   }
 
   void _processGroupsDisplay() {
     setState(() {
-      // 1. Saring data mentah hub menjadi list terlihat dan tersembunyi
-      final visibleList = _allHubsRaw.where((hub) => !hub.isHidden).toList();
-      final hiddenList = _allHubsRaw.where((hub) => hub.isHidden).toList();
+      // 1. Saring data mentah group menjadi list terlihat dan tersembunyi
+      final visibleList = _allGroupRaw
+          .where((group) => !group.isHidden)
+          .toList();
+      final hiddenList = _allGroupRaw.where((group) => group.isHidden).toList();
 
       // 2. Bersihkan penampung grup lama
-      _groupedVisibleHubs.clear();
-      _groupedHiddenHubs.clear();
+      _groupedVisibleGroup.clear();
+      _groupedHiddenGroup.clear();
 
       // 3. Kelompokkan Hub Terlihat berdasarkan Kategori Seksi Utama
-      for (var hub in visibleList) {
-        String kategori = hub.kategoriSeksi.trim().isEmpty
+      for (var group in visibleList) {
+        String kategori = group.kategoriSeksi.trim().isEmpty
             ? "Lainnya"
-            : hub.kategoriSeksi;
-        _groupedVisibleHubs.putIfAbsent(kategori, () => []);
-        _groupedVisibleHubs[kategori]!.add(hub);
+            : group.kategoriSeksi;
+        _groupedVisibleGroup.putIfAbsent(kategori, () => []);
+        _groupedVisibleGroup[kategori]!.add(group);
       }
 
-      // 4. Kelompokkan Hub Tersembunyi berdasarkan Kategori Seksi Utama
-      for (var hub in hiddenList) {
-        String kategori = hub.kategoriSeksi.trim().isEmpty
+      // 4. Kelompokkan Group Tersembunyi berdasarkan Kategori Seksi Utama
+      for (var group in hiddenList) {
+        String kategori = group.kategoriSeksi.trim().isEmpty
             ? "Lainnya"
-            : hub.kategoriSeksi;
-        _groupedHiddenHubs.putIfAbsent(kategori, () => []);
-        _groupedHiddenHubs[kategori]!.add(hub);
+            : group.kategoriSeksi;
+        _groupedHiddenGroup.putIfAbsent(kategori, () => []);
+        _groupedHiddenGroup[kategori]!.add(group);
       }
 
-      _hiddenHubs = hiddenList;
+      _hiddenGroup = hiddenList;
       _isLoading = false;
     });
   }
@@ -123,14 +125,14 @@ class _DailyScreenState extends State<DailyScreen> {
               if (namaSeksiBaru.isNotEmpty) {
                 setState(() {
                   // Menambahkan seksi kosong baru ke dalam map tampilan produktif produktif
-                  _groupedVisibleHubs.putIfAbsent(namaSeksiBaru, () => []);
+                  _groupedVisibleGroup.putIfAbsent(namaSeksiBaru, () => []);
                 });
                 Navigator.pop(context);
 
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
-                      'Seksi "$namaSeksiBaru" berhasil dibuat! Tekan tombol + di kanannya untuk menambah hub.',
+                      'Seksi "$namaSeksiBaru" berhasil dibuat! Tekan tombol + di kanannya untuk menambah group.',
                     ),
                     backgroundColor: Colors.teal[800],
                   ),
@@ -144,7 +146,7 @@ class _DailyScreenState extends State<DailyScreen> {
     );
   }
 
-  // MODIFIKASI: Menerima parameter target seksi utama agar Hub langsung masuk ke kategori yang benar
+  // MODIFIKASI: Menerima parameter target seksi utama agar group langsung masuk ke kategori yang benar
   void _showAddGroupDialogAtSection(String targetMainSection) {
     final nameController = TextEditingController();
     final iconController = TextEditingController(text: '📁');
@@ -152,14 +154,14 @@ class _DailyScreenState extends State<DailyScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Buat Hub Baru di $targetMainSection'),
+        title: Text('Buat Group Baru di $targetMainSection'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: nameController,
               decoration: const InputDecoration(
-                labelText: 'Nama Hub (Misal: Pekerjaan)',
+                labelText: 'Nama Group (Misal: Pekerjaan)',
               ),
             ),
             const SizedBox(height: 8),
@@ -177,65 +179,65 @@ class _DailyScreenState extends State<DailyScreen> {
           ElevatedButton(
             onPressed: () async {
               if (nameController.text.isNotEmpty) {
-                int nextIndex = _allHubsRaw.length;
+                int nextIndex = _allGroupRaw.length;
                 String newId =
                     '${nextIndex}_hub_${DateTime.now().millisecondsSinceEpoch}';
 
-                ChecklistHub newHub = ChecklistHub(
+                ChecklistGroup newGroup = ChecklistGroup(
                   id: newId,
-                  namaHub: nameController.text.trim(),
-                  ikon: iconController.text.trim(),
+                  groupName: nameController.text.trim(),
+                  icon: iconController.text.trim(),
                   kategoriSeksi:
                       targetMainSection, // <--- Menyimpan relasi seksi utama
                   isHidden: false,
                   semuaList: [],
                 );
 
-                await _saveGroupDataToFile(newHub);
+                await _saveGroupDataToFile(newGroup);
                 Navigator.pop(context);
                 _loadGroupsData();
               }
             },
-            child: const Text('Buat Hub'),
+            child: const Text('Buat Group'),
           ),
         ],
       ),
     );
   }
 
-  Future<void> _saveGroupDataToFile(ChecklistHub hub) async {
-    File hubFile = await _storageService.getSpecificHubFile(
+  Future<void> _saveGroupDataToFile(ChecklistGroup group) async {
+    File groupFile = await _storageService.getSpecificGroupFile(
       _selectedBaseDir,
-      hub.id,
+      group.id,
     );
     final String jsonString = const JsonEncoder.withIndent(
       '  ',
-    ).convert(hub.toJson());
-    await _storageService.saveJsonData(hubFile, jsonString);
+    ).convert(group.toJson());
+    await _storageService.saveJsonData(groupFile, jsonString);
   }
 
-  Future<void> _toggleGroupVisibility(ChecklistHub hub) async {
+  Future<void> _toggleGroupVisibility(ChecklistGroup group) async {
     setState(() {
-      hub.isHidden = !hub.isHidden;
+      group.isHidden = !group.isHidden;
     });
-    await _saveGroupDataToFile(hub);
+    await _saveGroupDataToFile(group);
     _processGroupsDisplay();
   }
 
-  void _showEditGroupDialog(ChecklistHub hub) {
-    final nameController = TextEditingController(text: hub.namaHub);
-    final iconController = TextEditingController(text: hub.ikon);
+  void _showEditGroupDialog(ChecklistGroup group) {
+    final nameController = TextEditingController(text: group.groupName);
+    final iconController = TextEditingController(text: group.icon);
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Ubah Checklist Hub'),
+        title: const Text('Ubah Checklist Group'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: nameController,
-              decoration: const InputDecoration(labelText: 'Nama Hub'),
+              decoration: const InputDecoration(labelText: 'Nama Group'),
             ),
             const SizedBox(height: 8),
             TextField(
@@ -252,10 +254,10 @@ class _DailyScreenState extends State<DailyScreen> {
           ElevatedButton(
             onPressed: () async {
               if (nameController.text.isNotEmpty) {
-                hub.namaHub = nameController.text.trim();
-                hub.ikon = iconController.text.trim();
+                group.groupName = nameController.text.trim();
+                group.icon = iconController.text.trim();
 
-                await _saveGroupDataToFile(hub);
+                await _saveGroupDataToFile(group);
                 Navigator.pop(context);
                 _loadGroupsData();
               }
@@ -267,14 +269,14 @@ class _DailyScreenState extends State<DailyScreen> {
     );
   }
 
-  void _deleteGroup(ChecklistHub hub) async {
+  void _deleteGroup(ChecklistGroup group) async {
     final bool confirm =
         await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Text('Hapus Checklist Hub?'),
+            title: const Text('Hapus Checklist Group?'),
             content: Text(
-              'Apakah Anda yakin ingin menghapus Hub "${hub.namaHub}" secara permanen beserta seluruh isinya?',
+              'Apakah Anda yakin ingin menghapus Group "${group.groupName}" secara permanen beserta seluruh isinya?',
             ),
             actions: [
               TextButton(
@@ -293,22 +295,22 @@ class _DailyScreenState extends State<DailyScreen> {
 
     if (confirm) {
       try {
-        File hubFile = await _storageService.getSpecificHubFile(
+        File groupFile = await _storageService.getSpecificGroupFile(
           _selectedBaseDir,
-          hub.id,
+          group.id,
         );
-        if (await hubFile.exists()) {
-          await hubFile.delete();
+        if (await groupFile.exists()) {
+          await groupFile.delete();
         }
         _loadGroupsData();
       } catch (e) {
-        debugPrint("Error deleting hub file: $e");
+        debugPrint("Error deleting group file: $e");
       }
     }
   }
 
   void _moveGroupOrder(
-    List<ChecklistHub> targetList,
+    List<ChecklistGroup> targetList,
     int currentIndex,
     int direction,
   ) async {
@@ -318,48 +320,48 @@ class _DailyScreenState extends State<DailyScreen> {
     final itemA = targetList[currentIndex];
     final itemB = targetList[newIndex];
 
-    int rawIdxA = _allHubsRaw.indexWhere((h) => h.id == itemA.id);
-    int rawIdxB = _allHubsRaw.indexWhere((h) => h.id == itemB.id);
+    int rawIdxA = _allGroupRaw.indexWhere((h) => h.id == itemA.id);
+    int rawIdxB = _allGroupRaw.indexWhere((h) => h.id == itemB.id);
 
     if (rawIdxA != -1 && rawIdxB != -1) {
       setState(() {
-        final temp = _allHubsRaw[rawIdxA];
-        _allHubsRaw[rawIdxA] = _allHubsRaw[rawIdxB];
-        _allHubsRaw[rawIdxB] = temp;
+        final temp = _allGroupRaw[rawIdxA];
+        _allGroupRaw[rawIdxA] = _allGroupRaw[rawIdxB];
+        _allGroupRaw[rawIdxB] = temp;
       });
 
       // PROSES RENAME FISIK BERKAS DI LINUX AGAR URUTAN TERKUNCI:
       try {
-        for (int i = 0; i < _allHubsRaw.length; i++) {
-          final currentHub = _allHubsRaw[i];
+        for (int i = 0; i < _allGroupRaw.length; i++) {
+          final currentGroup = _allGroupRaw[i];
 
           // Cari file yang lama terlebih dahulu
-          File oldFile = await _storageService.getSpecificHubFile(
+          File oldFile = await _storageService.getSpecificGroupFile(
             _selectedBaseDir,
-            currentHub.id,
+            currentGroup.id,
           );
 
           // Jika id belum mengandung nomor urut, atau nomor urutnya berubah, kita perbarui id dan nama filenya
-          String cleanId = currentHub.id;
+          String cleanId = currentGroup.id;
           if (cleanId.contains('_hub_')) {
             // Ambil id asli tanpa prefix urutan lama (misal dari "0_hub_123" diambil "hub_123")
             cleanId = cleanId.substring(cleanId.indexOf('hub_'));
           }
 
           String newId = "${i}_$cleanId";
-          File newFile = await _storageService.getSpecificHubFile(
+          File newFile = await _storageService.getSpecificGroupFile(
             _selectedBaseDir,
             newId,
           );
 
           // Set id baru ke objek runtime agar sinkron
-          currentHub.id = newId;
+          currentGroup.id = newId;
 
           if (await oldFile.exists()) {
             // Tulis data terbaru dengan struktur ID yang baru
             final String jsonString = const JsonEncoder.withIndent(
               '  ',
-            ).convert(currentHub.toJson());
+            ).convert(currentGroup.toJson());
             await newFile.writeAsString(jsonString);
 
             // Hapus file lama jika namanya berbeda dengan file baru
@@ -370,7 +372,7 @@ class _DailyScreenState extends State<DailyScreen> {
             // Jika file lama tidak terdeteksi (karena perubahan state), langsung buat file baru
             final String jsonString = const JsonEncoder.withIndent(
               '  ',
-            ).convert(currentHub.toJson());
+            ).convert(currentGroup.toJson());
             await newFile.writeAsString(jsonString);
           }
         }
@@ -408,28 +410,28 @@ class _DailyScreenState extends State<DailyScreen> {
                   newSectionName != oldSectionName) {
                 setState(() {
                   // 1. Update data di map lokal yang sedang aktif
-                  if (_groupedVisibleHubs.containsKey(oldSectionName)) {
-                    final hubs =
-                        _groupedVisibleHubs.remove(oldSectionName) ?? [];
+                  if (_groupedVisibleGroup.containsKey(oldSectionName)) {
+                    final groups =
+                        _groupedVisibleGroup.remove(oldSectionName) ?? [];
                     // Update field kategoriSeksi pada setiap objek hub di dalamnya
-                    for (var hub in hubs) {
-                      hub.kategoriSeksi = newSectionName;
+                    for (var group in groups) {
+                      group.kategoriSeksi = newSectionName;
                     }
-                    _groupedVisibleHubs[newSectionName] = hubs;
+                    _groupedVisibleGroup[newSectionName] = groups;
                   }
 
                   // 2. Samakan perubahan ke list master raw data agar saat save file sinkron
-                  for (var hub in _allHubsRaw) {
-                    if (hub.kategoriSeksi == oldSectionName) {
-                      hub.kategoriSeksi = newSectionName;
+                  for (var group in _allGroupRaw) {
+                    if (group.kategoriSeksi == oldSectionName) {
+                      group.kategoriSeksi = newSectionName;
                     }
                   }
                 });
 
                 // 3. Simpan perubahan fisik ke seluruh file JSON hub terkait
-                for (var hub in _allHubsRaw) {
-                  if (hub.kategoriSeksi == newSectionName) {
-                    await _saveGroupDataToFile(hub);
+                for (var group in _allGroupRaw) {
+                  if (group.kategoriSeksi == newSectionName) {
+                    await _saveGroupDataToFile(group);
                   }
                 }
 
@@ -445,7 +447,7 @@ class _DailyScreenState extends State<DailyScreen> {
   }
 
   void _deleteMainSection(String sectionName) async {
-    final listHubDiSeksiIni = _groupedVisibleHubs[sectionName] ?? [];
+    final listGroupDiSeksiIni = _groupedVisibleGroup[sectionName] ?? [];
 
     final bool confirm =
         await showDialog<bool>(
@@ -454,7 +456,7 @@ class _DailyScreenState extends State<DailyScreen> {
             title: const Text('Hapus Seksi Kategori?'),
             content: Text(
               'Apakah Anda yakin ingin menghapus seksi "$sectionName"?\n\n'
-              'Peringatan: Tindakan ini juga akan menghapus ${listHubDiSeksiIni.length} Hub di dalamnya secara permanen!',
+              'Peringatan: Tindakan ini juga akan menghapus ${listGroupDiSeksiIni.length} Hub di dalamnya secara permanen!',
             ),
             actions: [
               TextButton(
@@ -474,19 +476,21 @@ class _DailyScreenState extends State<DailyScreen> {
     if (confirm) {
       try {
         // Hapus fisik semua berkas file JSON hub yang berada di seksi ini
-        for (var hub in listHubDiSeksiIni) {
-          File hubFile = await _storageService.getSpecificHubFile(
+        for (var group in listGroupDiSeksiIni) {
+          File groupFile = await _storageService.getSpecificGroupFile(
             _selectedBaseDir,
-            hub.id,
+            group.id,
           );
-          if (await hubFile.exists()) {
-            await hubFile.delete();
+          if (await groupFile.exists()) {
+            await groupFile.delete();
           }
         }
 
         setState(() {
-          _groupedVisibleHubs.remove(sectionName);
-          _allHubsRaw.removeWhere((hub) => hub.kategoriSeksi == sectionName);
+          _groupedVisibleGroup.remove(sectionName);
+          _allGroupRaw.removeWhere(
+            (group) => group.kategoriSeksi == sectionName,
+          );
         });
 
         _loadGroupsData();
@@ -497,17 +501,19 @@ class _DailyScreenState extends State<DailyScreen> {
   }
 
   void _moveMainSectionOrder(String sectionName, int direction) {
-    final keys = _groupedVisibleHubs.keys.toList();
+    final keys = _groupedVisibleGroup.keys.toList();
     int currentIndex = keys.indexOf(sectionName);
     int newIndex = currentIndex + direction;
 
     if (newIndex < 0 || newIndex >= keys.length) return;
 
     // Logika reorder map keys manual untuk UI, sedangkan untuk penyimpanan permanen di Linux
-    // akan mengandalkan pembaruan prefix nama file saat hubs di-reorder di fungsi bawaan Anda.
+    // akan mengandalkan pembaruan prefix nama file saat group di-reorder di fungsi bawaan Anda.
     setState(() {
-      final tempMap = Map<String, List<ChecklistHub>>.from(_groupedVisibleHubs);
-      _groupedVisibleHubs.clear();
+      final tempMap = Map<String, List<ChecklistGroup>>.from(
+        _groupedVisibleGroup,
+      );
+      _groupedVisibleGroup.clear();
 
       // Tukar posisi key
       final tempKey = keys[currentIndex];
@@ -516,7 +522,7 @@ class _DailyScreenState extends State<DailyScreen> {
 
       // Isi kembali map sesuai urutan key baru
       for (var key in keys) {
-        _groupedVisibleHubs[key] = tempMap[key] ?? [];
+        _groupedVisibleGroup[key] = tempMap[key] ?? [];
       }
     });
   }
@@ -526,7 +532,7 @@ class _DailyScreenState extends State<DailyScreen> {
     return Scaffold(
       backgroundColor: Colors.grey[200],
       appBar: AppBar(
-        title: const Text('My Checklist Hubs'),
+        title: const Text('My Checklist Groups'),
         backgroundColor: Colors.teal[800],
         actions: [
           IconButton(
@@ -541,7 +547,7 @@ class _DailyScreenState extends State<DailyScreen> {
       drawer: const DrawerMenu(isDailyActive: true),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _allHubsRaw.isEmpty && _groupedVisibleHubs.isEmpty
+          : _allGroupRaw.isEmpty && _groupedVisibleGroup.isEmpty
           ? const Center(
               child: Text(
                 'Belum ada Seksi Kategori. Tekan + di bawah untuk membuat baru!',
@@ -550,13 +556,13 @@ class _DailyScreenState extends State<DailyScreen> {
           : LayoutBuilder(
               builder: (context, constraints) {
                 // Mengambil semua kunci seksi aktif ditambah seksi kosong yang baru dibuat
-                final semuaKunciSeksi = _groupedVisibleHubs.keys.toList();
+                final semuaKunciSeksi = _groupedVisibleGroup.keys.toList();
 
                 return ListView(
                   children: [
                     ...semuaKunciSeksi.map((namaSeksiUtama) {
-                      final listHubDiSeksiIni =
-                          _groupedVisibleHubs[namaSeksiUtama] ?? [];
+                      final listGroupDiSeksiIni =
+                          _groupedVisibleGroup[namaSeksiUtama] ?? [];
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -673,7 +679,7 @@ class _DailyScreenState extends State<DailyScreen> {
                                                   size: 18,
                                                 ),
                                                 tooltip:
-                                                    'Tambah Hub ke Seksi Ini',
+                                                    'Tambah Group ke Seksi Ini',
                                                 onPressed: () =>
                                                     _showAddGroupDialogAtSection(
                                                       namaSeksiUtama,
@@ -692,7 +698,7 @@ class _DailyScreenState extends State<DailyScreen> {
                               ],
                             ),
                           ),
-                          listHubDiSeksiIni.isEmpty
+                          listGroupDiSeksiIni.isEmpty
                               ? const Padding(
                                   padding: EdgeInsets.only(
                                     left: 24,
@@ -700,19 +706,22 @@ class _DailyScreenState extends State<DailyScreen> {
                                     bottom: 12,
                                   ),
                                   child: Text(
-                                    'Belum ada hub di seksi ini.',
+                                    'Belum ada group di seksi ini.',
                                     style: TextStyle(
                                       fontSize: 12,
                                       color: Colors.grey,
                                     ),
                                   ),
                                 )
-                              : _buildGroupGrid(listHubDiSeksiIni, constraints),
+                              : _buildGroupGrid(
+                                  listGroupDiSeksiIni,
+                                  constraints,
+                                ),
                         ],
                       );
                     }),
-                    // === KATEGORI HUB TERSEMBUNYI ===
-                    if (_hiddenHubs.isNotEmpty && _showHiddenSection) ...[
+                    // === KATEGORI Group TERSEMBUNYI ===
+                    if (_hiddenGroup.isNotEmpty && _showHiddenSection) ...[
                       const Padding(
                         padding: EdgeInsets.symmetric(
                           horizontal: 16.0,
@@ -720,7 +729,7 @@ class _DailyScreenState extends State<DailyScreen> {
                         ),
                         child: Divider(thickness: 2, color: Colors.grey),
                       ),
-                      ..._groupedHiddenHubs.entries.map((grup) {
+                      ..._groupedHiddenGroup.entries.map((grup) {
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -767,7 +776,7 @@ class _DailyScreenState extends State<DailyScreen> {
   }
 
   Widget _buildGroupGrid(
-    List<ChecklistHub> hubsList,
+    List<ChecklistGroup> groupList,
     BoxConstraints constraints,
   ) {
     int crossAxisCount = 2;
@@ -789,13 +798,13 @@ class _DailyScreenState extends State<DailyScreen> {
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
       ),
-      itemCount: hubsList.length,
+      itemCount: groupList.length,
       itemBuilder: (context, index) {
-        final hub = hubsList[index];
+        final group = groupList[index];
 
         // Menghitung total seluruh item dari semua seksi di dalam hub ini
         int totalItems = 0;
-        for (var section in hub.semuaList) {
+        for (var section in group.semuaList) {
           totalItems += section.items.length;
         }
 
@@ -804,7 +813,7 @@ class _DailyScreenState extends State<DailyScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
             side: BorderSide(
-              color: hub.isHidden ? Colors.grey : Colors.teal[800]!,
+              color: group.isHidden ? Colors.grey : Colors.teal[800]!,
               width: 3.5,
             ),
           ),
@@ -832,7 +841,7 @@ class _DailyScreenState extends State<DailyScreen> {
                             context,
                             MaterialPageRoute(
                               builder: (context) => ChecklistDetailScreen(
-                                hub: hub,
+                                group: group,
                                 baseDir: _selectedBaseDir,
                               ),
                             ),
@@ -846,19 +855,21 @@ class _DailyScreenState extends State<DailyScreen> {
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Text(
-                            hub.ikon,
+                            group.icon,
                             style: TextStyle(
                               fontSize: 28,
-                              color: hub.isHidden ? Colors.grey : Colors.black,
+                              color: group.isHidden
+                                  ? Colors.grey
+                                  : Colors.black,
                             ),
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            hub.namaHub,
+                            group.groupName,
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 14,
-                              color: hub.isHidden
+                              color: group.isHidden
                                   ? Colors.grey
                                   : Colors.black87,
                             ),
@@ -881,18 +892,18 @@ class _DailyScreenState extends State<DailyScreen> {
                                 ),
                                 decoration: BoxDecoration(
                                   color:
-                                      (hub.isHidden
+                                      (group.isHidden
                                               ? Colors.grey
                                               : Colors.teal[800]!)
                                           .withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
-                                  '${hub.semuaList.length} Seksi',
+                                  '${group.semuaList.length} Seksi',
                                   style: TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w600,
-                                    color: hub.isHidden
+                                    color: group.isHidden
                                         ? Colors.grey[700]
                                         : Colors.teal[900]!,
                                   ),
@@ -906,7 +917,7 @@ class _DailyScreenState extends State<DailyScreen> {
                                 ),
                                 decoration: BoxDecoration(
                                   color:
-                                      (hub.isHidden
+                                      (group.isHidden
                                               ? Colors.grey
                                               : Colors.indigo[800]!)
                                           .withOpacity(0.1),
@@ -917,7 +928,7 @@ class _DailyScreenState extends State<DailyScreen> {
                                   style: TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w600,
-                                    color: hub.isHidden
+                                    color: group.isHidden
                                         ? Colors.grey[700]
                                         : Colors.indigo[900]!,
                                   ),
@@ -949,7 +960,7 @@ class _DailyScreenState extends State<DailyScreen> {
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                         onPressed: index > 0
-                            ? () => _moveGroupOrder(hubsList, index, -1)
+                            ? () => _moveGroupOrder(groupList, index, -1)
                             : null,
                       ),
 
@@ -964,11 +975,11 @@ class _DailyScreenState extends State<DailyScreen> {
                         constraints: const BoxConstraints(),
                         onSelected: (value) {
                           if (value == 'edit') {
-                            _showEditGroupDialog(hub);
+                            _showEditGroupDialog(group);
                           } else if (value == 'toggle_visibility') {
-                            _toggleGroupVisibility(hub);
+                            _toggleGroupVisibility(group);
                           } else if (value == 'delete') {
-                            _deleteGroup(hub);
+                            _deleteGroup(group);
                           }
                         },
                         itemBuilder: (BuildContext context) => [
@@ -990,7 +1001,7 @@ class _DailyScreenState extends State<DailyScreen> {
                             child: Row(
                               children: [
                                 Icon(
-                                  hub.isHidden
+                                  group.isHidden
                                       ? Icons.visibility
                                       : Icons.visibility_off,
                                   size: 18,
@@ -998,9 +1009,9 @@ class _DailyScreenState extends State<DailyScreen> {
                                 ),
                                 const SizedBox(width: 10),
                                 Text(
-                                  hub.isHidden
-                                      ? 'Tampilkan Hub'
-                                      : 'Sembunyikan Hub',
+                                  group.isHidden
+                                      ? 'Tampilkan Group'
+                                      : 'Sembunyikan Group',
                                   style: const TextStyle(fontSize: 13),
                                 ),
                               ],
@@ -1018,7 +1029,7 @@ class _DailyScreenState extends State<DailyScreen> {
                                 ),
                                 SizedBox(width: 10),
                                 Text(
-                                  'Hapus Hub',
+                                  'Hapus Group',
                                   style: TextStyle(
                                     fontSize: 13,
                                     color: Colors.redAccent,
@@ -1033,13 +1044,13 @@ class _DailyScreenState extends State<DailyScreen> {
                       // 3. Tombol Pindah Kanan / Bawah
                       IconButton(
                         icon: const Icon(Icons.arrow_forward, size: 18),
-                        color: index < hubsList.length - 1
+                        color: index < groupList.length - 1
                             ? Colors.teal[800]
                             : Colors.grey[300],
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
-                        onPressed: index < hubsList.length - 1
-                            ? () => _moveGroupOrder(hubsList, index, 1)
+                        onPressed: index < groupList.length - 1
+                            ? () => _moveGroupOrder(groupList, index, 1)
                             : null,
                       ),
                     ],

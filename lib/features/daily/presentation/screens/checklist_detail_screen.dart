@@ -9,12 +9,12 @@ import '../widgets/daily_checklist_dialog.dart';
 import '../widgets/add_daily_subject_dialog.dart';
 
 class ChecklistDetailScreen extends StatefulWidget {
-  final ChecklistHub hub;
+  final ChecklistGroup group;
   final String baseDir;
 
   const ChecklistDetailScreen({
     super.key,
-    required this.hub,
+    required this.group,
     required this.baseDir,
   });
 
@@ -26,7 +26,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
   final StorageService _storageService = StorageService();
   bool _isPageEditMode = false;
   bool _isSectionEditMode = false;
-  late ChecklistHub _currentHub;
+  late ChecklistGroup _currentHub;
 
   // Konstanta untuk menandai nama seksi unik/default
   static const String _defaultSectionName = "Checklist Standar";
@@ -35,7 +35,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
   void initState() {
     super.initState();
     _currentHub =
-        widget.hub; // Mengambil data hub yang diklik dari layar sebelumnya
+        widget.group; // Mengambil data hub yang diklik dari layar sebelumnya
   }
 
   // Fungsi menyimpan khusus ke file JSON milik Hub ini saja
@@ -45,7 +45,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
       '  ',
     ).convert(updatedMap);
     try {
-      File jsonFile = await _storageService.getSpecificHubFile(
+      File jsonFile = await _storageService.getSpecificGroupFile(
         widget.baseDir,
         _currentHub.id,
       );
@@ -257,9 +257,9 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
       appBar: AppBar(
         title: Row(
           children: [
-            Text(_currentHub.ikon, style: const TextStyle(fontSize: 22)),
+            Text(_currentHub.icon, style: const TextStyle(fontSize: 22)),
             const SizedBox(width: 8),
-            Text(_currentHub.namaHub),
+            Text(_currentHub.groupName),
           ],
         ),
         backgroundColor: Colors.teal[700],
