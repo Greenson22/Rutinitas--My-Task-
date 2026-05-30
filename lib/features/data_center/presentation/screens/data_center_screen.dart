@@ -850,6 +850,60 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
     }
   }
 
+  // === TAMBAHKAN FUNGSI UTUH INI DI DALAM _DataCenterScreenState ===
+  void _eksporBackupKeFolderKustom(File fileBackup) async {
+    try {
+      final String namaFile = fileBackup.path.split('/').last;
+
+      if (Platform.isLinux) {
+        // --- LOGIKA LINUX: Langsung memunculkan dialog Save As ---
+        String? lokasiSimpan = await FilePicker.saveFile(
+          dialogTitle: 'Simpan Berkas Cadangan',
+          fileName: namaFile,
+          type: FileType.custom,
+          allowedExtensions: ['zip'],
+        );
+
+        if (lokasiSimpan != null) {
+          await fileBackup.copy(lokasiSimpan);
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Berkas berhasil disimpan ke: $lokasiSimpan'),
+              backgroundColor: Colors.teal,
+            ),
+          );
+        }
+      } else {
+        // --- LOGIKA ANDROID / OS LAIN: Pilih Direktori Target ---
+        String? direktoriPilihan = await FilePicker.getDirectoryPath(
+          dialogTitle: 'Pilih Folder Tujuan Penyimpanan',
+        );
+
+        if (direktoriPilihan != null) {
+          final String pathTargetBaru = '$direktoriPilihan/$namaFile';
+          await fileBackup.copy(pathTargetBaru);
+
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Berkas sukses disalin ke folder kustom!'),
+              backgroundColor: Colors.teal,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint("Gagal mengekspor berkas backup ke folder kustom: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Terjadi kesalahan saat menyalin berkas backup.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
   // =========================================================================
   // 1. LOGIKA UTAMA UNTUK TASK MASTER DATA
   // =========================================================================
@@ -1338,6 +1392,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
               onBackupJurnal: () => _exportJurnal(),
               onRestoreJurnal: () => _importJurnal(),
               onImportZip: () => _importZipLokal(),
+              onExportToFolder: (file) => _eksporBackupKeFolderKustom(file),
             ),
 
             // TAB 2: Local Sharing

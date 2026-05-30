@@ -15,6 +15,7 @@ class BackupTab extends StatefulWidget {
   final List<File> serverBackupFiles;
   final Function(File) onDeleteServerBackup;
   final VoidCallback onImportZip;
+  final Function(File) onExportToFolder;
 
   const BackupTab({
     super.key,
@@ -31,6 +32,7 @@ class BackupTab extends StatefulWidget {
     required this.serverBackupFiles,
     required this.onDeleteServerBackup,
     required this.onImportZip,
+    required this.onExportToFolder,
   });
 
   @override
@@ -41,7 +43,6 @@ class _BackupTabState extends State<BackupTab> {
   bool _isSelectionMode = false;
   final List<File> _selectedFiles = [];
 
-  // Fungsi pembantu untuk memunculkan dialog konfirmasi hapus
   Future<bool> _showConfirmDeleteDialog({
     required String title,
     required String content,
@@ -87,6 +88,7 @@ class _BackupTabState extends State<BackupTab> {
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: 16),
       children: [
+        // Baris Tombol Ringkas (Task Master, Checklist, Jurnal)
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
           child: Row(
@@ -114,6 +116,7 @@ class _BackupTabState extends State<BackupTab> {
           ),
         ),
         const Divider(thickness: 2),
+        // Bagian Header Daftar Berkas & Tombol Dinamis
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
           child: Row(
@@ -231,8 +234,7 @@ class _BackupTabState extends State<BackupTab> {
                       ),
                     ] else ...[
                       ElevatedButton.icon(
-                        onPressed: widget
-                            .onImportZip, // <--- SEKARANG MEMANGGIL CALLBACK IMPORT ZIP
+                        onPressed: widget.onImportZip,
                         icon: const Icon(Icons.unarchive, size: 14),
                         label: const Text(
                           'Import',
@@ -271,6 +273,7 @@ class _BackupTabState extends State<BackupTab> {
             ],
           ),
         ),
+        // Daftar File ZIP Lokal
         widget.localBackupFiles.isEmpty
             ? const Center(child: Text('Belum ada file backup.'))
             : ListView.builder(
@@ -349,7 +352,6 @@ class _BackupTabState extends State<BackupTab> {
                                   ),
                                 ) ??
                                 false;
-
                             if (confirm) {
                               widget.onRestoreAllZip(file);
                             }
@@ -372,22 +374,36 @@ class _BackupTabState extends State<BackupTab> {
                     title: Text(fileName),
                     trailing: _isSelectionMode
                         ? null
-                        : IconButton(
-                            icon: const Icon(
-                              Icons.delete_outline,
-                              color: Colors.red,
-                            ),
-                            onPressed: () async {
-                              final bool
-                              confirm = await _showConfirmDeleteDialog(
-                                title: 'Hapus Berkas Backup',
-                                content:
-                                    'Apakah Anda yakin ingin menghapus berkas cadangan "$fileName" secara permanen?',
-                              );
-                              if (confirm) {
-                                widget.onDeleteBackup(file);
-                              }
-                            },
+                        : Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Tombol Baru: Untuk mengekspor berkas tunggal yang dipilih ke folder kustom luar
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.drive_file_move,
+                                  color: Colors.indigo,
+                                ),
+                                tooltip: 'Simpan ke Folder Kustom',
+                                onPressed: () => widget.onExportToFolder(file),
+                              ),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.delete_outline,
+                                  color: Colors.red,
+                                ),
+                                onPressed: () async {
+                                  final bool
+                                  confirm = await _showConfirmDeleteDialog(
+                                    title: 'Hapus Berkas Backup',
+                                    content:
+                                        'Apakah Anda yakin ingin menghapus berkas cadangan "$fileName" secara permanen?',
+                                  );
+                                  if (confirm) {
+                                    widget.onDeleteBackup(file);
+                                  }
+                                },
+                              ),
+                            ],
                           ),
                   );
                 },
