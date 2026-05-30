@@ -340,8 +340,14 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
           });
         },
         onTap: () {},
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+        child: AnimatedPadding(
+          // Menambahkan durasi dan kurva animasi yang serupa dengan seksi di group checklist
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
+          // Mengubah padding secara dinamis berdasarkan status mode edit seksi (_isSectionEditMode)
+          padding: _isSectionEditMode
+              ? const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0)
+              : const EdgeInsets.fromLTRB(16, 12, 16, 4),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -358,8 +364,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                             color: color,
                           ),
                         ),
-
-                  // MODIFIKASI DI SINI: Tombol hanya muncul dideretan saat Mode Edit Aktif
+                  // Tombol hanya muncul dideretan saat Mode Edit Aktif
                   if (_isSectionEditMode) ...[
                     Row(
                       children: [
@@ -403,8 +408,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                           ),
                           onPressed: () => _deleteSection(section),
                         ),
-
-                        // TAMBAHAN: Tombol Tambah Item disisipkan di deretan paling kanan saat mode edit
+                        // Tombol Tambah Item disisipkan di deretan paling kanan saat mode edit
                         IconButton(
                           icon: const Icon(
                             Icons.add_circle_outline,
@@ -431,8 +435,6 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
   }
 
   // === UI PROGRESS BAR & KARTU LAMA ANDA TETAP AMAN DI SINI ===
-  // === UI KOTAK UTUH DAN LENGKAP LAMA ANDA SEKARANG SUDAH DIKEMBALIKAN ===
-  // === UI KOTAK UTUH DAN LENGKAP DENGAN FITUR MOVE POSISI YANG SUDAH DIPULIHKAN ===
   Widget _buildCategoryGrid(
     List<DailySubject> subjectsList,
     BoxConstraints constraints,
