@@ -394,122 +394,133 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
+                // 1. JUDUL MATERI DI SEBELAH KIRI
                 Expanded(
-                  child: Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(
-                          Icons.edit_note,
-                          color: Colors.white,
-                          size: 22,
-                        ),
-                        tooltip: 'Ubah Judul Materi',
-                        constraints: const BoxConstraints(),
-                        padding: EdgeInsets.zero,
-                        onPressed: _showEditSubjectNameDialog,
-                      ),
-                      const SizedBox(width: 8),
-                      // TAMBAHAN TOMBOL PENGUBAH WARNA DI SINI
-                      IconButton(
-                        icon: const Icon(
-                          Icons.palette,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                        tooltip: 'Ubah Warna Materi',
-                        constraints: const BoxConstraints(),
-                        padding: EdgeInsets.zero,
-                        onPressed: () {
-                          showDialog(
-                            context: context,
-                            builder: (ctx) => ChangeColorDialog(
-                              subject: widget.subject,
-                              onColorSaved: () {
-                                setState(() {}); // Refresh visual header dialog
-                                widget
-                                    .onDataChanged(); // Trigger auto-save JSON ke lokal storage
-                              },
-                            ),
-                          );
-                        },
-                      ),
-                      const SizedBox(width: 8),
-                      IconButton(
-                        icon: Icon(
-                          widget.subject.type == 'note'
-                              ? Icons.checklist
-                              : Icons.notes,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                        tooltip: widget.subject.type == 'note'
-                            ? 'Ubah ke Mode Checklist'
-                            : 'Ubah ke Mode Catatan',
-                        constraints: const BoxConstraints(),
-                        padding: EdgeInsets.zero,
-                        onPressed: () {
-                          setState(() {
-                            // Ganti tipe tampilan
-                            widget.subject.type = widget.subject.type == 'note'
-                                ? 'list'
-                                : 'note';
-                            // Sembunyikan control panel jika pindah ke mode catatan
-                            if (widget.subject.type == 'note') {
-                              _showControlPanel = false;
-                            }
-                          });
-                          widget.onDataChanged(); // Auto-save perubahan tipe
-                        },
-                      ),
-                      const SizedBox(width: 10),
-                      Flexible(
-                        child: Text.rich(
-                          TextSpan(
-                            children: [
-                              TextSpan(
-                                text: '${widget.subject.subjectName} ',
-                                style: TextStyle(
-                                  color: Color(widget.subject.textColor),
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              if (widget.subject.isDateActive &&
-                                  widget.subject.date != null)
-                                ...DailySubject.buildColoredDateSpans(
-                                  widget.subject,
-                                  inHeader: true,
-                                ),
-                            ],
+                  child: Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(
+                          text: '${widget.subject.subjectName} ',
+                          style: TextStyle(
+                            color: Color(widget.subject.textColor),
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
                           ),
-                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                    ],
+                        if (widget.subject.isDateActive &&
+                            widget.subject.date != null)
+                          ...DailySubject.buildColoredDateSpans(
+                            widget.subject,
+                            inHeader: true,
+                          ),
+                      ],
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                // Tombol toggle untuk Sembunyikan/Tampilkan Panel Kontrol
-                if (widget.subject.type != 'note')
-                  IconButton(
-                    icon: Icon(
-                      _showControlPanel ? Icons.tune : Icons.tune_outlined,
-                      color: _showControlPanel
-                          ? Colors.amberAccent
-                          : Colors.white,
+                const SizedBox(width: 12),
+
+                // 2. DERETAN TOMBOL-TOMBOL AKSI DI SEBELAH KANAN
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Tombol Ubah Judul Materi
+                    IconButton(
+                      icon: const Icon(
+                        Icons.edit_note,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                      tooltip: 'Ubah Judul Materi',
+                      constraints: const BoxConstraints(),
+                      padding: const EdgeInsets.all(4),
+                      onPressed: _showEditSubjectNameDialog,
                     ),
-                    tooltip: _showControlPanel
-                        ? 'Sembunyikan Pengaturan'
-                        : 'Tampilkan Pengaturan',
-                    onPressed: () {
-                      setState(() {
-                        _showControlPanel = !_showControlPanel;
-                      });
-                    },
-                  ),
+                    const SizedBox(width: 4),
+
+                    // Tombol Ubah Warna Materi
+                    IconButton(
+                      icon: const Icon(
+                        Icons.palette,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      tooltip: 'Ubah Warna Materi',
+                      constraints: const BoxConstraints(),
+                      padding: const EdgeInsets.all(4),
+                      onPressed: () {
+                        showDialog(
+                          context: context,
+                          builder: (ctx) => ChangeColorDialog(
+                            subject: widget.subject,
+                            onColorSaved: () {
+                              setState(() {}); // Refresh visual header dialog
+                              widget
+                                  .onDataChanged(); // Trigger auto-save JSON ke lokal storage
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(width: 4),
+
+                    // Tombol Ubah Mode (Checklist / Catatan)
+                    IconButton(
+                      icon: Icon(
+                        widget.subject.type == 'note'
+                            ? Icons.checklist
+                            : Icons.notes,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      tooltip: widget.subject.type == 'note'
+                          ? 'Ubah ke Mode Checklist'
+                          : 'Ubah ke Mode Catatan',
+                      constraints: const BoxConstraints(),
+                      padding: const EdgeInsets.all(4),
+                      onPressed: () {
+                        setState(() {
+                          // Ganti tipe tampilan
+                          widget.subject.type = widget.subject.type == 'note'
+                              ? 'list'
+                              : 'note';
+                          // Sembunyikan control panel jika pindah ke mode catatan
+                          if (widget.subject.type == 'note') {
+                            _showControlPanel = false;
+                          }
+                        });
+                        widget.onDataChanged(); // Auto-save perubahan tipe
+                      },
+                    ),
+
+                    // Tombol Toggle Tampilkan/Sembunyikan Pengaturan (Hanya muncul jika bukan mode note)
+                    if (widget.subject.type != 'note') ...[
+                      const SizedBox(width: 4),
+                      IconButton(
+                        icon: Icon(
+                          _showControlPanel ? Icons.tune : Icons.tune_outlined,
+                          color: _showControlPanel
+                              ? Colors.amberAccent
+                              : Colors.white,
+                          size: 20,
+                        ),
+                        tooltip: _showControlPanel
+                            ? 'Sembunyikan Pengaturan'
+                            : 'Tampilkan Pengaturan',
+                        constraints: const BoxConstraints(),
+                        padding: const EdgeInsets.all(4),
+                        onPressed: () {
+                          setState(() {
+                            _showControlPanel = !_showControlPanel;
+                          });
+                        },
+                      ),
+                    ],
+                  ],
+                ),
               ],
             ),
           ),
-
           // PANEL KONTROL YANG BISA DI-COLLAPSE (Tersembunyi secara default)
           AnimatedSize(
             duration: const Duration(milliseconds: 250),
