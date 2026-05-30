@@ -550,7 +550,24 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // lib/features/task_master/presentation/screens/home_screen.dart
+  Future<void> _saveAllCategoriesToFile({bool shouldRefresh = true}) async {
+    final Map<String, dynamic> updatedMap = {
+      'categories': _allCategoriesRaw.map((cat) => cat.toJson()).toList(),
+    };
+    final String updatedJsonString = const JsonEncoder.withIndent(
+      '  ',
+    ).convert(updatedMap);
+
+    try {
+      File jsonFile = await _storageService.getTargetJsonFile(_selectedBaseDir);
+      await _storageService.saveJsonData(jsonFile, updatedJsonString);
+      if (shouldRefresh) {
+        _initStorageAndLoadData();
+      }
+    } catch (e) {
+      debugPrint("Error: $e");
+    }
+  }
 
   Future<void> _deleteCategory(TaskCategory category) async {
     // 1. Tampilkan dialog konfirmasi terlebih dahulu
@@ -732,10 +749,17 @@ class _HomeScreenState extends State<HomeScreen> {
     int completedTasksToday = 0;
     int tasksWithTargetToday = 0;
 
+    // Variabel baru untuk menghitung total menit khusus HARI INI
+    int todayMinutes = 0;
+
     for (var category in _allCategoriesRaw) {
       for (var task in category.tasks) {
         if (task.isActive) {
           totalTasks++;
+
+          // Menghitung durasi pengerjaan hari ini (1 countToday = 30 menit)
+          todayMinutes += (task.countToday * 30);
+
           if (task.targetCountToday > 0) {
             tasksWithTargetToday++;
             if (task.countToday >= task.targetCountToday) {
@@ -745,6 +769,13 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       }
     }
+
+    // Mengonversi total menit hari ini ke format Jam dan Sisa Menit (Contoh: 1j 30m atau 0j)
+    int hours = todayMinutes ~/ 60;
+    int minutes = todayMinutes % 60;
+    String todayDurationString = minutes > 0
+        ? '${hours}j ${minutes}m'
+        : '${hours}j';
 
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 16, 12, 4),
@@ -782,119 +813,153 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           const Divider(height: 20, thickness: 1),
-          Row(
+
+          // Menggunakan Wrap agar layout adaptif dan tidak memicu error overflow
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.blue[50],
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Kategori',
-                        style: TextStyle(
-                          color: Colors.blueGrey,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
+              // Kartu 1: Kategori
+              Container(
+                width: 110,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Kategori',
+                      style: TextStyle(
+                        color: Colors.blueGrey,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '$visibleCategoriesCount Active',
-                        style: TextStyle(
-                          color: Colors.blue[900],
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '$visibleCategoriesCount Active',
+                      style: TextStyle(
+                        color: Colors.blue[900],
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
                       ),
-                      Text(
-                        'Total: $totalCategories',
-                        style: TextStyle(color: Colors.blue[700], fontSize: 11),
-                      ),
-                    ],
-                  ),
+                    ),
+                    Text(
+                      'Total: $totalCategories',
+                      style: TextStyle(color: Colors.blue[700], fontSize: 11),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.amber[50],
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Total Tugas',
-                        style: TextStyle(
-                          color: Colors.blueGrey,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
+
+              // Kartu 2: Total Tugas
+              Container(
+                width: 110,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.amber[50],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Total Tugas',
+                      style: TextStyle(
+                        color: Colors.blueGrey,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '$totalTasks Unit',
-                        style: TextStyle(
-                          color: Colors.amber[900],
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '$totalTasks Unit',
+                      style: TextStyle(
+                        color: Colors.amber[900],
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
                       ),
-                      Text(
-                        'Di semua kategori',
-                        style: TextStyle(
-                          color: Colors.amber[800],
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                    Text(
+                      'Di semua kategori',
+                      style: TextStyle(color: Colors.amber[800], fontSize: 11),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.green[50],
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Selesai Hari Ini',
-                        style: TextStyle(
-                          color: Colors.blueGrey,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
+
+              // Kartu 3: Selesai Hari Ini
+              Container(
+                width: 110,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.green[50],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Selesai Hari Ini',
+                      style: TextStyle(
+                        color: Colors.blueGrey,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '$completedTasksToday / $tasksWithTargetToday',
-                        style: TextStyle(
-                          color: Colors.green[900],
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '$completedTasksToday / $tasksWithTargetToday',
+                      style: TextStyle(
+                        color: Colors.green[900],
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
                       ),
-                      Text(
-                        'Target harian tercapai',
-                        style: TextStyle(
-                          color: Colors.green[800],
-                          fontSize: 11,
-                        ),
+                    ),
+                    Text(
+                      'Target tercapai',
+                      style: TextStyle(color: Colors.green[800], fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+
+              // KARTU BARU: Jam Menyelesaikan Tugas HARI INI
+              Container(
+                width: 110,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.teal[50],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Jam Hari Ini',
+                      style: TextStyle(
+                        color: Colors.blueGrey,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      todayDurationString,
+                      style: TextStyle(
+                        color: Colors.teal[900],
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      'Durasi pengerjaan',
+                      style: TextStyle(color: Colors.teal[800], fontSize: 11),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -902,24 +967,5 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
     );
-  }
-
-  Future<void> _saveAllCategoriesToFile({bool shouldRefresh = true}) async {
-    final Map<String, dynamic> updatedMap = {
-      'categories': _allCategoriesRaw.map((cat) => cat.toJson()).toList(),
-    };
-    final String updatedJsonString = const JsonEncoder.withIndent(
-      '  ',
-    ).convert(updatedMap);
-
-    try {
-      File jsonFile = await _storageService.getTargetJsonFile(_selectedBaseDir);
-      await _storageService.saveJsonData(jsonFile, updatedJsonString);
-      if (shouldRefresh) {
-        _initStorageAndLoadData();
-      }
-    } catch (e) {
-      debugPrint("Error: $e");
-    }
   }
 }
