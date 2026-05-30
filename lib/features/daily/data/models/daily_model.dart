@@ -315,6 +315,10 @@ class ChecklistGroup {
     required this.allList,
   });
 
+  void updateSectionCategory(String newSection) {
+    sectionCategory = newSection;
+  }
+
   factory ChecklistGroup.fromJson(Map<String, dynamic> json) {
     var list = json['semua_list'] as List? ?? [];
     return ChecklistGroup(

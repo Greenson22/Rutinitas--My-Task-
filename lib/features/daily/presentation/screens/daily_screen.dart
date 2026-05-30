@@ -384,6 +384,88 @@ class _DailyScreenState extends State<DailyScreen> {
     }
   }
 
+  void _moveGroupToAnotherSection(
+    ChecklistGroup group,
+    String targetSection,
+  ) async {
+    setState(() {
+      // 1. Perbarui kategori seksi pada objek runtime
+      group.sectionCategory = targetSection.isEmpty ? "Lainnya" : targetSection;
+    });
+
+    // 2. Simpan perubahan fisik ke dalam file JSON group tersebut
+    await _saveGroupDataToFile(group);
+
+    // 3. Muat dan proses ulang tampilan layar agar terefresh secara instan
+    _loadGroupsData();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Group "${group.groupName}" berhasil dipindahkan ke seksi "$targetSection"',
+          ),
+          backgroundColor: Colors.teal[800],
+        ),
+      );
+    }
+  }
+
+  void _showMoveSectionDialog(ChecklistGroup group) {
+    // Ambil daftar seluruh nama seksi unik yang tersedia dari map visible grup saat ini
+    List<String> availableSections = _groupedVisibleGroup.keys.toList();
+
+    // Pastikan seksi default "Lainnya" masuk ke dalam daftar opsi jika belum ada
+    if (!availableSections.contains("Lainnya")) {
+      availableSections.add("Lainnya");
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Pindahkan "${group.groupName}" ke Seksi...'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: availableSections.length,
+              itemBuilder: (context, index) {
+                final sectionName = availableSections[index];
+                final bool isCurrentSection =
+                    group.sectionCategory == sectionName;
+
+                return ListTile(
+                  title: Text(sectionName.toUpperCase()),
+                  leading: Icon(
+                    isCurrentSection ? Icons.folder_special : Icons.folder_open,
+                    color: isCurrentSection ? Colors.teal[800] : Colors.grey,
+                  ),
+                  trailing: isCurrentSection
+                      ? const Icon(Icons.check_circle, color: Colors.teal)
+                      : null,
+                  selected: isCurrentSection,
+                  onTap: isCurrentSection
+                      ? null
+                      : () {
+                          Navigator.pop(context);
+                          _moveGroupToAnotherSection(group, sectionName);
+                        },
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Batal'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   // =========================================================================
   // FITUR MANAJEMEN SEKSI UTAMA (RENAME, HAPUS, & PINDAH SEKSI)
   // =========================================================================
@@ -966,16 +1048,12 @@ class _DailyScreenState extends State<DailyScreen> {
 
                       // 2. MODIFIKASI BARU: Menu Titik Tiga (Ubah, Sembunyikan, Hapus)
                       PopupMenuButton<String>(
-                        icon: const Icon(
-                          Icons.more_vert,
-                          size: 20,
-                          color: Colors.blueGrey,
-                        ),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
                         onSelected: (value) {
                           if (value == 'edit') {
                             _showEditGroupDialog(group);
+                          } else if (value == 'move_section') {
+                            // <--- Tambahkan cabang ini
+                            _showMoveSectionDialog(group);
                           } else if (value == 'toggle_visibility') {
                             _toggleGroupVisibility(group);
                           } else if (value == 'delete') {
@@ -991,6 +1069,23 @@ class _DailyScreenState extends State<DailyScreen> {
                                 SizedBox(width: 10),
                                 Text(
                                   'Ubah Nama & Ikon',
+                                  style: TextStyle(fontSize: 13),
+                                ),
+                              ],
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: 'move_section',
+                            child: Row(
+                              children: const [
+                                Icon(
+                                  Icons.drive_file_move_outlined,
+                                  size: 18,
+                                  color: Colors.indigo,
+                                ),
+                                SizedBox(width: 10),
+                                Text(
+                                  'Pindahkan Seksi',
                                   style: TextStyle(fontSize: 13),
                                 ),
                               ],
