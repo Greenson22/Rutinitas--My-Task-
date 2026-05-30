@@ -52,14 +52,11 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
     try {
       String localIp = await _getLocalIpAddress();
 
-      // Jalankan server WebSocket di port 8090
       if (_serverEksternal != null) {
         await _serverEksternal!.close(force: true);
       }
 
-      // Variabel untuk menyimpan list koneksi websocket client yang aktif
       List<dynamic> daftarClientAktif = [];
-      // Variabel bantuan untuk menjembatani update UI ke dalam Dialog
       StateSetter? dialogState;
 
       var handler = webSocketHandler((dynamic webSocket, dynamic protocol) {
@@ -82,13 +79,11 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
           ),
         );
 
-        // === PERBAIKAN SISI SERVER: Kirim sinyal sapaan balik murni agar Client tahu pipa sukses terhubung ===
         Map<String, dynamic> salamPembuka = {
           'tipe_pesan': 'koneksi_terkonfirmasi',
         };
         webSocket.sink.add(jsonEncode(salamPembuka));
 
-        // Mendengarkan data atau perintah yang masuk dari Client
         webSocket.stream.listen(
           (pesanMasuk) async {
             try {
@@ -161,29 +156,40 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
             setState(() {
               daftarClientAktif.remove(webSocket);
             });
+
             if (dialogState != null) {
               dialogState!(() {});
             }
 
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('❌ [$clientId] Koneksi Terputus.'),
+                content: Text(
+                  '❌ [$clientId] Koneksi Terputus atau Tiba-tiba Hilang.',
+                ),
                 backgroundColor: Colors.red[700],
-                duration: const Duration(seconds: 3),
+                duration: const Duration(seconds: 4),
               ),
             );
           },
+          onError: (error) {
+            setState(() {
+              daftarClientAktif.remove(webSocket);
+            });
+            if (dialogState != null) {
+              dialogState!(() {});
+            }
+            debugPrint("Pipa jaringan error: $error");
+          },
         );
       });
+
       _serverEksternal = await shelf_io.serve(
         handler,
         InternetAddress.anyIPv4,
         8090,
       );
-
       if (!mounted) return;
 
-      // Fungsi pembantu untuk membungkus dan mengirim data lokal milik Server ke Client
       Future<void> fungsiKirimDataServer() async {
         if (daftarClientAktif.isEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -227,7 +233,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
           'checklist_zip': kontenZipBase64,
         };
 
-        // Lakukan broadcast kirim data ke semua client terhubung
         for (var socket in daftarClientAktif) {
           socket.sink.add(jsonEncode(paketBesarKirim));
         }
@@ -242,15 +247,12 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
         );
       }
 
-      // Tampilkan dialog kontrol server aktif
       showDialog(
         context: context,
         barrierDismissible: false,
         builder: (ctx) => StatefulBuilder(
           builder: (context, setDialogState) {
-            // Daftarkan setter internal milik dialog ke variabel luar agar bisa dipicu oleh WebSocket stream
             dialogState = setDialogState;
-
             bool adaClient = daftarClientAktif.isNotEmpty;
 
             return AlertDialog(
@@ -308,8 +310,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-
-                  // === KOTAK INFORMASI CLIENT YANG DINAMIS DAN BERWARNA ===
+                  // WARNA DI CONTAINER INI SUDAH DIPERBAIKI DAN AMAN DARI ERROR
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(
@@ -388,8 +389,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-
-                  // === TOMBOL MANUAL UNTUK MENGIRIM DATA SISI SERVER ===
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
@@ -437,7 +436,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
           },
         ),
       ).then((_) {
-        // Hapus referensi setter jika dialog ditutup secara manual agar tidak memory leak
         dialogState = null;
       });
     } catch (e) {
@@ -572,12 +570,14 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
     });
 
     try {
-      // 1. Hubungkan pipa koneksi ke Server
       final channel = WebSocketChannel.connect(Uri.parse(urlWebSocket));
       bool isDialogOpened = false;
+      bool isStillConnected = true;
+      StateSetter? clientDialogState;
 
-      // Fungsi pembantu internal untuk mengirim data balik dari Client ke Server
       Future<void> fungsiKirimDataClient() async {
+        if (!isStillConnected) return;
+
         String currentDir = await _storageService.getBaseDirSetting();
         File fileTasks = await _storageService.getTargetJsonFile(currentDir);
         String kontenTasks = await fileTasks.exists()
@@ -617,7 +617,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
         );
       }
 
-      // 2. Dengarkan data stream dengan tambahan batas waktu timeout jabat tangan
       channel.stream
           .timeout(
             const Duration(seconds: 5),
@@ -641,7 +640,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
           )
           .listen(
             (pesanMasuk) async {
-              // PERBAIKAN UTAMA: Loading langsung mati begitu menerima respons/sapaan pembuka dari server
               if (_isLoading) {
                 setState(() {
                   _isLoading = false;
@@ -651,12 +649,10 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
               try {
                 Map<String, dynamic> dataDiterima = jsonDecode(pesanMasuk);
 
-                // LOGIKA A: Jika menerima sapaan jabat tangan terhubung dari Server
                 if (dataDiterima['tipe_pesan'] == 'koneksi_terkonfirmasi') {
-                  debugPrint("Jabat tangan sukses. Pipa data stabil.");
+                  debugPrint("Jabat tangan sukses. Pipa data penerima stabil.");
                 }
 
-                // LOGIKA B: Jika menerima kiriman paket data aplikasi dari Server
                 if (dataDiterima['tipe_pesan'] == 'data_transfer') {
                   String serverTasks = dataDiterima['task_master'];
                   String serverJurnal = dataDiterima['jurnal_aktivitas'];
@@ -728,97 +724,163 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                 debugPrint("Client gagal memproses data: $e");
               }
 
-              // Tampilkan dialog kontrol murni saat koneksi terbukti aman dan berbalas
               if (!isDialogOpened && mounted) {
                 isDialogOpened = true;
                 showDialog(
                   context: context,
                   barrierDismissible: false,
-                  builder: (ctx) => AlertDialog(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    title: const Row(
-                      children: [
-                        Icon(Icons.cloud_done, color: Colors.teal),
-                        SizedBox(width: 8),
-                        Text('Terhubung ke Server'),
-                      ],
-                    ),
-                    content: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Sukses tersambung dengan alamat IP: $alamatIP'),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Anda bisa memantau proses penerimaan otomatis, atau menekan tombol di bawah jika ingin mengirim balik data lokal HP ini ke Server tujuan.',
-                          style: TextStyle(
-                            fontSize: 12,
-                            height: 1.4,
-                            color: Colors.black87,
+                  builder: (ctx) => StatefulBuilder(
+                    builder: (context, setDialogState) {
+                      clientDialogState = setDialogState;
+
+                      return AlertDialog(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        title: Row(
+                          children: [
+                            Icon(
+                              isStillConnected
+                                  ? Icons.cloud_done
+                                  : Icons.cloud_off,
+                              color: isStillConnected
+                                  ? Colors.teal
+                                  : Colors.red,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              isStillConnected
+                                  ? 'Terhubung ke Server'
+                                  : 'Koneksi Terputus Terpaksa',
+                            ),
+                          ],
+                        ),
+                        content: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              isStillConnected
+                                  ? 'Sukses tersambung dengan alamat IP: $alamatIP'
+                                  : 'Pipa jaringan ke alamat server $alamatIP tiba-tiba terputus di tengah jalan.',
+                            ),
+                            const SizedBox(height: 16),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: isStillConnected
+                                    ? Colors.teal.shade50
+                                    : Colors.red.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: isStillConnected
+                                      ? Colors.teal.shade200
+                                      : Colors.red.shade200,
+                                ),
+                              ),
+                              child: Text(
+                                isStillConnected
+                                    ? 'Anda bisa memantau proses penerimaan otomatis, atau mengirim balik data lokal HP ini ke Server.'
+                                    : '⚠️ Hubungan terputus akibat server mati atau jaringan terganggu. Tombol transfer dinonaktifkan.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  height: 1.4,
+                                  color: isStillConnected
+                                      ? Colors.black87
+                                      : Colors.red[900],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                onPressed: isStillConnected
+                                    ? () => fungsiKirimDataClient()
+                                    : null,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.indigo,
+                                  disabledBackgroundColor: Colors.grey[200],
+                                ),
+                                icon: const Icon(
+                                  Icons.upload_file,
+                                  color: Colors.white,
+                                ),
+                                label: const Text(
+                                  'Kirim Data Saya Ke Server',
+                                  style: TextStyle(color: Colors.white),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () {
+                              channel.sink.close();
+                              Navigator.pop(ctx);
+                            },
+                            child: Text(
+                              isStillConnected
+                                  ? 'Putuskan Koneksi'
+                                  : 'Tutup Dialog',
+                              style: const TextStyle(color: Colors.red),
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 16),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            onPressed: () => fungsiKirimDataClient(),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.indigo,
-                            ),
-                            icon: const Icon(
-                              Icons.upload_file,
-                              color: Colors.white,
-                            ),
-                            label: const Text(
-                              'Kirim Data Saya Ke Server',
-                              style: TextStyle(color: Colors.white),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () {
-                          channel.sink.close();
-                          Navigator.pop(ctx);
-                        },
-                        child: const Text(
-                          'Putuskan Koneksi',
-                          style: TextStyle(color: Colors.red),
-                        ),
-                      ),
-                    ],
+                        ],
+                      );
+                    },
                   ),
                 ).then((_) {
                   isDialogOpened = false;
+                  clientDialogState = null;
                 });
               }
             },
-            onError: (err) {
-              setState(() {
-                _isLoading = false;
-              });
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Gagal terhubung! Koneksi ditolak oleh perangkat di $alamatIP.',
-                  ),
-                  backgroundColor: Colors.redAccent,
-                ),
-              );
-            },
             onDone: () {
-              setState(() {
-                _isLoading = false;
-              });
-              debugPrint("Koneksi client selesai.");
+              if (mounted) {
+                setState(() {
+                  _isLoading = false;
+                });
+
+                isStillConnected = false;
+
+                if (clientDialogState != null) {
+                  clientDialogState!(() {});
+                }
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      '❌ Hubungan ke Server terputus secara tiba-tiba!',
+                    ),
+                    backgroundColor: Colors.redAccent,
+                    duration: const Duration(seconds: 4),
+                  ),
+                );
+              }
+            },
+            onError: (err) {
+              if (mounted) {
+                setState(() {
+                  _isLoading = false;
+                });
+                isStillConnected = false;
+                if (clientDialogState != null) {
+                  clientDialogState!(() {});
+                }
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Gagal terhubung! Jaringan ditolak perangkat $alamatIP.',
+                    ),
+                    backgroundColor: Colors.redAccent,
+                  ),
+                );
+              }
             },
           );
-
-      // KETERANGAN: Baris ping_koneksi dihapus dari sini agar tidak merusak handshake awal socket!
     } catch (e) {
       setState(() {
         _isLoading = false;
