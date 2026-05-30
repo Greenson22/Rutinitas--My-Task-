@@ -614,14 +614,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
         title: const Text('Jurnal Aktivitas'),
         backgroundColor: Colors.indigo[700],
         actions: [
-          IconButton(
-            icon: Icon(
-              _isEditMode ? Icons.check_circle : Icons.edit_note,
-              size: 28,
-            ),
-            color: _isEditMode ? Colors.amberAccent : Colors.white,
-            onPressed: () => setState(() => _isEditMode = !_isEditMode),
-          ),
+          // === TOMBOL EDIT DI SINI TELAH DIHAPUS ===
           // === TOMBOL STATISTIK (BARU) ===
           IconButton(
             icon: const Icon(Icons.analytics_outlined, color: Colors.white),
@@ -691,6 +684,12 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: ListTile(
+                                // === FITUR BARU: MENAHAN AKTIVITAS UNTUK AKTIF/NONAKTIFKAN MODE EDIT ===
+                                onLongPress: () {
+                                  setState(() {
+                                    _isEditMode = !_isEditMode;
+                                  });
+                                },
                                 contentPadding: const EdgeInsets.symmetric(
                                   horizontal: 16,
                                   vertical: 8,
