@@ -39,7 +39,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
   }
 
   // Fungsi menyimpan khusus ke file JSON milik Hub ini saja
-  Future<void> _saveHubData() async {
+  Future<void> _saveGroupData() async {
     final Map<String, dynamic> updatedMap = _currentHub.toJson();
     final String jsonString = const JsonEncoder.withIndent(
       '  ',
@@ -61,7 +61,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
       builder: (context) => DailyChecklistDialog(
         subject: subject,
         onDataChanged: () {
-          _saveHubData();
+          _saveGroupData();
           setState(() {});
         },
       ),
@@ -102,7 +102,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                     ),
                   );
                 });
-                _saveHubData();
+                _saveGroupData();
                 Navigator.pop(context);
               }
             },
@@ -137,7 +137,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
               targetSection?.items.add(newSubject);
             }
           });
-          _saveHubData();
+          _saveGroupData();
         },
       ),
     );
@@ -177,7 +177,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
       setState(() {
         subjectsList.remove(subject);
       });
-      _saveHubData(); // Menyimpan perubahan urutan/isi secara otomatis ke JSON lokal
+      _saveGroupData(); // Menyimpan perubahan urutan/isi secara otomatis ke JSON lokal
     }
   }
 
@@ -197,7 +197,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
             onPressed: () {
               if (editController.text.isNotEmpty) {
                 setState(() => section.namaSeksi = editController.text.trim());
-                _saveHubData();
+                _saveGroupData();
                 Navigator.pop(context);
               }
             },
@@ -234,7 +234,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
 
     if (confirm) {
       setState(() => _currentHub.semuaList.remove(section));
-      _saveHubData();
+      _saveGroupData();
     }
   }
 
@@ -247,7 +247,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
       _currentHub.semuaList[currentIndex] = _currentHub.semuaList[newIndex];
       _currentHub.semuaList[newIndex] = temp;
     });
-    _saveHubData();
+    _saveGroupData();
   }
 
   @override
@@ -658,7 +658,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                                   subjectsList[index] = subjectsList[index - 1];
                                   subjectsList[index - 1] = temp;
                                 });
-                                _saveHubData(); // Auto-save urutan posisi baru ke JSON lokal
+                                _saveGroupData(); // Auto-save urutan posisi baru ke JSON lokal
                               }
                             : null,
                       ),
@@ -683,7 +683,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                                 .items
                                 .add(itemToMove);
                           });
-                          _saveHubData();
+                          _saveGroupData();
                         },
                         itemBuilder: (context) => _currentHub.semuaList
                             .map(
@@ -714,7 +714,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                                   subjectsList[index] = subjectsList[index + 1];
                                   subjectsList[index + 1] = temp;
                                 });
-                                _saveHubData(); // Auto-save urutan posisi baru ke JSON lokal
+                                _saveGroupData(); // Auto-save urutan posisi baru ke JSON lokal
                               }
                             : null,
                       ),

@@ -33,10 +33,10 @@ class _DailyScreenState extends State<DailyScreen> {
   @override
   void initState() {
     super.initState();
-    _loadHubsData();
+    _loadGroupsData();
   }
 
-  Future<void> _loadHubsData() async {
+  Future<void> _loadGroupsData() async {
     setState(() => _isLoading = true);
     try {
       _selectedBaseDir = await _storageService.getBaseDirSetting();
@@ -60,14 +60,14 @@ class _DailyScreenState extends State<DailyScreen> {
       }
 
       _allHubsRaw = loadedHubs;
-      _processHubsDisplay();
+      _processGroupsDisplay();
     } catch (e) {
       setState(() => _isLoading = false);
       debugPrint("Error loading hubs: $e");
     }
   }
 
-  void _processHubsDisplay() {
+  void _processGroupsDisplay() {
     setState(() {
       // 1. Saring data mentah hub menjadi list terlihat dan tersembunyi
       final visibleList = _allHubsRaw.where((hub) => !hub.isHidden).toList();
@@ -145,7 +145,7 @@ class _DailyScreenState extends State<DailyScreen> {
   }
 
   // MODIFIKASI: Menerima parameter target seksi utama agar Hub langsung masuk ke kategori yang benar
-  void _showAddHubDialogAtSection(String targetMainSection) {
+  void _showAddGroupDialogAtSection(String targetMainSection) {
     final nameController = TextEditingController();
     final iconController = TextEditingController(text: '📁');
 
@@ -191,9 +191,9 @@ class _DailyScreenState extends State<DailyScreen> {
                   semuaList: [],
                 );
 
-                await _saveHubDataToFile(newHub);
+                await _saveGroupDataToFile(newHub);
                 Navigator.pop(context);
-                _loadHubsData();
+                _loadGroupsData();
               }
             },
             child: const Text('Buat Hub'),
@@ -203,7 +203,7 @@ class _DailyScreenState extends State<DailyScreen> {
     );
   }
 
-  Future<void> _saveHubDataToFile(ChecklistHub hub) async {
+  Future<void> _saveGroupDataToFile(ChecklistHub hub) async {
     File hubFile = await _storageService.getSpecificHubFile(
       _selectedBaseDir,
       hub.id,
@@ -214,15 +214,15 @@ class _DailyScreenState extends State<DailyScreen> {
     await _storageService.saveJsonData(hubFile, jsonString);
   }
 
-  Future<void> _toggleHubVisibility(ChecklistHub hub) async {
+  Future<void> _toggleGroupVisibility(ChecklistHub hub) async {
     setState(() {
       hub.isHidden = !hub.isHidden;
     });
-    await _saveHubDataToFile(hub);
-    _processHubsDisplay();
+    await _saveGroupDataToFile(hub);
+    _processGroupsDisplay();
   }
 
-  void _showEditHubDialog(ChecklistHub hub) {
+  void _showEditGroupDialog(ChecklistHub hub) {
     final nameController = TextEditingController(text: hub.namaHub);
     final iconController = TextEditingController(text: hub.ikon);
 
@@ -255,9 +255,9 @@ class _DailyScreenState extends State<DailyScreen> {
                 hub.namaHub = nameController.text.trim();
                 hub.ikon = iconController.text.trim();
 
-                await _saveHubDataToFile(hub);
+                await _saveGroupDataToFile(hub);
                 Navigator.pop(context);
-                _loadHubsData();
+                _loadGroupsData();
               }
             },
             child: const Text('Simpan'),
@@ -267,7 +267,7 @@ class _DailyScreenState extends State<DailyScreen> {
     );
   }
 
-  void _deleteHub(ChecklistHub hub) async {
+  void _deleteGroup(ChecklistHub hub) async {
     final bool confirm =
         await showDialog<bool>(
           context: context,
@@ -300,14 +300,14 @@ class _DailyScreenState extends State<DailyScreen> {
         if (await hubFile.exists()) {
           await hubFile.delete();
         }
-        _loadHubsData();
+        _loadGroupsData();
       } catch (e) {
         debugPrint("Error deleting hub file: $e");
       }
     }
   }
 
-  void _moveHubOrder(
+  void _moveGroupOrder(
     List<ChecklistHub> targetList,
     int currentIndex,
     int direction,
@@ -378,7 +378,7 @@ class _DailyScreenState extends State<DailyScreen> {
         debugPrint("Gagal mengatur ulang urutan file di Linux: $e");
       }
 
-      _processHubsDisplay();
+      _processGroupsDisplay();
     }
   }
 
@@ -429,12 +429,12 @@ class _DailyScreenState extends State<DailyScreen> {
                 // 3. Simpan perubahan fisik ke seluruh file JSON hub terkait
                 for (var hub in _allHubsRaw) {
                   if (hub.kategoriSeksi == newSectionName) {
-                    await _saveHubDataToFile(hub);
+                    await _saveGroupDataToFile(hub);
                   }
                 }
 
                 Navigator.pop(context);
-                _loadHubsData();
+                _loadGroupsData();
               }
             },
             child: const Text('Simpan'),
@@ -489,7 +489,7 @@ class _DailyScreenState extends State<DailyScreen> {
           _allHubsRaw.removeWhere((hub) => hub.kategoriSeksi == sectionName);
         });
 
-        _loadHubsData();
+        _loadGroupsData();
       } catch (e) {
         debugPrint("Gagal menghapus seksi kategori beserta filenya: $e");
       }
@@ -675,7 +675,7 @@ class _DailyScreenState extends State<DailyScreen> {
                                                 tooltip:
                                                     'Tambah Hub ke Seksi Ini',
                                                 onPressed: () =>
-                                                    _showAddHubDialogAtSection(
+                                                    _showAddGroupDialogAtSection(
                                                       namaSeksiUtama,
                                                     ),
                                               ),
@@ -707,7 +707,7 @@ class _DailyScreenState extends State<DailyScreen> {
                                     ),
                                   ),
                                 )
-                              : _buildHubGrid(listHubDiSeksiIni, constraints),
+                              : _buildGroupGrid(listHubDiSeksiIni, constraints),
                         ],
                       );
                     }),
@@ -741,7 +741,7 @@ class _DailyScreenState extends State<DailyScreen> {
                                 ],
                               ),
                             ),
-                            _buildHubGrid(grup.value, constraints),
+                            _buildGroupGrid(grup.value, constraints),
                           ],
                         );
                       }),
@@ -766,7 +766,7 @@ class _DailyScreenState extends State<DailyScreen> {
     );
   }
 
-  Widget _buildHubGrid(
+  Widget _buildGroupGrid(
     List<ChecklistHub> hubsList,
     BoxConstraints constraints,
   ) {
@@ -836,7 +836,7 @@ class _DailyScreenState extends State<DailyScreen> {
                                 baseDir: _selectedBaseDir,
                               ),
                             ),
-                          ).then((_) => _loadHubsData());
+                          ).then((_) => _loadGroupsData());
                         },
                   child: SizedBox.expand(
                     child: Padding(
@@ -949,7 +949,7 @@ class _DailyScreenState extends State<DailyScreen> {
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                         onPressed: index > 0
-                            ? () => _moveHubOrder(hubsList, index, -1)
+                            ? () => _moveGroupOrder(hubsList, index, -1)
                             : null,
                       ),
 
@@ -964,11 +964,11 @@ class _DailyScreenState extends State<DailyScreen> {
                         constraints: const BoxConstraints(),
                         onSelected: (value) {
                           if (value == 'edit') {
-                            _showEditHubDialog(hub);
+                            _showEditGroupDialog(hub);
                           } else if (value == 'toggle_visibility') {
-                            _toggleHubVisibility(hub);
+                            _toggleGroupVisibility(hub);
                           } else if (value == 'delete') {
-                            _deleteHub(hub);
+                            _deleteGroup(hub);
                           }
                         },
                         itemBuilder: (BuildContext context) => [
@@ -1039,7 +1039,7 @@ class _DailyScreenState extends State<DailyScreen> {
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                         onPressed: index < hubsList.length - 1
-                            ? () => _moveHubOrder(hubsList, index, 1)
+                            ? () => _moveGroupOrder(hubsList, index, 1)
                             : null,
                       ),
                     ],
