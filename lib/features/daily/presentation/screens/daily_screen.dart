@@ -31,6 +31,7 @@ class _DailyScreenState extends State<DailyScreen> {
 
   Map<String, List<ChecklistHub>> _groupedVisibleHubs = {};
   Map<String, List<ChecklistHub>> _groupedHiddenHubs = {};
+  final Set<String> _editingSections = {};
 
   @override
   void initState() {
@@ -477,10 +478,13 @@ class _DailyScreenState extends State<DailyScreen> {
 
                 return ListView(
                   children: [
-                    // === KATEGORI HUB AKTIF / TERLIHAT ===
                     ...semuaKunciSeksi.map((namaSeksiUtama) {
                       final listHubDiSeksiIni =
                           _groupedVisibleHubs[namaSeksiUtama] ?? [];
+                      // Periksa apakah seksi spesifik ini sedang aktif mode editnya
+                      final bool showAddButton = _editingSections.contains(
+                        namaSeksiUtama,
+                      );
 
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -490,34 +494,91 @@ class _DailyScreenState extends State<DailyScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      namaSeksiUtama.toUpperCase(),
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.teal[900],
-                                        letterSpacing: 0.8,
-                                      ),
-                                    ),
-                                    // SINKRONISASI: Tombol tambah hub spesifik seksi utama tersebut
-                                    IconButton(
-                                      icon: const Icon(
-                                        Icons.add_circle_outline,
-                                      ),
-                                      color: Colors.teal[800],
-                                      constraints: const BoxConstraints(),
-                                      padding: EdgeInsets.zero,
-                                      tooltip: 'Tambah Hub ke Seksi Ini',
-                                      onPressed: () =>
-                                          _showAddHubDialogAtSection(
-                                            namaSeksiUtama,
+                                // InkWell diterapkan pada semua seksi secara dinamis
+                                InkWell(
+                                  onLongPress: () {
+                                    setState(() {
+                                      if (_editingSections.contains(
+                                        namaSeksiUtama,
+                                      )) {
+                                        _editingSections.remove(
+                                          namaSeksiUtama,
+                                        ); // Sembunyikan jika ditahan lagi
+                                      } else {
+                                        _editingSections.add(
+                                          namaSeksiUtama,
+                                        ); // Munculkan jika ditahan
+                                      }
+                                    });
+                                  },
+                                  borderRadius: BorderRadius.circular(8),
+                                  // Efek perubahan ukuran: padding membesar secara dinamis saat tombol muncul
+                                  child: AnimatedPadding(
+                                    duration: const Duration(milliseconds: 200),
+                                    curve: Curves.easeInOut,
+                                    padding: showAddButton
+                                        ? const EdgeInsets.symmetric(
+                                            vertical: 12.0,
+                                            horizontal: 8.0,
+                                          ) // Jarak membesar (efek atas-bawah)
+                                        : const EdgeInsets.symmetric(
+                                            vertical: 4.0,
+                                            horizontal: 4.0,
+                                          ), // Jarak normal
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text(
+                                          namaSeksiUtama.toUpperCase(),
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.teal[900],
+                                            letterSpacing: 0.8,
                                           ),
+                                        ),
+                                        // Menampilkan tombol tambah dengan animasi transisi membesar/mengecil
+                                        AnimatedSwitcher(
+                                          duration: const Duration(
+                                            milliseconds: 200,
+                                          ),
+                                          transitionBuilder:
+                                              (
+                                                Widget child,
+                                                Animation<double> animation,
+                                              ) {
+                                                return ScaleTransition(
+                                                  scale: animation,
+                                                  child: child,
+                                                );
+                                              },
+                                          child: showAddButton
+                                              ? IconButton(
+                                                  key: ValueKey(
+                                                    'add_btn_$namaSeksiUtama',
+                                                  ),
+                                                  icon: const Icon(
+                                                    Icons.add_circle_outline,
+                                                  ),
+                                                  color: Colors.teal[800],
+                                                  constraints:
+                                                      const BoxConstraints(),
+                                                  padding: EdgeInsets.zero,
+                                                  tooltip:
+                                                      'Tambah Hub ke Seksi Ini',
+                                                  onPressed: () =>
+                                                      _showAddHubDialogAtSection(
+                                                        namaSeksiUtama,
+                                                      ),
+                                                )
+                                              : const SizedBox.shrink(
+                                                  key: ValueKey('empty_space'),
+                                                ),
+                                        ),
+                                      ],
                                     ),
-                                  ],
+                                  ),
                                 ),
                                 const Divider(height: 8, thickness: 1),
                               ],
@@ -542,7 +603,6 @@ class _DailyScreenState extends State<DailyScreen> {
                         ],
                       );
                     }).toList(),
-
                     // === KATEGORI HUB TERSEMBUNYI ===
                     if (_hiddenHubs.isNotEmpty && _showHiddenSection) ...[
                       const Padding(
