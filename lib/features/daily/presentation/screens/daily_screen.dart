@@ -382,6 +382,145 @@ class _DailyScreenState extends State<DailyScreen> {
     }
   }
 
+  // =========================================================================
+  // FITUR MANAJEMEN SEKSI UTAMA (RENAME, HAPUS, & PINDAH SEKSI)
+  // =========================================================================
+
+  void _editMainSectionName(String oldSectionName) {
+    final editController = TextEditingController(text: oldSectionName);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Ubah Nama Seksi Kategori'),
+        content: TextField(
+          controller: editController,
+          decoration: const InputDecoration(labelText: 'Nama Seksi Baru'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final String newSectionName = editController.text.trim();
+              if (newSectionName.isNotEmpty &&
+                  newSectionName != oldSectionName) {
+                setState(() {
+                  // 1. Update data di map lokal yang sedang aktif
+                  if (_groupedVisibleHubs.containsKey(oldSectionName)) {
+                    final hubs =
+                        _groupedVisibleHubs.remove(oldSectionName) ?? [];
+                    // Update field kategoriSeksi pada setiap objek hub di dalamnya
+                    for (var hub in hubs) {
+                      hub.kategoriSeksi = newSectionName;
+                    }
+                    _groupedVisibleHubs[newSectionName] = hubs;
+                  }
+
+                  // 2. Samakan perubahan ke list master raw data agar saat save file sinkron
+                  for (var hub in _allHubsRaw) {
+                    if (hub.kategoriSeksi == oldSectionName) {
+                      hub.kategoriSeksi = newSectionName;
+                    }
+                  }
+                });
+
+                // 3. Simpan perubahan fisik ke seluruh file JSON hub terkait
+                for (var hub in _allHubsRaw) {
+                  if (hub.kategoriSeksi == newSectionName) {
+                    await _saveHubDataToFile(hub);
+                  }
+                }
+
+                Navigator.pop(context);
+                _loadHubsData();
+              }
+            },
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _deleteMainSection(String sectionName) async {
+    final listHubDiSeksiIni = _groupedVisibleHubs[sectionName] ?? [];
+
+    final bool confirm =
+        await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Hapus Seksi Kategori?'),
+            content: Text(
+              'Apakah Anda yakin ingin menghapus seksi "$sectionName"?\n\n'
+              'Peringatan: Tindakan ini juga akan menghapus ${listHubDiSeksiIni.length} Hub di dalamnya secara permanen!',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Batal'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                child: const Text('Hapus'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (confirm) {
+      try {
+        // Hapus fisik semua berkas file JSON hub yang berada di seksi ini
+        for (var hub in listHubDiSeksiIni) {
+          File hubFile = await _storageService.getSpecificHubFile(
+            _selectedBaseDir,
+            hub.id,
+          );
+          if (await hubFile.exists()) {
+            await hubFile.delete();
+          }
+        }
+
+        setState(() {
+          _groupedVisibleHubs.remove(sectionName);
+          _allHubsRaw.removeWhere((hub) => hub.kategoriSeksi == sectionName);
+        });
+
+        _loadHubsData();
+      } catch (e) {
+        debugPrint("Gagal menghapus seksi kategori beserta filenya: $e");
+      }
+    }
+  }
+
+  void _moveMainSectionOrder(String sectionName, int direction) {
+    final keys = _groupedVisibleHubs.keys.toList();
+    int currentIndex = keys.indexOf(sectionName);
+    int newIndex = currentIndex + direction;
+
+    if (newIndex < 0 || newIndex >= keys.length) return;
+
+    // Logika reorder map keys manual untuk UI, sedangkan untuk penyimpanan permanen di Linux
+    // akan mengandalkan pembaruan prefix nama file saat hubs di-reorder di fungsi bawaan Anda.
+    setState(() {
+      final tempMap = Map<String, List<ChecklistHub>>.from(_groupedVisibleHubs);
+      _groupedVisibleHubs.clear();
+
+      // Tukar posisi key
+      final tempKey = keys[currentIndex];
+      keys[currentIndex] = keys[newIndex];
+      keys[newIndex] = tempKey;
+
+      // Isi kembali map sesuai urutan key baru
+      for (var key in keys) {
+        _groupedVisibleHubs[key] = tempMap[key] ?? [];
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -418,7 +557,6 @@ class _DailyScreenState extends State<DailyScreen> {
                     ...semuaKunciSeksi.map((namaSeksiUtama) {
                       final listHubDiSeksiIni =
                           _groupedVisibleHubs[namaSeksiUtama] ?? [];
-
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -427,16 +565,13 @@ class _DailyScreenState extends State<DailyScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // InkWell diterapkan pada semua seksi
                                 InkWell(
                                   onLongPress: () {
                                     setState(() {
-                                      // Mengubah status mode edit untuk SEMUA seksi sekaligus
                                       _isSectionEditMode = !_isSectionEditMode;
                                     });
                                   },
                                   borderRadius: BorderRadius.circular(8),
-                                  // Animasi perubahan ukuran atas-bawah yang terjadi di semua seksi
                                   child: AnimatedPadding(
                                     duration: const Duration(milliseconds: 200),
                                     curve: Curves.easeInOut,
@@ -444,11 +579,11 @@ class _DailyScreenState extends State<DailyScreen> {
                                         ? const EdgeInsets.symmetric(
                                             vertical: 12.0,
                                             horizontal: 8.0,
-                                          ) // Jarak membesar saat mode edit aktif
+                                          )
                                         : const EdgeInsets.symmetric(
                                             vertical: 4.0,
                                             horizontal: 4.0,
-                                          ), // Jarak normal
+                                          ),
                                     child: Row(
                                       mainAxisAlignment:
                                           MainAxisAlignment.spaceBetween,
@@ -462,44 +597,93 @@ class _DailyScreenState extends State<DailyScreen> {
                                             letterSpacing: 0.8,
                                           ),
                                         ),
-                                        // Menampilkan tombol tambah di semua seksi dengan animasi skala
-                                        AnimatedSwitcher(
-                                          duration: const Duration(
-                                            milliseconds: 200,
-                                          ),
-                                          transitionBuilder:
-                                              (
-                                                Widget child,
-                                                Animation<double> animation,
-                                              ) {
-                                                return ScaleTransition(
-                                                  scale: animation,
-                                                  child: child,
-                                                );
-                                              },
-                                          child: _isSectionEditMode
-                                              ? IconButton(
-                                                  key: ValueKey(
-                                                    'add_btn_$namaSeksiUtama',
-                                                  ),
-                                                  icon: const Icon(
-                                                    Icons.add_circle_outline,
-                                                  ),
-                                                  color: Colors.teal[800],
-                                                  constraints:
-                                                      const BoxConstraints(),
-                                                  padding: EdgeInsets.zero,
-                                                  tooltip:
-                                                      'Tambah Hub ke Seksi Ini',
-                                                  onPressed: () =>
-                                                      _showAddHubDialogAtSection(
-                                                        namaSeksiUtama,
-                                                      ),
-                                                )
-                                              : const SizedBox.shrink(
-                                                  key: ValueKey('empty_space'),
+                                        // KUMPULAN TOMBOL AKSI MANAJEMEN SEKSI UTAMA HUB
+                                        if (_isSectionEditMode) ...[
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              // Tombol Pindah Naik
+                                              IconButton(
+                                                icon: const Icon(
+                                                  Icons.arrow_upward,
+                                                  size: 18,
+                                                  color: Colors.blueGrey,
                                                 ),
-                                        ),
+                                                onPressed:
+                                                    semuaKunciSeksi.indexOf(
+                                                          namaSeksiUtama,
+                                                        ) >
+                                                        0
+                                                    ? () =>
+                                                          _moveMainSectionOrder(
+                                                            namaSeksiUtama,
+                                                            -1,
+                                                          )
+                                                    : null,
+                                              ),
+                                              // Tombol Pindah Turun
+                                              IconButton(
+                                                icon: const Icon(
+                                                  Icons.arrow_downward,
+                                                  size: 18,
+                                                  color: Colors.blueGrey,
+                                                ),
+                                                onPressed:
+                                                    semuaKunciSeksi.indexOf(
+                                                          namaSeksiUtama,
+                                                        ) <
+                                                        semuaKunciSeksi.length -
+                                                            1
+                                                    ? () =>
+                                                          _moveMainSectionOrder(
+                                                            namaSeksiUtama,
+                                                            1,
+                                                          )
+                                                    : null,
+                                              ),
+                                              // Tombol Ubah Nama (Rename)
+                                              IconButton(
+                                                icon: const Icon(
+                                                  Icons.edit,
+                                                  size: 18,
+                                                  color: Colors.teal,
+                                                ),
+                                                onPressed: () =>
+                                                    _editMainSectionName(
+                                                      namaSeksiUtama,
+                                                    ),
+                                              ),
+                                              // Tombol Hapus Seksi Utama beserta Isinya
+                                              IconButton(
+                                                icon: const Icon(
+                                                  Icons.delete,
+                                                  size: 18,
+                                                  color: Colors.redAccent,
+                                                ),
+                                                onPressed: () =>
+                                                    _deleteMainSection(
+                                                      namaSeksiUtama,
+                                                    ),
+                                              ),
+                                              // Tombol Tambah Hub bawaan Anda
+                                              IconButton(
+                                                icon: const Icon(
+                                                  Icons.add_circle_outline,
+                                                  color: Colors.teal,
+                                                  size: 18,
+                                                ),
+                                                tooltip:
+                                                    'Tambah Hub ke Seksi Ini',
+                                                onPressed: () =>
+                                                    _showAddHubDialogAtSection(
+                                                      namaSeksiUtama,
+                                                    ),
+                                              ),
+                                            ],
+                                          ),
+                                        ] else ...[
+                                          const SizedBox.shrink(),
+                                        ],
                                       ],
                                     ),
                                   ),
