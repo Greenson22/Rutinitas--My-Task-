@@ -21,6 +21,7 @@ class DailyChecklistDialog extends StatefulWidget {
 
 class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
   final TextEditingController _singleInputController = TextEditingController();
+  late TextEditingController _noteController;
   bool _isEditMode = false;
   bool _showControlPanel = false; // Default: tersembunyi (collapsed)
   final List<SubSubjectItem> _selectedItems = [];
@@ -30,8 +31,18 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
   SubSubjectItem? _highlightedItem;
 
   @override
+  void initState() {
+    super.initState();
+    // Inisialisasi text controller dengan isi catatan yang sudah ada (jika ada)
+    _noteController = TextEditingController(
+      text: widget.subject.noteContent ?? '',
+    );
+  }
+
+  @override
   void dispose() {
     _singleInputController.dispose();
+    _noteController.dispose();
     super.dispose();
   }
 
@@ -368,7 +379,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
         mainAxisSize: MainAxisSize.min,
         children: [
           // HEADER DIALOG
-          // HEADER DIALOG
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -423,6 +433,34 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                           );
                         },
                       ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: Icon(
+                          widget.subject.type == 'note'
+                              ? Icons.checklist
+                              : Icons.notes,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                        tooltip: widget.subject.type == 'note'
+                            ? 'Ubah ke Mode Checklist'
+                            : 'Ubah ke Mode Catatan',
+                        constraints: const BoxConstraints(),
+                        padding: EdgeInsets.zero,
+                        onPressed: () {
+                          setState(() {
+                            // Ganti tipe tampilan
+                            widget.subject.type = widget.subject.type == 'note'
+                                ? 'list'
+                                : 'note';
+                            // Sembunyikan control panel jika pindah ke mode catatan
+                            if (widget.subject.type == 'note') {
+                              _showControlPanel = false;
+                            }
+                          });
+                          widget.onDataChanged(); // Auto-save perubahan tipe
+                        },
+                      ),
                       const SizedBox(width: 10),
                       Flexible(
                         child: Text.rich(
@@ -451,22 +489,23 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                   ),
                 ),
                 // Tombol toggle untuk Sembunyikan/Tampilkan Panel Kontrol
-                IconButton(
-                  icon: Icon(
-                    _showControlPanel ? Icons.tune : Icons.tune_outlined,
-                    color: _showControlPanel
-                        ? Colors.amberAccent
-                        : Colors.white,
+                if (widget.subject.type != 'note')
+                  IconButton(
+                    icon: Icon(
+                      _showControlPanel ? Icons.tune : Icons.tune_outlined,
+                      color: _showControlPanel
+                          ? Colors.amberAccent
+                          : Colors.white,
+                    ),
+                    tooltip: _showControlPanel
+                        ? 'Sembunyikan Pengaturan'
+                        : 'Tampilkan Pengaturan',
+                    onPressed: () {
+                      setState(() {
+                        _showControlPanel = !_showControlPanel;
+                      });
+                    },
                   ),
-                  tooltip: _showControlPanel
-                      ? 'Sembunyikan Pengaturan'
-                      : 'Tampilkan Pengaturan',
-                  onPressed: () {
-                    setState(() {
-                      _showControlPanel = !_showControlPanel;
-                    });
-                  },
-                ),
               ],
             ),
           ),
@@ -793,96 +832,121 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
           ),
 
           // KONTEN TREE LIST
-          // KONTEN TREE LIST
           Flexible(
-            child: widget.subject.subMateri.isEmpty
-                ? const Padding(
-                    padding: EdgeInsets.all(24.0),
-                    child: Text('Tidak ada item sub materi.'),
-                  )
-                : ListView(
-                    shrinkWrap: true,
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 8,
-                      horizontal: 4,
+            child: widget.subject.type == 'note'
+                // JIKA MODE CATATAN: Tampilkan area input teks multi-baris
+                ? Container(
+                    color: Colors.white,
+                    padding: const EdgeInsets.all(16.0),
+                    child: TextField(
+                      controller: _noteController,
+                      maxLines: null, // Biarkan teks mengisi ruang ke bawah
+                      expands: true,
+                      textAlignVertical: TextAlignVertical.top,
+                      decoration: InputDecoration(
+                        hintText: 'Tulis catatan Anda di sini...',
+                        border: InputBorder.none,
+                        hintStyle: TextStyle(color: Colors.grey[400]),
+                      ),
+                      onChanged: (text) {
+                        widget.subject.noteContent = text;
+                        widget.onDataChanged(); // Auto-save saat mengetik
+                      },
                     ),
-                    children: [
-                      // 1. Tampilkan sub-materi yang BELUM SELESAI
-                      ...List.generate(widget.subject.subMateri.length, (
-                        index,
-                      ) {
-                        final item = widget.subject.subMateri[index];
-                        if (item.progress == 'selesai')
-                          return const SizedBox.shrink();
-
-                        return _buildTreeRow(
-                          item,
-                          0,
-                          index,
-                          isFirst: index == 0,
-                          isLast: index == widget.subject.subMateri.length - 1,
-                        );
-                      }),
-
-                      // 2. Berikan Garis Pembatas dan Keterangan jika ada item yang selesai
-                      if (widget.subject.subMateri.any(
-                        (item) => item.progress == 'selesai',
-                      )) ...[
-                        Padding(
+                  )
+                // JIKA MODE CHECKLIST: Tampilkan list materi seperti biasa
+                : (widget.subject.subMateri.isEmpty
+                      ? const Padding(
+                          padding: EdgeInsets.all(24.0),
+                          child: Text('Tidak ada item sub materi.'),
+                        )
+                      : ListView(
+                          shrinkWrap: true,
                           padding: const EdgeInsets.symmetric(
-                            vertical: 12.0,
-                            horizontal: 16.0,
+                            vertical: 8,
+                            horizontal: 4,
                           ),
-                          child: Row(
-                            children: [
-                              const Expanded(
-                                child: Divider(
-                                  thickness: 1.5,
-                                  color: Colors.green,
-                                ),
-                              ),
+                          children: [
+                            // 1. Tampilkan sub-materi yang BELUM SELESAI
+                            ...List.generate(widget.subject.subMateri.length, (
+                              index,
+                            ) {
+                              final item = widget.subject.subMateri[index];
+                              if (item.progress == 'selesai')
+                                return const SizedBox.shrink();
+
+                              return _buildTreeRow(
+                                item,
+                                0,
+                                index,
+                                isFirst: index == 0,
+                                isLast:
+                                    index ==
+                                    widget.subject.subMateri.length - 1,
+                              );
+                            }),
+
+                            // 2. Berikan Garis Pembatas dan Keterangan jika ada item yang selesai
+                            if (widget.subject.subMateri.any(
+                              (item) => item.progress == 'selesai',
+                            )) ...[
                               Padding(
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 10.0,
+                                  vertical: 12.0,
+                                  horizontal: 16.0,
                                 ),
-                                child: Text(
-                                  'List Telah Selesai',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.green[700],
-                                  ),
-                                ),
-                              ),
-                              const Expanded(
-                                child: Divider(
-                                  thickness: 1.5,
-                                  color: Colors.green,
+                                child: Row(
+                                  children: [
+                                    const Expanded(
+                                      child: Divider(
+                                        thickness: 1.5,
+                                        color: Colors.green,
+                                      ),
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10.0,
+                                      ),
+                                      child: Text(
+                                        'List Telah Selesai',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.green[700],
+                                        ),
+                                      ),
+                                    ),
+                                    const Expanded(
+                                      child: Divider(
+                                        thickness: 1.5,
+                                        color: Colors.green,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
-                          ),
-                        ),
-                      ],
 
-                      // 3. Tampilkan sub-materi yang SUDAH SELESAI di paling bawah
-                      ...List.generate(widget.subject.subMateri.length, (
-                        index,
-                      ) {
-                        final item = widget.subject.subMateri[index];
-                        if (item.progress != 'selesai')
-                          return const SizedBox.shrink();
+                            // 3. Tampilkan sub-materi yang SUDAH SELESAI di paling bawah
+                            ...List.generate(widget.subject.subMateri.length, (
+                              index,
+                            ) {
+                              final item = widget.subject.subMateri[index];
+                              if (item.progress != 'selesai')
+                                return const SizedBox.shrink();
 
-                        return _buildTreeRow(
-                          item,
-                          0,
-                          index,
-                          isFirst: index == 0,
-                          isLast: index == widget.subject.subMateri.length - 1,
-                        );
-                      }),
-                    ],
-                  ),
+                              return _buildTreeRow(
+                                item,
+                                0,
+                                index,
+                                isFirst: index == 0,
+                                isLast:
+                                    index ==
+                                    widget.subject.subMateri.length - 1,
+                              );
+                            }),
+                          ],
+                        )),
           ),
           const Divider(height: 1),
 
