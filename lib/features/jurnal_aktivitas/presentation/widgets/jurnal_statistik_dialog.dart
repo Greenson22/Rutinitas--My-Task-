@@ -37,7 +37,6 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
     Colors.lightGreen.shade700,
     Colors.blue.shade700,
   ];
-  List<Map<String, dynamic>> dailyChartData = [];
 
   DateTime _stripTime(DateTime date) {
     return DateTime(date.year, date.month, date.day);
@@ -125,6 +124,7 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
     Map<String, Map<String, int>> dailyTaskBreakdown =
         {}; // <--- Struktur Data Baru untuk Bar Bertumpuk
 
+    List<Map<String, dynamic>> dailyChartData = [];
     int totalMinutesAll = 0;
 
     for (var entry in widget.logs) {
