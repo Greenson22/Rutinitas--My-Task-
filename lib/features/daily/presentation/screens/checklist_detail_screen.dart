@@ -515,6 +515,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
+                        // PERUBAHAN DI SINI: Menghapus overflow ellipsis dan maxLines agar teks turun ke bawah
                         Text(
                           subject.subjectName,
                           style: const TextStyle(
@@ -523,8 +524,6 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                             color: Colors.black87,
                           ),
                           textAlign: TextAlign.center,
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
                         ),
                         if (subject.isDateActive && subject.date != null) ...[
                           const SizedBox(height: 2),

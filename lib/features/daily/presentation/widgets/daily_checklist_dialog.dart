@@ -415,7 +415,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                           ),
                       ],
                     ),
-                    overflow: TextOverflow.ellipsis,
+                    // PERUBAHAN DI SINI: Properti overflow dibuang agar mendukung multi-baris kebawah
                   ),
                 ),
                 const SizedBox(width: 12),
