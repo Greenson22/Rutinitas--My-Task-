@@ -168,10 +168,11 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
 
     if (_selectedFilter == 'Minggu Ini') {
       final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
-      final days = _getDaysInRange(
-        startOfWeek,
-        startOfWeek.add(const Duration(days: 6)),
-      );
+      final endOfWeek = startOfWeek.add(const Duration(days: 6));
+      // Jika akhir minggu melebihi hari ini, batasi sampai hari ini saja
+      final maxDay = endOfWeek.isAfter(now) ? now : endOfWeek;
+
+      final days = _getDaysInRange(startOfWeek, maxDay);
       for (var day in days) {
         String key = DateFormat('yyyy-MM-dd').format(day);
         dailyChartData.add({
@@ -184,7 +185,10 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
     } else if (_selectedFilter == 'Bulan Ini') {
       final startOfMonth = DateTime(now.year, now.month, 1);
       final endOfMonth = DateTime(now.year, now.month + 1, 0);
-      final days = _getDaysInRange(startOfMonth, endOfMonth);
+      // Jika akhir bulan melebihi hari ini, batasi sampai hari ini saja
+      final maxDay = endOfMonth.isAfter(now) ? now : endOfMonth;
+
+      final days = _getDaysInRange(startOfMonth, maxDay);
       for (var day in days) {
         String key = DateFormat('yyyy-MM-dd').format(day);
         dailyChartData.add({
@@ -195,10 +199,12 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
         });
       }
     } else if (_selectedFilter == 'Tahun Ini') {
-      // Mengisi seluruh hari dari tanggal 1 Januari hingga 31 Desember di tahun berjalan
       final startOfYear = DateTime(now.year, 1, 1);
       final endOfYear = DateTime(now.year, 12, 31);
-      final days = _getDaysInRange(startOfYear, endOfYear);
+      // Jika akhir tahun melebihi hari ini, batasi sampai hari ini saja
+      final maxDay = endOfYear.isAfter(now) ? now : endOfYear;
+
+      final days = _getDaysInRange(startOfYear, maxDay);
       for (var day in days) {
         String key = DateFormat('yyyy-MM-dd').format(day);
         dailyChartData.add({
@@ -209,10 +215,12 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
         });
       }
     } else if (_selectedFilter == 'Pilih Rentang' && _customRange != null) {
-      final days = _getDaysInRange(
-        _stripTime(_customRange!.start),
-        _stripTime(_customRange!.end),
-      );
+      final startRange = _stripTime(_customRange!.start);
+      final endRange = _stripTime(_customRange!.end);
+      // Jika rentang kustom yang dipilih melebihi hari ini, batasi sampai hari ini saja
+      final maxDay = endRange.isAfter(now) ? now : endRange;
+
+      final days = _getDaysInRange(startRange, maxDay);
       for (var day in days) {
         String key = DateFormat('yyyy-MM-dd').format(day);
         dailyChartData.add({
@@ -224,13 +232,15 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
       }
     } else {
       // Filter: 'Semua Waktu'
-      // Mengambil rentang tanggal penuh dari catatan pertama hingga catatan terakhir
       var sortedKeys = dailyTotals.keys.toList()..sort();
       if (sortedKeys.isNotEmpty) {
         try {
           DateTime minDate = DateTime.parse(sortedKeys.first);
           DateTime maxDate = DateTime.parse(sortedKeys.last);
-          final days = _getDaysInRange(minDate, maxDate);
+          // Batasi maksimal adalah hari ini jika log ada yang tercatat di masa depan
+          final maxDay = maxDate.isAfter(now) ? now : maxDate;
+
+          final days = _getDaysInRange(minDate, maxDay);
           for (var day in days) {
             String key = DateFormat('yyyy-MM-dd').format(day);
             dailyChartData.add({
@@ -241,10 +251,12 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
             });
           }
         } catch (_) {
-          // Fallback apabila terjadi kesalahan parsing tanggal
           for (var key in sortedKeys) {
             try {
               DateTime day = DateTime.parse(key);
+              // Filter fallback untuk memastikan tidak memasukkan tanggal setelah hari ini
+              if (day.isAfter(now)) continue;
+
               dailyChartData.add({
                 'label': DateFormat('dd/MM').format(day),
                 'subLabel': DateFormat('yy').format(day),
