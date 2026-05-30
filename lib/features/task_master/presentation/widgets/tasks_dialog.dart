@@ -306,28 +306,9 @@ class TasksDialog extends StatelessWidget {
                           ),
                         ],
                       ),
-                    if (category.tasks.isNotEmpty)
-                      IconButton(
-                        icon: Icon(
-                          isSelectionMode
-                              ? Icons.check_box
-                              : Icons.library_add_check,
-                          color: Colors.white,
-                        ),
-                        tooltip: isSelectionMode
-                            ? 'Selesai Pilih'
-                            : 'Pilih Banyak',
-                        onPressed: () {
-                          setDialogState(() {
-                            isSelectionMode = !isSelectionMode;
-                            selectedTaskIds.clear();
-                          });
-                        },
-                      ),
                   ],
                 ),
               ),
-
               // KONTEN UTAMA LIST TUGAS
               Flexible(
                 child: category.tasks.isEmpty
@@ -407,286 +388,315 @@ class TasksDialog extends StatelessWidget {
                             }
                           }
 
+                          // ITEM BUILDER LIST TUGAS (Berkas: lib/features/task_master/presentation/widgets/tasks_dialog.dart)
                           return Padding(
                             padding: const EdgeInsets.symmetric(vertical: 4.0),
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                ListTile(
-                                  dense: true,
-                                  leading: isSelectionMode
-                                      ? Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Checkbox(
-                                              value: selectedTaskIds.contains(
-                                                task.id,
-                                              ),
-                                              onChanged: (bool? checked) {
-                                                setDialogState(() {
-                                                  if (checked == true) {
-                                                    selectedTaskIds.add(
-                                                      task.id,
-                                                    );
-                                                  } else {
-                                                    selectedTaskIds.remove(
-                                                      task.id,
-                                                    );
-                                                  }
-                                                });
-                                              },
-                                            ),
-                                            // KONTROL URUTAN AKTIF SAAT MODE EDIT: Tombol Naik Posisi
-                                            IconButton(
-                                              icon: Icon(
-                                                Icons.arrow_upward,
-                                                size: 16,
-                                                color: index > 0
-                                                    ? Colors.indigo
-                                                    : Colors.grey[300],
-                                              ),
-                                              padding: EdgeInsets.zero,
-                                              constraints:
-                                                  const BoxConstraints(),
-                                              onPressed: index > 0
-                                                  ? () {
-                                                      setDialogState(() {
-                                                        final temp = category
-                                                            .tasks[index];
-                                                        category.tasks[index] =
-                                                            category
-                                                                .tasks[index -
-                                                                1];
-                                                        category.tasks[index -
-                                                                1] =
-                                                            temp;
-                                                      });
-                                                      onReorderTasks();
+                                InkWell(
+                                  onLongPress: () {
+                                    setDialogState(() {
+                                      if (!isSelectionMode) {
+                                        isSelectionMode = true;
+                                        selectedTaskIds.clear();
+                                        selectedTaskIds.add(
+                                          task.id,
+                                        ); // Otomatis mencentang tugas yang sedang ditahan
+                                      }
+                                    });
+                                  },
+                                  child: ListTile(
+                                    dense: true,
+                                    leading: isSelectionMode
+                                        ? Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Checkbox(
+                                                value: selectedTaskIds.contains(
+                                                  task.id,
+                                                ),
+                                                onChanged: (bool? checked) {
+                                                  setDialogState(() {
+                                                    if (checked == true) {
+                                                      selectedTaskIds.add(
+                                                        task.id,
+                                                      );
+                                                    } else {
+                                                      selectedTaskIds.remove(
+                                                        task.id,
+                                                      );
+                                                      // Opsional: Jika semua centangan kosong, matikan mode pilihan banyak
+                                                      if (selectedTaskIds
+                                                          .isEmpty) {
+                                                        isSelectionMode = false;
+                                                      }
                                                     }
-                                                  : null,
-                                            ),
-                                            // KONTROL URUTAN AKTIF SAAT MODE EDIT: Tombol Turun Posisi
-                                            IconButton(
-                                              icon: Icon(
-                                                Icons.arrow_downward,
-                                                size: 16,
-                                                color:
+                                                  });
+                                                },
+                                              ),
+                                              // KONTROL URUTAN AKTIF SAAT MODE EDIT: Tombol Naik Posisi
+                                              IconButton(
+                                                icon: Icon(
+                                                  Icons.arrow_upward,
+                                                  size: 16,
+                                                  color: index > 0
+                                                      ? Colors.indigo
+                                                      : Colors.grey[300],
+                                                ),
+                                                padding: EdgeInsets.zero,
+                                                constraints:
+                                                    const BoxConstraints(),
+                                                onPressed: index > 0
+                                                    ? () {
+                                                        setDialogState(() {
+                                                          final temp = category
+                                                              .tasks[index];
+                                                          category.tasks[index] =
+                                                              category
+                                                                  .tasks[index -
+                                                                  1];
+                                                          category.tasks[index -
+                                                                  1] =
+                                                              temp;
+                                                        });
+                                                        onReorderTasks();
+                                                      }
+                                                    : null,
+                                              ),
+                                              // KONTROL URUTAN AKTIF SAAT MODE EDIT: Tombol Turun Posisi
+                                              IconButton(
+                                                icon: Icon(
+                                                  Icons.arrow_downward,
+                                                  size: 16,
+                                                  color:
+                                                      index <
+                                                          category
+                                                                  .tasks
+                                                                  .length -
+                                                              1
+                                                      ? Colors.indigo
+                                                      : Colors.grey[300],
+                                                ),
+                                                padding: EdgeInsets.zero,
+                                                constraints:
+                                                    const BoxConstraints(),
+                                                onPressed:
                                                     index <
                                                         category.tasks.length -
                                                             1
-                                                    ? Colors.indigo
-                                                    : Colors.grey[300],
+                                                    ? () {
+                                                        setDialogState(() {
+                                                          final temp = category
+                                                              .tasks[index];
+                                                          category.tasks[index] =
+                                                              category
+                                                                  .tasks[index +
+                                                                  1];
+                                                          category.tasks[index +
+                                                                  1] =
+                                                              temp;
+                                                        });
+                                                        onReorderTasks();
+                                                      }
+                                                    : null,
                                               ),
-                                              padding: EdgeInsets.zero,
-                                              constraints:
-                                                  const BoxConstraints(),
-                                              onPressed:
-                                                  index <
-                                                      category.tasks.length - 1
-                                                  ? () {
-                                                      setDialogState(() {
-                                                        final temp = category
-                                                            .tasks[index];
-                                                        category.tasks[index] =
-                                                            category
-                                                                .tasks[index +
-                                                                1];
-                                                        category.tasks[index +
-                                                                1] =
-                                                            temp;
-                                                      });
-                                                      onReorderTasks();
-                                                    }
-                                                  : null,
+                                            ],
+                                          )
+                                        : IconButton(
+                                            icon: Icon(
+                                              Icons.add_circle_outline,
+                                              color: task.isActive
+                                                  ? Colors.blue
+                                                  : Colors.grey[400],
+                                              size: 28,
                                             ),
-                                          ],
-                                        )
-                                      : IconButton(
-                                          icon: Icon(
-                                            Icons.add_circle_outline,
-                                            color: task.isActive
-                                                ? Colors.blue
-                                                : Colors.grey[400],
-                                            size: 28,
+                                            onPressed: task.isActive
+                                                ? () => _showConfirmIncrementDialog(
+                                                    context,
+                                                    task,
+                                                    () async {
+                                                      bool isUpdated =
+                                                          await onIncrementTask(
+                                                            task,
+                                                          );
+                                                      if (isUpdated)
+                                                        setDialogState(() {});
+                                                    },
+                                                  )
+                                                : null,
                                           ),
-                                          onPressed: task.isActive
-                                              ? () => _showConfirmIncrementDialog(
-                                                  context,
-                                                  task,
-                                                  () async {
-                                                    bool isUpdated =
-                                                        await onIncrementTask(
-                                                          task,
-                                                        );
-                                                    if (isUpdated)
-                                                      setDialogState(() {});
-                                                  },
-                                                )
-                                              : null,
-                                        ),
-                                  title: Text(
-                                    task.name,
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 15,
-                                      color: task.isActive
-                                          ? Colors.black87
-                                          : Colors.grey,
-                                    ),
-                                  ),
-                                  subtitle: Text.rich(
-                                    TextSpan(
-                                      children: [
-                                        if (todayText != null)
-                                          TextSpan(
-                                            text: todayText,
-                                            style: TextStyle(
-                                              color: todayColor,
-                                              fontWeight:
-                                                  (task.countToday >=
-                                                              task.targetCountToday ||
-                                                          task.targetCountToday ==
-                                                              0) &&
-                                                      task.isActive
-                                                  ? FontWeight.bold
-                                                  : FontWeight.normal,
-                                            ),
-                                          ),
-                                        TextSpan(
-                                          text: totalText,
-                                          style: TextStyle(
-                                            color: task.isActive
-                                                ? Colors.blue[800]
-                                                : Colors.grey,
-                                          ),
-                                        ),
-                                        ..._buildIndonesianDateSpans(
-                                          task.date,
-                                          task.isActive,
-                                        ),
-                                      ],
-                                    ),
-                                    style: const TextStyle(fontSize: 11),
-                                  ),
-                                  trailing: PopupMenuButton<String>(
-                                    icon: const Icon(
-                                      Icons.more_vert,
-                                      color: Colors.grey,
-                                    ),
-                                    padding: EdgeInsets.zero,
-                                    onSelected: (value) async {
-                                      if (value == 'edit_detail') {
-                                        _showEditTaskDetailDialog(
-                                          context,
-                                          task,
-                                          setDialogState,
-                                        );
-                                      } else if (value == 'delete_task') {
-                                        bool isDeleted = await onDeleteTask(
-                                          task,
-                                        );
-                                        if (isDeleted) setDialogState(() {});
-                                      } else if (value.startsWith('move_to_')) {
-                                        String targetCategoryName = value
-                                            .replaceFirst('move_to_', '');
-                                        final targetCategory = allCategories
-                                            .firstWhere(
-                                              (cat) =>
-                                                  cat.name ==
-                                                  targetCategoryName,
-                                            );
-
-                                        onMoveTaskCategory(
-                                          task,
-                                          category,
-                                          targetCategory,
-                                        );
-                                        setDialogState(() {});
-                                      }
-                                    },
-                                    itemBuilder: (BuildContext context) => [
-                                      const PopupMenuItem<String>(
-                                        value: 'edit_detail',
-                                        child: ListTile(
-                                          leading: Icon(
-                                            Icons.edit_note,
-                                            size: 20,
-                                          ),
-                                          title: Text('Edit Detail'),
-                                          contentPadding: EdgeInsets.zero,
-                                          dense: true,
-                                        ),
+                                    title: Text(
+                                      task.name,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 15,
+                                        color: task.isActive
+                                            ? Colors.black87
+                                            : Colors.grey,
                                       ),
-                                      // PINDAH KATEGORI HANYA MUNCUL DI MENU SAAT MODE EDIT AKTIF
-                                      if (isSelectionMode &&
-                                          allCategories.length > 1) ...[
-                                        PopupMenuItem<String>(
-                                          enabled: false,
-                                          child: Text(
-                                            'Pindahkan Kategori:',
+                                    ),
+                                    subtitle: Text.rich(
+                                      TextSpan(
+                                        children: [
+                                          if (todayText != null)
+                                            TextSpan(
+                                              text: todayText,
+                                              style: TextStyle(
+                                                color: todayColor,
+                                                fontWeight:
+                                                    (task.countToday >=
+                                                                task.targetCountToday ||
+                                                            task.targetCountToday ==
+                                                                0) &&
+                                                        task.isActive
+                                                    ? FontWeight.bold
+                                                    : FontWeight.normal,
+                                              ),
+                                            ),
+                                          TextSpan(
+                                            text: totalText,
                                             style: TextStyle(
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.indigo[700],
+                                              color: task.isActive
+                                                  ? Colors.blue[800]
+                                                  : Colors.grey,
                                             ),
                                           ),
+                                          ..._buildIndonesianDateSpans(
+                                            task.date,
+                                            task.isActive,
+                                          ),
+                                        ],
+                                      ),
+                                      style: const TextStyle(fontSize: 11),
+                                    ),
+                                    trailing: PopupMenuButton<String>(
+                                      icon: const Icon(
+                                        Icons.more_vert,
+                                        color: Colors.grey,
+                                      ),
+                                      padding: EdgeInsets.zero,
+                                      onSelected: (value) async {
+                                        if (value == 'edit_detail') {
+                                          _showEditTaskDetailDialog(
+                                            context,
+                                            task,
+                                            setDialogState,
+                                          );
+                                        } else if (value == 'delete_task') {
+                                          bool isDeleted = await onDeleteTask(
+                                            task,
+                                          );
+                                          if (isDeleted) setDialogState(() {});
+                                        } else if (value.startsWith(
+                                          'move_to_',
+                                        )) {
+                                          String targetCategoryName = value
+                                              .replaceFirst('move_to_', '');
+                                          final targetCategory = allCategories
+                                              .firstWhere(
+                                                (cat) =>
+                                                    cat.name ==
+                                                    targetCategoryName,
+                                              );
+
+                                          onMoveTaskCategory(
+                                            task,
+                                            category,
+                                            targetCategory,
+                                          );
+                                          setDialogState(() {});
+                                        }
+                                      },
+                                      itemBuilder: (BuildContext context) => [
+                                        const PopupMenuItem<String>(
+                                          value: 'edit_detail',
+                                          child: ListTile(
+                                            leading: Icon(
+                                              Icons.edit_note,
+                                              size: 20,
+                                            ),
+                                            title: Text('Edit Detail'),
+                                            contentPadding: EdgeInsets.zero,
+                                            dense: true,
+                                          ),
                                         ),
-                                        ...allCategories
-                                            .where(
-                                              (cat) =>
-                                                  cat.name != category.name,
-                                            )
-                                            .map((cat) {
-                                              return PopupMenuItem<String>(
-                                                value: 'move_to_${cat.name}',
-                                                child: Padding(
-                                                  padding:
-                                                      const EdgeInsets.only(
-                                                        left: 8.0,
-                                                      ),
-                                                  child: Row(
-                                                    children: [
-                                                      Text(
-                                                        cat.icon,
-                                                        style: const TextStyle(
-                                                          fontSize: 14,
+                                        // PINDAH KATEGORI HANYA MUNCUL DI MENU SAAT MODE EDIT AKTIF
+                                        if (isSelectionMode &&
+                                            allCategories.length > 1) ...[
+                                          PopupMenuItem<String>(
+                                            enabled: false,
+                                            child: Text(
+                                              'Pindahkan Kategori:',
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.indigo[700],
+                                              ),
+                                            ),
+                                          ),
+                                          ...allCategories
+                                              .where(
+                                                (cat) =>
+                                                    cat.name != category.name,
+                                              )
+                                              .map((cat) {
+                                                return PopupMenuItem<String>(
+                                                  value: 'move_to_${cat.name}',
+                                                  child: Padding(
+                                                    padding:
+                                                        const EdgeInsets.only(
+                                                          left: 8.0,
                                                         ),
-                                                      ),
-                                                      const SizedBox(width: 8),
-                                                      Expanded(
-                                                        child: Text(
-                                                          cat.name,
+                                                    child: Row(
+                                                      children: [
+                                                        Text(
+                                                          cat.icon,
                                                           style:
                                                               const TextStyle(
-                                                                fontSize: 13,
+                                                                fontSize: 14,
                                                               ),
                                                         ),
-                                                      ),
-                                                    ],
+                                                        const SizedBox(
+                                                          width: 8,
+                                                        ),
+                                                        Expanded(
+                                                          child: Text(
+                                                            cat.name,
+                                                            style:
+                                                                const TextStyle(
+                                                                  fontSize: 13,
+                                                                ),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
                                                   ),
-                                                ),
-                                              );
-                                            })
-                                            .toList(),
-                                      ],
-                                      const PopupMenuDivider(),
-                                      const PopupMenuItem<String>(
-                                        value: 'delete_task',
-                                        child: ListTile(
-                                          leading: Icon(
-                                            Icons.delete_outline,
-                                            color: Colors.red,
-                                            size: 20,
+                                                );
+                                              })
+                                              .toList(),
+                                        ],
+                                        const PopupMenuDivider(),
+                                        const PopupMenuItem<String>(
+                                          value: 'delete_task',
+                                          child: ListTile(
+                                            leading: Icon(
+                                              Icons.delete_outline,
+                                              color: Colors.red,
+                                              size: 20,
+                                            ),
+                                            title: Text(
+                                              'Hapus',
+                                              style: TextStyle(
+                                                color: Colors.red,
+                                              ),
+                                            ),
+                                            contentPadding: EdgeInsets.zero,
+                                            dense: true,
                                           ),
-                                          title: Text(
-                                            'Hapus',
-                                            style: TextStyle(color: Colors.red),
-                                          ),
-                                          contentPadding: EdgeInsets.zero,
-                                          dense: true,
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
                                 ),
                                 if (task.type == 1)
