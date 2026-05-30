@@ -31,6 +31,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
   List<File> _serverBackupFiles = [];
   bool _isServerSelectionMode = false;
   final List<File> _selectedServerFiles = [];
+  bool _isLoading = false;
 
   // === 2. TAMBAHKAN INIT STATE UNTUK MEMBACA SETTING DIRECTORY ===
   @override
@@ -65,11 +66,10 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
         final String clientId =
             "Client_${webSocket.hashCode.toString().substring(0, 4)}";
 
-        // A. KONDISI: CLIENT BARU TERHUBUNG
         setState(() {
           daftarClientAktif.add(webSocket);
         });
-        // Picu penyegaran UI di dalam dialog secara instan jika dialog sedang terbuka
+
         if (dialogState != null) {
           dialogState!(() {});
         }
@@ -82,12 +82,17 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
           ),
         );
 
+        // === PERBAIKAN SISI SERVER: Kirim sinyal sapaan balik murni agar Client tahu pipa sukses terhubung ===
+        Map<String, dynamic> salamPembuka = {
+          'tipe_pesan': 'koneksi_terkonfirmasi',
+        };
+        webSocket.sink.add(jsonEncode(salamPembuka));
+
         // Mendengarkan data atau perintah yang masuk dari Client
         webSocket.stream.listen(
           (pesanMasuk) async {
             try {
               Map<String, dynamic> dataDiterima = jsonDecode(pesanMasuk);
-              // LOGIKA A: Jika menerima paket data aplikasi dari Client
               if (dataDiterima['tipe_pesan'] == 'data_transfer') {
                 String clientTasks = dataDiterima['task_master'];
                 String clientJurnal = dataDiterima['jurnal_aktivitas'];
@@ -152,12 +157,10 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
               debugPrint("Server gagal memproses pesan: $err");
             }
           },
-          // B. KONDISI: CLIENT TERPUTUS (DISCONNECT)
           onDone: () {
             setState(() {
               daftarClientAktif.remove(webSocket);
             });
-            // Picu kembali penyegaran UI di dalam dialog secara instan
             if (dialogState != null) {
               dialogState!(() {});
             }
@@ -169,11 +172,9 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                 duration: const Duration(seconds: 3),
               ),
             );
-            debugPrint("Koneksi perangkat client terputus.");
           },
         );
       });
-
       _serverEksternal = await shelf_io.serve(
         handler,
         InternetAddress.anyIPv4,
@@ -566,11 +567,16 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
   void _prosesTerimaDataDariServer(String alamatIP) async {
     final urlWebSocket = 'ws://$alamatIP:8090';
 
-    try {
-      // Hubungkan koneksi pipa komunikasi ke Server
-      final channel = WebSocketChannel.connect(Uri.parse(urlWebSocket));
+    setState(() {
+      _isLoading = true;
+    });
 
-      // Fungsi pembantu untuk membungkus dan mengirim data lokal milik Client ke Server
+    try {
+      // 1. Hubungkan pipa koneksi ke Server
+      final channel = WebSocketChannel.connect(Uri.parse(urlWebSocket));
+      bool isDialogOpened = false;
+
+      // Fungsi pembantu internal untuk mengirim data balik dari Client ke Server
       Future<void> fungsiKirimDataClient() async {
         String currentDir = await _storageService.getBaseDirSetting();
         File fileTasks = await _storageService.getTargetJsonFile(currentDir);
@@ -611,154 +617,218 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
         );
       }
 
-      // Dengarkan kiriman data yang dikirim oleh Server
-      channel.stream.listen(
-        (pesanMasuk) async {
-          try {
-            Map<String, dynamic> dataDiterima = jsonDecode(pesanMasuk);
-
-            if (dataDiterima['tipe_pesan'] == 'data_transfer') {
-              String serverTasks = dataDiterima['task_master'];
-              String serverJurnal = dataDiterima['jurnal_aktivitas'];
-              String serverZipBase64 = dataDiterima['checklist_zip'];
-
-              final Archive backupArchive = Archive();
-              List<int> tasksBytes = utf8.encode(serverTasks);
-              backupArchive.addFile(
-                ArchiveFile('my_tasks.json', tasksBytes.length, tasksBytes),
-              );
-
-              List<int> jurnalBytes = utf8.encode(serverJurnal);
-              backupArchive.addFile(
-                ArchiveFile('time_log.json', jurnalBytes.length, jurnalBytes),
-              );
-
-              if (serverZipBase64.isNotEmpty) {
-                List<int> checklistZipBytes = base64Decode(serverZipBase64);
-                Archive checklistArchive = ZipDecoder().decodeBytes(
-                  checklistZipBytes,
+      // 2. Dengarkan data stream dengan tambahan batas waktu timeout jabat tangan
+      channel.stream
+          .timeout(
+            const Duration(seconds: 5),
+            onTimeout: (sink) {
+              if (mounted) {
+                setState(() {
+                  _isLoading = false;
+                });
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Batas waktu habis! Perangkat di $alamatIP tidak merespons.',
+                    ),
+                    backgroundColor: Colors.redAccent,
+                  ),
                 );
-                for (ArchiveFile file in checklistArchive) {
-                  if (file.isFile) {
-                    backupArchive.addFile(
-                      ArchiveFile(
-                        'my_checklist/${file.name}',
-                        file.content.length,
-                        file.content,
-                      ),
-                    );
-                  }
-                }
+              }
+              channel.sink.close();
+              sink.close();
+            },
+          )
+          .listen(
+            (pesanMasuk) async {
+              // PERBAIKAN UTAMA: Loading langsung mati begitu menerima respons/sapaan pembuka dari server
+              if (_isLoading) {
+                setState(() {
+                  _isLoading = false;
+                });
               }
 
-              final List<int>? finalZipBytes = ZipEncoder().encode(
-                backupArchive,
-              );
-              if (finalZipBytes == null) return;
+              try {
+                Map<String, dynamic> dataDiterima = jsonDecode(pesanMasuk);
 
-              String namaZipDinamis = _getFormattedFileName(
-                'server_backup',
-                'zip',
-              );
-              File fileZipTarget = await _storageService.getBackupZipFile(
-                _baseDir,
-                namaZipDinamis,
-              );
-              await fileZipTarget.writeAsBytes(finalZipBytes);
+                // LOGIKA A: Jika menerima sapaan jabat tangan terhubung dari Server
+                if (dataDiterima['tipe_pesan'] == 'koneksi_terkonfirmasi') {
+                  debugPrint("Jabat tangan sukses. Pipa data stabil.");
+                }
 
+                // LOGIKA B: Jika menerima kiriman paket data aplikasi dari Server
+                if (dataDiterima['tipe_pesan'] == 'data_transfer') {
+                  String serverTasks = dataDiterima['task_master'];
+                  String serverJurnal = dataDiterima['jurnal_aktivitas'];
+                  String serverZipBase64 = dataDiterima['checklist_zip'];
+
+                  final Archive backupArchive = Archive();
+                  List<int> tasksBytes = utf8.encode(serverTasks);
+                  backupArchive.addFile(
+                    ArchiveFile('my_tasks.json', tasksBytes.length, tasksBytes),
+                  );
+
+                  List<int> jurnalBytes = utf8.encode(serverJurnal);
+                  backupArchive.addFile(
+                    ArchiveFile(
+                      'time_log.json',
+                      jurnalBytes.length,
+                      jurnalBytes,
+                    ),
+                  );
+
+                  if (serverZipBase64.isNotEmpty) {
+                    List<int> checklistZipBytes = base64Decode(serverZipBase64);
+                    Archive checklistArchive = ZipDecoder().decodeBytes(
+                      checklistZipBytes,
+                    );
+                    for (ArchiveFile file in checklistArchive) {
+                      if (file.isFile) {
+                        backupArchive.addFile(
+                          ArchiveFile(
+                            'my_checklist/${file.name}',
+                            file.content.length,
+                            file.content,
+                          ),
+                        );
+                      }
+                    }
+                  }
+
+                  final List<int>? finalZipBytes = ZipEncoder().encode(
+                    backupArchive,
+                  );
+                  if (finalZipBytes == null) return;
+
+                  String namaZipDinamis = _getFormattedFileName(
+                    'server_backup',
+                    'zip',
+                  );
+                  File fileZipTarget = await _storageService.getBackupZipFile(
+                    _baseDir,
+                    namaZipDinamis,
+                  );
+                  await fileZipTarget.writeAsBytes(finalZipBytes);
+
+                  setState(() {
+                    _loadBaseDirectory();
+                  });
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Sukses menerima berkas dari Server! Disimpan: $namaZipDinamis',
+                      ),
+                      backgroundColor: Colors.teal,
+                      duration: const Duration(seconds: 3),
+                    ),
+                  );
+                }
+              } catch (e) {
+                debugPrint("Client gagal memproses data: $e");
+              }
+
+              // Tampilkan dialog kontrol murni saat koneksi terbukti aman dan berbalas
+              if (!isDialogOpened && mounted) {
+                isDialogOpened = true;
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (ctx) => AlertDialog(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    title: const Row(
+                      children: [
+                        Icon(Icons.cloud_done, color: Colors.teal),
+                        SizedBox(width: 8),
+                        Text('Terhubung ke Server'),
+                      ],
+                    ),
+                    content: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Sukses tersambung dengan alamat IP: $alamatIP'),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Anda bisa memantau proses penerimaan otomatis, atau menekan tombol di bawah jika ingin mengirim balik data lokal HP ini ke Server tujuan.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            height: 1.4,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: () => fungsiKirimDataClient(),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.indigo,
+                            ),
+                            icon: const Icon(
+                              Icons.upload_file,
+                              color: Colors.white,
+                            ),
+                            label: const Text(
+                              'Kirim Data Saya Ke Server',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () {
+                          channel.sink.close();
+                          Navigator.pop(ctx);
+                        },
+                        child: const Text(
+                          'Putuskan Koneksi',
+                          style: TextStyle(color: Colors.red),
+                        ),
+                      ),
+                    ],
+                  ),
+                ).then((_) {
+                  isDialogOpened = false;
+                });
+              }
+            },
+            onError: (err) {
               setState(() {
-                _loadBaseDirectory();
+                _isLoading = false;
               });
-
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
-                    'Sukses menerima berkas dari Server! Disimpan: $namaZipDinamis',
+                    'Gagal terhubung! Koneksi ditolak oleh perangkat di $alamatIP.',
                   ),
-                  backgroundColor: Colors.teal,
-                  duration: const Duration(seconds: 3),
+                  backgroundColor: Colors.redAccent,
                 ),
               );
-            }
-          } catch (e) {
-            debugPrint("Client gagal memproses data: $e");
-          }
-        },
-        onError: (err) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Koneksi terputus atau gagal terhubung ke server!'),
-            ),
+            },
+            onDone: () {
+              setState(() {
+                _isLoading = false;
+              });
+              debugPrint("Koneksi client selesai.");
+            },
           );
-        },
-        onDone: () {
-          debugPrint("Koneksi client selesai.");
-        },
-      );
 
-      if (!mounted) return;
-
-      // Munculkan dialog kontrol kendali di sisi Client yang terhubung
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) => AlertDialog(
-          title: const Row(
-            children: [
-              Icon(Icons.cloud_done, color: Colors.teal),
-              const SizedBox(width: 8),
-              Text('Terhubung ke Server'),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Sukses tersambung dengan alamat IP: $alamatIP'),
-              const SizedBox(height: 16),
-              const Text(
-                'Anda bisa memantau proses penerimaan otomatis, atau menekan tombol di bawah jika ingin mengirim balik data lokal HP ini ke Server tujuan.',
-                style: TextStyle(
-                  fontSize: 12,
-                  height: 1.4,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // === TOMBOL MANUAL UNTUK MENGIRIM DATA SISI CLIENT ===
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () => fungsiKirimDataClient(),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.indigo,
-                  ),
-                  icon: const Icon(Icons.upload_file, color: Colors.white),
-                  label: const Text(
-                    'Kirim Data Saya Ke Server',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                channel.sink.close();
-                Navigator.pop(ctx);
-              },
-              child: const Text(
-                'Putuskan Koneksi',
-                style: TextStyle(color: Colors.red),
-              ),
-            ),
-          ],
+      // KETERANGAN: Baris ping_koneksi dihapus dari sini agar tidak merusak handshake awal socket!
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Terjadi kesalahan fatal jaringan.'),
+          backgroundColor: Colors.redAccent,
         ),
       );
-    } catch (e) {
-      debugPrint("Gagal menjalankan transfer data client: $e");
     }
   }
 
@@ -1371,83 +1441,105 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
             ],
           ),
         ),
+        // ... kode AppBar tetap sama seperti bawaan Anda ...
         drawer: const DrawerMenu(isDataCenterActive: true),
-        body: TabBarView(
+        body: Stack(
           children: [
-            // TAB 1: Backup
-            BackupTab(
-              localBackupFiles: _localBackupFiles,
-              serverBackupFiles: _serverBackupFiles,
-              onCreateBackup: () => _buatBackupSemuaFitur(),
-              onDeleteBackup: (file) async {
-                if (await file.exists()) {
-                  await file.delete();
-                  _loadLocalBackups();
-                }
-              },
-              // PERBAIKAN: Pastikan memanggil _loadServerBackups() setelah file dihapus
-              onDeleteServerBackup: (file) async {
-                if (await file.exists()) {
-                  await file.delete();
-                  await _loadServerBackups(); // Memperbarui data list server backup secara real-time
-                }
-              },
-              onRestoreAllZip: (file) => _importSemuaDariZip(file),
-              onBackupTaskMaster: () => _exportTaskMaster(),
-              onRestoreTaskMaster: () => _importTaskMaster(),
-              onBackupChecklist: () => _exportChecklist(),
-              onRestoreChecklist: () => _importChecklist(),
-              onBackupJurnal: () => _exportJurnal(),
-              onRestoreJurnal: () => _importJurnal(),
-              onImportZip: () => _importZipLokal(),
-              onExportToFolder: (file) => _eksporBackupKeFolderKustom(file),
-            ),
+            TabBarView(
+              children: [
+                // TAB 1: Backup
+                BackupTab(
+                  localBackupFiles: _localBackupFiles,
+                  serverBackupFiles: _serverBackupFiles,
+                  onCreateBackup: () => _buatBackupSemuaFitur(),
+                  onDeleteBackup: (file) async {
+                    if (await file.exists()) {
+                      await file.delete();
+                      _loadLocalBackups();
+                    }
+                  },
+                  onDeleteServerBackup: (file) async {
+                    if (await file.exists()) {
+                      await file.delete();
+                      await _loadServerBackups();
+                    }
+                  },
+                  onRestoreAllZip: (file) => _importSemuaDariZip(file),
+                  onBackupTaskMaster: () => _exportTaskMaster(),
+                  onRestoreTaskMaster: () => _importTaskMaster(),
+                  onBackupChecklist: () => _exportChecklist(),
+                  onRestoreChecklist: () => _importChecklist(),
+                  onBackupJurnal: () => _exportJurnal(),
+                  onRestoreJurnal: () => _importJurnal(),
+                  onImportZip: () => _importZipLokal(),
+                  onExportToFolder: (file) => _eksporBackupKeFolderKustom(file),
+                ),
 
-            // TAB 2: Local Sharing
-            LocalSharingTab(
-              onSendFile: () => _startMulaiServerSharing(),
-              onReceiveFile: () => _tampilkanDialogHubungkanKeServer(),
-              serverBackupFiles: _serverBackupFiles,
-              onDeleteServerBackup: (file) async {
-                // Jika ini adalah trigger hapus masal dari tab sharing
-                if (file.path == 'trigger_refresh_after_bulk_delete') {
-                  await _loadServerBackups(); // Langsung segarkan UI tanpa cek file fisik
-                  return;
-                }
+                // TAB 2: Local Sharing
+                LocalSharingTab(
+                  onSendFile: () => _startMulaiServerSharing(),
+                  onReceiveFile: () => _tampilkanDialogHubungkanKeServer(),
+                  serverBackupFiles: _serverBackupFiles,
+                  onDeleteServerBackup: (file) async {
+                    if (file.path == 'trigger_refresh_after_bulk_delete') {
+                      await _loadServerBackups();
+                      return;
+                    }
 
-                // Logika hapus satuan bawaan Anda tetap berjalan normal di bawah ini
-                final bool confirm =
-                    await showDialog<bool>(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        title: const Text('Hapus Berkas Server?'),
-                        content: Text(
-                          'Apakah Anda yakin ingin menghapus berkas "${file.path.split('/').last}" ini secara permanen?',
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(ctx, false),
-                            child: const Text('Batal'),
-                          ),
-                          ElevatedButton(
-                            onPressed: () => Navigator.pop(ctx, true),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.red,
+                    final bool confirm =
+                        await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Hapus Berkas Server?'),
+                            content: Text(
+                              'Apakah Anda yakin ingin menghapus berkas "${file.path.split('/').last}" ini secara permanen?',
                             ),
-                            child: const Text('Hapus'),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, false),
+                                child: const Text('Batal'),
+                              ),
+                              ElevatedButton(
+                                onPressed: () => Navigator.pop(ctx, true),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.red,
+                                ),
+                                child: const Text('Hapus'),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                    ) ??
-                    false;
+                        ) ??
+                        false;
 
-                if (confirm && await file.exists()) {
-                  await file.delete();
-                  await _loadServerBackups(); // Segarkan UI setelah hapus satuan
-                }
-              },
-              onRestoreAllZip: (file) => _importSemuaDariZip(file),
+                    if (confirm && await file.exists()) {
+                      await file.delete();
+                      await _loadServerBackups();
+                    }
+                  },
+                  onRestoreAllZip: (file) => _importSemuaDariZip(file),
+                ),
+              ],
             ),
+
+            // === VISUAL LAYER LOADING MELAYANG (Hanya aktif saat _isLoading bernilai true) ===
+            if (_isLoading)
+              Container(
+                color: Colors.black.withOpacity(0.4),
+                child: const Center(
+                  child: Card(
+                    elevation: 4,
+                    shape: CircleBorder(),
+                    child: Padding(
+                      padding: EdgeInsets.all(16.0),
+                      child: CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          Colors.indigo,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
