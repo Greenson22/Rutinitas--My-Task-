@@ -69,13 +69,13 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
   }
 
   void _showAddSectionDialog() {
-    final _sectionController = TextEditingController();
+    final sectionController = TextEditingController();
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Tambah Seksi Penempatan'),
         content: TextField(
-          controller: _sectionController,
+          controller: sectionController,
           decoration: const InputDecoration(hintText: 'Nama Seksi Baru...'),
         ),
         actions: [
@@ -85,7 +85,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
           ),
           ElevatedButton(
             onPressed: () {
-              if (_sectionController.text.isNotEmpty) {
+              if (sectionController.text.isNotEmpty) {
                 setState(() {
                   // LOGIKA: Jika seksi pertama masih berupa seksi unik default, otomatis ubah namanya
                   if (_currentHub.allList.length == 1 &&
@@ -97,7 +97,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                   // Tambahkan seksi baru pilihan pengguna
                   _currentHub.allList.add(
                     ChecklistSection(
-                      sectionName: _sectionController.text,
+                      sectionName: sectionController.text,
                       items: [],
                     ),
                   );
