@@ -29,6 +29,9 @@ class _DailyScreenState extends State<DailyScreen> {
   bool _isPageEditMode = false;
   bool _showHiddenSection = false;
 
+  Map<String, List<ChecklistHub>> _groupedVisibleHubs = {};
+  Map<String, List<ChecklistHub>> _groupedHiddenHubs = {};
+
   @override
   void initState() {
     super.initState();
@@ -68,8 +71,37 @@ class _DailyScreenState extends State<DailyScreen> {
 
   void _processHubsDisplay() {
     setState(() {
-      _visibleHubs = _allHubsRaw.where((hub) => !hub.isHidden).toList();
-      _hiddenHubs = _allHubsRaw.where((hub) => hub.isHidden).toList();
+      // 1. Saring data mentah hub menjadi list terlihat dan tersembunyi
+      final visibleList = _allHubsRaw.where((hub) => !hub.isHidden).toList();
+      final hiddenList = _allHubsRaw.where((hub) => hub.isHidden).toList();
+
+      // 2. Bersihkan penampung grup lama
+      _groupedVisibleHubs.clear();
+      _groupedHiddenHubs.clear();
+
+      // 3. Kelompokkan Hub Terlihat secara dinamis
+      for (var hub in visibleList) {
+        // Mengambil kategori dari item pertama, jika kosong default ke 'Lainnya'
+        String kategori = "Lainnya";
+        if (hub.semuaList.isNotEmpty) {
+          kategori = hub.semuaList.first.namaSeksi;
+        }
+        _groupedVisibleHubs.putIfAbsent(kategori, () => []);
+        _groupedVisibleHubs[kategori]!.add(hub);
+      }
+
+      // 4. Kelompokkan Hub Tersembunyi secara dinamis
+      for (var hub in hiddenList) {
+        String kategori = "Lainnya";
+        if (hub.semuaList.isNotEmpty) {
+          kategori = hub.semuaList.first.namaSeksi;
+        }
+        _groupedHiddenHubs.putIfAbsent(kategori, () => []);
+        _groupedHiddenHubs[kategori]!.add(hub);
+      }
+
+      _visibleHubs = visibleList;
+      _hiddenHubs = hiddenList;
       _isLoading = false;
     });
   }
@@ -343,8 +375,33 @@ class _DailyScreenState extends State<DailyScreen> {
               builder: (context, constraints) {
                 return ListView(
                   children: [
-                    if (_visibleHubs.isNotEmpty)
-                      _buildHubGrid(_visibleHubs, constraints),
+                    // === KATEGORI HUB AKTIF / TERLIHAT ===
+                    ..._groupedVisibleHubs.entries.map((grup) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  grup.key.toUpperCase(),
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.teal[900],
+                                    letterSpacing: 0.8,
+                                  ),
+                                ),
+                                const Divider(height: 8, thickness: 1),
+                              ],
+                            ),
+                          ),
+                          _buildHubGrid(grup.value, constraints),
+                        ],
+                      );
+                    }).toList(),
 
                     if (_visibleHubs.isEmpty && _hiddenHubs.isEmpty)
                       const Padding(
@@ -352,6 +409,7 @@ class _DailyScreenState extends State<DailyScreen> {
                         child: Center(child: Text('Tidak ada Hub.')),
                       ),
 
+                    // === KATEGORI HUB TERSEMBUNYI ===
                     if (_hiddenHubs.isNotEmpty && _showHiddenSection) ...[
                       const Padding(
                         padding: EdgeInsets.symmetric(
@@ -384,7 +442,25 @@ class _DailyScreenState extends State<DailyScreen> {
                           ],
                         ),
                       ),
-                      _buildHubGrid(_hiddenHubs, constraints),
+                      ..._groupedHiddenHubs.entries.map((grup) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                              child: Text(
+                                '${grup.key} (Tersembunyi)',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.blueGrey,
+                                ),
+                              ),
+                            ),
+                            _buildHubGrid(grup.value, constraints),
+                          ],
+                        );
+                      }).toList(),
                     ],
                   ],
                 );
