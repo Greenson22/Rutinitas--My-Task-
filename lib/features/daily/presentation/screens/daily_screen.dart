@@ -415,7 +415,6 @@ class _DailyScreenState extends State<DailyScreen> {
     } else if (constraints.maxWidth >= 600) {
       crossAxisCount = 3;
     }
-
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -430,6 +429,12 @@ class _DailyScreenState extends State<DailyScreen> {
       itemCount: hubsList.length,
       itemBuilder: (context, index) {
         final hub = hubsList[index];
+
+        // LOGIKA BARU: Menghitung total seluruh item dari semua seksi di dalam hub ini
+        int totalItems = 0;
+        for (var section in hub.semuaList) {
+          totalItems += section.items.length;
+        }
 
         return Card(
           elevation: 3,
@@ -500,29 +505,63 @@ class _DailyScreenState extends State<DailyScreen> {
                             maxLines: 1,
                           ),
                           const SizedBox(height: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color:
-                                  (hub.isHidden
-                                          ? Colors.grey
-                                          : Colors.teal[800]!)
-                                      .withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              '${hub.semuaList.length} Seksi',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: hub.isHidden
-                                    ? Colors.grey[700]
-                                    : Colors.teal[900]!,
+                          // BARIS INFORMASI STATISTIK HUB (Seksi & Total Item)
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            alignment: WrapAlignment.center,
+                            children: [
+                              // Kotak Jumlah Seksi
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color:
+                                      (hub.isHidden
+                                              ? Colors.grey
+                                              : Colors.teal[800]!)
+                                          .withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  '${hub.semuaList.length} Seksi',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: hub.isHidden
+                                        ? Colors.grey[700]
+                                        : Colors.teal[900]!,
+                                  ),
+                                ),
                               ),
-                            ),
+                              // KOTAK BARU: Menampilkan total jumlah item produktif di dalam Hub
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color:
+                                      (hub.isHidden
+                                              ? Colors.grey
+                                              : Colors.indigo[800]!)
+                                          .withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  '$totalItems Item',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: hub.isHidden
+                                        ? Colors.grey[700]
+                                        : Colors.indigo[900]!,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -530,7 +569,6 @@ class _DailyScreenState extends State<DailyScreen> {
                   ),
                 ),
               ),
-
               // PANEL KONTROL BARU SEPERTI GAMBAR (Hanya tampil saat Mode Edit Aktif)
               if (_isPageEditMode) ...[
                 Container(
