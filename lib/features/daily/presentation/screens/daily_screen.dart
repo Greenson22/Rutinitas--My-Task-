@@ -569,7 +569,7 @@ class _DailyScreenState extends State<DailyScreen> {
                   ),
                 ),
               ),
-              // PANEL KONTROL BARU SEPERTI GAMBAR (Hanya tampil saat Mode Edit Aktif)
+              // PANEL KONTROL AKTIF (Tampil saat Mode Edit Aktif)
               if (_isPageEditMode) ...[
                 Container(
                   color: Colors.transparent,
@@ -606,7 +606,19 @@ class _DailyScreenState extends State<DailyScreen> {
                             : 'Sembunyikan Hub',
                         onPressed: () => _toggleHubVisibility(hub),
                       ),
-                      // 3. Tombol Pindah Kanan / Bawah
+                      // TAMBAHAN FITUR: 3. Tombol Edit Nama & Ikon Hub (Pensil)
+                      IconButton(
+                        icon: const Icon(
+                          Icons.edit,
+                          size: 18,
+                          color: Colors.teal,
+                        ),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        tooltip: 'Ubah Hub',
+                        onPressed: () => _showEditHubDialog(hub),
+                      ),
+                      // 4. Tombol Pindah Kanan / Bawah
                       IconButton(
                         icon: const Icon(Icons.arrow_forward, size: 18),
                         color: index < hubsList.length - 1
@@ -618,7 +630,7 @@ class _DailyScreenState extends State<DailyScreen> {
                             ? () => _moveHubOrder(hubsList, index, 1)
                             : null,
                       ),
-                      // 4. Tombol Hapus (Merah)
+                      // 5. Tombol Hapus (Merah)
                       IconButton(
                         icon: const Icon(
                           Icons.delete_outline,
