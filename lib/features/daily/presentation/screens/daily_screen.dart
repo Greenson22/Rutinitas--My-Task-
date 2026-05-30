@@ -43,6 +43,14 @@ class _DailyScreenState extends State<DailyScreen> {
         _selectedBaseDir,
       );
 
+      // SOLUSI PERMANEN LINUX: Urutkan file berdasarkan nama file secara alfabetis/numerik.
+      // Dengan cara ini, prefix angka seperti 0_, 1_, 2_ akan memaksa Linux membaca sesuai urutan kustom kita.
+      hubFiles.sort((a, b) {
+        String nameA = a.path.split('/').last;
+        String nameB = b.path.split('/').last;
+        return nameA.compareTo(nameB);
+      });
+
       List<ChecklistHub> loadedHubs = [];
       for (var file in hubFiles) {
         String jsonString = await file.readAsString();
@@ -78,7 +86,10 @@ class _DailyScreenState extends State<DailyScreen> {
   }
 
   Future<void> _createNewHub(String nama, String ikon) async {
-    String newId = 'hub_${DateTime.now().millisecondsSinceEpoch}';
+    // Memberikan urutan indeks terakhir berdasarkan jumlah data saat ini
+    int nextIndex = _allHubsRaw.length;
+    String newId = '${nextIndex}_hub_${DateTime.now().millisecondsSinceEpoch}';
+
     ChecklistHub newHub = ChecklistHub(
       id: newId,
       namaHub: nama,
@@ -230,7 +241,7 @@ class _DailyScreenState extends State<DailyScreen> {
     List<ChecklistHub> targetList,
     int currentIndex,
     int direction,
-  ) {
+  ) async {
     int newIndex = currentIndex + direction;
     if (newIndex < 0 || newIndex >= targetList.length) return;
 
@@ -246,6 +257,57 @@ class _DailyScreenState extends State<DailyScreen> {
         _allHubsRaw[rawIdxA] = _allHubsRaw[rawIdxB];
         _allHubsRaw[rawIdxB] = temp;
       });
+
+      // PROSES RENAME FISIK BERKAS DI LINUX AGAR URUTAN TERKUNCI:
+      try {
+        for (int i = 0; i < _allHubsRaw.length; i++) {
+          final currentHub = _allHubsRaw[i];
+
+          // Cari file yang lama terlebih dahulu
+          File oldFile = await _storageService.getSpecificHubFile(
+            _selectedBaseDir,
+            currentHub.id,
+          );
+
+          // Jika id belum mengandung nomor urut, atau nomor urutnya berubah, kita perbarui id dan nama filenya
+          String cleanId = currentHub.id;
+          if (cleanId.contains('_hub_')) {
+            // Ambil id asli tanpa prefix urutan lama (misal dari "0_hub_123" diambil "hub_123")
+            cleanId = cleanId.substring(cleanId.indexOf('hub_'));
+          }
+
+          String newId = "${i}_$cleanId";
+          File newFile = await _storageService.getSpecificHubFile(
+            _selectedBaseDir,
+            newId,
+          );
+
+          // Set id baru ke objek runtime agar sinkron
+          currentHub.id = newId;
+
+          if (await oldFile.exists()) {
+            // Tulis data terbaru dengan struktur ID yang baru
+            final String jsonString = const JsonEncoder.withIndent(
+              '  ',
+            ).convert(currentHub.toJson());
+            await newFile.writeAsString(jsonString);
+
+            // Hapus file lama jika namanya berbeda dengan file baru
+            if (oldFile.path != newFile.path) {
+              await oldFile.delete();
+            }
+          } else {
+            // Jika file lama tidak terdeteksi (karena perubahan state), langsung buat file baru
+            final String jsonString = const JsonEncoder.withIndent(
+              '  ',
+            ).convert(currentHub.toJson());
+            await newFile.writeAsString(jsonString);
+          }
+        }
+      } catch (e) {
+        debugPrint("Gagal mengatur ulang urutan file di Linux: $e");
+      }
+
       _processHubsDisplay();
     }
   }
