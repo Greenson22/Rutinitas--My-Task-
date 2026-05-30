@@ -776,8 +776,12 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
 
   Future<void> _loadLocalBackups() async {
     List<File> files = await _storageService.getAllLocalBackupFiles(_baseDir);
+
+    // Melakukan pengurutan eksplisit berdasarkan waktu modifikasi terbaru di atas
+    files.sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
+
     setState(() {
-      _localBackupFiles = files.reversed.toList();
+      _localBackupFiles = files;
     });
   }
 
@@ -1222,8 +1226,12 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
   // TAMBAHKAN fungsi baru ini untuk memuat file dari server
   Future<void> _loadServerBackups() async {
     List<File> files = await _storageService.getAllServerBackupFiles(_baseDir);
+
+    // Melakukan pengurutan eksplisit berdasarkan waktu modifikasi terbaru di atas
+    files.sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
+
     setState(() {
-      _serverBackupFiles = files.reversed.toList();
+      _serverBackupFiles = files;
     });
   }
 
