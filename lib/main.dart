@@ -16,7 +16,19 @@ class TaskMasterApp extends StatelessWidget {
       title: 'My Tasks',
       theme: ThemeData(primarySwatch: Colors.indigo, useMaterial3: false),
       builder: (context, child) {
-        return WindowControlWrapper(child: child!);
+        // Cek apakah aplikasi berjalan di platform desktop (Windows, macOS, Linux)
+        // Kita gunakan Theme.of(context).platform untuk mendeteksi platform saat runtime
+        final platform = Theme.of(context).platform;
+
+        if (platform == TargetPlatform.windows ||
+            platform == TargetPlatform.macOS ||
+            platform == TargetPlatform.linux) {
+          // Jika di desktop, tampilkan window control wrapper khusus desktop
+          return WindowControlWrapper(child: child!);
+        }
+
+        // Jika di Android, iOS, atau Web, langsung kembalikan child tanpa wrapper desktop
+        return child!;
       },
       home: const HomeScreen(),
     );
