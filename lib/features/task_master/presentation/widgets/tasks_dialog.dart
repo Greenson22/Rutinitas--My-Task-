@@ -398,11 +398,14 @@ class TasksDialog extends StatelessWidget {
                                   onLongPress: () {
                                     setDialogState(() {
                                       if (!isSelectionMode) {
+                                        // Jika belum masuk mode seleksi, aktifkan dan pilih tugas ini
                                         isSelectionMode = true;
                                         selectedTaskIds.clear();
-                                        selectedTaskIds.add(
-                                          task.id,
-                                        ); // Otomatis mencentang tugas yang sedang ditahan
+                                        selectedTaskIds.add(task.id);
+                                      } else {
+                                        // Jika sudah dalam mode seleksi dan ditahan lagi, keluar dari mode seleksi
+                                        isSelectionMode = false;
+                                        selectedTaskIds.clear();
                                       }
                                     });
                                   },
@@ -699,6 +702,7 @@ class TasksDialog extends StatelessWidget {
                                     ),
                                   ),
                                 ),
+
                                 if (task.type == 1)
                                   Padding(
                                     // Penyesuaian padding kiri secara dinamis agar progress bar tetap rapi saat mode edit aktif
