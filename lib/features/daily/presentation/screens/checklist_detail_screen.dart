@@ -454,9 +454,9 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
       padding: const EdgeInsets.all(12),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
-        childAspectRatio: _isPageEditMode ? 0.95 : 1.15,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
+        childAspectRatio: _isPageEditMode ? 0.95 : 1.4,
+        crossAxisSpacing: 0,
+        mainAxisSpacing: 0,
       ),
       itemCount: subjectsList.length,
       itemBuilder: (context, index) {
@@ -562,7 +562,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                                       ? '🎉 Semua Selesai!'
                                       : '📌 $topListText',
                                   style: TextStyle(
-                                    fontSize: 9,
+                                    fontSize: 12,
                                     color: Color(subject.backgroundColor),
                                   ),
                                   overflow: TextOverflow.ellipsis,
