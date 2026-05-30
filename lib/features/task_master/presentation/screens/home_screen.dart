@@ -748,16 +748,12 @@ class _HomeScreenState extends State<HomeScreen> {
     int totalTasks = 0;
     int completedTasksToday = 0;
     int tasksWithTargetToday = 0;
-
-    // Variabel baru untuk menghitung total menit khusus HARI INI
     int todayMinutes = 0;
 
     for (var category in _allCategoriesRaw) {
       for (var task in category.tasks) {
         if (task.isActive) {
           totalTasks++;
-
-          // Menghitung durasi pengerjaan hari ini (1 countToday = 30 menit)
           todayMinutes += (task.countToday * 30);
 
           if (task.targetCountToday > 0) {
@@ -770,7 +766,6 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
 
-    // Mengonversi total menit hari ini ke format Jam dan Sisa Menit (Contoh: 1j 30m atau 0j)
     int hours = todayMinutes ~/ 60;
     int minutes = todayMinutes % 60;
     String todayDurationString = minutes > 0
@@ -814,155 +809,133 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const Divider(height: 20, thickness: 1),
 
-          // Menggunakan Wrap agar layout adaptif dan tidak memicu error overflow
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              // Kartu 1: Kategori
-              Container(
-                width: 110,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.blue[50],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Kategori',
-                      style: TextStyle(
-                        color: Colors.blueGrey,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '$visibleCategoriesCount Active',
-                      style: TextStyle(
-                        color: Colors.blue[900],
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      'Total: $totalCategories',
-                      style: TextStyle(color: Colors.blue[700], fontSize: 11),
-                    ),
-                  ],
-                ),
-              ),
+          // Menggunakan LayoutBuilder untuk mendeteksi lebar area secara dinamis
+          LayoutBuilder(
+            builder: (context, boxConstraints) {
+              // Deteksi mode mobile jika lebar area kurang dari 600 piksel
+              bool isMobile = boxConstraints.maxWidth < 600;
 
-              // Kartu 2: Total Tugas
-              Container(
-                width: 110,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.amber[50],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Total Tugas',
-                      style: TextStyle(
-                        color: Colors.blueGrey,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
+              // Widget kartu fungsi pembantu internal agar tidak duplikasi kode
+              Widget buildCard(
+                String title,
+                String mainText,
+                String subText,
+                Color bgColor,
+                Color textColor,
+                Color subTextColor,
+              ) {
+                return Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: bgColor,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          color: subTextColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '$totalTasks Unit',
-                      style: TextStyle(
-                        color: Colors.amber[900],
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
+                      const SizedBox(height: 4),
+                      Text(
+                        mainText,
+                        style: TextStyle(
+                          color: textColor,
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                    Text(
-                      'Di semua kategori',
-                      style: TextStyle(color: Colors.amber[800], fontSize: 11),
-                    ),
-                  ],
-                ),
-              ),
+                      Text(
+                        subText,
+                        style: TextStyle(color: subTextColor, fontSize: 11),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                );
+              }
 
-              // Kartu 3: Selesai Hari Ini
-              Container(
-                width: 110,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.green[50],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Selesai Hari Ini',
-                      style: TextStyle(
-                        color: Colors.blueGrey,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '$completedTasksToday / $tasksWithTargetToday',
-                      style: TextStyle(
-                        color: Colors.green[900],
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      'Target tercapai',
-                      style: TextStyle(color: Colors.green[800], fontSize: 11),
-                    ),
-                  ],
-                ),
-              ),
+              // Definisi daftar kartu ringkasan data
+              final cardKategori = buildCard(
+                'Kategori',
+                '$visibleCategoriesCount Active',
+                'Total: $totalCategories',
+                Colors.blue[50]!,
+                Colors.blue[900]!,
+                Colors.blue[700]!,
+              );
+              final cardTotalTugas = buildCard(
+                'Total Tugas',
+                '$totalTasks Unit',
+                'Di semua kategori',
+                Colors.amber[50]!,
+                Colors.amber[900]!,
+                Colors.amber[800]!,
+              );
+              final cardSelesai = buildCard(
+                'Selesai Hari Ini',
+                '$completedTasksToday / $tasksWithTargetToday',
+                'Target tercapai',
+                Colors.green[50]!,
+                Colors.green[900]!,
+                Colors.green[800]!,
+              );
+              final cardJam = buildCard(
+                'Jam Hari Ini',
+                todayDurationString,
+                'Durasi pengerjaan',
+                Colors.teal[50]!,
+                Colors.teal[900]!,
+                Colors.teal[800]!,
+              );
 
-              // KARTU BARU: Jam Menyelesaikan Tugas HARI INI
-              Container(
-                width: 110,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.teal[50],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              if (isMobile) {
+                // Tampilan Mode Mobile: Grid 2 Baris x 2 Kolom merata
+                return Column(
                   children: [
-                    const Text(
-                      'Jam Hari Ini',
-                      style: TextStyle(
-                        color: Colors.blueGrey,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
+                    Row(
+                      children: [
+                        Expanded(child: cardKategori),
+                        const SizedBox(width: 8),
+                        Expanded(child: cardTotalTugas),
+                      ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      todayDurationString,
-                      style: TextStyle(
-                        color: Colors.teal[900],
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      'Durasi pengerjaan',
-                      style: TextStyle(color: Colors.teal[800], fontSize: 11),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(child: cardSelesai),
+                        const SizedBox(width: 8),
+                        Expanded(child: cardJam),
+                      ],
                     ),
                   ],
-                ),
-              ),
-            ],
+                );
+              } else {
+                // Tampilan Mode Tablet / Desktop: 1 Baris Sejajar Merata (Expanded)
+                return Row(
+                  children: [
+                    Expanded(child: cardKategori),
+                    const SizedBox(width: 8),
+                    Expanded(child: cardTotalTugas),
+                    const SizedBox(width: 8),
+                    Expanded(child: cardSelesai),
+                    const SizedBox(width: 8),
+                    Expanded(child: cardJam),
+                  ],
+                );
+              }
+            },
           ),
         ],
       ),
