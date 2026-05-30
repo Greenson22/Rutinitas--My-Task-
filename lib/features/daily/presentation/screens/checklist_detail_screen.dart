@@ -88,16 +88,16 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
               if (_sectionController.text.isNotEmpty) {
                 setState(() {
                   // LOGIKA: Jika seksi pertama masih berupa seksi unik default, otomatis ubah namanya
-                  if (_currentHub.semuaList.length == 1 &&
-                      _currentHub.semuaList.first.namaSeksi ==
+                  if (_currentHub.allList.length == 1 &&
+                      _currentHub.allList.first.sectionName ==
                           _defaultSectionName) {
-                    _currentHub.semuaList.first.namaSeksi = "Seksi Utama";
+                    _currentHub.allList.first.sectionName = "Seksi Utama";
                   }
 
                   // Tambahkan seksi baru pilihan pengguna
-                  _currentHub.semuaList.add(
+                  _currentHub.allList.add(
                     ChecklistSection(
-                      namaSeksi: _sectionController.text,
+                      sectionName: _sectionController.text,
                       items: [],
                     ),
                   );
@@ -120,18 +120,18 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
     showDialog(
       context: context,
       builder: (context) => AddDailySubjectDialog(
-        existingSections: _currentHub.semuaList.isEmpty
+        existingSections: _currentHub.allList.isEmpty
             ? [_defaultSectionName]
-            : _currentHub.semuaList.map((sec) => sec.namaSeksi).toList(),
+            : _currentHub.allList.map((sec) => sec.sectionName).toList(),
         onSave: (newSubject) {
           setState(() {
             // Jika ditambahkan saat kosong, buat seksi unik terlebih dahulu
-            if (_currentHub.semuaList.isEmpty) {
+            if (_currentHub.allList.isEmpty) {
               final newSection = ChecklistSection(
-                namaSeksi: _defaultSectionName,
+                sectionName: _defaultSectionName,
                 items: [newSubject],
               );
-              _currentHub.semuaList.add(newSection);
+              _currentHub.allList.add(newSection);
             } else {
               // Jika seksi target ada, langsung masukkan ke seksi tersebut
               targetSection?.items.add(newSubject);
@@ -155,7 +155,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
           builder: (context) => AlertDialog(
             title: const Text('Hapus Item Checklist?'),
             content: Text(
-              'Apakah Anda yakin ingin menghapus "${subject.namaMateri}" beserta seluruh sub-materinya?',
+              'Apakah Anda yakin ingin menghapus "${subject.subjectName}" beserta seluruh sub-materinya?',
             ),
             actions: [
               TextButton(
@@ -182,7 +182,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
   }
 
   void _editSectionName(ChecklistSection section) {
-    final editController = TextEditingController(text: section.namaSeksi);
+    final editController = TextEditingController(text: section.sectionName);
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -196,7 +196,9 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
           ElevatedButton(
             onPressed: () {
               if (editController.text.isNotEmpty) {
-                setState(() => section.namaSeksi = editController.text.trim());
+                setState(
+                  () => section.sectionName = editController.text.trim(),
+                );
                 _saveGroupData();
                 Navigator.pop(context);
               }
@@ -215,7 +217,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
           builder: (context) => AlertDialog(
             title: const Text('Hapus Seksi?'),
             content: Text(
-              'Apakah Anda yakin ingin menghapus seksi "${section.namaSeksi}" beserta seluruh item di dalamnya?',
+              'Apakah Anda yakin ingin menghapus seksi "${section.sectionName}" beserta seluruh item di dalamnya?',
             ),
             actions: [
               TextButton(
@@ -233,19 +235,19 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
         false;
 
     if (confirm) {
-      setState(() => _currentHub.semuaList.remove(section));
+      setState(() => _currentHub.allList.remove(section));
       _saveGroupData();
     }
   }
 
   void _moveSectionOrder(int currentIndex, int direction) {
     int newIndex = currentIndex + direction;
-    if (newIndex < 0 || newIndex >= _currentHub.semuaList.length) return;
+    if (newIndex < 0 || newIndex >= _currentHub.allList.length) return;
 
     setState(() {
-      final temp = _currentHub.semuaList[currentIndex];
-      _currentHub.semuaList[currentIndex] = _currentHub.semuaList[newIndex];
-      _currentHub.semuaList[newIndex] = temp;
+      final temp = _currentHub.allList[currentIndex];
+      _currentHub.allList[currentIndex] = _currentHub.allList[newIndex];
+      _currentHub.allList[newIndex] = temp;
     });
     _saveGroupData();
   }
@@ -267,7 +269,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
       ),
 
       // MODIFIKASI: Jika kosong, tampilkan tombol untuk langsung menambah item pertama
-      body: _currentHub.semuaList.isEmpty
+      body: _currentHub.allList.isEmpty
           ? Center(
               child: ElevatedButton.icon(
                 onPressed: () => _addItemToSection(context, null),
@@ -282,14 +284,14 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
               builder: (context, constraints) {
                 return ListView.builder(
                   padding: const EdgeInsets.symmetric(vertical: 12),
-                  itemCount: _currentHub.semuaList.length,
+                  itemCount: _currentHub.allList.length,
                   itemBuilder: (context, index) {
-                    final section = _currentHub.semuaList[index];
+                    final section = _currentHub.allList[index];
 
                     // Evaluasi apakah ini seksi default tunggal yang perlu disembunyikan judulnya
                     final bool hideHeader =
-                        _currentHub.semuaList.length == 1 &&
-                        section.namaSeksi == _defaultSectionName;
+                        _currentHub.allList.length == 1 &&
+                        section.sectionName == _defaultSectionName;
 
                     // Di dalam ListView.builder milik widget build:
                     return Column(
@@ -349,7 +351,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                   hideTitle
                       ? const SizedBox.shrink()
                       : Text(
-                          section.namaSeksi,
+                          section.sectionName,
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -379,7 +381,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                             size: 18,
                             color: Colors.blueGrey,
                           ),
-                          onPressed: index < _currentHub.semuaList.length - 1
+                          onPressed: index < _currentHub.allList.length - 1
                               ? () => _moveSectionOrder(index, 1)
                               : null,
                         ),
@@ -468,11 +470,11 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
         if (subject.subMateri.isNotEmpty) {
           final firstUnfinishedItem = subject.subMateri.firstWhere(
             (sm) => sm.progress != 'selesai',
-            orElse: () => SubMateriItem(namaMateri: '', progress: 'selesai'),
+            orElse: () => SubSubjectItem(subjectName: '', progress: 'selesai'),
           );
 
-          if (firstUnfinishedItem.namaMateri.isNotEmpty) {
-            topListText = firstUnfinishedItem.namaMateri;
+          if (firstUnfinishedItem.subjectName.isNotEmpty) {
+            topListText = firstUnfinishedItem.subjectName;
           } else {
             topListText = "Semua Selesai!";
           }
@@ -512,7 +514,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Text(
-                          subject.namaMateri,
+                          subject.subjectName,
                           style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
@@ -676,21 +678,21 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                         onSelected: (targetSectionName) {
                           setState(() {
                             final itemToMove = subjectsList.removeAt(index);
-                            _currentHub.semuaList
+                            _currentHub.allList
                                 .firstWhere(
-                                  (sec) => sec.namaSeksi == targetSectionName,
+                                  (sec) => sec.sectionName == targetSectionName,
                                 )
                                 .items
                                 .add(itemToMove);
                           });
                           _saveGroupData();
                         },
-                        itemBuilder: (context) => _currentHub.semuaList
+                        itemBuilder: (context) => _currentHub.allList
                             .map(
                               (sec) => PopupMenuItem<String>(
-                                value: sec.namaSeksi,
+                                value: sec.sectionName,
                                 child: Text(
-                                  sec.namaSeksi,
+                                  sec.sectionName,
                                   style: const TextStyle(fontSize: 12),
                                 ),
                               ),

@@ -28,9 +28,9 @@ class DailyData {
 }
 
 class DailySubject {
-  String namaMateri;
+  String subjectName;
   String progress;
-  List<SubMateriItem> subMateri;
+  List<SubSubjectItem> subMateri;
   int backgroundColor;
   int textColor;
   int progressBarColor;
@@ -46,7 +46,7 @@ class DailySubject {
 
   // Palet warna standar yang estetis untuk memudahkan pengguna memilih warna kustom
   // Palet warna standar yang estetis untuk memudahkan pengguna memilih warna kustom
-  static const List<Map<String, dynamic>> kustomPaletWarna = [
+  static const List<Map<String, dynamic>> customPalletColor = [
     {'nama': 'Teal', 'bg': 4281166415, 'text': 4294967295},
     {'nama': 'Indigo', 'bg': 4282340786, 'text': 4294967295},
     {'nama': 'Merah Ruby', 'bg': 4290001456, 'text': 4294967295},
@@ -76,7 +76,7 @@ class DailySubject {
   ];
 
   DailySubject({
-    required this.namaMateri,
+    required this.subjectName,
     required this.progress,
     required this.subMateri,
     this.backgroundColor = 4281166415,
@@ -95,12 +95,12 @@ class DailySubject {
 
   factory DailySubject.fromJson(Map<String, dynamic> json) {
     var subMatList = json['sub_materi'] as List? ?? [];
-    List<SubMateriItem> parsedList = subMatList
-        .map((i) => SubMateriItem.fromJson(i))
+    List<SubSubjectItem> parsedList = subMatList
+        .map((i) => SubSubjectItem.fromJson(i))
         .toList();
 
     return DailySubject(
-      namaMateri: json['nama_materi'] ?? '',
+      subjectName: json['nama_materi'] ?? '',
       progress: json['progress'] ?? 'belum',
       subMateri: parsedList,
       backgroundColor: json['backgroundColor'] ?? 4281166415,
@@ -120,7 +120,7 @@ class DailySubject {
 
   Map<String, dynamic> toJson() {
     return {
-      'nama_materi': namaMateri,
+      'nama_materi': subjectName,
       'progress': progress,
       'sub_materi': subMateri.map((e) => e.toJson()).toList(),
       'backgroundColor': backgroundColor,
@@ -143,7 +143,7 @@ class DailySubject {
     bool inHeader = false,
   }) {
     if (subject.date == null || subject.date!.trim().isEmpty) return [];
-    const List<String> namaHari = [
+    const List<String> dayName = [
       'Senin',
       'Selasa',
       'Rabu',
@@ -152,7 +152,7 @@ class DailySubject {
       'Sabtu',
       'Minggu',
     ];
-    const List<String> namaBulan = [
+    const List<String> monthName = [
       'Januari',
       'Februari',
       'Maret',
@@ -210,14 +210,14 @@ class DailySubject {
             style: TextStyle(color: colorTgl, fontWeight: FontWeight.bold),
           ),
           TextSpan(
-            text: namaBulan[parsedEnd.month - 1],
+            text: monthName[parsedEnd.month - 1],
             style: TextStyle(color: colorBln, fontWeight: FontWeight.bold),
           ),
         ];
       }
       return [
         TextSpan(
-          text: '(${namaHari[parsedStart.weekday - 1]}) ',
+          text: '(${dayName[parsedStart.weekday - 1]}) ',
           style: TextStyle(color: colorHari, fontWeight: FontWeight.bold),
         ),
         TextSpan(
@@ -225,7 +225,7 @@ class DailySubject {
           style: TextStyle(color: colorTgl, fontWeight: FontWeight.bold),
         ),
         TextSpan(
-          text: namaBulan[parsedStart.month - 1],
+          text: monthName[parsedStart.month - 1],
           style: TextStyle(color: colorBln, fontWeight: FontWeight.bold),
         ),
       ];
@@ -241,27 +241,27 @@ class DailySubject {
   }
 }
 
-class SubMateriItem {
-  String namaMateri;
+class SubSubjectItem {
+  String subjectName;
   String progress;
   String? finishedDate;
-  List<SubMateriItem> subMateri;
+  List<SubSubjectItem> subMateri;
 
-  SubMateriItem({
-    required this.namaMateri,
+  SubSubjectItem({
+    required this.subjectName,
     required this.progress,
     this.finishedDate,
-    List<SubMateriItem>? subMateri,
+    List<SubSubjectItem>? subMateri,
   }) : this.subMateri = subMateri ?? [];
 
-  factory SubMateriItem.fromJson(Map<String, dynamic> json) {
+  factory SubSubjectItem.fromJson(Map<String, dynamic> json) {
     var subList = json['sub_materi'] as List? ?? [];
-    List<SubMateriItem> parsedSub = subList
-        .map((i) => SubMateriItem.fromJson(i))
+    List<SubSubjectItem> parsedSub = subList
+        .map((i) => SubSubjectItem.fromJson(i))
         .toList();
 
-    return SubMateriItem(
-      namaMateri: json['nama_materi'] ?? '',
+    return SubSubjectItem(
+      subjectName: json['nama_materi'] ?? '',
       progress: json['progress'] ?? 'belum',
       finishedDate: json['finishedDate'],
       subMateri: parsedSub,
@@ -270,7 +270,7 @@ class SubMateriItem {
 
   Map<String, dynamic> toJson() {
     return {
-      'nama_materi': namaMateri,
+      'nama_materi': subjectName,
       'progress': progress,
       'finishedDate': finishedDate,
       'sub_materi': subMateri.map((e) => e.toJson()).toList(),
@@ -285,11 +285,11 @@ class SubMateriItem {
     }
 
     int total = subMateri.length;
-    int selesai = subMateri.where((sm) => sm.progress == 'selesai').length;
+    int finish = subMateri.where((sm) => sm.progress == 'selesai').length;
 
-    if (selesai == total) {
+    if (finish == total) {
       progress = 'selesai';
-    } else if (selesai > 0) {
+    } else if (finish > 0) {
       progress = 'sementara';
     } else {
       progress = 'belum';
@@ -302,17 +302,17 @@ class ChecklistGroup {
   String id;
   String groupName;
   String icon;
-  String kategoriSeksi;
-  List<ChecklistSection> semuaList;
+  String sectionCategory;
+  List<ChecklistSection> allList;
   bool isHidden; // <--- TAMBAHKAN INI
 
   ChecklistGroup({
     required this.id,
     required this.groupName,
     required this.icon,
-    this.kategoriSeksi = "Lainnya",
+    this.sectionCategory = "Lainnya",
     this.isHidden = false, // <--- TAMBAHKAN DEFAULT VALUE FALSE
-    required this.semuaList,
+    required this.allList,
   });
 
   factory ChecklistGroup.fromJson(Map<String, dynamic> json) {
@@ -321,9 +321,9 @@ class ChecklistGroup {
       id: json['id'] ?? '',
       groupName: json['nama_hub'] ?? 'Hub Baru',
       icon: json['ikon'] ?? '📁',
-      kategoriSeksi: json['kategori_seksi'] ?? 'Lainnya',
+      sectionCategory: json['kategori_seksi'] ?? 'Lainnya',
       isHidden: json['isHidden'] ?? false, // <--- BACA DARI JSON
-      semuaList: list.map((i) => ChecklistSection.fromJson(i)).toList(),
+      allList: list.map((i) => ChecklistSection.fromJson(i)).toList(),
     );
   }
 
@@ -332,32 +332,32 @@ class ChecklistGroup {
       'id': id,
       'nama_hub': groupName,
       'ikon': icon,
-      'kategori_seksi': kategoriSeksi,
+      'kategori_seksi': sectionCategory,
       'isHidden': isHidden, // <--- SIMPAN KE JSON
-      'semua_list': semuaList.map((e) => e.toJson()).toList(),
+      'semua_list': allList.map((e) => e.toJson()).toList(),
     };
   }
 }
 
 // Model untuk Level 2: Seksi Dinamis di dalam Hub
 class ChecklistSection {
-  String namaSeksi;
+  String sectionName;
   List<DailySubject>
   items; // Mempertahankan DailySubject agar fitur warna, progress, dan tanggal tidak hilang!
 
-  ChecklistSection({required this.namaSeksi, required this.items});
+  ChecklistSection({required this.sectionName, required this.items});
 
   factory ChecklistSection.fromJson(Map<String, dynamic> json) {
     var list = json['items'] as List? ?? [];
     return ChecklistSection(
-      namaSeksi: json['nama_seksi'] ?? 'Seksi Baru',
+      sectionName: json['nama_seksi'] ?? 'Seksi Baru',
       items: list.map((i) => DailySubject.fromJson(i)).toList(),
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'nama_seksi': namaSeksi,
+      'nama_seksi': sectionName,
       'items': items.map((e) => e.toJson()).toList(),
     };
   }

@@ -239,15 +239,15 @@ class _AddDailySubjectDialogState extends State<AddDailySubjectDialog> {
           onPressed: () {
             if (_formKey.currentState!.validate()) {
               // Map list string ke object SubMateriItem model
-              List<SubMateriItem> subMateriModels = _subMateriItems
+              List<SubSubjectItem> subMateriModels = _subMateriItems
                   .map(
                     (name) =>
-                        SubMateriItem(namaMateri: name, progress: 'belum'),
+                        SubSubjectItem(subjectName: name, progress: 'belum'),
                   )
                   .toList();
 
               final newSubject = DailySubject(
-                namaMateri: _namaMateriController.text.trim(),
+                subjectName: _namaMateriController.text.trim(),
                 icon: _iconController.text.trim(),
                 section: _selectedSection,
                 progress: 'belum',

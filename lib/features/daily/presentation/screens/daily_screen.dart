@@ -81,18 +81,18 @@ class _DailyScreenState extends State<DailyScreen> {
 
       // 3. Kelompokkan Hub Terlihat berdasarkan Kategori Seksi Utama
       for (var group in visibleList) {
-        String kategori = group.kategoriSeksi.trim().isEmpty
+        String kategori = group.sectionCategory.trim().isEmpty
             ? "Lainnya"
-            : group.kategoriSeksi;
+            : group.sectionCategory;
         _groupedVisibleGroup.putIfAbsent(kategori, () => []);
         _groupedVisibleGroup[kategori]!.add(group);
       }
 
       // 4. Kelompokkan Group Tersembunyi berdasarkan Kategori Seksi Utama
       for (var group in hiddenList) {
-        String kategori = group.kategoriSeksi.trim().isEmpty
+        String kategori = group.sectionCategory.trim().isEmpty
             ? "Lainnya"
-            : group.kategoriSeksi;
+            : group.sectionCategory;
         _groupedHiddenGroup.putIfAbsent(kategori, () => []);
         _groupedHiddenGroup[kategori]!.add(group);
       }
@@ -187,10 +187,10 @@ class _DailyScreenState extends State<DailyScreen> {
                   id: newId,
                   groupName: nameController.text.trim(),
                   icon: iconController.text.trim(),
-                  kategoriSeksi:
+                  sectionCategory:
                       targetMainSection, // <--- Menyimpan relasi seksi utama
                   isHidden: false,
-                  semuaList: [],
+                  allList: [],
                 );
 
                 await _saveGroupDataToFile(newGroup);
@@ -415,22 +415,22 @@ class _DailyScreenState extends State<DailyScreen> {
                         _groupedVisibleGroup.remove(oldSectionName) ?? [];
                     // Update field kategoriSeksi pada setiap objek hub di dalamnya
                     for (var group in groups) {
-                      group.kategoriSeksi = newSectionName;
+                      group.sectionCategory = newSectionName;
                     }
                     _groupedVisibleGroup[newSectionName] = groups;
                   }
 
                   // 2. Samakan perubahan ke list master raw data agar saat save file sinkron
                   for (var group in _allGroupRaw) {
-                    if (group.kategoriSeksi == oldSectionName) {
-                      group.kategoriSeksi = newSectionName;
+                    if (group.sectionCategory == oldSectionName) {
+                      group.sectionCategory = newSectionName;
                     }
                   }
                 });
 
                 // 3. Simpan perubahan fisik ke seluruh file JSON hub terkait
                 for (var group in _allGroupRaw) {
-                  if (group.kategoriSeksi == newSectionName) {
+                  if (group.sectionCategory == newSectionName) {
                     await _saveGroupDataToFile(group);
                   }
                 }
@@ -489,7 +489,7 @@ class _DailyScreenState extends State<DailyScreen> {
         setState(() {
           _groupedVisibleGroup.remove(sectionName);
           _allGroupRaw.removeWhere(
-            (group) => group.kategoriSeksi == sectionName,
+            (group) => group.sectionCategory == sectionName,
           );
         });
 
@@ -804,7 +804,7 @@ class _DailyScreenState extends State<DailyScreen> {
 
         // Menghitung total seluruh item dari semua seksi di dalam hub ini
         int totalItems = 0;
-        for (var section in group.semuaList) {
+        for (var section in group.allList) {
           totalItems += section.items.length;
         }
 
@@ -899,7 +899,7 @@ class _DailyScreenState extends State<DailyScreen> {
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
-                                  '${group.semuaList.length} Seksi',
+                                  '${group.allList.length} Seksi',
                                   style: TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w600,

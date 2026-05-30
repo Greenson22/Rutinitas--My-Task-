@@ -136,7 +136,7 @@ class _ChangeColorDialogState extends State<ChangeColorDialog> {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        widget.subject.namaMateri,
+                        widget.subject.subjectName,
                         style: TextStyle(
                           color: _selectedTextColor,
                           fontWeight: FontWeight.bold,

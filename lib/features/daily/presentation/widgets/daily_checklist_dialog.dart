@@ -23,9 +23,9 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
   final TextEditingController _singleInputController = TextEditingController();
   bool _isEditMode = false;
   bool _showControlPanel = false; // Default: tersembunyi (collapsed)
-  final List<SubMateriItem> _selectedItems = [];
+  final List<SubSubjectItem> _selectedItems = [];
 
-  SubMateriItem? _highlightedItem;
+  SubSubjectItem? _highlightedItem;
 
   @override
   void dispose() {
@@ -35,7 +35,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
 
   void _showEditSubjectNameDialog() {
     final editController = TextEditingController(
-      text: widget.subject.namaMateri,
+      text: widget.subject.subjectName,
     );
     showDialog(
       context: context,
@@ -58,7 +58,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
               final newName = editController.text.trim();
               if (newName.isNotEmpty) {
                 setState(() {
-                  widget.subject.namaMateri = newName;
+                  widget.subject.subjectName = newName;
                 });
                 widget.onDataChanged();
               }
@@ -73,8 +73,8 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
 
   // Fungsi untuk menukar posisi sub-materi di dalam list-nya secara rekursif
   bool _moveItemInTree(
-    List<SubMateriItem> treeList,
-    SubMateriItem target,
+    List<SubSubjectItem> treeList,
+    SubSubjectItem target,
     int direction,
   ) {
     if (treeList.contains(target)) {
@@ -97,7 +97,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     return false;
   }
 
-  void _moveItemOrder(SubMateriItem item, int direction) {
+  void _moveItemOrder(SubSubjectItem item, int direction) {
     setState(() {
       _moveItemInTree(widget.subject.subMateri, item, direction);
       _highlightedItem = item; // Tandai item yang dipindahkan
@@ -179,7 +179,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
 
     setState(() {
       widget.subject.subMateri.add(
-        SubMateriItem(namaMateri: text, progress: 'belum'),
+        SubSubjectItem(subjectName: text, progress: 'belum'),
       );
       _singleInputController.clear();
     });
@@ -187,12 +187,12 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     widget.onDataChanged();
   }
 
-  void _addChildSubMateri(SubMateriItem parentItem) {
+  void _addChildSubMateri(SubSubjectItem parentItem) {
     final childController = TextEditingController();
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Tambah Anak di bawah "${parentItem.namaMateri}"'),
+        title: Text('Tambah Anak di bawah "${parentItem.subjectName}"'),
         content: TextField(
           controller: childController,
           decoration: const InputDecoration(
@@ -211,7 +211,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
               if (text.isNotEmpty) {
                 setState(() {
                   parentItem.subMateri.add(
-                    SubMateriItem(namaMateri: text, progress: 'belum'),
+                    SubSubjectItem(subjectName: text, progress: 'belum'),
                   );
                 });
                 _updateSubjectOverallProgress();
@@ -226,7 +226,10 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     );
   }
 
-  bool _deleteItemFromTree(List<SubMateriItem> treeList, SubMateriItem target) {
+  bool _deleteItemFromTree(
+    List<SubSubjectItem> treeList,
+    SubSubjectItem target,
+  ) {
     if (treeList.contains(target)) {
       treeList.remove(target);
       return true;
@@ -237,11 +240,11 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     return false;
   }
 
-  void _deleteSingleSubMateri(SubMateriItem item) async {
+  void _deleteSingleSubMateri(SubSubjectItem item) async {
     final confirm = await _showConfirmDialog(
       title: 'Hapus Sub-Materi',
       content:
-          'Apakah Anda yakin ingin menghapus "${item.namaMateri}" beserta seluruh turunannya?',
+          'Apakah Anda yakin ingin menghapus "${item.subjectName}" beserta seluruh turunannya?',
     );
 
     if (!confirm) return;
@@ -255,8 +258,8 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     widget.onDataChanged();
   }
 
-  void _showEditNameDialog(SubMateriItem item) {
-    final editController = TextEditingController(text: item.namaMateri);
+  void _showEditNameDialog(SubSubjectItem item) {
+    final editController = TextEditingController(text: item.subjectName);
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -275,7 +278,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
               final newName = editController.text.trim();
               if (newName.isNotEmpty) {
                 setState(() {
-                  item.namaMateri = newName;
+                  item.subjectName = newName;
                 });
                 widget.onDataChanged();
               }
@@ -289,8 +292,8 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
   }
 
   void _getAllItemsFlattened(
-    List<SubMateriItem> source,
-    List<SubMateriItem> destination,
+    List<SubSubjectItem> source,
+    List<SubSubjectItem> destination,
   ) {
     for (var element in source) {
       destination.add(element);
@@ -302,7 +305,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
 
   @override
   Widget build(BuildContext context) {
-    List<SubMateriItem> allFlattened = [];
+    List<SubSubjectItem> allFlattened = [];
     _getAllItemsFlattened(widget.subject.subMateri, allFlattened);
 
     bool isAllSelected =
@@ -376,7 +379,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                           TextSpan(
                             children: [
                               TextSpan(
-                                text: '${widget.subject.namaMateri} ',
+                                text: '${widget.subject.subjectName} ',
                                 style: TextStyle(
                                   color: Color(widget.subject.textColor),
                                   fontSize: 16,
@@ -516,8 +519,8 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                                     setState(() {
                                       for (var line in lines) {
                                         widget.subject.subMateri.add(
-                                          SubMateriItem(
-                                            namaMateri: line.trim(),
+                                          SubSubjectItem(
+                                            subjectName: line.trim(),
                                             progress: 'belum',
                                           ),
                                         );
@@ -917,7 +920,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                         content: 'Reset semua progress menjadi Belum Selesai?',
                       );
                       if (!confirm) return;
-                      void resetRecursive(List<SubMateriItem> list) {
+                      void resetRecursive(List<SubSubjectItem> list) {
                         for (var item in list) {
                           item.progress = 'belum';
                           item.finishedDate = null;
@@ -962,7 +965,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
 
   // WIDGET REKURSIF UNTUK RENDERING NESTED ITEMS (DENGAN HIGHLIGHT)
   Widget _buildTreeRow(
-    SubMateriItem item,
+    SubSubjectItem item,
     int depth,
     int originalIndex, {
     bool isFirst = false,
@@ -1005,7 +1008,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                   onChanged: (bool? checked) {
                     setState(() {
                       void selectChildrenRecursive(
-                        SubMateriItem target,
+                        SubSubjectItem target,
                         bool add,
                       ) {
                         if (add) {
@@ -1065,7 +1068,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                               const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
-                                  item.namaMateri,
+                                  item.subjectName,
                                   style: const TextStyle(
                                     fontSize: 14,
                                     color: Colors.black87,
@@ -1090,7 +1093,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                             onChanged: (bool? checked) {
                               setState(() {
                                 void changeStatusRecursive(
-                                  SubMateriItem target,
+                                  SubSubjectItem target,
                                   String status,
                                 ) {
                                   target.progress = status;
@@ -1134,7 +1137,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                                 widget.onDataChanged();
                               },
                               child: Text(
-                                item.namaMateri,
+                                item.subjectName,
                                 style: TextStyle(
                                   fontSize: 14,
                                   decoration: isChecked
