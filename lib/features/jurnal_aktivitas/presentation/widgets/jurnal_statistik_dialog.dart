@@ -567,6 +567,7 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
                         ),
 
                   // TAB 2: GRAFIK TREN HARIAN (BERTUMPUK / STACKED BAR)
+                  // TAB 2: GRAFIK TREN HARIAN (BERTUMPUK / STACKED BAR)
                   dailyChartData.isEmpty
                       ? const Center(
                           child: Text(
@@ -600,6 +601,45 @@ class _JurnalStatistikDialogState extends State<JurnalStatistikDialog> {
                                 ],
                               ),
                             ),
+                            // === LEGENDA WARNA TUGAS SECARA LANGSUNG (PERBAIKAN) ===
+                            if (taskColorMap.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16.0,
+                                  vertical: 6.0,
+                                ),
+                                child: Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Wrap(
+                                    spacing: 12.0,
+                                    runSpacing: 6.0,
+                                    children: taskColorMap.entries.map((entry) {
+                                      return Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Container(
+                                            width: 12,
+                                            height: 12,
+                                            decoration: BoxDecoration(
+                                              color: entry.value,
+                                              borderRadius:
+                                                  BorderRadius.circular(3),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            entry.key,
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    }).toList(),
+                                  ),
+                                ),
+                              ),
                             const SizedBox(height: 10),
                             Expanded(
                               child: SingleChildScrollView(
