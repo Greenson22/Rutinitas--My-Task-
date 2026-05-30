@@ -79,23 +79,20 @@ class _DailyScreenState extends State<DailyScreen> {
       _groupedVisibleHubs.clear();
       _groupedHiddenHubs.clear();
 
-      // 3. Kelompokkan Hub Terlihat secara dinamis
+      // 3. Kelompokkan Hub Terlihat berdasarkan Kategori Seksi Utama
       for (var hub in visibleList) {
-        // Mengambil kategori dari item pertama, jika kosong default ke 'Lainnya'
-        String kategori = "Lainnya";
-        if (hub.semuaList.isNotEmpty) {
-          kategori = hub.semuaList.first.namaSeksi;
-        }
+        String kategori = hub.kategoriSeksi.trim().isEmpty
+            ? "Lainnya"
+            : hub.kategoriSeksi;
         _groupedVisibleHubs.putIfAbsent(kategori, () => []);
         _groupedVisibleHubs[kategori]!.add(hub);
       }
 
-      // 4. Kelompokkan Hub Tersembunyi secara dinamis
+      // 4. Kelompokkan Hub Tersembunyi berdasarkan Kategori Seksi Utama
       for (var hub in hiddenList) {
-        String kategori = "Lainnya";
-        if (hub.semuaList.isNotEmpty) {
-          kategori = hub.semuaList.first.namaSeksi;
-        }
+        String kategori = hub.kategoriSeksi.trim().isEmpty
+            ? "Lainnya"
+            : hub.kategoriSeksi;
         _groupedHiddenHubs.putIfAbsent(kategori, () => []);
         _groupedHiddenHubs[kategori]!.add(hub);
       }
@@ -104,6 +101,109 @@ class _DailyScreenState extends State<DailyScreen> {
       _hiddenHubs = hiddenList;
       _isLoading = false;
     });
+  }
+
+  void _showAddMainSectionDialog() {
+    final _sectionController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Tambah Seksi Kategori Baru'),
+        content: TextField(
+          controller: _sectionController,
+          decoration: const InputDecoration(
+            hintText: 'Nama Seksi Utama (Misal: PRIORITAS)...',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final String namaSeksiBaru = _sectionController.text.trim();
+              if (namaSeksiBaru.isNotEmpty) {
+                setState(() {
+                  // Menambahkan seksi kosong baru ke dalam map tampilan produktif produktif
+                  _groupedVisibleHubs.putIfAbsent(namaSeksiBaru, () => []);
+                });
+                Navigator.pop(context);
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Seksi "$namaSeksiBaru" berhasil dibuat! Tekan tombol + di kanannya untuk menambah hub.',
+                    ),
+                    backgroundColor: Colors.teal[800],
+                  ),
+                );
+              }
+            },
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // MODIFIKASI: Menerima parameter target seksi utama agar Hub langsung masuk ke kategori yang benar
+  void _showAddHubDialogAtSection(String targetMainSection) {
+    final _nameController = TextEditingController();
+    final _iconController = TextEditingController(text: '📁');
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Buat Hub Baru di $targetMainSection'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _nameController,
+              decoration: const InputDecoration(
+                labelText: 'Nama Hub (Misal: Pekerjaan)',
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _iconController,
+              decoration: const InputDecoration(labelText: 'Ikon Emoji'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (_nameController.text.isNotEmpty) {
+                int nextIndex = _allHubsRaw.length;
+                String newId =
+                    '${nextIndex}_hub_${DateTime.now().millisecondsSinceEpoch}';
+
+                ChecklistHub newHub = ChecklistHub(
+                  id: newId,
+                  namaHub: _nameController.text.trim(),
+                  ikon: _iconController.text.trim(),
+                  kategoriSeksi:
+                      targetMainSection, // <--- Menyimpan relasi seksi utama
+                  isHidden: false,
+                  semuaList: [],
+                );
+
+                await _saveHubDataToFile(newHub);
+                Navigator.pop(context);
+                _loadHubsData();
+              }
+            },
+            child: const Text('Buat Hub'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _saveHubDataToFile(ChecklistHub hub) async {
@@ -356,9 +456,6 @@ class _DailyScreenState extends State<DailyScreen> {
             icon: Icon(
               _showHiddenSection ? Icons.visibility : Icons.visibility_off,
             ),
-            tooltip: _showHiddenSection
-                ? 'Sembunyikan Sesi Tersembunyi'
-                : 'Tampilkan Sesi Tersembunyi',
             onPressed: () =>
                 setState(() => _showHiddenSection = !_showHiddenSection),
           ),
@@ -367,16 +464,24 @@ class _DailyScreenState extends State<DailyScreen> {
       drawer: const DrawerMenu(isDailyActive: true),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _allHubsRaw.isEmpty
+          : _allHubsRaw.isEmpty && _groupedVisibleHubs.isEmpty
           ? const Center(
-              child: Text('Belum ada Hub. Tekan + untuk membuat baru!'),
+              child: Text(
+                'Belum ada Seksi Kategori. Tekan + di bawah untuk membuat baru!',
+              ),
             )
           : LayoutBuilder(
               builder: (context, constraints) {
+                // Mengambil semua kunci seksi aktif ditambah seksi kosong yang baru dibuat
+                final semuaKunciSeksi = _groupedVisibleHubs.keys.toList();
+
                 return ListView(
                   children: [
                     // === KATEGORI HUB AKTIF / TERLIHAT ===
-                    ..._groupedVisibleHubs.entries.map((grup) {
+                    ...semuaKunciSeksi.map((namaSeksiUtama) {
+                      final listHubDiSeksiIni =
+                          _groupedVisibleHubs[namaSeksiUtama] ?? [];
+
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -385,13 +490,12 @@ class _DailyScreenState extends State<DailyScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // MODIFIKASI: Menggunakan Row agar tombol berada di kanan atas seksi
                                 Row(
                                   mainAxisAlignment:
                                       MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text(
-                                      grup.key.toUpperCase(),
+                                      namaSeksiUtama.toUpperCase(),
                                       style: TextStyle(
                                         fontSize: 13,
                                         fontWeight: FontWeight.bold,
@@ -399,7 +503,7 @@ class _DailyScreenState extends State<DailyScreen> {
                                         letterSpacing: 0.8,
                                       ),
                                     ),
-                                    // TOMBOL BARU: Tambah Hub di kanan atas setiap seksi
+                                    // SINKRONISASI: Tombol tambah hub spesifik seksi utama tersebut
                                     IconButton(
                                       icon: const Icon(
                                         Icons.add_circle_outline,
@@ -407,9 +511,11 @@ class _DailyScreenState extends State<DailyScreen> {
                                       color: Colors.teal[800],
                                       constraints: const BoxConstraints(),
                                       padding: EdgeInsets.zero,
-                                      tooltip: 'Tambah Hub ke Kategori Ini',
-                                      onPressed:
-                                          _showAddHubDialog, // Memanggil fungsi pembuat Hub bawaan Anda
+                                      tooltip: 'Tambah Hub ke Seksi Ini',
+                                      onPressed: () =>
+                                          _showAddHubDialogAtSection(
+                                            namaSeksiUtama,
+                                          ),
                                     ),
                                   ],
                                 ),
@@ -417,16 +523,25 @@ class _DailyScreenState extends State<DailyScreen> {
                               ],
                             ),
                           ),
-                          _buildHubGrid(grup.value, constraints),
+                          listHubDiSeksiIni.isEmpty
+                              ? const Padding(
+                                  padding: EdgeInsets.only(
+                                    left: 24,
+                                    top: 12,
+                                    bottom: 12,
+                                  ),
+                                  child: Text(
+                                    'Belum ada hub di seksi ini.',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                )
+                              : _buildHubGrid(listHubDiSeksiIni, constraints),
                         ],
                       );
                     }).toList(),
-
-                    if (_visibleHubs.isEmpty && _hiddenHubs.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.all(32.0),
-                        child: Center(child: Text('Tidak ada Hub.')),
-                      ),
 
                     // === KATEGORI HUB TERSEMBUNYI ===
                     if (_hiddenHubs.isNotEmpty && _showHiddenSection) ...[
@@ -436,30 +551,6 @@ class _DailyScreenState extends State<DailyScreen> {
                           vertical: 8.0,
                         ),
                         child: Divider(thickness: 2, color: Colors.grey),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16.0,
-                          vertical: 4.0,
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.visibility_off_outlined,
-                              color: Colors.blueGrey,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Hub yang disembunyikan (${_hiddenHubs.length})',
-                              style: const TextStyle(
-                                color: Colors.blueGrey,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
                       ),
                       ..._groupedHiddenHubs.entries.map((grup) {
                         return Column(
@@ -479,17 +570,6 @@ class _DailyScreenState extends State<DailyScreen> {
                                       color: Colors.blueGrey,
                                     ),
                                   ),
-                                  // TOMBOL BARU (Opsional): Ditambahkan juga pada seksi tersembunyi jika diperlukan
-                                  IconButton(
-                                    icon: const Icon(
-                                      Icons.add_circle_outline,
-                                      size: 18,
-                                    ),
-                                    color: Colors.blueGrey,
-                                    constraints: const BoxConstraints(),
-                                    padding: EdgeInsets.zero,
-                                    onPressed: _showAddHubDialog,
-                                  ),
                                 ],
                               ),
                             ),
@@ -502,12 +582,15 @@ class _DailyScreenState extends State<DailyScreen> {
                 );
               },
             ),
+      // REVISI FAB: Diubah fungsinya menjadi pembuat Kategori Seksi Utama Baru dan ikon diganti
       floatingActionButton: FloatingActionButton(
-        onPressed: _showAddHubDialog,
+        onPressed:
+            _showAddMainSectionDialog, // <--- Memanggil dialog tambah seksi utama
         backgroundColor: Colors.teal[800],
-        tooltip: 'Buat Hub Baru',
+        tooltip: 'Tambah Seksi Kategori Baru',
         child: const Icon(
-          Icons.create_new_folder,
+          Icons
+              .create_new_folder_outlined, // <--- Penggantian Icon Sesuai Perintah
           size: 28,
           color: Colors.white,
         ),

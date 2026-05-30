@@ -302,6 +302,7 @@ class ChecklistHub {
   String id;
   String namaHub;
   String ikon;
+  String kategoriSeksi;
   List<ChecklistSection> semuaList;
   bool isHidden; // <--- TAMBAHKAN INI
 
@@ -309,6 +310,7 @@ class ChecklistHub {
     required this.id,
     required this.namaHub,
     required this.ikon,
+    this.kategoriSeksi = "Lainnya",
     this.isHidden = false, // <--- TAMBAHKAN DEFAULT VALUE FALSE
     required this.semuaList,
   });
@@ -319,6 +321,7 @@ class ChecklistHub {
       id: json['id'] ?? '',
       namaHub: json['nama_hub'] ?? 'Hub Baru',
       ikon: json['ikon'] ?? '📁',
+      kategoriSeksi: json['kategori_seksi'] ?? 'Lainnya',
       isHidden: json['isHidden'] ?? false, // <--- BACA DARI JSON
       semuaList: list.map((i) => ChecklistSection.fromJson(i)).toList(),
     );
@@ -329,6 +332,7 @@ class ChecklistHub {
       'id': id,
       'nama_hub': namaHub,
       'ikon': ikon,
+      'kategori_seksi': kategoriSeksi,
       'isHidden': isHidden, // <--- SIMPAN KE JSON
       'semua_list': semuaList.map((e) => e.toJson()).toList(),
     };
