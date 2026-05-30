@@ -29,8 +29,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
 
   List<File> _localBackupFiles = [];
   List<File> _serverBackupFiles = [];
-  bool _isServerSelectionMode = false;
-  final List<File> _selectedServerFiles = [];
   bool _isLoading = false;
 
   // === 2. TAMBAHKAN INIT STATE UNTUK MEMBACA SETTING DIRECTORY ===
@@ -40,7 +38,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
     _loadBaseDirectory();
   }
 
-  void _startMulaiServerSharing() async {
+  void _startServerSharing() async {
     setState(() {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -56,7 +54,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
         await _serverEksternal!.close(force: true);
       }
 
-      List<dynamic> daftarClientAktif = [];
+      List<dynamic> clientActiveList = [];
       StateSetter? dialogState;
 
       var handler = webSocketHandler((dynamic webSocket, dynamic protocol) {
@@ -64,7 +62,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
             "Client_${webSocket.hashCode.toString().substring(0, 4)}";
 
         setState(() {
-          daftarClientAktif.add(webSocket);
+          clientActiveList.add(webSocket);
         });
 
         if (dialogState != null) {
@@ -79,19 +77,19 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
           ),
         );
 
-        Map<String, dynamic> salamPembuka = {
+        Map<String, dynamic> openingMessage = {
           'tipe_pesan': 'koneksi_terkonfirmasi',
         };
-        webSocket.sink.add(jsonEncode(salamPembuka));
+        webSocket.sink.add(jsonEncode(openingMessage));
 
         webSocket.stream.listen(
           (pesanMasuk) async {
             try {
-              Map<String, dynamic> dataDiterima = jsonDecode(pesanMasuk);
-              if (dataDiterima['tipe_pesan'] == 'data_transfer') {
-                String clientTasks = dataDiterima['task_master'];
-                String clientJurnal = dataDiterima['jurnal_aktivitas'];
-                String clientZipBase64 = dataDiterima['checklist_zip'];
+              Map<String, dynamic> dateReceived = jsonDecode(pesanMasuk);
+              if (dateReceived['tipe_pesan'] == 'data_transfer') {
+                String clientTasks = dateReceived['task_master'];
+                String clientJurnal = dateReceived['jurnal_aktivitas'];
+                String clientZipBase64 = dateReceived['checklist_zip'];
 
                 final Archive clientArchive = Archive();
                 List<int> tasksBytes = utf8.encode(clientTasks);
@@ -154,7 +152,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
           },
           onDone: () {
             setState(() {
-              daftarClientAktif.remove(webSocket);
+              clientActiveList.remove(webSocket);
             });
 
             if (dialogState != null) {
@@ -173,7 +171,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
           },
           onError: (error) {
             setState(() {
-              daftarClientAktif.remove(webSocket);
+              clientActiveList.remove(webSocket);
             });
             if (dialogState != null) {
               dialogState!(() {});
@@ -190,8 +188,8 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
       );
       if (!mounted) return;
 
-      Future<void> fungsiKirimDataServer() async {
-        if (daftarClientAktif.isEmpty) {
+      Future<void> sendDataToServer() async {
+        if (clientActiveList.isEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text(
@@ -205,42 +203,44 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
 
         String currentDir = await _storageService.getBaseDirSetting();
         File fileTasks = await _storageService.getTargetJsonFile(currentDir);
-        String kontenTasks = await fileTasks.exists()
+        String tasksContent = await fileTasks.exists()
             ? await fileTasks.readAsString()
             : "{}";
 
         File fileJurnal = await _storageService.getJurnalJsonFile(currentDir);
-        String kontenJurnal = await fileJurnal.exists()
+        String JournalContent = await fileJurnal.exists()
             ? await fileJurnal.readAsString()
             : "[]";
 
-        List<File> hubFiles = await _storageService.getAllChecklistGroups(
+        List<File> groupFiles = await _storageService.getAllChecklistGroups(
           currentDir,
         );
         final Archive archive = Archive();
-        for (var file in hubFiles) {
+        for (var file in groupFiles) {
           final String namaFile = file.path.split('/').last;
           final List<int> bytes = await file.readAsBytes();
           archive.addFile(ArchiveFile(namaFile, bytes.length, bytes));
         }
         final List<int>? zipBytes = ZipEncoder().encode(archive);
-        String kontenZipBase64 = zipBytes != null ? base64Encode(zipBytes) : "";
+        String zipBase64Content = zipBytes != null
+            ? base64Encode(zipBytes)
+            : "";
 
-        Map<String, dynamic> paketBesarKirim = {
+        Map<String, dynamic> sendBigPackage = {
           'tipe_pesan': 'data_transfer',
-          'task_master': kontenTasks,
-          'jurnal_aktivitas': kontenJurnal,
-          'checklist_zip': kontenZipBase64,
+          'task_master': tasksContent,
+          'jurnal_aktivitas': JournalContent,
+          'checklist_zip': zipBase64Content,
         };
 
-        for (var socket in daftarClientAktif) {
-          socket.sink.add(jsonEncode(paketBesarKirim));
+        for (var socket in clientActiveList) {
+          socket.sink.add(jsonEncode(sendBigPackage));
         }
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Berhasil mengirim data ke ${daftarClientAktif.length} Client!',
+              'Berhasil mengirim data ke ${clientActiveList.length} Client!',
             ),
             backgroundColor: Colors.teal,
           ),
@@ -253,7 +253,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
         builder: (ctx) => StatefulBuilder(
           builder: (context, setDialogState) {
             dialogState = setDialogState;
-            bool adaClient = daftarClientAktif.isNotEmpty;
+            bool adaClient = clientActiveList.isNotEmpty;
 
             return AlertDialog(
               shape: RoundedRectangleBorder(
@@ -366,7 +366,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
-                            '${daftarClientAktif.length}',
+                            '${clientActiveList.length}',
                             style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
@@ -392,9 +392,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: adaClient
-                          ? () => fungsiKirimDataServer()
-                          : null,
+                      onPressed: adaClient ? () => sendDataToServer() : null,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.teal[700],
                         foregroundColor: Colors.white,
@@ -443,7 +441,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
     }
   }
 
-  void _tampilkanDialogHubungkanKeServer() async {
+  void _showConnectToServerDialog() async {
     // Ambil data riwayat IP dari SharedPreferences
     List<String> ipHistory = await _storageService.getIpHistory();
 
@@ -550,7 +548,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                     Navigator.pop(ctx);
 
                     // Jalankan fungsi bawaan Anda untuk mengambil data
-                    _prosesTerimaDataDariServer(targetIp);
+                    _receiveDateFromServerProcess(targetIp);
                   }
                 },
                 child: const Text('Hubungkan & Ambil'),
@@ -562,7 +560,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
     );
   }
 
-  void _prosesTerimaDataDariServer(String alamatIP) async {
+  void _receiveDateFromServerProcess(String alamatIP) async {
     final urlWebSocket = 'ws://$alamatIP:8090';
 
     setState(() {
@@ -918,7 +916,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
   }
 
   // C. Tambahkan fungsi untuk melakukan Backup Semua Fitur (Menghasilkan berkas ZIP)
-  void _buatBackupSemuaFitur() async {
+  void _backupAllFeature() async {
     try {
       // 1. Membaca semua konten data yang ada saat ini
       File fileTasks = await _storageService.getTargetJsonFile(_baseDir);
@@ -989,7 +987,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
   }
 
   // === TAMBAHKAN FUNGSI UTUH INI DI DALAM _DataCenterScreenState ===
-  void _eksporBackupKeFolderKustom(File fileBackup) async {
+  void _exportBackupToCustomFolder(File fileBackup) async {
     try {
       final String namaFile = fileBackup.path.split('/').last;
 
@@ -1515,7 +1513,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                 BackupTab(
                   localBackupFiles: _localBackupFiles,
                   serverBackupFiles: _serverBackupFiles,
-                  onCreateBackup: () => _buatBackupSemuaFitur(),
+                  onCreateBackup: () => _backupAllFeature(),
                   onDeleteBackup: (file) async {
                     if (await file.exists()) {
                       await file.delete();
@@ -1536,13 +1534,13 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                   onBackupJurnal: () => _exportJurnal(),
                   onRestoreJurnal: () => _importJurnal(),
                   onImportZip: () => _importZipLokal(),
-                  onExportToFolder: (file) => _eksporBackupKeFolderKustom(file),
+                  onExportToFolder: (file) => _exportBackupToCustomFolder(file),
                 ),
 
                 // TAB 2: Local Sharing
                 LocalSharingTab(
-                  onSendFile: () => _startMulaiServerSharing(),
-                  onReceiveFile: () => _tampilkanDialogHubungkanKeServer(),
+                  onSendFile: () => _startServerSharing(),
+                  onReceiveFile: () => _showConnectToServerDialog(),
                   serverBackupFiles: _serverBackupFiles,
                   onDeleteServerBackup: (file) async {
                     if (file.path == 'trigger_refresh_after_bulk_delete') {
