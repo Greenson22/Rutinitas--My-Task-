@@ -284,7 +284,6 @@ class _BackupTabState extends State<BackupTab> {
                   final file = widget.localBackupFiles[index];
                   final isSelected = _selectedFiles.contains(file);
                   final String fileName = file.path.split('/').last;
-
                   return ListTile(
                     onLongPress: () {
                       setState(() {
@@ -372,36 +371,60 @@ class _BackupTabState extends State<BackupTab> {
                           )
                         : const Icon(Icons.folder_zip, color: Colors.amber),
                     title: Text(fileName),
+                    // === PERBAIKAN: MENGGUNAKAN POPUP MENU UNTUK AKSI YANG LEBIH PROFESIONAL ===
                     trailing: _isSelectionMode
                         ? null
-                        : Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // Tombol Baru: Untuk mengekspor berkas tunggal yang dipilih ke folder kustom luar
-                              IconButton(
-                                icon: const Icon(
-                                  Icons.drive_file_move,
-                                  color: Colors.indigo,
+                        : PopupMenuButton<String>(
+                            icon: const Icon(
+                              Icons.more_vert,
+                              color: Colors.grey,
+                            ),
+                            padding: EdgeInsets.zero,
+                            onSelected: (value) async {
+                              if (value == 'export_folder') {
+                                widget.onExportToFolder(file);
+                              } else if (value == 'delete_backup') {
+                                final bool
+                                confirm = await _showConfirmDeleteDialog(
+                                  title: 'Hapus Berkas Backup',
+                                  content:
+                                      'Apakah Anda yakin ingin menghapus berkas cadangan "$fileName" secara permanen?',
+                                );
+                                if (confirm) {
+                                  widget.onDeleteBackup(file);
+                                }
+                              }
+                            },
+                            itemBuilder: (BuildContext context) => [
+                              const PopupMenuItem<String>(
+                                value: 'export_folder',
+                                child: ListTile(
+                                  leading: Icon(
+                                    Icons.drive_file_move,
+                                    color: Colors.indigo,
+                                    size: 20,
+                                  ),
+                                  title: Text('Simpan ke Folder Kustom'),
+                                  contentPadding: EdgeInsets.zero,
+                                  dense: true,
                                 ),
-                                tooltip: 'Simpan ke Folder Kustom',
-                                onPressed: () => widget.onExportToFolder(file),
                               ),
-                              IconButton(
-                                icon: const Icon(
-                                  Icons.delete_outline,
-                                  color: Colors.red,
+                              const PopupMenuDivider(),
+                              const PopupMenuItem<String>(
+                                value: 'delete_backup',
+                                child: ListTile(
+                                  leading: Icon(
+                                    Icons.delete_outline,
+                                    color: Colors.red,
+                                    size: 20,
+                                  ),
+                                  title: Text(
+                                    'Hapus Permanen',
+                                    style: TextStyle(color: Colors.red),
+                                  ),
+                                  contentPadding: EdgeInsets.zero,
+                                  dense: true,
                                 ),
-                                onPressed: () async {
-                                  final bool
-                                  confirm = await _showConfirmDeleteDialog(
-                                    title: 'Hapus Berkas Backup',
-                                    content:
-                                        'Apakah Anda yakin ingin menghapus berkas cadangan "$fileName" secara permanen?',
-                                  );
-                                  if (confirm) {
-                                    widget.onDeleteBackup(file);
-                                  }
-                                },
                               ),
                             ],
                           ),
