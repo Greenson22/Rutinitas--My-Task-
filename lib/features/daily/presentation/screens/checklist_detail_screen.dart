@@ -26,7 +26,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
   final StorageService _storageService = StorageService();
   bool _isPageEditMode = false;
   bool _isSectionEditMode = false;
-  late ChecklistGroup _currentHub;
+  late ChecklistGroup _currentGroup;
 
   // Konstanta untuk menandai nama seksi unik/default
   static const String _defaultSectionName = "Checklist Standar";
@@ -34,24 +34,24 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _currentHub =
+    _currentGroup =
         widget.group; // Mengambil data hub yang diklik dari layar sebelumnya
   }
 
   // Fungsi menyimpan khusus ke file JSON milik Hub ini saja
   Future<void> _saveGroupData() async {
-    final Map<String, dynamic> updatedMap = _currentHub.toJson();
+    final Map<String, dynamic> updatedMap = _currentGroup.toJson();
     final String jsonString = const JsonEncoder.withIndent(
       '  ',
     ).convert(updatedMap);
     try {
       File jsonFile = await _storageService.getSpecificGroupFile(
         widget.baseDir,
-        _currentHub.id,
+        _currentGroup.id,
       );
       await _storageService.saveJsonData(jsonFile, jsonString);
     } catch (e) {
-      debugPrint("Error saving hub data: $e");
+      debugPrint("Error saving group data: $e");
     }
   }
 
@@ -88,14 +88,14 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
               if (sectionController.text.isNotEmpty) {
                 setState(() {
                   // LOGIKA: Jika seksi pertama masih berupa seksi unik default, otomatis ubah namanya
-                  if (_currentHub.allList.length == 1 &&
-                      _currentHub.allList.first.sectionName ==
+                  if (_currentGroup.allList.length == 1 &&
+                      _currentGroup.allList.first.sectionName ==
                           _defaultSectionName) {
-                    _currentHub.allList.first.sectionName = "Seksi Utama";
+                    _currentGroup.allList.first.sectionName = "Seksi Utama";
                   }
 
                   // Tambahkan seksi baru pilihan pengguna
-                  _currentHub.allList.add(
+                  _currentGroup.allList.add(
                     ChecklistSection(
                       sectionName: sectionController.text,
                       items: [],
@@ -120,18 +120,18 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
     showDialog(
       context: context,
       builder: (context) => AddDailySubjectDialog(
-        existingSections: _currentHub.allList.isEmpty
+        existingSections: _currentGroup.allList.isEmpty
             ? [_defaultSectionName]
-            : _currentHub.allList.map((sec) => sec.sectionName).toList(),
+            : _currentGroup.allList.map((sec) => sec.sectionName).toList(),
         onSave: (newSubject) {
           setState(() {
             // Jika ditambahkan saat kosong, buat seksi unik terlebih dahulu
-            if (_currentHub.allList.isEmpty) {
+            if (_currentGroup.allList.isEmpty) {
               final newSection = ChecklistSection(
                 sectionName: _defaultSectionName,
                 items: [newSubject],
               );
-              _currentHub.allList.add(newSection);
+              _currentGroup.allList.add(newSection);
             } else {
               // Jika seksi target ada, langsung masukkan ke seksi tersebut
               targetSection?.items.add(newSubject);
@@ -235,19 +235,19 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
         false;
 
     if (confirm) {
-      setState(() => _currentHub.allList.remove(section));
+      setState(() => _currentGroup.allList.remove(section));
       _saveGroupData();
     }
   }
 
   void _moveSectionOrder(int currentIndex, int direction) {
     int newIndex = currentIndex + direction;
-    if (newIndex < 0 || newIndex >= _currentHub.allList.length) return;
+    if (newIndex < 0 || newIndex >= _currentGroup.allList.length) return;
 
     setState(() {
-      final temp = _currentHub.allList[currentIndex];
-      _currentHub.allList[currentIndex] = _currentHub.allList[newIndex];
-      _currentHub.allList[newIndex] = temp;
+      final temp = _currentGroup.allList[currentIndex];
+      _currentGroup.allList[currentIndex] = _currentGroup.allList[newIndex];
+      _currentGroup.allList[newIndex] = temp;
     });
     _saveGroupData();
   }
@@ -259,9 +259,9 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
       appBar: AppBar(
         title: Row(
           children: [
-            Text(_currentHub.icon, style: const TextStyle(fontSize: 22)),
+            Text(_currentGroup.icon, style: const TextStyle(fontSize: 22)),
             const SizedBox(width: 8),
-            Text(_currentHub.groupName),
+            Text(_currentGroup.groupName),
           ],
         ),
         backgroundColor: Colors.teal[700],
@@ -269,7 +269,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
       ),
 
       // MODIFIKASI: Jika kosong, tampilkan tombol untuk langsung menambah item pertama
-      body: _currentHub.allList.isEmpty
+      body: _currentGroup.allList.isEmpty
           ? Center(
               child: ElevatedButton.icon(
                 onPressed: () => _addItemToSection(context, null),
@@ -284,13 +284,13 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
               builder: (context, constraints) {
                 return ListView.builder(
                   padding: const EdgeInsets.symmetric(vertical: 12),
-                  itemCount: _currentHub.allList.length,
+                  itemCount: _currentGroup.allList.length,
                   itemBuilder: (context, index) {
-                    final section = _currentHub.allList[index];
+                    final section = _currentGroup.allList[index];
 
                     // Evaluasi apakah ini seksi default tunggal yang perlu disembunyikan judulnya
                     final bool hideHeader =
-                        _currentHub.allList.length == 1 &&
+                        _currentGroup.allList.length == 1 &&
                         section.sectionName == _defaultSectionName;
 
                     // Di dalam ListView.builder milik widget build:
@@ -381,7 +381,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                             size: 18,
                             color: Colors.blueGrey,
                           ),
-                          onPressed: index < _currentHub.allList.length - 1
+                          onPressed: index < _currentGroup.allList.length - 1
                               ? () => _moveSectionOrder(index, 1)
                               : null,
                         ),
@@ -678,7 +678,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                         onSelected: (targetSectionName) {
                           setState(() {
                             final itemToMove = subjectsList.removeAt(index);
-                            _currentHub.allList
+                            _currentGroup.allList
                                 .firstWhere(
                                   (sec) => sec.sectionName == targetSectionName,
                                 )
@@ -687,7 +687,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                           });
                           _saveGroupData();
                         },
-                        itemBuilder: (context) => _currentHub.allList
+                        itemBuilder: (context) => _currentGroup.allList
                             .map(
                               (sec) => PopupMenuItem<String>(
                                 value: sec.sectionName,
