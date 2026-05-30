@@ -31,7 +31,7 @@ class _DailyScreenState extends State<DailyScreen> {
 
   Map<String, List<ChecklistHub>> _groupedVisibleHubs = {};
   Map<String, List<ChecklistHub>> _groupedHiddenHubs = {};
-  final Set<String> _editingSections = {};
+  bool _isSectionEditMode = false;
 
   @override
   void initState() {
@@ -481,10 +481,6 @@ class _DailyScreenState extends State<DailyScreen> {
                     ...semuaKunciSeksi.map((namaSeksiUtama) {
                       final listHubDiSeksiIni =
                           _groupedVisibleHubs[namaSeksiUtama] ?? [];
-                      // Periksa apakah seksi spesifik ini sedang aktif mode editnya
-                      final bool showAddButton = _editingSections.contains(
-                        namaSeksiUtama,
-                      );
 
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -494,33 +490,24 @@ class _DailyScreenState extends State<DailyScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // InkWell diterapkan pada semua seksi secara dinamis
+                                // InkWell diterapkan pada semua seksi
                                 InkWell(
                                   onLongPress: () {
                                     setState(() {
-                                      if (_editingSections.contains(
-                                        namaSeksiUtama,
-                                      )) {
-                                        _editingSections.remove(
-                                          namaSeksiUtama,
-                                        ); // Sembunyikan jika ditahan lagi
-                                      } else {
-                                        _editingSections.add(
-                                          namaSeksiUtama,
-                                        ); // Munculkan jika ditahan
-                                      }
+                                      // Mengubah status mode edit untuk SEMUA seksi sekaligus
+                                      _isSectionEditMode = !_isSectionEditMode;
                                     });
                                   },
                                   borderRadius: BorderRadius.circular(8),
-                                  // Efek perubahan ukuran: padding membesar secara dinamis saat tombol muncul
+                                  // Animasi perubahan ukuran atas-bawah yang terjadi di semua seksi
                                   child: AnimatedPadding(
                                     duration: const Duration(milliseconds: 200),
                                     curve: Curves.easeInOut,
-                                    padding: showAddButton
+                                    padding: _isSectionEditMode
                                         ? const EdgeInsets.symmetric(
                                             vertical: 12.0,
                                             horizontal: 8.0,
-                                          ) // Jarak membesar (efek atas-bawah)
+                                          ) // Jarak membesar saat mode edit aktif
                                         : const EdgeInsets.symmetric(
                                             vertical: 4.0,
                                             horizontal: 4.0,
@@ -538,7 +525,7 @@ class _DailyScreenState extends State<DailyScreen> {
                                             letterSpacing: 0.8,
                                           ),
                                         ),
-                                        // Menampilkan tombol tambah dengan animasi transisi membesar/mengecil
+                                        // Menampilkan tombol tambah di semua seksi dengan animasi skala
                                         AnimatedSwitcher(
                                           duration: const Duration(
                                             milliseconds: 200,
@@ -553,7 +540,7 @@ class _DailyScreenState extends State<DailyScreen> {
                                                   child: child,
                                                 );
                                               },
-                                          child: showAddButton
+                                          child: _isSectionEditMode
                                               ? IconButton(
                                                   key: ValueKey(
                                                     'add_btn_$namaSeksiUtama',
