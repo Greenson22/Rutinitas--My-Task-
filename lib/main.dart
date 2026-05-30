@@ -30,69 +30,102 @@ class WindowControlWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Mengambil warna tema AppBar utama agar menyatu secara visual
+    final Color barColor = Colors.indigo;
+
     return Scaffold(
+      backgroundColor: Colors.grey[200],
       body: Column(
         children: [
-          // AppBar khusus berukuran kecil (32 pixel) di paling atas
+          // 1. BAR KONTROL JENDELA UTAMA (Paling Atas)
           Container(
-            height: 32,
-            color:
-                Theme.of(context).appBarTheme.backgroundColor ??
-                Colors.transparent,
+            height: 30, // Ukuran bar yang tipis dan minimalis
+            color: barColor,
             child: Row(
               children: [
-                // Area kosong yang bisa di-drag untuk memindahkan jendela aplikasi
-                const Expanded(
-                  child: WindowCaption(
-                    brightness: Brightness.dark,
-                    backgroundColor: Colors.transparent,
+                // Area kosong kiri sampai tengah yang bisa digunakan untuk menggeser/drag aplikasi
+                Expanded(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onPanStart: (details) {
+                      windowManager.startDragging();
+                    },
+                    child: const SizedBox(height: double.infinity),
                   ),
                 ),
-                // Deretan tombol kontrol window kustom
-                // 1. Tombol Minimize
-                IconButton(
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  icon: const Icon(Icons.minimize, size: 16),
-                  alignment: Alignment.bottomCenter,
-                  onPressed: () async {
-                    if (await windowManager.isMinimized()) {
-                      await windowManager.restore();
-                    } else {
-                      await windowManager.minimize();
-                    }
-                  },
-                ),
-                const SizedBox(width: 12),
-                // 2. Tombol Maximize / Restore
-                IconButton(
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  icon: const Icon(Icons.crop_square, size: 14),
-                  onPressed: () async {
-                    if (await windowManager.isMaximized()) {
-                      await windowManager.unmaximize();
-                    } else {
-                      await windowManager.maximize();
-                    }
-                  },
-                ),
-                const SizedBox(width: 12),
-                // 3. Tombol Close
-                InkWell(
-                  onTap: () async {
-                    await windowManager.close();
-                  },
-                  hoverColor: Colors.red.withOpacity(0.8),
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    child: Icon(Icons.close, size: 16),
+                // Wadah khusus tombol kontrol di pojok kanan agar ukuran & posisinya presisi
+                SizedBox(
+                  height: 30,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Tombol Minimize
+                      SizedBox(
+                        width: 45,
+                        height: 30,
+                        child: IconButton(
+                          padding: EdgeInsets.zero,
+                          icon: const Icon(
+                            Icons.minimize,
+                            size: 16,
+                            color: Colors.white,
+                          ),
+                          hoverColor: Colors.white.withOpacity(0.1),
+                          onPressed: () async {
+                            if (await windowManager.isMinimized()) {
+                              await windowManager.restore();
+                            } else {
+                              await windowManager.minimize();
+                            }
+                          },
+                        ),
+                      ),
+                      // Tombol Maximize / Restore
+                      SizedBox(
+                        width: 45,
+                        height: 30,
+                        child: IconButton(
+                          padding: EdgeInsets.zero,
+                          icon: const Icon(
+                            Icons.crop_square,
+                            size: 14,
+                            color: Colors.white,
+                          ),
+                          hoverColor: Colors.white.withOpacity(0.1),
+                          onPressed: () async {
+                            if (await windowManager.isMaximized()) {
+                              await windowManager.unmaximize();
+                            } else {
+                              await windowManager.maximize();
+                            }
+                          },
+                        ),
+                      ),
+                      // Tombol Close
+                      SizedBox(
+                        width: 45,
+                        height: 30,
+                        child: IconButton(
+                          padding: EdgeInsets.zero,
+                          icon: const Icon(
+                            Icons.close,
+                            size: 16,
+                            color: Colors.white,
+                          ),
+                          hoverColor: Colors
+                              .redAccent, // Berubah merah saat kursor menyentuh tombol close
+                          onPressed: () async {
+                            await windowManager.close();
+                          },
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-          // Halaman aplikasi Anda yang sebenarnya akan muncul di bawah AppBar tipis ini
+          // 2. HALAMAN APLIKASI UTAMA (Muncul tepat di bawah bar kontrol)
           Expanded(child: child),
         ],
       ),
