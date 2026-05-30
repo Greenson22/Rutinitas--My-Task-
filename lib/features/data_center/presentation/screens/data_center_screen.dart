@@ -1307,14 +1307,14 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
   // Letakkan fungsi ini di dalam class _DataCenterScreenState
 
   // Mengubah fungsi agar menerima parameter file yang dipilih dari list
-  void _importSemuaDariZip(File zipFile) async {
+  void _importAllFromZip(File zipFile) async {
     try {
       // Membaca bytes dari file ZIP target yang di-klik pengguna
       List<int> bytes = await zipFile.readAsBytes();
 
       // Dekode/Ekstrak file ZIP
       Archive archive = ZipDecoder().decodeBytes(bytes);
-      int hitungChecklist = 0;
+      int checkListCount = 0;
 
       // Iterasi ekstraksi isi ZIP ke folder aplikasi masing-masing
       for (ArchiveFile file in archive) {
@@ -1332,7 +1332,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                   .getChecklistDirPath(_baseDir);
               File target = File('$folderChecklist/$namaFileHub');
               await target.writeAsBytes(file.content);
-              hitungChecklist++;
+              checkListCount++;
             }
           }
         }
@@ -1450,7 +1450,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
 
         // 3. Jika disetujui, panggil fungsi restore bawaan aplikasi Anda yang sudah ada
         if (confirm) {
-          _importSemuaDariZip(selectedZipFile);
+          _importAllFromZip(selectedZipFile);
         }
       }
     } catch (e) {
@@ -1526,7 +1526,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                       await _loadServerBackups();
                     }
                   },
-                  onRestoreAllZip: (file) => _importSemuaDariZip(file),
+                  onRestoreAllZip: (file) => _importAllFromZip(file),
                   onBackupTaskMaster: () => _exportTaskMaster(),
                   onRestoreTaskMaster: () => _importTaskMaster(),
                   onBackupChecklist: () => _exportChecklist(),
@@ -1578,7 +1578,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                       await _loadServerBackups();
                     }
                   },
-                  onRestoreAllZip: (file) => _importSemuaDariZip(file),
+                  onRestoreAllZip: (file) => _importAllFromZip(file),
                 ),
               ],
             ),
