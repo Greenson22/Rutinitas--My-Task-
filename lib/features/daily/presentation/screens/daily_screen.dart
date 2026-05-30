@@ -421,7 +421,7 @@ class _DailyScreenState extends State<DailyScreen> {
       padding: const EdgeInsets.all(12),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
-        // Rasio aspek disesuaikan secara dinamis agar kotak memanjang ke bawah saat panel kontrol aktif
+        // Rasio aspek disesuaikan agar pas saat memanjang ke bawah ketika mode edit aktif
         childAspectRatio: _isPageEditMode ? 0.90 : 1.15,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
@@ -430,7 +430,7 @@ class _DailyScreenState extends State<DailyScreen> {
       itemBuilder: (context, index) {
         final hub = hubsList[index];
 
-        // LOGIKA BARU: Menghitung total seluruh item dari semua seksi di dalam hub ini
+        // Menghitung total seluruh item dari semua seksi di dalam hub ini
         int totalItems = 0;
         for (var section in hub.semuaList) {
           totalItems += section.items.length;
@@ -457,7 +457,6 @@ class _DailyScreenState extends State<DailyScreen> {
                     bottomLeft: Radius.circular(_isPageEditMode ? 0 : 16),
                     bottomRight: Radius.circular(_isPageEditMode ? 0 : 16),
                   ),
-                  // Mengaktifkan atau mengembalikan mode edit dengan cara menahan kotak
                   onLongPress: () {
                     setState(() {
                       _isPageEditMode = !_isPageEditMode;
@@ -505,7 +504,7 @@ class _DailyScreenState extends State<DailyScreen> {
                             maxLines: 1,
                           ),
                           const SizedBox(height: 6),
-                          // BARIS INFORMASI STATISTIK HUB (Seksi & Total Item)
+                          // Baris Informasi Statistik Hub
                           Wrap(
                             spacing: 6,
                             runSpacing: 4,
@@ -536,7 +535,7 @@ class _DailyScreenState extends State<DailyScreen> {
                                   ),
                                 ),
                               ),
-                              // KOTAK BARU: Menampilkan total jumlah item produktif di dalam Hub
+                              // Kotak Jumlah Item
                               Container(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 8,
@@ -569,12 +568,12 @@ class _DailyScreenState extends State<DailyScreen> {
                   ),
                 ),
               ),
-              // PANEL KONTROL AKTIF (Tampil saat Mode Edit Aktif)
+              // PANEL KONTROL RINGKAS (Tampil saat Mode Edit Aktif)
               if (_isPageEditMode) ...[
                 Container(
                   color: Colors.transparent,
                   padding: const EdgeInsets.symmetric(
-                    vertical: 4,
+                    vertical: 2,
                     horizontal: 8,
                   ),
                   child: Row(
@@ -590,35 +589,85 @@ class _DailyScreenState extends State<DailyScreen> {
                             ? () => _moveHubOrder(hubsList, index, -1)
                             : null,
                       ),
-                      // 2. Tombol Sembunyikan / Tampilkan (Mata)
-                      IconButton(
-                        icon: Icon(
-                          hub.isHidden
-                              ? Icons.visibility
-                              : Icons.visibility_off,
-                          size: 18,
-                          color: Colors.blueGrey[700],
-                        ),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        tooltip: hub.isHidden
-                            ? 'Tampilkan Hub'
-                            : 'Sembunyikan Hub',
-                        onPressed: () => _toggleHubVisibility(hub),
-                      ),
-                      // TAMBAHAN FITUR: 3. Tombol Edit Nama & Ikon Hub (Pensil)
-                      IconButton(
+
+                      // 2. MODIFIKASI BARU: Menu Titik Tiga (Ubah, Sembunyikan, Hapus)
+                      PopupMenuButton<String>(
                         icon: const Icon(
-                          Icons.edit,
-                          size: 18,
-                          color: Colors.teal,
+                          Icons.more_vert,
+                          size: 20,
+                          color: Colors.blueGrey,
                         ),
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
-                        tooltip: 'Ubah Hub',
-                        onPressed: () => _showEditHubDialog(hub),
+                        onSelected: (value) {
+                          if (value == 'edit') {
+                            _showEditHubDialog(hub);
+                          } else if (value == 'toggle_visibility') {
+                            _toggleHubVisibility(hub);
+                          } else if (value == 'delete') {
+                            _deleteHub(hub);
+                          }
+                        },
+                        itemBuilder: (BuildContext context) => [
+                          PopupMenuItem(
+                            value: 'edit',
+                            child: Row(
+                              children: const [
+                                Icon(Icons.edit, size: 18, color: Colors.teal),
+                                SizedBox(width: 10),
+                                Text(
+                                  'Ubah Nama & Ikon',
+                                  style: TextStyle(fontSize: 13),
+                                ),
+                              ],
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: 'toggle_visibility',
+                            child: Row(
+                              children: [
+                                Icon(
+                                  hub.isHidden
+                                      ? Icons.visibility
+                                      : Icons.visibility_off,
+                                  size: 18,
+                                  color: Colors.blueGrey[700],
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  hub.isHidden
+                                      ? 'Tampilkan Hub'
+                                      : 'Sembunyikan Hub',
+                                  style: const TextStyle(fontSize: 13),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuDivider(),
+                          PopupMenuItem(
+                            value: 'delete',
+                            child: Row(
+                              children: const [
+                                Icon(
+                                  Icons.delete_outline,
+                                  size: 18,
+                                  color: Colors.redAccent,
+                                ),
+                                SizedBox(width: 10),
+                                Text(
+                                  'Hapus Hub',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.redAccent,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                      // 4. Tombol Pindah Kanan / Bawah
+
+                      // 3. Tombol Pindah Kanan / Bawah
                       IconButton(
                         icon: const Icon(Icons.arrow_forward, size: 18),
                         color: index < hubsList.length - 1
@@ -629,17 +678,6 @@ class _DailyScreenState extends State<DailyScreen> {
                         onPressed: index < hubsList.length - 1
                             ? () => _moveHubOrder(hubsList, index, 1)
                             : null,
-                      ),
-                      // 5. Tombol Hapus (Merah)
-                      IconButton(
-                        icon: const Icon(
-                          Icons.delete_outline,
-                          size: 18,
-                          color: Colors.redAccent,
-                        ),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        onPressed: () => _deleteHub(hub),
                       ),
                     ],
                   ),
