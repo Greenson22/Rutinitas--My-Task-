@@ -49,62 +49,168 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
   void _showEditPromptDialog(PromptItem item) {
     final titleController = TextEditingController(text: item.actAs);
     final contentController = TextEditingController(text: item.content);
+    final formKey = GlobalKey<FormState>();
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Edit Prompt'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: titleController,
-                decoration: const InputDecoration(
-                  labelText: 'Judul / Peran',
-                  border: OutlineInputBorder(),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        contentPadding: EdgeInsets
+            .zero, // Diatur nol agar header indigo penuh ke ujung sisi
+        title:
+            const SizedBox.shrink(), // Dipindahkan ke dalam content widget custom header
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 1. BANNER CUSTOM HEADER (Terinspirasi dari DailyChecklistDialog)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  decoration: const BoxDecoration(
+                    color: Colors.indigo,
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(16),
+                      topRight: Radius.circular(16),
+                    ),
+                  ),
+                  child: Row(
+                    children: const [
+                      Icon(Icons.edit_note, color: Colors.white, size: 24),
+                      SizedBox(width: 8),
+                      Text(
+                        'Ubah Detail Prompt',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: contentController,
-                maxLines: 4,
-                decoration: const InputDecoration(
-                  labelText: 'Isi Prompt',
-                  border: OutlineInputBorder(),
+
+                // 2. FORM BODY INPUTS
+                Flexible(
+                  child: ListView(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.all(16.0),
+                    children: [
+                      // Input Judul / Peran
+                      TextFormField(
+                        controller: titleController,
+                        decoration: const InputDecoration(
+                          labelText: 'Judul / Peran (Act As)',
+                          hintText:
+                              'Contoh: Translator Bahasa, Senior Developer',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        validator: (v) => v!.trim().isEmpty
+                            ? 'Judul/Peran tidak boleh kosong'
+                            : null,
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Input Isi Perintah Prompt
+                      TextFormField(
+                        controller: contentController,
+                        maxLines: 6,
+                        minLines: 3,
+                        textAlignVertical: TextAlignVertical.top,
+                        decoration: InputDecoration(
+                          labelText: 'Isi Perintah Prompt',
+                          hintText: 'Tulis instruksi lengkap AI di sini...',
+                          border: const OutlineInputBorder(),
+                          alignLabelWithHint: true,
+                          hintStyle: TextStyle(color: Colors.grey[400]),
+                        ),
+                        validator: (v) => v!.trim().isEmpty
+                            ? 'Isi prompt tidak boleh kosong'
+                            : null,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+
+                const Divider(height: 1),
+
+                // 3. DIALOG ACTIONS BUTTON PANEL
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text(
+                          'Batal',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton.icon(
+                        icon: const Icon(
+                          Icons.save,
+                          size: 16,
+                          color: Colors.white,
+                        ),
+                        label: const Text(
+                          'Simpan Perubahan',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.indigo,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        onPressed: () async {
+                          if (formKey.currentState!.validate()) {
+                            final updatedGroup = await _controller
+                                .editPromptItem(
+                                  group: _currentGroup,
+                                  itemId: item.id,
+                                  newActAs: titleController.text.trim(),
+                                  newContent: contentController.text.trim(),
+                                  context: context,
+                                );
+
+                            if (updatedGroup != null) {
+                              setState(() => _currentGroup = updatedGroup);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    '📝 Prompt berhasil diperbarui!',
+                                  ),
+                                  duration: Duration(seconds: 1),
+                                ),
+                              );
+                            }
+                            if (ctx.mounted) Navigator.pop(ctx);
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
-            onPressed: () async {
-              if (titleController.text.trim().isEmpty ||
-                  contentController.text.trim().isEmpty)
-                return;
-
-              final updatedGroup = await _controller.editPromptItem(
-                group: _currentGroup,
-                itemId: item.id,
-                newActAs: titleController.text,
-                newContent: contentController.text,
-                context: context,
-              );
-
-              if (updatedGroup != null) {
-                setState(() => _currentGroup = updatedGroup);
-              }
-              if (context.mounted) Navigator.pop(ctx);
-            },
-            child: const Text('Simpan', style: TextStyle(color: Colors.white)),
-          ),
-        ],
       ),
     );
   }
