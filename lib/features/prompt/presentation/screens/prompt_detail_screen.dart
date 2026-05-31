@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../data/models/prompt_model.dart';
 import '../controllers/prompt_controller.dart';
+import '../widgets/add_prompt_item_dialog.dart'; // Import dialog baru di sini
 
 class PromptDetailScreen extends StatefulWidget {
   final PromptGroup promptGroup;
@@ -24,100 +25,18 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
     _currentGroup = widget.promptGroup;
   }
 
-  void _showAddPromptItemDialog(BuildContext context) {
-    final titleController = TextEditingController();
-    final descController = TextEditingController();
-    final contentController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-
+  void _openAddPromptDialog() {
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: const [
-            Icon(Icons.playlist_add, color: Colors.indigo),
-            SizedBox(width: 8),
-            Text('Tambah Item Prompt'),
-          ],
-        ),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: Form(
-            key: formKey,
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                TextFormField(
-                  controller: titleController,
-                  decoration: const InputDecoration(
-                    labelText: 'Judul / Peran (Title)',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (v) =>
-                      v!.trim().isEmpty ? 'Title tidak boleh kosong' : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: descController,
-                  decoration: const InputDecoration(
-                    labelText: 'Deskripsi Pendek (Opsional)',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: contentController,
-                  maxLines: 4,
-                  decoration: const InputDecoration(
-                    labelText: 'Isi Perintah Prompt (Content)',
-                    border: OutlineInputBorder(),
-                    alignLabelWithHint: true,
-                  ),
-                  validator: (v) => v!.trim().isEmpty
-                      ? 'Isi prompt tidak boleh kosong'
-                      : null,
-                ),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
-            onPressed: () async {
-              if (formKey.currentState!.validate()) {
-                // Memanggil fungsi simpan dan mengambil objek Group terbaru yang dikembalikan controller
-                final updatedGroup = await _controller.addPromptItemToGroup(
-                  group: _currentGroup,
-                  title: titleController.text,
-                  description: descController.text,
-                  content: contentController.text,
-                  context: context,
-                );
-
-                if (updatedGroup != null && mounted) {
-                  setState(() {
-                    // Paksa UI memperbarui state dengan data grup yang paling baru
-                    _currentGroup = updatedGroup;
-                  });
-                }
-
-                if (context.mounted) {
-                  Navigator.pop(ctx);
-                }
-              }
-            },
-            child: const Text(
-              'Simpan Prompt',
-              style: TextStyle(color: Colors.white),
-            ),
-          ),
-        ],
+      builder: (ctx) => AddPromptItemDialog(
+        currentGroup: _currentGroup,
+        controller: _controller,
+        onPromptAdded: (updatedGroup) {
+          setState(() {
+            // Paksa UI memperbarui state dengan data grup yang paling baru
+            _currentGroup = updatedGroup;
+          });
+        },
       ),
     );
   }
@@ -208,7 +127,7 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
               },
             ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddPromptItemDialog(context),
+        onPressed: _openAddPromptDialog,
         backgroundColor: Colors.indigo,
         tooltip: 'Tambah Item Prompt Baru',
         child: const Icon(Icons.add, color: Colors.white),
