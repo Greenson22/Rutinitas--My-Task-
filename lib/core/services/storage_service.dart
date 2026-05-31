@@ -250,4 +250,13 @@ class StorageService {
     final Directory promptDir = await getPromptDir(baseDirSetting);
     return File('${promptDir.path}/$id.json');
   }
+
+  Future<void> savePromptGroup(
+    String baseDirSetting,
+    String id,
+    String jsonContent,
+  ) async {
+    final file = await getSpecificPromptFile(baseDirSetting, id);
+    await file.writeAsString(jsonContent);
+  }
 }

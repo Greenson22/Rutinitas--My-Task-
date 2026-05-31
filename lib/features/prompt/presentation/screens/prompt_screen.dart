@@ -54,6 +54,98 @@ class _PromptScreenState extends State<PromptScreen> {
     }
   }
 
+  Future<void> _showAddGroupDialog() async {
+    final titleController = TextEditingController();
+    final iconController = TextEditingController(text: '📝');
+    final sectionController = TextEditingController();
+
+    return showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Tambah Group Prompt'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: titleController,
+                  decoration: const InputDecoration(
+                    labelText: 'Judul Group (e.g. Copywriting, Coding)',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: iconController,
+                  decoration: const InputDecoration(labelText: 'Icon Emoji'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: sectionController,
+                  decoration: const InputDecoration(
+                    labelText: 'Nama Seksi / Kategori',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (titleController.text.trim().isEmpty) return;
+
+                try {
+                  final baseDir = await _storageService.getBaseDirSetting();
+                  final id = DateTime.now().millisecondsSinceEpoch.toString();
+
+                  // Membuat objek baru berdasarkan struktur PromptGroup model
+                  final newGroup = PromptGroup(
+                    id: id,
+                    title: titleController.text.trim(),
+                    sectionName: sectionController.text.trim().isEmpty
+                        ? 'General'
+                        : sectionController.text.trim(),
+                    icon: iconController.text.trim().isEmpty
+                        ? '📝'
+                        : iconController.text.trim(),
+                    lastUpdated: DateTime.now().toIso8601String(),
+                    prompts:
+                        [], // Default awal kosong, diisi dari dalam detail nanti
+                  );
+
+                  // Mengubah model menjadi string json menggunakan toJson()
+                  final jsonContent = jsonEncode(newGroup.toJson());
+
+                  // Simpan menggunakan storage service yang baru ditambahkan
+                  await _storageService.savePromptGroup(
+                    baseDir,
+                    id,
+                    jsonContent,
+                  );
+
+                  if (mounted) {
+                    Navigator.pop(context);
+                    // Panggil fungsi muat ulang bawaan screen agar grid ter-refresh secara real-time
+                    _loadAllPrompts();
+                  }
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Gagal menyimpan group: $e')),
+                  );
+                }
+              },
+              child: const Text('Simpan'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -110,7 +202,8 @@ class _PromptScreenState extends State<PromptScreen> {
               },
             ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {},
+        onPressed:
+            _showAddGroupDialog, // Memanggil fungsi dialog yang baru dibuat
         backgroundColor: Colors.indigo,
         tooltip: 'Tambah Prompt Baru',
         child: const Icon(
