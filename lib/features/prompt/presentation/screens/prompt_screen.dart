@@ -55,9 +55,8 @@ class _PromptScreenState extends State<PromptScreen> {
     }
   }
 
-  // Mengubah fungsi moveSectionOrder menjadi Future<void> karena membutuhkan operasi asinkron (I/O File)
   void moveSectionOrder(int index, int direction) async {
-    // 1. Memisahkan list prompt ke dalam Map berdasarkan sectionName (sama seperti logika di build)
+    // 1. Rekonstruksi struktur seksi (Map) saat ini dari data state lokal
     final Map<String, List<PromptGroup>> sectionsMap = {};
     for (var group in _promptGroups) {
       final secName = group.sectionName.isEmpty
@@ -75,29 +74,68 @@ class _PromptScreenState extends State<PromptScreen> {
       sectionKeys.insert(0, 'GENERAL');
     }
 
-    // Memastikan perpindahan valid dalam rentang indeks seksi yang ada
     int targetIndex = index + direction;
     if (targetIndex < 0 || targetIndex >= sectionKeys.length) return;
 
-    setState(() => _isLoading = true);
+    final currentSectionName = sectionKeys[index];
+    final targetSectionName = sectionKeys[targetIndex];
 
+    final currentGroups = sectionsMap[currentSectionName] ?? [];
+    final targetGroups = sectionsMap[targetSectionName] ?? [];
+
+    // 2. OPTIMISTIC UPDATE: Lakukan manipulasi data di memori RAM/UI terlebih dahulu
+    setState(() {
+      // Tukar isi properti objek di memori secara lokal
+      for (var group in currentGroups) {
+        int idx = _promptGroups.indexWhere((g) => g.id == group.id);
+        if (idx != -1) {
+          _promptGroups[idx] = PromptGroup(
+            id: group.id,
+            title: group.title,
+            sectionName: targetSectionName, // Set ke seksi target
+            icon: group.icon,
+            lastUpdated: DateTime.now().toIso8601String(),
+            prompts: group.prompts,
+          );
+        }
+      }
+
+      for (var group in targetGroups) {
+        int idx = _promptGroups.indexWhere((g) => g.id == group.id);
+        if (idx != -1) {
+          _promptGroups[idx] = PromptGroup(
+            id: group.id,
+            title: group.title,
+            sectionName: currentSectionName, // Set ke seksi semula
+            icon: group.icon,
+            lastUpdated: DateTime.now().toIso8601String(),
+            prompts: group.prompts,
+          );
+        }
+      }
+
+      // Matikan edit mode agar UI langsung kembali normal dan rapi
+      isSectionEditMode = false;
+    });
+
+    // Berikan feedback visual instan berupa SnackBar tanpa menunggu proses simpan berkas selesai
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Urutan seksi berhasil dipindahkan'),
+        duration: Duration(seconds: 1),
+      ),
+    );
+
+    // 3. BACKGROUND I/O TASK: Proses penulisan file fisik dijalankan di latar belakang tanpa mengunci layar
     try {
       final baseDir = await _storageService.getBaseDirSetting();
 
-      // Ambil nama seksi saat ini dan nama seksi target tujuan
-      final currentSectionName = sectionKeys[index];
-      final targetSectionName = sectionKeys[targetIndex];
-
-      // Ambil semua grup yang ada di kedua seksi tersebut
-      final currentGroups = sectionsMap[currentSectionName] ?? [];
-      final targetGroups = sectionsMap[targetSectionName] ?? [];
-
-      // Proses 1: Ubah semua grup di seksi saat ini menjadi nama seksi target
+      // Simpan perubahan ke penyimpanan internal secara asinkron
       for (var group in currentGroups) {
         final updatedGroup = PromptGroup(
           id: group.id,
           title: group.title,
-          sectionName: targetSectionName, // Set ke nama seksi target
+          sectionName: targetSectionName,
           icon: group.icon,
           lastUpdated: DateTime.now().toIso8601String(),
           prompts: group.prompts,
@@ -109,12 +147,11 @@ class _PromptScreenState extends State<PromptScreen> {
         );
       }
 
-      // Proses 2: Ubah semua grup di seksi target menjadi nama seksi saat ini (tukar posisi)
       for (var group in targetGroups) {
         final updatedGroup = PromptGroup(
           id: group.id,
           title: group.title,
-          sectionName: currentSectionName, // Set ke nama seksi saat ini
+          sectionName: currentSectionName,
           icon: group.icon,
           lastUpdated: DateTime.now().toIso8601String(),
           prompts: group.prompts,
@@ -125,22 +162,13 @@ class _PromptScreenState extends State<PromptScreen> {
           jsonEncode(updatedGroup.toJson()),
         );
       }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Urutan seksi berhasil diperbarui di penyimpanan'),
-        ),
-      );
     } catch (e) {
+      // Jika penulisan file gagal di background, barulah berikan peringatan dan sync ulang
+      debugPrint("Gagal mengamankan urutan seksi di storage: $e");
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal memperbarui urutan seksi: $e')),
+        SnackBar(content: Text('Penyimpanan sinkronisasi gagal: $e')),
       );
-    } finally {
-      setState(() {
-        isSectionEditMode = false;
-      });
-      // Memuat ulang data terbaru dari penyimpanan lokal setelah penulisan file selesai
-      _loadAllPrompts();
+      _loadAllPrompts(); // Kembalikan ke state asli jika I/O gagal total
     }
   }
 
