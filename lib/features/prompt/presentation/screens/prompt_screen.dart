@@ -1,7 +1,12 @@
 // lib/features/prompt/presentation/screens/prompt_screen.dart
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:rutinitasku/core/services/storage_service.dart';
 import '../../../../core/presentation/widgets/drawer_menu.dart';
 import '../../../daily/data/models/daily_model.dart';
+import '../../data/models/prompt_model.dart';
+import 'package:flutter/services.dart';
 
 // =========================================================================
 // 1. WIDGET HALAMAN UTAMA PROMPT
@@ -14,24 +19,40 @@ class PromptScreen extends StatefulWidget {
 }
 
 class _PromptScreenState extends State<PromptScreen> {
-  final List<ChecklistGroup> _promptGroups = [
-    ChecklistGroup(id: '1', groupName: 'Daily Prompt', icon: '📆', allList: []),
-    ChecklistGroup(id: '2', groupName: 'Bible Study', icon: '✝', allList: []),
-    ChecklistGroup(
-      id: '3',
-      groupName: 'SoftSkill & MetaSkill',
-      icon: '🧠',
-      allList: [],
-    ),
-    ChecklistGroup(
-      id: '4',
-      groupName: 'Coding Assistant',
-      icon: '👨‍💻',
-      allList: [],
-    ),
-  ];
+  final StorageService _storageService = StorageService();
+  List<PromptGroup> _promptGroups = [];
+  bool _isLoading = true;
 
-  bool _isPageEditMode = false;
+  @override
+  void initState() {
+    super.initState();
+    _loadAllPrompts();
+  }
+
+  Future<void> _loadAllPrompts() async {
+    setState(() => _isLoading = true);
+    try {
+      final baseDir = await _storageService.getBaseDirSetting();
+      final files = await _storageService.getAllPromptGroups(baseDir);
+
+      List<PromptGroup> loadedGroups = [];
+      for (var file in files) {
+        final content = await file.readAsString();
+        final jsonMap = jsonDecode(content);
+        loadedGroups.add(PromptGroup.fromJson(jsonMap));
+      }
+
+      setState(() {
+        _promptGroups = loadedGroups;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal memuat data prompt: $e')));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -40,37 +61,54 @@ class _PromptScreenState extends State<PromptScreen> {
       appBar: AppBar(
         title: const Text('My Prompts'),
         backgroundColor: Colors.indigo,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadAllPrompts,
+          ),
+        ],
       ),
       drawer: const DrawerMenu(isPromptActive: true),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          return ListView(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                child: Text(
-                  'PROMPT LIST',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.indigo[900],
-                    letterSpacing: 0.8,
-                  ),
-                ),
-              ),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                child: Divider(height: 8, thickness: 1),
-              ),
-              _buildPromptGrid(_promptGroups, constraints),
-            ],
-          );
-        },
-      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : LayoutBuilder(
+              builder: (context, constraints) {
+                return ListView(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      child: Text(
+                        'PROMPT LIST',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.indigo[900],
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16),
+                      child: Divider(height: 8, thickness: 1),
+                    ),
+                    _promptGroups.isEmpty
+                        ? const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(32.0),
+                              child: Text(
+                                'Belum ada data prompt di penyimpanan.',
+                              ),
+                            ),
+                          )
+                        : _buildPromptGrid(_promptGroups, constraints),
+                  ],
+                );
+              },
+            ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {},
         backgroundColor: Colors.indigo,
@@ -85,7 +123,7 @@ class _PromptScreenState extends State<PromptScreen> {
   }
 
   Widget _buildPromptGrid(
-    List<ChecklistGroup> promptList,
+    List<PromptGroup> promptList,
     BoxConstraints constraints,
   ) {
     int crossAxisCount = 2;
@@ -109,7 +147,7 @@ class _PromptScreenState extends State<PromptScreen> {
       ),
       itemCount: promptList.length,
       itemBuilder: (context, index) {
-        final prompt = promptList[index];
+        final promptGroup = promptList[index];
 
         return Card(
           elevation: 3,
@@ -120,15 +158,12 @@ class _PromptScreenState extends State<PromptScreen> {
           color: Colors.white,
           child: InkWell(
             borderRadius: BorderRadius.circular(16),
-            // === FUNGSI DIUBAH: Navigasi mengarah ke detail saat di-tap ===
             onTap: () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => PromptDetailScreen(
-                    title: prompt.groupName,
-                    icon: prompt.icon,
-                  ),
+                  builder: (context) =>
+                      PromptDetailScreen(promptGroup: promptGroup),
                 ),
               );
             },
@@ -137,10 +172,10 @@ class _PromptScreenState extends State<PromptScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(prompt.icon, style: const TextStyle(fontSize: 32)),
+                  Text(promptGroup.icon, style: const TextStyle(fontSize: 32)),
                   const SizedBox(height: 8),
                   Text(
-                    prompt.groupName,
+                    promptGroup.title,
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
@@ -180,59 +215,29 @@ class _PromptScreenState extends State<PromptScreen> {
 // 2. WIDGET HALAMAN DETAIL DAFTAR BANYAK PROMPT (BARU)
 // =========================================================================
 class PromptDetailScreen extends StatelessWidget {
-  final String title;
-  final String icon;
+  final PromptGroup promptGroup;
 
-  const PromptDetailScreen({
-    super.key,
-    required this.title,
-    required this.icon,
-  });
+  const PromptDetailScreen({super.key, required this.promptGroup});
 
   @override
   Widget build(BuildContext context) {
-    // Data Dummy Daftar Prompt Panjang untuk Simulasi
-    final List<Map<String, String>> dummyPrompts = [
-      {
-        'act': 'Sebagai Ahli Konten',
-        'desc':
-            'Buatkan struktur kerangka tulisan blog yang SEO-friendly mengenai topik produktivitas kerja...',
-      },
-      {
-        'act': 'Sebagai Senior Flutter Dev',
-        'desc':
-            'Refactor kode arsitektur BLoC berikut agar lebih efisien dan clean code sesuai standar kode global...',
-      },
-      {
-        'act': 'Sebagai Penerjemah Profesional',
-        'desc':
-            'Terjemahkan teks akademis bahasa Inggris ini ke bahasa Indonesia dengan gaya bahasa formal literatur...',
-      },
-      {
-        'act': 'Sebagai Coach Karier',
-        'desc':
-            'Berikan poin-poin evaluasi pertanyaan wawancara untuk posisi system analyst berikut beserta tips menjawabnya...',
-      },
-      {
-        'act': 'Sebagai Ringkasan Buku AI',
-        'desc':
-            'Ekstrak 5 pemikiran utama (key takeaways) dari ringkasan bab konsep teknik deep work ini...',
-      },
-    ];
-
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
         title: Row(
-          children: [Text(icon), const SizedBox(width: 8), Text(title)],
+          children: [
+            Text(promptGroup.icon),
+            const SizedBox(width: 8),
+            Text(promptGroup.title),
+          ],
         ),
         backgroundColor: Colors.indigo,
       ),
       body: ListView.builder(
         padding: const EdgeInsets.all(16),
-        itemCount: dummyPrompts.length,
+        itemCount: promptGroup.prompts.length,
         itemBuilder: (context, index) {
-          final item = dummyPrompts[index];
+          final item = promptGroup.prompts[index];
           return Card(
             margin: const EdgeInsets.only(bottom: 12),
             elevation: 2,
@@ -243,16 +248,14 @@ class PromptDetailScreen extends StatelessWidget {
               contentPadding: const EdgeInsets.all(16),
               leading: CircleAvatar(
                 backgroundColor: Colors.indigo[50],
-                child: Text(
-                  '${index + 1}',
-                  style: const TextStyle(
-                    color: Colors.indigo,
-                    fontWeight: FontWeight.bold,
-                  ),
+                child: Icon(
+                  item.isFavorite ? Icons.star : Icons.description,
+                  color: item.isFavorite ? Colors.orange : Colors.indigo,
+                  size: 20,
                 ),
               ),
               title: Text(
-                item['act']!,
+                item.actAs,
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 15,
@@ -262,7 +265,7 @@ class PromptDetailScreen extends StatelessWidget {
               subtitle: Padding(
                 padding: const EdgeInsets.only(top: 6.0),
                 child: Text(
-                  item['desc']!,
+                  item.content,
                   style: const TextStyle(
                     fontSize: 13,
                     color: Colors.black87,
@@ -273,11 +276,17 @@ class PromptDetailScreen extends StatelessWidget {
               trailing: IconButton(
                 icon: const Icon(Icons.copy, color: Colors.grey, size: 20),
                 tooltip: 'Salin Prompt',
-                onPressed: () {
-                  // Tambahkan visual snackbar pemicu tiruan saat tombol copy ditekan
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Menyalin: ${item['act']}')),
-                  );
+                onPressed: () async {
+                  // Menyalin isi konten asli dari JSON ke sistem Clipboard perangkat
+                  await Clipboard.setData(ClipboardData(text: item.content));
+
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Berhasil menyalin: ${item.actAs}'),
+                      ),
+                    );
+                  }
                 },
               ),
             ),

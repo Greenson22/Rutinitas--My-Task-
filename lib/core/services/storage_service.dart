@@ -220,4 +220,34 @@ class StorageService {
       return [];
     }
   }
+
+  // =========================================================================
+  // === PROMPT HUB STORAGE ===
+  // =========================================================================
+
+  Future<Directory> getPromptDir(String baseDirSetting) async {
+    final Directory promptDir = Directory('$baseDirSetting/prompts');
+    if (!await promptDir.exists()) {
+      await promptDir.create(recursive: true);
+    }
+    return promptDir;
+  }
+
+  Future<List<File>> getAllPromptGroups(String baseDirSetting) async {
+    final Directory promptDir = await getPromptDir(baseDirSetting);
+    try {
+      List<FileSystemEntity> files = promptDir.listSync();
+      return files
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.json'))
+          .toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  Future<File> getSpecificPromptFile(String baseDirSetting, String id) async {
+    final Directory promptDir = await getPromptDir(baseDirSetting);
+    return File('${promptDir.path}/$id.json');
+  }
 }
