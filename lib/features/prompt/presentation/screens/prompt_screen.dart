@@ -198,46 +198,69 @@ class _PromptScreenState extends State<PromptScreen> {
                   return;
                 }
 
+                // Tutup dialog terlebih dahulu agar tidak membeku
+                Navigator.pop(context);
+
+                // Tampilkan loading spinner di UI
                 setState(() => _isLoading = true);
+
                 try {
                   final baseDir = await _storageService.getBaseDirSetting();
 
+                  // 1. Kumpulkan grup yang masuk ke dalam seksi lama
+                  List<PromptGroup> groupsToUpdate = [];
                   for (var group in _promptGroups) {
                     final currentSecName = group.sectionName.isEmpty
                         ? 'GENERAL'
                         : group.sectionName.toUpperCase();
                     if (currentSecName == oldName.toUpperCase()) {
-                      final updatedGroup = PromptGroup(
-                        id: group.id,
-                        title: group.title,
-                        sectionName: newName, // Nama seksi baru
-                        icon: group.icon,
-                        lastUpdated: DateTime.now().toIso8601String(),
-                        prompts: group.prompts,
-                      );
-
-                      final jsonContent = jsonEncode(updatedGroup.toJson());
-                      await _storageService.savePromptGroup(
-                        baseDir,
-                        group.id,
-                        jsonContent,
-                      );
+                      groupsToUpdate.add(group);
                     }
                   }
 
+                  // 2. Tulis perubahan nama seksi baru ke Storage satu per satu secara aman
+                  for (var group in groupsToUpdate) {
+                    final updatedGroup = PromptGroup(
+                      id: group.id,
+                      title: group.title,
+                      sectionName: newName, // Ganti ke nama baru
+                      icon: group.icon,
+                      lastUpdated: DateTime.now().toIso8601String(),
+                      prompts: group.prompts,
+                    );
+
+                    final jsonContent = jsonEncode(updatedGroup.toJson());
+                    await _storageService.savePromptGroup(
+                      baseDir,
+                      group.id,
+                      jsonContent,
+                    );
+                  }
+
+                  // 3. Amankan State UI: Bersihkan memori lokal sebelum me-load ulang
                   if (mounted) {
-                    Navigator.pop(context);
                     setState(() {
-                      // Tetap pertahankan mode edit agar tombol tidak disembunyikan otomatis
-                      isSectionEditMode = true;
+                      // Hapus grup lama dari state agar tidak terjadi penumpukan/duplikasi di RAM
+                      _promptGroups.removeWhere((group) {
+                        final currentSecName = group.sectionName.isEmpty
+                            ? 'GENERAL'
+                            : group.sectionName.toUpperCase();
+                        return currentSecName == oldName.toUpperCase();
+                      });
+
+                      isSectionEditMode = true; // Pertahankan mode edit seksi
                     });
-                    _loadAllPrompts();
+
+                    // 4. Ambil data segar dari physical storage
+                    await _loadAllPrompts();
                   }
                 } catch (e) {
-                  setState(() => _isLoading = false);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Gagal mengubah nama seksi: $e')),
-                  );
+                  if (mounted) {
+                    setState(() => _isLoading = false);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Gagal mengubah nama seksi: $e')),
+                    );
+                  }
                 }
               },
               child: const Text('Simpan'),
