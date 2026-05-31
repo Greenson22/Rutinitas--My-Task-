@@ -4,16 +4,31 @@ import 'package:flutter/services.dart';
 import '../../data/models/prompt_model.dart';
 import '../controllers/prompt_controller.dart';
 
-class PromptDetailScreen extends StatelessWidget {
+class PromptDetailScreen extends StatefulWidget {
   final PromptGroup promptGroup;
+
   const PromptDetailScreen({super.key, required this.promptGroup});
 
-  void _showAddPromptItemDialog(BuildContext context, PromptGroup group) {
+  @override
+  State<PromptDetailScreen> createState() => _PromptDetailScreenState();
+}
+
+class _PromptDetailScreenState extends State<PromptDetailScreen> {
+  late PromptGroup _currentGroup;
+  final PromptController _controller = PromptController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Menyalin referensi data awal ke variabel state lokal
+    _currentGroup = widget.promptGroup;
+  }
+
+  void _showAddPromptItemDialog(BuildContext context) {
     final titleController = TextEditingController();
     final descController = TextEditingController();
     final contentController = TextEditingController();
     final formKey = GlobalKey<FormState>();
-    final PromptController controller = PromptController();
 
     showDialog(
       context: context,
@@ -74,16 +89,27 @@ class PromptDetailScreen extends StatelessWidget {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
-            onPressed: () {
+            onPressed: () async {
               if (formKey.currentState!.validate()) {
-                controller.addPromptItemToGroup(
-                  group: group,
+                // Memanggil fungsi simpan dan mengambil objek Group terbaru yang dikembalikan controller
+                final updatedGroup = await _controller.addPromptItemToGroup(
+                  group: _currentGroup,
                   title: titleController.text,
                   description: descController.text,
                   content: contentController.text,
                   context: context,
                 );
-                Navigator.pop(ctx);
+
+                if (updatedGroup != null && mounted) {
+                  setState(() {
+                    // Paksa UI memperbarui state dengan data grup yang paling baru
+                    _currentGroup = updatedGroup;
+                  });
+                }
+
+                if (context.mounted) {
+                  Navigator.pop(ctx);
+                }
               }
             },
             child: const Text(
@@ -98,20 +124,19 @@ class PromptDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final currentGroup = promptGroup;
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
         title: Row(
           children: [
-            Text(currentGroup.icon),
+            Text(_currentGroup.icon),
             const SizedBox(width: 8),
-            Text(currentGroup.title),
+            Text(_currentGroup.title),
           ],
         ),
         backgroundColor: Colors.indigo,
       ),
-      body: currentGroup.prompts.isEmpty
+      body: _currentGroup.prompts.isEmpty
           ? const Center(
               child: Text(
                 'Tidak ada item prompt di dalam grup ini.',
@@ -120,9 +145,9 @@ class PromptDetailScreen extends StatelessWidget {
             )
           : ListView.builder(
               padding: const EdgeInsets.all(16),
-              itemCount: currentGroup.prompts.length,
+              itemCount: _currentGroup.prompts.length,
               itemBuilder: (context, index) {
-                final item = currentGroup.prompts[index];
+                final item = _currentGroup.prompts[index];
                 return Card(
                   margin: const EdgeInsets.only(bottom: 12),
                   elevation: 2,
@@ -183,7 +208,7 @@ class PromptDetailScreen extends StatelessWidget {
               },
             ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddPromptItemDialog(context, currentGroup),
+        onPressed: () => _showAddPromptItemDialog(context),
         backgroundColor: Colors.indigo,
         tooltip: 'Tambah Item Prompt Baru',
         child: const Icon(Icons.add, color: Colors.white),
