@@ -21,8 +21,9 @@ class _PromptScreenState extends State<PromptScreen> {
   List<PromptGroup> _promptGroups = [];
   bool _isLoading = true;
 
-  // Meniru state edit mode dari daily_screen
+  // Memisahkan state edit mode agar tidak bentrok satu sama lain
   bool isSectionEditMode = false;
+  bool isCardEditMode = false;
 
   // Menampung nama seksi kosong baru yang belum memiliki group di dalamnya
   final List<String> _localEmptySections = [];
@@ -104,7 +105,6 @@ class _PromptScreenState extends State<PromptScreen> {
   }
 
   void moveSectionOrder(int index, int direction) async {
-    // 1. Rekonstruksi struktur seksi (Map) saat ini dari data state lokal
     final Map<String, List<PromptGroup>> sectionsMap = {};
     for (var group in _promptGroups) {
       final secName = group.sectionName.isEmpty
@@ -116,7 +116,6 @@ class _PromptScreenState extends State<PromptScreen> {
       sectionsMap[secName]!.add(group);
     }
 
-    // Masukkan seksi kosong lokal juga agar urutannya sinkron saat dipindah
     for (var sec in _localEmptySections) {
       sectionsMap.putIfAbsent(sec, () => []);
     }
@@ -133,9 +132,7 @@ class _PromptScreenState extends State<PromptScreen> {
     final currentSectionName = sectionKeys[index];
     final targetSectionName = sectionKeys[targetIndex];
 
-    // 2. LOGIKA UTAMA: Urutkan ulang list grup (_promptGroups) dan seksi kosong berdasarkan urutan seksi baru
     setState(() {
-      // Jika salah satu atau keduanya adalah seksi kosong lokal, tukar posisinya di list lokal
       if (_localEmptySections.contains(currentSectionName) ||
           _localEmptySections.contains(targetSectionName)) {
         final int idxA = _localEmptySections.indexOf(currentSectionName);
@@ -147,21 +144,16 @@ class _PromptScreenState extends State<PromptScreen> {
         }
       }
 
-      // Tukar posisi urutan Keys di struktur Map visual dengan menyusun ulang seluruh `_promptGroups`
       final List<PromptGroup> reorderedGroups = [];
-
-      // Susun ulang keys seksi
       final tempKey = sectionKeys[index];
       sectionKeys[index] = sectionKeys[targetIndex];
       sectionKeys[targetIndex] = tempKey;
 
-      // Masukkan kembali grup ke dalam array _promptGroups sesuai urutan seksi yang baru dibentuk
       for (var key in sectionKeys) {
         if (sectionsMap.containsKey(key)) {
           reorderedGroups.addAll(sectionsMap[key]!);
         }
       }
-
       _promptGroups = reorderedGroups;
     });
 
@@ -172,10 +164,8 @@ class _PromptScreenState extends State<PromptScreen> {
       ),
     );
 
-    // 3. BACKGROUND I/O TASK: Simpan urutan grup yang baru ke storage lokal
     try {
       final baseDir = await _storageService.getBaseDirSetting();
-      // Simpan seluruh data grup yang posisinya sudah tersusun rapi di memori
       for (var group in _promptGroups) {
         await _storageService.savePromptGroup(
           baseDir,
@@ -187,7 +177,7 @@ class _PromptScreenState extends State<PromptScreen> {
       debugPrint(
         "Gagal mengamankan urutan seksi beserta isinya di storage: $e",
       );
-      _loadAllPrompts(); // Rollback jika gagal
+      _loadAllPrompts();
     }
   }
 
@@ -221,7 +211,6 @@ class _PromptScreenState extends State<PromptScreen> {
                   final String cleanOldName = oldName.trim().toUpperCase();
                   final String cleanNewName = newName.trim().toUpperCase();
 
-                  // 1. Sinkronisasi Seksi Kosong di RAM agar posisinya TETAP di indeks yang sama (tidak lompat)
                   if (_localEmptySections.contains(cleanOldName)) {
                     final int indexSeksi = _localEmptySections.indexOf(
                       cleanOldName,
@@ -232,8 +221,6 @@ class _PromptScreenState extends State<PromptScreen> {
                   }
 
                   final baseDir = await _storageService.getBaseDirSetting();
-
-                  // 2. Kumpulkan grup yang masuk ke dalam seksi lama
                   List<PromptGroup> groupsToUpdate = [];
                   for (var group in _promptGroups) {
                     final currentSecName = group.sectionName.isEmpty
@@ -244,13 +231,11 @@ class _PromptScreenState extends State<PromptScreen> {
                     }
                   }
 
-                  // 3. Tulis perubahan nama seksi baru ke Storage secara uppercase konsisten
                   for (var group in groupsToUpdate) {
                     final updatedGroup = PromptGroup(
                       id: group.id,
                       title: group.title,
-                      sectionName:
-                          cleanNewName, // <--- Gunakan nama uppercase agar sinkron dengan UI compiler
+                      sectionName: cleanNewName,
                       icon: group.icon,
                       lastUpdated: DateTime.now().toIso8601String(),
                       prompts: group.prompts,
@@ -264,7 +249,6 @@ class _PromptScreenState extends State<PromptScreen> {
 
                   if (mounted) {
                     setState(() {
-                      // 4. Ubah nama seksi pada data di memori secara langsung untuk mempertahankan urutan index array aktif
                       for (var group in _promptGroups) {
                         final currentSecName = group.sectionName.isEmpty
                             ? 'GENERAL'
@@ -283,10 +267,8 @@ class _PromptScreenState extends State<PromptScreen> {
                           }
                         }
                       }
-                      isSectionEditMode = true; // Pertahankan mode edit seksi
+                      isSectionEditMode = true;
                     });
-
-                    // 5. Ambil data segar dari physical storage
                     await _loadAllPrompts();
                   }
                 } catch (e) {
@@ -433,7 +415,6 @@ class _PromptScreenState extends State<PromptScreen> {
                     jsonContent,
                   );
 
-                  // Jika berhasil ditambahkan ke seksi kosong, hapus dari list temporary
                   _localEmptySections.remove(targetSection.toUpperCase());
 
                   if (mounted) {
@@ -457,6 +438,216 @@ class _PromptScreenState extends State<PromptScreen> {
     );
   }
 
+  void _moveGroupOrderHorizontal(
+    List<PromptGroup> currentList,
+    int index,
+    int direction,
+  ) async {
+    int targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= currentList.length) return;
+
+    setState(() {
+      final item = currentList.removeAt(index);
+      currentList.insert(targetIndex, item);
+
+      final List<PromptGroup> updatedGlobal = [];
+      final Set<String> processedSections = {};
+      for (var g in _promptGroups) {
+        final sec = g.sectionName.toUpperCase();
+        if (!processedSections.contains(sec)) {
+          processedSections.add(sec);
+          if (sec == item.sectionName.toUpperCase()) {
+            updatedGlobal.addAll(currentList);
+          } else {
+            updatedGlobal.addAll(
+              _promptGroups.where((x) => x.sectionName.toUpperCase() == sec),
+            );
+          }
+        }
+      }
+      _promptGroups = updatedGlobal;
+    });
+
+    try {
+      final baseDir = await _storageService.getBaseDirSetting();
+      for (var group in _promptGroups) {
+        await _storageService.savePromptGroup(
+          baseDir,
+          group.id,
+          jsonEncode(group.toJson()),
+        );
+      }
+    } catch (e) {
+      debugPrint("Gagal mengamankan urutan group: $e");
+    }
+  }
+
+  void _showEditGroupDialog(PromptGroup group) {
+    final titleController = TextEditingController(text: group.title);
+    final iconController = TextEditingController(text: group.icon);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Ubah Nama & Ikon Group'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: titleController,
+              decoration: const InputDecoration(labelText: 'Judul Group'),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: iconController,
+              decoration: const InputDecoration(labelText: 'Ikon Emoji'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (titleController.text.trim().isEmpty) return;
+              Navigator.pop(context);
+              setState(() => _isLoading = true);
+              try {
+                final baseDir = await _storageService.getBaseDirSetting();
+                final updatedGroup = PromptGroup(
+                  id: group.id,
+                  title: titleController.text.trim(),
+                  sectionName: group.sectionName,
+                  icon: iconController.text.trim().isEmpty
+                      ? '📝'
+                      : iconController.text.trim(),
+                  lastUpdated: DateTime.now().toIso8601String(),
+                  prompts: group.prompts,
+                );
+
+                await _storageService.savePromptGroup(
+                  baseDir,
+                  group.id,
+                  jsonEncode(updatedGroup.toJson()),
+                );
+                _loadAllPrompts();
+              } catch (e) {
+                setState(() => _isLoading = false);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Gagal mengubah group: $e')),
+                );
+              }
+            },
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showMoveSectionDialog(PromptGroup group) async {
+    final Map<String, List<PromptGroup>> sectionsMap = {};
+    for (var g in _promptGroups) {
+      final name = g.sectionName.isEmpty
+          ? 'GENERAL'
+          : g.sectionName.toUpperCase();
+      sectionsMap.putIfAbsent(name, () => []);
+    }
+    for (var sec in _localEmptySections) {
+      sectionsMap.putIfAbsent(sec, () => []);
+    }
+    final List<String> availableSections = sectionsMap.keys.toList();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Pindahkan Group ke Seksi Lain'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: availableSections.length,
+            itemBuilder: (context, index) {
+              final secName = availableSections[index];
+              return ListTile(
+                title: Text(secName),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () async {
+                  Navigator.pop(context);
+                  setState(() => _isLoading = true);
+                  try {
+                    final baseDir = await _storageService.getBaseDirSetting();
+                    final updatedGroup = PromptGroup(
+                      id: group.id,
+                      title: group.title,
+                      sectionName: secName,
+                      icon: group.icon,
+                      lastUpdated: DateTime.now().toIso8601String(),
+                      prompts: group.prompts,
+                    );
+
+                    await _storageService.savePromptGroup(
+                      baseDir,
+                      group.id,
+                      jsonEncode(updatedGroup.toJson()),
+                    );
+                    _localEmptySections.remove(secName.toUpperCase());
+                    _loadAllPrompts();
+                  } catch (e) {
+                    setState(() => _isLoading = false);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Gagal memindahkan seksi group: $e'),
+                      ),
+                    );
+                  }
+                },
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _deleteGroupItem(PromptGroup group) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Hapus Group "${group.title}"?'),
+        content: const Text(
+          'Tindakan ini akan menghapus group ini secara permanen.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () async {
+              Navigator.pop(context);
+              setState(() => _isLoading = true);
+              try {
+                final baseDir = await _storageService.getBaseDirSetting();
+                await _storageService.deletePromptGroup(baseDir, group.id);
+                _loadAllPrompts();
+              } catch (e) {
+                setState(() => _isLoading = false);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Gagal menghapus group: $e')),
+                );
+              }
+            },
+            child: const Text('Hapus', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSectionHeader(
     int index,
     String sectionName,
@@ -471,6 +662,16 @@ class _PromptScreenState extends State<PromptScreen> {
         splashColor: Colors.indigo.withOpacity(0.1),
         highlightColor: Colors.indigo.withOpacity(0.05),
         onLongPress: () {
+          // GUARD PENYALANGAN: Jika mode edit card sedang aktif, jangan ijinkan edit seksi terbuka
+          if (isCardEditMode) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Matikan Mode Edit Kotak/Card terlebih dahulu!'),
+                duration: Duration(seconds: 1),
+              ),
+            );
+            return;
+          }
           setState(() {
             isSectionEditMode = !isSectionEditMode;
           });
@@ -565,7 +766,6 @@ class _PromptScreenState extends State<PromptScreen> {
   Widget build(BuildContext context) {
     final Map<String, List<PromptGroup>> sectionsMap = {};
 
-    // Kelompokkan data dari storage
     for (var group in _promptGroups) {
       final secName = group.sectionName.isEmpty
           ? 'GENERAL'
@@ -576,7 +776,6 @@ class _PromptScreenState extends State<PromptScreen> {
       sectionsMap[secName]!.add(group);
     }
 
-    // Masukkan seksi kosong buatan lokal agar tampil di UI sebelum diisi group
     for (var sec in _localEmptySections) {
       sectionsMap.putIfAbsent(sec, () => []);
     }
@@ -649,10 +848,8 @@ class _PromptScreenState extends State<PromptScreen> {
                 );
               },
             ),
-
-      // === PERBAIKAN DI SINI: FAB BERUBAH MENJADI TAMBAH SEKSI UTAMA ===
       floatingActionButton: FloatingActionButton(
-        onPressed: showAddSectionDialog, // Memanggil fungsi tambah seksi utama
+        onPressed: showAddSectionDialog,
         backgroundColor: Colors.indigo,
         tooltip: 'Tambah Seksi Baru',
         child: const Icon(
@@ -682,7 +879,7 @@ class _PromptScreenState extends State<PromptScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
-        childAspectRatio: 1.15,
+        childAspectRatio: isCardEditMode ? 0.85 : 1.15,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
       ),
@@ -696,54 +893,202 @@ class _PromptScreenState extends State<PromptScreen> {
             side: const BorderSide(color: Colors.indigo, width: 3.5),
           ),
           color: Colors.white,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(16),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) =>
-                      PromptDetailScreen(promptGroup: promptGroup),
-                ),
-              );
-            },
-            child: Padding(
-              padding: const EdgeInsets.all(12.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(promptGroup.icon, style: const TextStyle(fontSize: 32)),
-                  const SizedBox(height: 8),
-                  Text(
-                    promptGroup.title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                    textAlign: TextAlign.center,
+          child: Column(
+            children: [
+              Expanded(
+                child: InkWell(
+                  borderRadius: BorderRadius.only(
+                    topLeft: const Radius.circular(16),
+                    topRight: const Radius.circular(16),
+                    bottomLeft: Radius.circular(isCardEditMode ? 0 : 16),
+                    bottomRight: Radius.circular(isCardEditMode ? 0 : 16),
                   ),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.indigo.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      'Lihat Prompt',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.indigo[900],
+                  onLongPress: () {
+                    // GUARD PENYALANGAN: Jika mode edit seksi sedang aktif, jangan ijinkan edit card terbuka
+                    if (isSectionEditMode) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Matikan Mode Edit Kategori/Seksi terlebih dahulu!',
+                          ),
+                          duration: Duration(seconds: 1),
+                        ),
+                      );
+                      return;
+                    }
+                    setState(() {
+                      isCardEditMode = !isCardEditMode;
+                    });
+                  },
+                  onTap: isCardEditMode
+                      ? null
+                      : () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  PromptDetailScreen(promptGroup: promptGroup),
+                            ),
+                          ).then((_) => _loadAllPrompts());
+                        },
+                  child: SizedBox.expand(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Text(
+                            promptGroup.icon,
+                            style: const TextStyle(
+                              fontSize: 28,
+                              color: Colors.black,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            promptGroup.title,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: Colors.black87,
+                            ),
+                            textAlign: TextAlign.center,
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                          const SizedBox(height: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.indigo.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              '${promptGroup.prompts.length} Item',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.indigo,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                ],
+                ),
               ),
-            ),
+              if (isCardEditMode) ...[
+                Container(
+                  color: Colors.transparent,
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 2,
+                    horizontal: 8,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back, size: 18),
+                        color: index > 0 ? Colors.indigo : Colors.grey[300],
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: index > 0
+                            ? () => _moveGroupOrderHorizontal(
+                                promptList,
+                                index,
+                                -1,
+                              )
+                            : null,
+                      ),
+                      PopupMenuButton<String>(
+                        onSelected: (value) async {
+                          if (value == 'edit') {
+                            _showEditGroupDialog(promptGroup);
+                          } else if (value == 'move_section') {
+                            _showMoveSectionDialog(promptGroup);
+                          } else if (value == 'delete') {
+                            _deleteGroupItem(promptGroup);
+                          }
+                        },
+                        itemBuilder: (BuildContext context) => [
+                          const PopupMenuItem(
+                            value: 'edit',
+                            child: Row(
+                              children: [
+                                Icon(Icons.edit, size: 18, color: Colors.teal),
+                                SizedBox(width: 10),
+                                Text(
+                                  'Ubah Nama & Ikon',
+                                  style: TextStyle(fontSize: 13),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'move_section',
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.drive_file_move_outlined,
+                                  size: 18,
+                                  color: Colors.indigo,
+                                ),
+                                SizedBox(width: 10),
+                                Text(
+                                  'Pindahkan Seksi',
+                                  style: TextStyle(fontSize: 13),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuDivider(),
+                          const PopupMenuItem(
+                            value: 'delete',
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.delete_outline,
+                                  size: 18,
+                                  color: Colors.redAccent,
+                                ),
+                                SizedBox(width: 10),
+                                Text(
+                                  'Hapus Group',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.redAccent,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.arrow_forward, size: 18),
+                        color: index < promptList.length - 1
+                            ? Colors.indigo
+                            : Colors.grey[300],
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: index < promptList.length - 1
+                            ? () => _moveGroupOrderHorizontal(
+                                promptList,
+                                index,
+                                1,
+                              )
+                            : null,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
           ),
         );
       },
