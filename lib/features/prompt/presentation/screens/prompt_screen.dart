@@ -104,6 +104,7 @@ class _PromptScreenState extends State<PromptScreen> {
   }
 
   void moveSectionOrder(int index, int direction) async {
+    // 1. Rekonstruksi struktur seksi (Map) saat ini dari data state lokal
     final Map<String, List<PromptGroup>> sectionsMap = {};
     for (var group in _promptGroups) {
       final secName = group.sectionName.isEmpty
@@ -115,7 +116,7 @@ class _PromptScreenState extends State<PromptScreen> {
       sectionsMap[secName]!.add(group);
     }
 
-    // Satukan dengan seksi kosong lokal
+    // Masukkan seksi kosong lokal juga agar urutannya sinkron saat dipindah
     for (var sec in _localEmptySections) {
       sectionsMap.putIfAbsent(sec, () => []);
     }
@@ -131,80 +132,62 @@ class _PromptScreenState extends State<PromptScreen> {
 
     final currentSectionName = sectionKeys[index];
     final targetSectionName = sectionKeys[targetIndex];
-    final currentGroups = sectionsMap[currentSectionName] ?? [];
-    final targetGroups = sectionsMap[targetSectionName] ?? [];
 
+    // 2. LOGIKA UTAMA: Urutkan ulang list grup (_promptGroups) dan seksi kosong berdasarkan urutan seksi baru
     setState(() {
-      for (var group in currentGroups) {
-        int idx = _promptGroups.indexWhere((g) => g.id == group.id);
-        if (idx != -1) {
-          _promptGroups[idx] = PromptGroup(
-            id: group.id,
-            title: group.title,
-            sectionName: targetSectionName,
-            icon: group.icon,
-            lastUpdated: DateTime.now().toIso8601String(),
-            prompts: group.prompts,
-          );
+      // Jika salah satu atau keduanya adalah seksi kosong lokal, tukar posisinya di list lokal
+      if (_localEmptySections.contains(currentSectionName) ||
+          _localEmptySections.contains(targetSectionName)) {
+        final int idxA = _localEmptySections.indexOf(currentSectionName);
+        final int idxB = _localEmptySections.indexOf(targetSectionName);
+        if (idxA != -1 && idxB != -1) {
+          final temp = _localEmptySections[idxA];
+          _localEmptySections[idxA] = _localEmptySections[idxB];
+          _localEmptySections[idxB] = temp;
         }
       }
-      for (var group in targetGroups) {
-        int idx = _promptGroups.indexWhere((g) => g.id == group.id);
-        if (idx != -1) {
-          _promptGroups[idx] = PromptGroup(
-            id: group.id,
-            title: group.title,
-            sectionName: currentSectionName,
-            icon: group.icon,
-            lastUpdated: DateTime.now().toIso8601String(),
-            prompts: group.prompts,
-          );
+
+      // Tukar posisi urutan Keys di struktur Map visual dengan menyusun ulang seluruh `_promptGroups`
+      final List<PromptGroup> reorderedGroups = [];
+
+      // Susun ulang keys seksi
+      final tempKey = sectionKeys[index];
+      sectionKeys[index] = sectionKeys[targetIndex];
+      sectionKeys[targetIndex] = tempKey;
+
+      // Masukkan kembali grup ke dalam array _promptGroups sesuai urutan seksi yang baru dibentuk
+      for (var key in sectionKeys) {
+        if (sectionsMap.containsKey(key)) {
+          reorderedGroups.addAll(sectionsMap[key]!);
         }
       }
+
+      _promptGroups = reorderedGroups;
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Urutan seksi berhasil dipindahkan'),
+        content: Text('Seksi beserta seluruh isinya berhasil dipindahkan!'),
         duration: Duration(milliseconds: 700),
       ),
     );
 
+    // 3. BACKGROUND I/O TASK: Simpan urutan grup yang baru ke storage lokal
     try {
       final baseDir = await _storageService.getBaseDirSetting();
-      for (var group in currentGroups) {
-        final updatedGroup = PromptGroup(
-          id: group.id,
-          title: group.title,
-          sectionName: targetSectionName,
-          icon: group.icon,
-          lastUpdated: DateTime.now().toIso8601String(),
-          prompts: group.prompts,
-        );
+      // Simpan seluruh data grup yang posisinya sudah tersusun rapi di memori
+      for (var group in _promptGroups) {
         await _storageService.savePromptGroup(
           baseDir,
           group.id,
-          jsonEncode(updatedGroup.toJson()),
-        );
-      }
-      for (var group in targetGroups) {
-        final updatedGroup = PromptGroup(
-          id: group.id,
-          title: group.title,
-          sectionName: currentSectionName,
-          icon: group.icon,
-          lastUpdated: DateTime.now().toIso8601String(),
-          prompts: group.prompts,
-        );
-        await _storageService.savePromptGroup(
-          baseDir,
-          group.id,
-          jsonEncode(updatedGroup.toJson()),
+          jsonEncode(group.toJson()),
         );
       }
     } catch (e) {
-      debugPrint("Gagal mengamankan urutan seksi di storage: $e");
-      _loadAllPrompts();
+      debugPrint(
+        "Gagal mengamankan urutan seksi beserta isinya di storage: $e",
+      );
+      _loadAllPrompts(); // Rollback jika gagal
     }
   }
 
