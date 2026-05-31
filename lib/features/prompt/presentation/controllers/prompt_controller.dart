@@ -439,7 +439,7 @@ class PromptController extends ChangeNotifier {
     }
   }
 
-  Future<void> addPromptItemToGroup({
+  Future<PromptGroup?> addPromptItemToGroup({
     required PromptGroup group,
     required String title, // Mengisi properti actAs
     required String
@@ -473,8 +473,13 @@ class PromptController extends ChangeNotifier {
         jsonEncode(group.toJson()),
       );
 
-      // Muat ulang data untuk menyinkronkan seluruh tampilan screen
-      if (context.mounted) await loadAllPrompts(context);
+      // Muat ulang data untuk menyinkronkan seluruh list global
+      if (context.mounted) {
+        await loadAllPrompts(context);
+      }
+
+      _isLoading = false;
+      notifyListeners();
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -484,6 +489,12 @@ class PromptController extends ChangeNotifier {
           ),
         );
       }
+
+      // Kembalikan objek grup yang paling baru dari list yang sudah di-refresh
+      return _promptGroups.firstWhere(
+        (element) => element.id == group.id,
+        orElse: () => group,
+      );
     } catch (e) {
       _isLoading = false;
       notifyListeners();
@@ -492,6 +503,7 @@ class PromptController extends ChangeNotifier {
           SnackBar(content: Text('Gagal menambahkan item prompt: $e')),
         );
       }
+      return null;
     }
   }
 }
