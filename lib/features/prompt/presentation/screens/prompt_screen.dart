@@ -55,27 +55,93 @@ class _PromptScreenState extends State<PromptScreen> {
     }
   }
 
-  // Meniru fungsi aksi placeholder untuk tombol di header seksi
-  void moveSectionOrder(int index, int direction) {
-    // Memastikan perpindahan valid
-    if (index + direction < 0 || index + direction >= _promptGroups.length)
-      return;
+  // Mengubah fungsi moveSectionOrder menjadi Future<void> karena membutuhkan operasi asinkron (I/O File)
+  void moveSectionOrder(int index, int direction) async {
+    // 1. Memisahkan list prompt ke dalam Map berdasarkan sectionName (sama seperti logika di build)
+    final Map<String, List<PromptGroup>> sectionsMap = {};
+    for (var group in _promptGroups) {
+      final secName = group.sectionName.isEmpty
+          ? 'GENERAL'
+          : group.sectionName.toUpperCase();
+      if (!sectionsMap.containsKey(secName)) {
+        sectionsMap[secName] = [];
+      }
+      sectionsMap[secName]!.add(group);
+    }
 
-    setState(() {
-      // Kita mengambil seksi yang aktif saat ini dari map di build method
-      // Untuk membuat urutan seksi permanen, disarankan menyimpannya ke konfigurasi atau meta file tersendiri.
-      // Kode di bawah ini memberikan feedback instan pada UI:
+    final sectionKeys = sectionsMap.keys.toList();
+    if (sectionKeys.contains('GENERAL')) {
+      sectionKeys.remove('GENERAL');
+      sectionKeys.insert(0, 'GENERAL');
+    }
+
+    // Memastikan perpindahan valid dalam rentang indeks seksi yang ada
+    int targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= sectionKeys.length) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final baseDir = await _storageService.getBaseDirSetting();
+
+      // Ambil nama seksi saat ini dan nama seksi target tujuan
+      final currentSectionName = sectionKeys[index];
+      final targetSectionName = sectionKeys[targetIndex];
+
+      // Ambil semua grup yang ada di kedua seksi tersebut
+      final currentGroups = sectionsMap[currentSectionName] ?? [];
+      final targetGroups = sectionsMap[targetSectionName] ?? [];
+
+      // Proses 1: Ubah semua grup di seksi saat ini menjadi nama seksi target
+      for (var group in currentGroups) {
+        final updatedGroup = PromptGroup(
+          id: group.id,
+          title: group.title,
+          sectionName: targetSectionName, // Set ke nama seksi target
+          icon: group.icon,
+          lastUpdated: DateTime.now().toIso8601String(),
+          prompts: group.prompts,
+        );
+        await _storageService.savePromptGroup(
+          baseDir,
+          group.id,
+          jsonEncode(updatedGroup.toJson()),
+        );
+      }
+
+      // Proses 2: Ubah semua grup di seksi target menjadi nama seksi saat ini (tukar posisi)
+      for (var group in targetGroups) {
+        final updatedGroup = PromptGroup(
+          id: group.id,
+          title: group.title,
+          sectionName: currentSectionName, // Set ke nama seksi saat ini
+          icon: group.icon,
+          lastUpdated: DateTime.now().toIso8601String(),
+          prompts: group.prompts,
+        );
+        await _storageService.savePromptGroup(
+          baseDir,
+          group.id,
+          jsonEncode(updatedGroup.toJson()),
+        );
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Seksi berhasil dipindahkan ke arah $direction (Urutan diperbarui)',
-          ),
+        const SnackBar(
+          content: Text('Urutan seksi berhasil diperbarui di penyimpanan'),
         ),
       );
-      isSectionEditMode = false;
-    });
-    // Panggil muat ulang jika ada penyimpanan urutan kustom
-    _loadAllPrompts();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal memperbarui urutan seksi: $e')),
+      );
+    } finally {
+      setState(() {
+        isSectionEditMode = false;
+      });
+      // Memuat ulang data terbaru dari penyimpanan lokal setelah penulisan file selesai
+      _loadAllPrompts();
+    }
   }
 
   // 2. FUNGSI UBAH NAMA SEKSI (RENAME)
