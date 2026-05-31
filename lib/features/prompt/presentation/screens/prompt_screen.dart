@@ -1,10 +1,8 @@
 // lib/features/prompt/presentation/screens/prompt_screen.dart
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:rutinitasku/core/services/storage_service.dart';
 import '../../../../core/presentation/widgets/drawer_menu.dart';
-import '../../../daily/data/models/daily_model.dart';
 import '../../data/models/prompt_model.dart';
 import 'package:flutter/services.dart';
 
@@ -23,6 +21,9 @@ class _PromptScreenState extends State<PromptScreen> {
   List<PromptGroup> _promptGroups = [];
   bool _isLoading = true;
 
+  // Meniru state edit mode dari daily_screen
+  bool isSectionEditMode = false;
+
   @override
   void initState() {
     super.initState();
@@ -34,8 +35,8 @@ class _PromptScreenState extends State<PromptScreen> {
     try {
       final baseDir = await _storageService.getBaseDirSetting();
       final files = await _storageService.getAllPromptGroups(baseDir);
-
       List<PromptGroup> loadedGroups = [];
+
       for (var file in files) {
         final content = await file.readAsString();
         final jsonMap = jsonDecode(content);
@@ -54,10 +55,32 @@ class _PromptScreenState extends State<PromptScreen> {
     }
   }
 
-  Future<void> _showAddGroupDialog() async {
+  // Meniru fungsi aksi placeholder untuk tombol di header seksi
+  void moveSectionOrder(int index, int direction) {
+    // Tambahkan logika pengurutan seksi di sini jika diperlukan
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Pindah seksi indeks $index ke arah $direction')),
+    );
+  }
+
+  void editSectionName(String oldName) {
+    // Tambahkan logika ubah nama seksi di sini jika diperlukan
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Edit seksi: $oldName')));
+  }
+
+  void deleteSection(String sectionName) {
+    // Tambahkan logika hapus seksi di sini jika diperlukan
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Hapus seksi: $sectionName')));
+  }
+
+  Future<void> _showAddGroupDialog({String? defaultSection}) async {
     final titleController = TextEditingController();
-    final iconController = TextEditingController(text: '📝');
-    final sectionController = TextEditingController();
+    final iconController = TextEditingController(text: '💡');
+    final sectionController = TextEditingController(text: defaultSection ?? '');
 
     return showDialog(
       context: context,
@@ -97,12 +120,10 @@ class _PromptScreenState extends State<PromptScreen> {
             ElevatedButton(
               onPressed: () async {
                 if (titleController.text.trim().isEmpty) return;
-
                 try {
                   final baseDir = await _storageService.getBaseDirSetting();
                   final id = DateTime.now().millisecondsSinceEpoch.toString();
 
-                  // Membuat objek baru berdasarkan struktur PromptGroup model
                   final newGroup = PromptGroup(
                     id: id,
                     title: titleController.text.trim(),
@@ -110,17 +131,13 @@ class _PromptScreenState extends State<PromptScreen> {
                         ? 'General'
                         : sectionController.text.trim(),
                     icon: iconController.text.trim().isEmpty
-                        ? '📝'
+                        ? '💡'
                         : iconController.text.trim(),
                     lastUpdated: DateTime.now().toIso8601String(),
-                    prompts:
-                        [], // Default awal kosong, diisi dari dalam detail nanti
+                    prompts: [],
                   );
 
-                  // Mengubah model menjadi string json menggunakan toJson()
                   final jsonContent = jsonEncode(newGroup.toJson());
-
-                  // Simpan menggunakan storage service yang baru ditambahkan
                   await _storageService.savePromptGroup(
                     baseDir,
                     id,
@@ -129,7 +146,6 @@ class _PromptScreenState extends State<PromptScreen> {
 
                   if (mounted) {
                     Navigator.pop(context);
-                    // Panggil fungsi muat ulang bawaan screen agar grid ter-refresh secara real-time
                     _loadAllPrompts();
                   }
                 } catch (e) {
@@ -146,8 +162,128 @@ class _PromptScreenState extends State<PromptScreen> {
     );
   }
 
+  // =========================================================================
+  // MENIRU TAMPILAN HEADER SEKSI DARI KODE YANG ANDA BERIKAN
+  // =========================================================================
+  Widget _buildSectionHeader(
+    int index,
+    String sectionName,
+    Color color,
+    bool hideTitle,
+    VoidCallback onAddPressed,
+    int totalSections,
+  ) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        splashColor: Colors.indigo.withOpacity(0.1),
+        highlightColor: Colors.indigo.withOpacity(0.05),
+        onLongPress: () {
+          setState(() {
+            isSectionEditMode = !isSectionEditMode;
+          });
+        },
+        onTap: () {},
+        child: AnimatedPadding(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
+          padding: isSectionEditMode
+              ? const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0)
+              : const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  hideTitle
+                      ? const SizedBox.shrink()
+                      : Text(
+                          sectionName,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: color,
+                          ),
+                        ),
+                  if (isSectionEditMode) ...[
+                    Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(
+                            Icons.arrow_upward,
+                            size: 18,
+                            color: Colors.blueGrey,
+                          ),
+                          onPressed: index > 0
+                              ? () => moveSectionOrder(index, -1)
+                              : null,
+                        ),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.arrow_downward,
+                            size: 18,
+                            color: Colors.blueGrey,
+                          ),
+                          onPressed: index < totalSections - 1
+                              ? () => moveSectionOrder(index, 1)
+                              : null,
+                        ),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.edit,
+                            size: 18,
+                            color: Colors.indigo,
+                          ),
+                          onPressed: () => editSectionName(sectionName),
+                        ),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.delete,
+                            size: 18,
+                            color: Colors.redAccent,
+                          ),
+                          onPressed: () => deleteSection(sectionName),
+                        ),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.add_circle_outline,
+                            color: Colors.indigo,
+                            size: 18,
+                          ),
+                          tooltip: 'Tambah Item ke Seksi Ini',
+                          onPressed: onAddPressed,
+                        ),
+                      ],
+                    ),
+                  ] else ...[
+                    const SizedBox.shrink(),
+                  ],
+                ],
+              ),
+              if (!hideTitle) const Divider(height: 2, thickness: 1),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Memisahkan list prompt ke dalam Map berdasarkan sectionName agar bisa menggunakan seksi header
+    final Map<String, List<PromptGroup>> sectionsMap = {};
+    for (var group in _promptGroups) {
+      final secName = group.sectionName.isEmpty
+          ? 'GENERAL'
+          : group.sectionName.toUpperCase();
+      if (!sectionsMap.containsKey(secName)) {
+        sectionsMap[secName] = [];
+      }
+      sectionsMap[secName]!.add(group);
+    }
+    final sectionKeys = sectionsMap.keys.toList();
+
     return Scaffold(
       backgroundColor: Colors.grey[200],
       appBar: AppBar(
@@ -163,47 +299,40 @@ class _PromptScreenState extends State<PromptScreen> {
       drawer: const DrawerMenu(isPromptActive: true),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
+          : _promptGroups.isEmpty
+          ? const Center(child: Text('Belum ada data prompt di penyimpanan.'))
           : LayoutBuilder(
               builder: (context, constraints) {
-                return ListView(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      child: Text(
-                        'PROMPT LIST',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.indigo[900],
-                          letterSpacing: 0.8,
+                return ListView.builder(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  itemCount: sectionKeys.length,
+                  itemBuilder: (context, sIndex) {
+                    final sectionName = sectionKeys[sIndex];
+                    final groupsInSection = sectionsMap[sectionName]!;
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Memanggil header seksi tiruan yang Anda minta
+                        _buildSectionHeader(
+                          sIndex,
+                          sectionName,
+                          Colors.indigo[900]!,
+                          false,
+                          () =>
+                              _showAddGroupDialog(defaultSection: sectionName),
+                          sectionKeys.length,
                         ),
-                      ),
-                    ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 16),
-                      child: Divider(height: 8, thickness: 1),
-                    ),
-                    _promptGroups.isEmpty
-                        ? const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(32.0),
-                              child: Text(
-                                'Belum ada data prompt di penyimpanan.',
-                              ),
-                            ),
-                          )
-                        : _buildPromptGrid(_promptGroups, constraints),
-                  ],
+                        _buildPromptGrid(groupsInSection, constraints),
+                        const SizedBox(height: 10),
+                      ],
+                    );
+                  },
                 );
               },
             ),
       floatingActionButton: FloatingActionButton(
-        onPressed:
-            _showAddGroupDialog, // Memanggil fungsi dialog yang baru dibuat
+        onPressed: () => _showAddGroupDialog(),
         backgroundColor: Colors.indigo,
         tooltip: 'Tambah Prompt Baru',
         child: const Icon(
@@ -231,7 +360,7 @@ class _PromptScreenState extends State<PromptScreen> {
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
         childAspectRatio: 1.15,
@@ -241,7 +370,6 @@ class _PromptScreenState extends State<PromptScreen> {
       itemCount: promptList.length,
       itemBuilder: (context, index) {
         final promptGroup = promptList[index];
-
         return Card(
           elevation: 3,
           shape: RoundedRectangleBorder(
@@ -305,11 +433,10 @@ class _PromptScreenState extends State<PromptScreen> {
 }
 
 // =========================================================================
-// 2. WIDGET HALAMAN DETAIL DAFTAR BANYAK PROMPT (BARU)
+// 2. WIDGET HALAMAN DETAIL DAFTAR BANYAK PROMPT
 // =========================================================================
 class PromptDetailScreen extends StatelessWidget {
   final PromptGroup promptGroup;
-
   const PromptDetailScreen({super.key, required this.promptGroup});
 
   @override
@@ -326,66 +453,77 @@ class PromptDetailScreen extends StatelessWidget {
         ),
         backgroundColor: Colors.indigo,
       ),
-      body: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: promptGroup.prompts.length,
-        itemBuilder: (context, index) {
-          final item = promptGroup.prompts[index];
-          return Card(
-            margin: const EdgeInsets.only(bottom: 12),
-            elevation: 2,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: ListTile(
-              contentPadding: const EdgeInsets.all(16),
-              leading: CircleAvatar(
-                backgroundColor: Colors.indigo[50],
-                child: Icon(
-                  item.isFavorite ? Icons.star : Icons.description,
-                  color: item.isFavorite ? Colors.orange : Colors.indigo,
-                  size: 20,
-                ),
+      body: promptGroup.prompts.isEmpty
+          ? const Center(
+              child: Text(
+                'Tidak ada item prompt di dalam grup ini.',
+                style: TextStyle(color: Colors.grey),
               ),
-              title: Text(
-                item.actAs,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
-                  color: Colors.indigo,
-                ),
-              ),
-              subtitle: Padding(
-                padding: const EdgeInsets.only(top: 6.0),
-                child: Text(
-                  item.content,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Colors.black87,
-                    height: 1.4,
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: promptGroup.prompts.length,
+              itemBuilder: (context, index) {
+                final item = promptGroup.prompts[index];
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                ),
-              ),
-              trailing: IconButton(
-                icon: const Icon(Icons.copy, color: Colors.grey, size: 20),
-                tooltip: 'Salin Prompt',
-                onPressed: () async {
-                  // Menyalin isi konten asli dari JSON ke sistem Clipboard perangkat
-                  await Clipboard.setData(ClipboardData(text: item.content));
-
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Berhasil menyalin: ${item.actAs}'),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.all(16),
+                    leading: CircleAvatar(
+                      backgroundColor: Colors.indigo[50],
+                      child: Icon(
+                        item.isFavorite ? Icons.star : Icons.description,
+                        color: item.isFavorite ? Colors.orange : Colors.indigo,
+                        size: 20,
                       ),
-                    );
-                  }
-                },
-              ),
+                    ),
+                    title: Text(
+                      item.actAs,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: Colors.indigo,
+                      ),
+                    ),
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 6.0),
+                      child: Text(
+                        item.content,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Colors.black87,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                    trailing: IconButton(
+                      icon: const Icon(
+                        Icons.copy,
+                        color: Colors.grey,
+                        size: 20,
+                      ),
+                      tooltip: 'Salin Prompt',
+                      onPressed: () async {
+                        await Clipboard.setData(
+                          ClipboardData(text: item.content),
+                        );
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Berhasil menyalin: ${item.actAs}'),
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                  ),
+                );
+              },
             ),
-          );
-        },
-      ),
     );
   }
 }
