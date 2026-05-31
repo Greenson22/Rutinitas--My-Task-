@@ -1,7 +1,7 @@
 // lib/features/prompt/presentation/widgets/add_prompt_item_dialog.dart
 import 'package:flutter/material.dart';
-import '../../data/models/prompt_model.dart';
-import '../controllers/prompt_controller.dart';
+import '../../../data/models/prompt_model.dart';
+import '../../controllers/prompt_controller.dart';
 
 class AddPromptItemDialog extends StatefulWidget {
   final PromptGroup currentGroup;
