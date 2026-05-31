@@ -218,28 +218,39 @@ class _PromptScreenState extends State<PromptScreen> {
                 Navigator.pop(context);
                 setState(() => _isLoading = true);
                 try {
-                  // Update seksi kosong lokal jika ada
-                  if (_localEmptySections.contains(oldName.toUpperCase())) {
-                    _localEmptySections.remove(oldName.toUpperCase());
-                    _localEmptySections.add(newName.toUpperCase());
+                  final String cleanOldName = oldName.trim().toUpperCase();
+                  final String cleanNewName = newName.trim().toUpperCase();
+
+                  // 1. Sinkronisasi Seksi Kosong di RAM agar posisinya TETAP di indeks yang sama (tidak lompat)
+                  if (_localEmptySections.contains(cleanOldName)) {
+                    final int indexSeksi = _localEmptySections.indexOf(
+                      cleanOldName,
+                    );
+                    if (indexSeksi != -1) {
+                      _localEmptySections[indexSeksi] = cleanNewName;
+                    }
                   }
 
                   final baseDir = await _storageService.getBaseDirSetting();
+
+                  // 2. Kumpulkan grup yang masuk ke dalam seksi lama
                   List<PromptGroup> groupsToUpdate = [];
                   for (var group in _promptGroups) {
                     final currentSecName = group.sectionName.isEmpty
                         ? 'GENERAL'
                         : group.sectionName.toUpperCase();
-                    if (currentSecName == oldName.toUpperCase()) {
+                    if (currentSecName == cleanOldName) {
                       groupsToUpdate.add(group);
                     }
                   }
 
+                  // 3. Tulis perubahan nama seksi baru ke Storage secara uppercase konsisten
                   for (var group in groupsToUpdate) {
                     final updatedGroup = PromptGroup(
                       id: group.id,
                       title: group.title,
-                      sectionName: newName,
+                      sectionName:
+                          cleanNewName, // <--- Gunakan nama uppercase agar sinkron dengan UI compiler
                       icon: group.icon,
                       lastUpdated: DateTime.now().toIso8601String(),
                       prompts: group.prompts,
@@ -253,14 +264,29 @@ class _PromptScreenState extends State<PromptScreen> {
 
                   if (mounted) {
                     setState(() {
-                      _promptGroups.removeWhere((group) {
+                      // 4. Ubah nama seksi pada data di memori secara langsung untuk mempertahankan urutan index array aktif
+                      for (var group in _promptGroups) {
                         final currentSecName = group.sectionName.isEmpty
                             ? 'GENERAL'
                             : group.sectionName.toUpperCase();
-                        return currentSecName == oldName.toUpperCase();
-                      });
-                      isSectionEditMode = true;
+                        if (currentSecName == cleanOldName) {
+                          int idx = _promptGroups.indexOf(group);
+                          if (idx != -1) {
+                            _promptGroups[idx] = PromptGroup(
+                              id: group.id,
+                              title: group.title,
+                              sectionName: cleanNewName,
+                              icon: group.icon,
+                              lastUpdated: DateTime.now().toIso8601String(),
+                              prompts: group.prompts,
+                            );
+                          }
+                        }
+                      }
+                      isSectionEditMode = true; // Pertahankan mode edit seksi
                     });
+
+                    // 5. Ambil data segar dari physical storage
                     await _loadAllPrompts();
                   }
                 } catch (e) {
