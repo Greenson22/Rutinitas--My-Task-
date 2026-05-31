@@ -371,131 +371,18 @@ class _DailyScreenState extends State<DailyScreen> {
                     ...semuaKunciSeksi.map((namaSeksiUtama) {
                       final listGroupDiSeksiIni =
                           _controller.groupedVisibleGroup[namaSeksiUtama] ?? [];
+                      final int indexSeksi = semuaKunciSeksi.indexOf(
+                        namaSeksiUtama,
+                      );
+
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                InkWell(
-                                  onLongPress:
-                                      _controller.toggleSectionEditMode,
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: AnimatedPadding(
-                                    duration: const Duration(milliseconds: 200),
-                                    curve: Curves.easeInOut,
-                                    padding: _controller.isSectionEditMode
-                                        ? const EdgeInsets.symmetric(
-                                            vertical: 12.0,
-                                            horizontal: 8.0,
-                                          )
-                                        : const EdgeInsets.symmetric(
-                                            vertical: 4.0,
-                                            horizontal: 4.0,
-                                          ),
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Text(
-                                          namaSeksiUtama.toUpperCase(),
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.teal[900],
-                                            letterSpacing: 0.8,
-                                          ),
-                                        ),
-                                        if (_controller.isSectionEditMode) ...[
-                                          Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              IconButton(
-                                                icon: const Icon(
-                                                  Icons.arrow_upward,
-                                                  size: 18,
-                                                  color: Colors.blueGrey,
-                                                ),
-                                                onPressed:
-                                                    semuaKunciSeksi.indexOf(
-                                                          namaSeksiUtama,
-                                                        ) >
-                                                        0
-                                                    ? () => _controller
-                                                          .moveMainSectionOrder(
-                                                            namaSeksiUtama,
-                                                            -1,
-                                                          )
-                                                    : null,
-                                              ),
-                                              IconButton(
-                                                icon: const Icon(
-                                                  Icons.arrow_downward,
-                                                  size: 18,
-                                                  color: Colors.blueGrey,
-                                                ),
-                                                onPressed:
-                                                    semuaKunciSeksi.indexOf(
-                                                          namaSeksiUtama,
-                                                        ) <
-                                                        semuaKunciSeksi.length -
-                                                            1
-                                                    ? () => _controller
-                                                          .moveMainSectionOrder(
-                                                            namaSeksiUtama,
-                                                            1,
-                                                          )
-                                                    : null,
-                                              ),
-                                              IconButton(
-                                                icon: const Icon(
-                                                  Icons.edit,
-                                                  size: 18,
-                                                  color: Colors.teal,
-                                                ),
-                                                onPressed: () =>
-                                                    _editMainSectionName(
-                                                      namaSeksiUtama,
-                                                    ),
-                                              ),
-                                              IconButton(
-                                                icon: const Icon(
-                                                  Icons.delete,
-                                                  size: 18,
-                                                  color: Colors.redAccent,
-                                                ),
-                                                onPressed: () =>
-                                                    _deleteMainSection(
-                                                      namaSeksiUtama,
-                                                    ),
-                                              ),
-                                              IconButton(
-                                                icon: const Icon(
-                                                  Icons.add_circle_outline,
-                                                  color: Colors.teal,
-                                                  size: 18,
-                                                ),
-                                                tooltip:
-                                                    'Tambah Group ke Seksi Ini',
-                                                onPressed: () =>
-                                                    _showAddGroupDialogAtSection(
-                                                      namaSeksiUtama,
-                                                    ),
-                                              ),
-                                            ],
-                                          ),
-                                        ] else ...[
-                                          const SizedBox.shrink(),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                const Divider(height: 8, thickness: 1),
-                              ],
-                            ),
+                          _buildSectionHeader(
+                            index: indexSeksi,
+                            totalCount: semuaKunciSeksi.length,
+                            sectionName: namaSeksiUtama,
+                            color: Colors.teal[900]!,
                           ),
                           listGroupDiSeksiIni.isEmpty
                               ? const Padding(
@@ -566,6 +453,110 @@ class _DailyScreenState extends State<DailyScreen> {
           Icons.create_new_folder_outlined,
           size: 28,
           color: Colors.white,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader({
+    required int index,
+    required int totalCount,
+    required String sectionName,
+    required Color color,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        splashColor: Colors.teal.withOpacity(0.1),
+        highlightColor: Colors.teal.withOpacity(0.05),
+        onLongPress: _controller.toggleSectionEditMode,
+        onTap: () {},
+        child: AnimatedPadding(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
+          padding: _controller.isSectionEditMode
+              ? const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0)
+              : const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    sectionName.toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                  if (_controller.isSectionEditMode) ...[
+                    Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(
+                            Icons.arrow_upward,
+                            size: 18,
+                            color: Colors.blueGrey,
+                          ),
+                          onPressed: index > 0
+                              ? () => _controller.moveMainSectionOrder(
+                                  sectionName,
+                                  -1,
+                                )
+                              : null,
+                        ),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.arrow_downward,
+                            size: 18,
+                            color: Colors.blueGrey,
+                          ),
+                          onPressed: index < totalCount - 1
+                              ? () => _controller.moveMainSectionOrder(
+                                  sectionName,
+                                  1,
+                                )
+                              : null,
+                        ),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.edit,
+                            size: 18,
+                            color: Colors.teal,
+                          ),
+                          onPressed: () => _editMainSectionName(sectionName),
+                        ),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.delete,
+                            size: 18,
+                            color: Colors.redAccent,
+                          ),
+                          onPressed: () => _deleteMainSection(sectionName),
+                        ),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.add_circle_outline,
+                            color: Colors.teal,
+                            size: 18,
+                          ),
+                          tooltip: 'Tambah Group ke Seksi Ini',
+                          onPressed: () =>
+                              _showAddGroupDialogAtSection(sectionName),
+                        ),
+                      ],
+                    ),
+                  ] else ...[
+                    const SizedBox.shrink(),
+                  ],
+                ],
+              ),
+              const Divider(height: 2, thickness: 1),
+            ],
+          ),
         ),
       ),
     );
