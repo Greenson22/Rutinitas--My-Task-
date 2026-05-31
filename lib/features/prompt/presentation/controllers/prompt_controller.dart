@@ -438,4 +438,60 @@ class PromptController extends ChangeNotifier {
       }
     }
   }
+
+  Future<void> addPromptItemToGroup({
+    required PromptGroup group,
+    required String title, // Mengisi properti actAs
+    required String
+    description, // Opsional jika dibutuhkan, atau untuk pelengkap log
+    required String content, // Mengisi properti content
+    required BuildContext context,
+  }) async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      final baseDir = await _storageService.getBaseDirSetting();
+
+      // Membuat ID unik baru berbasis timestamp untuk item prompt
+      final String newItemId = 'item_${DateTime.now().millisecondsSinceEpoch}';
+
+      // Bungkus data ke dalam objek model PromptItem
+      final newPromptItem = PromptItem(
+        id: newItemId,
+        actAs: title.trim(),
+        content: content.trim(),
+        isFavorite: false, // Default awal tidak favorit
+      );
+
+      // Tambahkan item baru ke dalam list prompts grup yang dituju
+      group.prompts.add(newPromptItem);
+
+      // Simpan perubahan grup tersebut kembali ke berkas storage lokal
+      await _storageService.savePromptGroup(
+        baseDir,
+        group.id,
+        jsonEncode(group.toJson()),
+      );
+
+      // Muat ulang data untuk menyinkronkan seluruh tampilan screen
+      if (context.mounted) await loadAllPrompts(context);
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Prompt "${title.trim()}" berhasil ditambahkan!'),
+            backgroundColor: Colors.indigo,
+          ),
+        );
+      }
+    } catch (e) {
+      _isLoading = false;
+      notifyListeners();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal menambahkan item prompt: $e')),
+        );
+      }
+    }
+  }
 }

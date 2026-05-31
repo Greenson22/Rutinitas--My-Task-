@@ -288,6 +288,104 @@ class _PromptScreenState extends State<PromptScreen> {
     );
   }
 
+  // === FUNGSI BARU: DIALOG UNTUK INPUT TAMBAH ITEM PROMPT ===
+  void _showAddPromptItemDialog(PromptGroup group) {
+    final titleController = TextEditingController();
+    final descController =
+        TextEditingController(); // Deskripsi tambahan pendukung
+    final contentController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: const [
+            Icon(Icons.playlist_add, color: Colors.indigo),
+            SizedBox(width: 8),
+            Text('Tambah Item Prompt Baru'),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Form(
+            key: formKey,
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                // Input Title (Bertindak Sebagai / Act As)
+                TextFormField(
+                  controller: titleController,
+                  decoration: const InputDecoration(
+                    labelText: 'Judul / Peran (Title)',
+                    hintText: 'Contoh: Ahli Copywriting, Senior Flutter',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (v) =>
+                      v!.trim().isEmpty ? 'Title tidak boleh kosong' : null,
+                ),
+                const SizedBox(height: 12),
+
+                // Input Deskripsi (Catatan/Keterangan singkat)
+                TextFormField(
+                  controller: descController,
+                  decoration: const InputDecoration(
+                    labelText: 'Deskripsi Pendek (Opsional)',
+                    hintText: 'Contoh: Untuk caption instagram promosi produk',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Input Isi Prompt (Content utama)
+                TextFormField(
+                  controller: contentController,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    labelText: 'Isi Perintah Prompt (Content)',
+                    hintText:
+                        'Tulis template instruksi AI Anda secara lengkap di sini...',
+                    border: OutlineInputBorder(),
+                    alignLabelWithHint: true,
+                  ),
+                  validator: (v) => v!.trim().isEmpty
+                      ? 'Isi prompt tidak boleh kosong'
+                      : null,
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                _controller.addPromptItemToGroup(
+                  group: group,
+                  title: titleController.text,
+                  description: descController.text,
+                  content: contentController.text,
+                  context: context,
+                );
+                Navigator.pop(context);
+              }
+            },
+            child: const Text(
+              'Simpan Prompt',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -757,25 +855,123 @@ class _PromptScreenState extends State<PromptScreen> {
 // =========================================================================
 // 2. WIDGET HALAMAN DETAIL DAFTAR BANYAK PROMPT
 // =========================================================================
+// =========================================================================
+// 2. WIDGET HALAMAN DETAIL DAFTAR BANYAK PROMPT
+// =========================================================================
 class PromptDetailScreen extends StatelessWidget {
   final PromptGroup promptGroup;
+
   const PromptDetailScreen({super.key, required this.promptGroup});
+
+  // Fungsi internal untuk memunculkan dialog tambah item prompt langsung di halaman detail
+  void _showAddPromptItemDialog(BuildContext context, PromptGroup group) {
+    final titleController = TextEditingController();
+    final descController = TextEditingController();
+    final contentController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    final PromptController controller = PromptController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: const [
+            Icon(Icons.playlist_add, color: Colors.indigo),
+            SizedBox(width: 8),
+            Text('Tambah Item Prompt'),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Form(
+            key: formKey,
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                TextFormField(
+                  controller: titleController,
+                  decoration: const InputDecoration(
+                    labelText: 'Judul / Peran (Title)',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (v) =>
+                      v!.trim().isEmpty ? 'Title tidak boleh kosong' : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: descController,
+                  decoration: const InputDecoration(
+                    labelText: 'Deskripsi Pendek (Opsional)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: contentController,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    labelText: 'Isi Perintah Prompt (Content)',
+                    border: OutlineInputBorder(),
+                    alignLabelWithHint: true,
+                  ),
+                  validator: (v) => v!.trim().isEmpty
+                      ? 'Isi prompt tidak boleh kosong'
+                      : null,
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                controller.addPromptItemToGroup(
+                  group: group,
+                  title: titleController.text,
+                  description: descController.text,
+                  content: contentController.text,
+                  context: context,
+                );
+                Navigator.pop(ctx);
+              }
+            },
+            child: const Text(
+              'Simpan Prompt',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    // PERBAIKAN: Langsung panggil 'promptGroup' tanpa kata kunci 'widget.'
+    final currentGroup = promptGroup;
+
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
         title: Row(
           children: [
-            Text(promptGroup.icon),
+            Text(currentGroup.icon),
             const SizedBox(width: 8),
-            Text(promptGroup.title),
+            Text(
+              currentGroup.title,
+            ), // PERBAIKAN: Menggunakan .title sesuai model data
           ],
         ),
         backgroundColor: Colors.indigo,
       ),
-      body: promptGroup.prompts.isEmpty
+      body: currentGroup.prompts.isEmpty
           ? const Center(
               child: Text(
                 'Tidak ada item prompt di dalam grup ini.',
@@ -784,9 +980,9 @@ class PromptDetailScreen extends StatelessWidget {
             )
           : ListView.builder(
               padding: const EdgeInsets.all(16),
-              itemCount: promptGroup.prompts.length,
+              itemCount: currentGroup.prompts.length,
               itemBuilder: (context, index) {
-                final item = promptGroup.prompts[index];
+                final item = currentGroup.prompts[index];
                 return Card(
                   margin: const EdgeInsets.only(bottom: 12),
                   elevation: 2,
@@ -846,6 +1042,13 @@ class PromptDetailScreen extends StatelessWidget {
                 );
               },
             ),
+      // MENAMBAHKAN FLOATING ACTION BUTTON DI LEVEL DETAIL SCREEN
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showAddPromptItemDialog(context, currentGroup),
+        backgroundColor: Colors.indigo,
+        tooltip: 'Tambah Item Prompt Baru',
+        child: const Icon(Icons.add, color: Colors.white),
+      ),
     );
   }
 }
