@@ -9,17 +9,20 @@ import '../../../features/about/presentation/pages/about_page.dart';
 import '../../../features/task_master/presentation/widgets/settings_dialog.dart';
 import '../../services/storage_service.dart';
 import '../../../features/data_center/presentation/screens/data_center_screen.dart';
+import '../../../features/prompt/presentation/screens/prompt_screen.dart';
 
 class DrawerMenu extends StatefulWidget {
   final bool isDailyActive;
   final bool isJurnalActive;
   final bool isDataCenterActive;
+  final bool isPromptActive;
 
   const DrawerMenu({
     super.key,
     this.isDailyActive = false,
     this.isJurnalActive = false,
-    this.isDataCenterActive =
+    this.isDataCenterActive = false,
+    this.isPromptActive =
         false, // Default-nya false agar halaman lain tidak error
   });
 
@@ -51,7 +54,6 @@ class _DrawerMenuState extends State<DrawerMenu> {
           await _storageService.saveBaseDirSetting(newDir);
           if (mounted) {
             setState(() => _selectedBaseDir = newDir);
-            // Me-refresh halaman yang sedang aktif agar data dari folder baru dimuat
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
@@ -59,6 +61,10 @@ class _DrawerMenuState extends State<DrawerMenu> {
                     ? const DailyScreen()
                     : widget.isJurnalActive
                     ? const JurnalAktivitasScreen()
+                    : widget.isDataCenterActive
+                    ? const DataCenterScreen()
+                    : widget.isPromptActive
+                    ? const PromptScreen() // Navigasi refresh ke halaman prompt jika aktif
                     : const HomeScreen(),
               ),
             );
@@ -74,10 +80,8 @@ class _DrawerMenuState extends State<DrawerMenu> {
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
-          // HEADER DIALOG (PERBAIKAN: Menampilkan Icon Tunggal Tanpa Duplikat)
           DrawerHeader(
             decoration: BoxDecoration(
-              // Background dengan gradasi Indigo modern
               gradient: LinearGradient(
                 colors: [Colors.indigo[800]!, Colors.indigo[600]!],
                 begin: Alignment.topLeft,
@@ -86,14 +90,12 @@ class _DrawerMenuState extends State<DrawerMenu> {
             ),
             child: Row(
               children: [
-                // Mengganti CircleAvatar huruf 'M' sepenuhnya dengan Image.asset tunggal
                 Image.asset(
                   '',
                   width: 48,
                   height: 48,
                   fit: BoxFit.contain,
                   errorBuilder: (context, error, stackTrace) {
-                    // Fallback visual jika file gambar belum terdaftar atau tidak ditemukan
                     return CircleAvatar(
                       radius: 24,
                       backgroundColor: Colors.white,
@@ -106,7 +108,6 @@ class _DrawerMenuState extends State<DrawerMenu> {
                   },
                 ),
                 const SizedBox(width: 16),
-                // Judul Aplikasi
                 const Text(
                   'My Tasks',
                   style: TextStyle(
@@ -127,7 +128,8 @@ class _DrawerMenuState extends State<DrawerMenu> {
             isActive:
                 !widget.isDailyActive &&
                 !widget.isJurnalActive &&
-                !widget.isDataCenterActive,
+                !widget.isDataCenterActive &&
+                !widget.isPromptActive, // Update kondisi active
             onTap: () {
               Navigator.pop(context);
               Navigator.pushReplacement(
@@ -178,14 +180,34 @@ class _DrawerMenuState extends State<DrawerMenu> {
             isActive: widget.isDataCenterActive,
             onTap: () {
               Navigator.pop(context);
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const DataCenterScreen(),
-                ),
-              );
+              if (!widget.isDataCenterActive) {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const DataCenterScreen(),
+                  ),
+                );
+              }
             },
           ),
+
+          // TAMBAHKAN: 5. Menu Prompt Baru
+          _buildMenuTile(
+            icon: Icons
+                .psychology_alt, // Menggunakan ikon bernuansa prompt/AI/pikiran
+            title: 'Prompt',
+            isActive: widget.isPromptActive,
+            onTap: () {
+              Navigator.pop(context);
+              if (!widget.isPromptActive) {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => const PromptScreen()),
+                );
+              }
+            },
+          ),
+
           const Divider(),
           ListTile(
             leading: Icon(Icons.settings_outlined, color: Colors.blueGrey[700]),
@@ -232,22 +254,17 @@ class _DrawerMenuState extends State<DrawerMenu> {
     required VoidCallback onTap,
   }) {
     return Padding(
-      // Memberikan jarak vertikal & horizontal agar menu tidak menempel satu sama lain
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       child: ListTile(
         selected: isActive,
-        // Saat aktif, latar belakang menggunakan warna Indigo transparan yang halus
         selectedTileColor: Colors.indigo.withOpacity(0.12),
-        // Memberikan efek bentuk kapsul membulat pada latar belakang menu
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        // Warna ikon: Indigo cerah jika aktif, abu-abu jika tidak aktif
         leading: Icon(
           icon,
           color: isActive ? Colors.indigo[700] : Colors.grey[600],
           size: 24,
         ),
-        // Warna teks & ketebalan huruf menyesuaikan status aktif
         title: Text(
           title,
           style: TextStyle(
