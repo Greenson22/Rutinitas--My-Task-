@@ -1,8 +1,11 @@
 // lib/features/prompt/presentation/screens/prompt_screen.dart
 import 'package:flutter/material.dart';
 import '../../../../core/presentation/widgets/drawer_menu.dart';
-import '../../../daily/data/models/daily_model.dart'; // Menggunakan model data checklist yang ada
+import '../../../daily/data/models/daily_model.dart';
 
+// =========================================================================
+// 1. WIDGET HALAMAN UTAMA PROMPT
+// =========================================================================
 class PromptScreen extends StatefulWidget {
   const PromptScreen({super.key});
 
@@ -11,34 +14,19 @@ class PromptScreen extends StatefulWidget {
 }
 
 class _PromptScreenState extends State<PromptScreen> {
-  // Simulasi data data dari ChecklistGroup yang disesuaikan menjadi Prompt saja
   final List<ChecklistGroup> _promptGroups = [
-    ChecklistGroup(
-      id: '1',
-      groupName: 'Daily Prompt',
-      icon: '📆',
-      sectionCategory: 'Prompt Utama',
-      allList: [],
-    ),
-    ChecklistGroup(
-      id: '2',
-      groupName: 'Bible Study',
-      icon: '✝',
-      sectionCategory: 'Prompt Utama',
-      allList: [],
-    ),
+    ChecklistGroup(id: '1', groupName: 'Daily Prompt', icon: '📆', allList: []),
+    ChecklistGroup(id: '2', groupName: 'Bible Study', icon: '✝', allList: []),
     ChecklistGroup(
       id: '3',
       groupName: 'SoftSkill & MetaSkill',
       icon: '🧠',
-      sectionCategory: 'Prompt Utama',
       allList: [],
     ),
     ChecklistGroup(
       id: '4',
       groupName: 'Coding Assistant',
       icon: '👨‍💻',
-      sectionCategory: 'Prompt Utama',
       allList: [],
     ),
   ];
@@ -52,12 +40,6 @@ class _PromptScreenState extends State<PromptScreen> {
       appBar: AppBar(
         title: const Text('My Prompts'),
         backgroundColor: Colors.indigo,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            onPressed: () {},
-          ),
-        ],
       ),
       drawer: const DrawerMenu(isPromptActive: true),
       body: LayoutBuilder(
@@ -90,9 +72,7 @@ class _PromptScreenState extends State<PromptScreen> {
         },
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // Logika tambah prompt baru
-        },
+        onPressed: () {},
         backgroundColor: Colors.indigo,
         tooltip: 'Tambah Prompt Baru',
         child: const Icon(
@@ -123,7 +103,7 @@ class _PromptScreenState extends State<PromptScreen> {
       padding: const EdgeInsets.all(12),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
-        childAspectRatio: _isPageEditMode ? 0.90 : 1.15,
+        childAspectRatio: 1.15,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
       ),
@@ -138,72 +118,172 @@ class _PromptScreenState extends State<PromptScreen> {
             side: const BorderSide(color: Colors.indigo, width: 3.5),
           ),
           color: Colors.white,
-          child: Column(
-            children: [
-              Expanded(
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(16),
-                  onLongPress: () {
-                    setState(() {
-                      _isPageEditMode = !_isPageEditMode;
-                    });
-                  },
-                  onTap: () {
-                    // Logika masuk ke detail prompt
-                  },
-                  child: SizedBox.expand(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12.0),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Text(
-                            prompt.icon,
-                            style: const TextStyle(fontSize: 32),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            prompt.groupName,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                              color: Colors.black87,
-                            ),
-                            textAlign: TextAlign.center,
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
-                          ),
-                          const SizedBox(height: 8),
-                          // Badge informasi diganti menjadi penanda Prompt saja
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.indigo.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              'Prompt Active',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.indigo[900],
-                              ),
-                            ),
-                          ),
-                        ],
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            // === FUNGSI DIUBAH: Navigasi mengarah ke detail saat di-tap ===
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => PromptDetailScreen(
+                    title: prompt.groupName,
+                    icon: prompt.icon,
+                  ),
+                ),
+              );
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(prompt.icon, style: const TextStyle(fontSize: 32)),
+                  const SizedBox(height: 8),
+                  Text(
+                    prompt.groupName,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.indigo.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      'Lihat Prompt',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.indigo[900],
                       ),
                     ),
                   ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
         );
       },
+    );
+  }
+}
+
+// =========================================================================
+// 2. WIDGET HALAMAN DETAIL DAFTAR BANYAK PROMPT (BARU)
+// =========================================================================
+class PromptDetailScreen extends StatelessWidget {
+  final String title;
+  final String icon;
+
+  const PromptDetailScreen({
+    super.key,
+    required this.title,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Data Dummy Daftar Prompt Panjang untuk Simulasi
+    final List<Map<String, String>> dummyPrompts = [
+      {
+        'act': 'Sebagai Ahli Konten',
+        'desc':
+            'Buatkan struktur kerangka tulisan blog yang SEO-friendly mengenai topik produktivitas kerja...',
+      },
+      {
+        'act': 'Sebagai Senior Flutter Dev',
+        'desc':
+            'Refactor kode arsitektur BLoC berikut agar lebih efisien dan clean code sesuai standar kode global...',
+      },
+      {
+        'act': 'Sebagai Penerjemah Profesional',
+        'desc':
+            'Terjemahkan teks akademis bahasa Inggris ini ke bahasa Indonesia dengan gaya bahasa formal literatur...',
+      },
+      {
+        'act': 'Sebagai Coach Karier',
+        'desc':
+            'Berikan poin-poin evaluasi pertanyaan wawancara untuk posisi system analyst berikut beserta tips menjawabnya...',
+      },
+      {
+        'act': 'Sebagai Ringkasan Buku AI',
+        'desc':
+            'Ekstrak 5 pemikiran utama (key takeaways) dari ringkasan bab konsep teknik deep work ini...',
+      },
+    ];
+
+    return Scaffold(
+      backgroundColor: Colors.grey[100],
+      appBar: AppBar(
+        title: Row(
+          children: [Text(icon), const SizedBox(width: 8), Text(title)],
+        ),
+        backgroundColor: Colors.indigo,
+      ),
+      body: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: dummyPrompts.length,
+        itemBuilder: (context, index) {
+          final item = dummyPrompts[index];
+          return Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: ListTile(
+              contentPadding: const EdgeInsets.all(16),
+              leading: CircleAvatar(
+                backgroundColor: Colors.indigo[50],
+                child: Text(
+                  '${index + 1}',
+                  style: const TextStyle(
+                    color: Colors.indigo,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              title: Text(
+                item['act']!,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                  color: Colors.indigo,
+                ),
+              ),
+              subtitle: Padding(
+                padding: const EdgeInsets.only(top: 6.0),
+                child: Text(
+                  item['desc']!,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Colors.black87,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+              trailing: IconButton(
+                icon: const Icon(Icons.copy, color: Colors.grey, size: 20),
+                tooltip: 'Salin Prompt',
+                onPressed: () {
+                  // Tambahkan visual snackbar pemicu tiruan saat tombol copy ditekan
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Menyalin: ${item['act']}')),
+                  );
+                },
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }
