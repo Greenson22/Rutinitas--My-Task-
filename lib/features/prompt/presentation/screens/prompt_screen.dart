@@ -55,6 +55,7 @@ class _PromptScreenState extends State<PromptScreen> {
     }
   }
 
+  // =========================================================================
   void moveSectionOrder(int index, int direction) async {
     // 1. Rekonstruksi struktur seksi (Map) saat ini dari data state lokal
     final Map<String, List<PromptGroup>> sectionsMap = {};
@@ -92,7 +93,7 @@ class _PromptScreenState extends State<PromptScreen> {
           _promptGroups[idx] = PromptGroup(
             id: group.id,
             title: group.title,
-            sectionName: targetSectionName, // Set ke seksi target
+            sectionName: targetSectionName,
             icon: group.icon,
             lastUpdated: DateTime.now().toIso8601String(),
             prompts: group.prompts,
@@ -106,7 +107,7 @@ class _PromptScreenState extends State<PromptScreen> {
           _promptGroups[idx] = PromptGroup(
             id: group.id,
             title: group.title,
-            sectionName: currentSectionName, // Set ke seksi semula
+            sectionName: currentSectionName,
             icon: group.icon,
             lastUpdated: DateTime.now().toIso8601String(),
             prompts: group.prompts,
@@ -114,23 +115,23 @@ class _PromptScreenState extends State<PromptScreen> {
         }
       }
 
-      // Matikan edit mode agar UI langsung kembali normal dan rapi
-      isSectionEditMode = false;
+      // CATATAN: isSectionEditMode TIDAK diubah ke false di sini agar tombol tidak langsung hilang!
     });
 
-    // Berikan feedback visual instan berupa SnackBar tanpa menunggu proses simpan berkas selesai
+    // Berikan feedback visual instan berupa SnackBar
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Urutan seksi berhasil dipindahkan'),
-        duration: Duration(seconds: 1),
+        duration: Duration(
+          milliseconds: 700,
+        ), // Durasi dipersingkat agar lebih snappy
       ),
     );
 
-    // 3. BACKGROUND I/O TASK: Proses penulisan file fisik dijalankan di latar belakang tanpa mengunci layar
+    // 3. BACKGROUND I/O TASK: Proses penulisan file fisik dijalankan di latar belakang
     try {
       final baseDir = await _storageService.getBaseDirSetting();
 
-      // Simpan perubahan ke penyimpanan internal secara asinkron
       for (var group in currentGroups) {
         final updatedGroup = PromptGroup(
           id: group.id,
@@ -163,7 +164,6 @@ class _PromptScreenState extends State<PromptScreen> {
         );
       }
     } catch (e) {
-      // Jika penulisan file gagal di background, barulah berikan peringatan dan sync ulang
       debugPrint("Gagal mengamankan urutan seksi di storage: $e");
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Penyimpanan sinkronisasi gagal: $e')),
@@ -172,7 +172,6 @@ class _PromptScreenState extends State<PromptScreen> {
     }
   }
 
-  // 2. FUNGSI UBAH NAMA SEKSI (RENAME)
   void editSectionName(String oldName) async {
     final textController = TextEditingController(text: oldName);
 
@@ -203,13 +202,11 @@ class _PromptScreenState extends State<PromptScreen> {
                 try {
                   final baseDir = await _storageService.getBaseDirSetting();
 
-                  // Cari semua grup prompt yang memiliki seksi lama, lalu update section_name nya
                   for (var group in _promptGroups) {
                     final currentSecName = group.sectionName.isEmpty
                         ? 'GENERAL'
                         : group.sectionName.toUpperCase();
                     if (currentSecName == oldName.toUpperCase()) {
-                      // Buat objek baru dengan nama seksi yang diperbarui
                       final updatedGroup = PromptGroup(
                         id: group.id,
                         title: group.title,
@@ -219,7 +216,6 @@ class _PromptScreenState extends State<PromptScreen> {
                         prompts: group.prompts,
                       );
 
-                      // Simpan kembali ke penyimpanan lokal file per file
                       final jsonContent = jsonEncode(updatedGroup.toJson());
                       await _storageService.savePromptGroup(
                         baseDir,
@@ -231,8 +227,11 @@ class _PromptScreenState extends State<PromptScreen> {
 
                   if (mounted) {
                     Navigator.pop(context);
-                    setState(() => isSectionEditMode = false);
-                    _loadAllPrompts(); // Muat ulang data terbaru
+                    setState(() {
+                      // Tetap pertahankan mode edit agar tombol tidak disembunyikan otomatis
+                      isSectionEditMode = true;
+                    });
+                    _loadAllPrompts();
                   }
                 } catch (e) {
                   setState(() => _isLoading = false);
@@ -249,7 +248,6 @@ class _PromptScreenState extends State<PromptScreen> {
     );
   }
 
-  // 3. FUNGSI HAPUS SEKSI (DAN SEMUA GRUP DI DALAMNYA)
   void deleteSection(String sectionName) async {
     showDialog(
       context: context,
@@ -271,7 +269,6 @@ class _PromptScreenState extends State<PromptScreen> {
                 try {
                   final baseDir = await _storageService.getBaseDirSetting();
 
-                  // Cari semua grup prompt yang termasuk dalam seksi ini dan hapus file fisiknya
                   for (var group in _promptGroups) {
                     final currentSecName = group.sectionName.isEmpty
                         ? 'GENERAL'
@@ -286,8 +283,11 @@ class _PromptScreenState extends State<PromptScreen> {
 
                   if (mounted) {
                     Navigator.pop(context);
-                    setState(() => isSectionEditMode = false);
-                    _loadAllPrompts(); // Refresh UI setelah penghapusan
+                    setState(() {
+                      // Tetap pertahankan mode edit agar tombol tidak disembunyikan otomatis
+                      isSectionEditMode = true;
+                    });
+                    _loadAllPrompts();
                   }
                 } catch (e) {
                   setState(() => _isLoading = false);
@@ -376,6 +376,11 @@ class _PromptScreenState extends State<PromptScreen> {
 
                   if (mounted) {
                     Navigator.pop(context);
+                    setState(() {
+                      // Tetap aktifkan mode edit seksi jika penambahan dilakukan dari mode edit seksi
+                      // (Menghindari reset state seksi secara tidak sengaja)
+                      isSectionEditMode = isSectionEditMode;
+                    });
                     _loadAllPrompts();
                   }
                 } catch (e) {
