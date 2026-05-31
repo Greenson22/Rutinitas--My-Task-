@@ -1,13 +1,12 @@
 // lib/features/prompt/presentation/screens/prompt_screen.dart
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:rutinitasku/core/services/storage_service.dart';
+import 'package:flutter/services.dart';
 import '../../../../core/presentation/widgets/drawer_menu.dart';
 import '../../data/models/prompt_model.dart';
-import 'package:flutter/services.dart';
+import '../controllers/prompt_controller.dart';
 
 // =========================================================================
-// 1. WIDGET HALAMAN UTAMA PROMPT
+// 1. WIDGET HALAMAN UTAMA PROMPT (UI ONLY)
 // =========================================================================
 class PromptScreen extends StatefulWidget {
   const PromptScreen({super.key});
@@ -17,48 +16,23 @@ class PromptScreen extends StatefulWidget {
 }
 
 class _PromptScreenState extends State<PromptScreen> {
-  final StorageService _storageService = StorageService();
-  List<PromptGroup> _promptGroups = [];
-  bool _isLoading = true;
-
-  // Memisahkan state edit mode agar tidak bentrok satu sama lain
-  bool isSectionEditMode = false;
-  bool isCardEditMode = false;
-
-  // Menampung nama seksi kosong baru yang belum memiliki group di dalamnya
-  final List<String> _localEmptySections = [];
+  late final PromptController _controller;
 
   @override
   void initState() {
     super.initState();
-    _loadAllPrompts();
+    _controller = PromptController();
+    _controller.loadAllPrompts(context);
   }
 
-  Future<void> _loadAllPrompts() async {
-    setState(() => _isLoading = true);
-    try {
-      final baseDir = await _storageService.getBaseDirSetting();
-      final files = await _storageService.getAllPromptGroups(baseDir);
-      List<PromptGroup> loadedGroups = [];
-      for (var file in files) {
-        final content = await file.readAsString();
-        final jsonMap = jsonDecode(content);
-        loadedGroups.add(PromptGroup.fromJson(jsonMap));
-      }
-      setState(() {
-        _promptGroups = loadedGroups;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() => _isLoading = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Gagal memuat data prompt: $e')));
-    }
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
-  // === FITUR UTAMA BARU: TAMBAH SEKSI UTAMA BARU KOSONG ===
-  void showAddSectionDialog() {
+  // === DIALOG DI LEVEL UI ===
+  void _showAddSectionDialog() {
     final sectionController = TextEditingController();
     showDialog(
       context: context,
@@ -77,24 +51,9 @@ class _PromptScreenState extends State<PromptScreen> {
           ),
           ElevatedButton(
             onPressed: () {
-              final String namaSeksiBaru = sectionController.text
-                  .trim()
-                  .toUpperCase();
-              if (namaSeksiBaru.isNotEmpty) {
-                setState(() {
-                  if (!_localEmptySections.contains(namaSeksiBaru)) {
-                    _localEmptySections.add(namaSeksiBaru);
-                  }
-                });
+              if (sectionController.text.trim().isNotEmpty) {
+                _controller.addSection(sectionController.text, context);
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'Seksi "$namaSeksiBaru" berhasil dibuat! Tekan tahan judul seksi lalu tekan tombol + untuk menambah group.',
-                    ),
-                    backgroundColor: Colors.indigo,
-                  ),
-                );
               }
             },
             child: const Text('Simpan'),
@@ -104,388 +63,125 @@ class _PromptScreenState extends State<PromptScreen> {
     );
   }
 
-  void moveSectionOrder(int index, int direction) async {
-    final Map<String, List<PromptGroup>> sectionsMap = {};
-    for (var group in _promptGroups) {
-      final secName = group.sectionName.isEmpty
-          ? 'GENERAL'
-          : group.sectionName.toUpperCase();
-      if (!sectionsMap.containsKey(secName)) {
-        sectionsMap[secName] = [];
-      }
-      sectionsMap[secName]!.add(group);
-    }
-
-    for (var sec in _localEmptySections) {
-      sectionsMap.putIfAbsent(sec, () => []);
-    }
-
-    final sectionKeys = sectionsMap.keys.toList();
-    if (sectionKeys.contains('GENERAL')) {
-      sectionKeys.remove('GENERAL');
-      sectionKeys.insert(0, 'GENERAL');
-    }
-
-    int targetIndex = index + direction;
-    if (targetIndex < 0 || targetIndex >= sectionKeys.length) return;
-
-    final currentSectionName = sectionKeys[index];
-    final targetSectionName = sectionKeys[targetIndex];
-
-    setState(() {
-      if (_localEmptySections.contains(currentSectionName) ||
-          _localEmptySections.contains(targetSectionName)) {
-        final int idxA = _localEmptySections.indexOf(currentSectionName);
-        final int idxB = _localEmptySections.indexOf(targetSectionName);
-        if (idxA != -1 && idxB != -1) {
-          final temp = _localEmptySections[idxA];
-          _localEmptySections[idxA] = _localEmptySections[idxB];
-          _localEmptySections[idxB] = temp;
-        }
-      }
-
-      final List<PromptGroup> reorderedGroups = [];
-      final tempKey = sectionKeys[index];
-      sectionKeys[index] = sectionKeys[targetIndex];
-      sectionKeys[targetIndex] = tempKey;
-
-      for (var key in sectionKeys) {
-        if (sectionsMap.containsKey(key)) {
-          reorderedGroups.addAll(sectionsMap[key]!);
-        }
-      }
-      _promptGroups = reorderedGroups;
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Seksi beserta seluruh isinya berhasil dipindahkan!'),
-        duration: Duration(milliseconds: 700),
-      ),
-    );
-
-    try {
-      final baseDir = await _storageService.getBaseDirSetting();
-      for (var group in _promptGroups) {
-        await _storageService.savePromptGroup(
-          baseDir,
-          group.id,
-          jsonEncode(group.toJson()),
-        );
-      }
-    } catch (e) {
-      debugPrint(
-        "Gagal mengamankan urutan seksi beserta isinya di storage: $e",
-      );
-      _loadAllPrompts();
-    }
-  }
-
-  void editSectionName(String oldName) async {
+  void _showEditSectionNameDialog(String oldName) {
     final textController = TextEditingController(text: oldName);
     showDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text('Ubah Nama Seksi "$oldName"'),
-          content: TextField(
-            controller: textController,
-            decoration: const InputDecoration(labelText: 'Nama Seksi Baru'),
+      builder: (context) => AlertDialog(
+        title: Text('Ubah Nama Seksi "$oldName"'),
+        content: TextField(
+          controller: textController,
+          decoration: const InputDecoration(labelText: 'Nama Seksi Baru'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Batal'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final newName = textController.text.trim();
-                if (newName.isEmpty ||
-                    newName.toUpperCase() == oldName.toUpperCase()) {
-                  Navigator.pop(context);
-                  return;
-                }
-                Navigator.pop(context);
-                setState(() => _isLoading = true);
-                try {
-                  final String cleanOldName = oldName.trim().toUpperCase();
-                  final String cleanNewName = newName.trim().toUpperCase();
-
-                  if (_localEmptySections.contains(cleanOldName)) {
-                    final int indexSeksi = _localEmptySections.indexOf(
-                      cleanOldName,
-                    );
-                    if (indexSeksi != -1) {
-                      _localEmptySections[indexSeksi] = cleanNewName;
-                    }
-                  }
-
-                  final baseDir = await _storageService.getBaseDirSetting();
-                  List<PromptGroup> groupsToUpdate = [];
-                  for (var group in _promptGroups) {
-                    final currentSecName = group.sectionName.isEmpty
-                        ? 'GENERAL'
-                        : group.sectionName.toUpperCase();
-                    if (currentSecName == cleanOldName) {
-                      groupsToUpdate.add(group);
-                    }
-                  }
-
-                  for (var group in groupsToUpdate) {
-                    final updatedGroup = PromptGroup(
-                      id: group.id,
-                      title: group.title,
-                      sectionName: cleanNewName,
-                      icon: group.icon,
-                      lastUpdated: DateTime.now().toIso8601String(),
-                      prompts: group.prompts,
-                    );
-                    await _storageService.savePromptGroup(
-                      baseDir,
-                      group.id,
-                      jsonEncode(updatedGroup.toJson()),
-                    );
-                  }
-
-                  if (mounted) {
-                    setState(() {
-                      for (var group in _promptGroups) {
-                        final currentSecName = group.sectionName.isEmpty
-                            ? 'GENERAL'
-                            : group.sectionName.toUpperCase();
-                        if (currentSecName == cleanOldName) {
-                          int idx = _promptGroups.indexOf(group);
-                          if (idx != -1) {
-                            _promptGroups[idx] = PromptGroup(
-                              id: group.id,
-                              title: group.title,
-                              sectionName: cleanNewName,
-                              icon: group.icon,
-                              lastUpdated: DateTime.now().toIso8601String(),
-                              prompts: group.prompts,
-                            );
-                          }
-                        }
-                      }
-                      isSectionEditMode = true;
-                    });
-                    await _loadAllPrompts();
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    setState(() => _isLoading = false);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Gagal mengubah nama seksi: $e')),
-                    );
-                  }
-                }
-              },
-              child: const Text('Simpan'),
-            ),
-          ],
-        );
-      },
+          ElevatedButton(
+            onPressed: () {
+              _controller.editSectionName(
+                oldName,
+                textController.text,
+                context,
+              );
+              Navigator.pop(context);
+            },
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
     );
   }
 
-  void deleteSection(String sectionName) async {
+  void _showDeleteSectionDialog(String sectionName) {
     showDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text('Hapus Seksi "$sectionName"?'),
-          content: Text(
-            'Tindakan ini akan menghapus seluruh grup prompt yang ada di dalam seksi "$sectionName". Perubahan ini permanen.',
+      builder: (context) => AlertDialog(
+        title: Text('Hapus Seksi "$sectionName"?'),
+        content: Text(
+          'Tindakan ini akan menghapus seluruh grup prompt yang ada di dalam seksi "$sectionName". Perubahan ini permanen.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Batal'),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              _controller.deleteSection(sectionName, context);
+              Navigator.pop(context);
+            },
+            child: const Text(
+              'Hapus All',
+              style: TextStyle(color: Colors.white),
             ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              onPressed: () async {
-                Navigator.pop(context);
-                setState(() => _isLoading = true);
-                try {
-                  if (_localEmptySections.contains(sectionName.toUpperCase())) {
-                    _localEmptySections.remove(sectionName.toUpperCase());
-                  }
-
-                  final baseDir = await _storageService.getBaseDirSetting();
-                  for (var group in _promptGroups) {
-                    final currentSecName = group.sectionName.isEmpty
-                        ? 'GENERAL'
-                        : group.sectionName.toUpperCase();
-                    if (currentSecName == sectionName.toUpperCase()) {
-                      await _storageService.deletePromptGroup(
-                        baseDir,
-                        group.id,
-                      );
-                    }
-                  }
-                  if (mounted) {
-                    setState(() {
-                      isSectionEditMode = true;
-                    });
-                    _loadAllPrompts();
-                  }
-                } catch (e) {
-                  setState(() => _isLoading = false);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Gagal menghapus seksi: $e')),
-                  );
-                }
-              },
-              child: const Text(
-                'Hapus All',
-                style: TextStyle(color: Colors.white),
-              ),
-            ),
-          ],
-        );
-      },
+          ),
+        ],
+      ),
     );
   }
 
-  Future<void> _showAddGroupDialog({String? defaultSection}) async {
+  void _showAddGroupDialog({String? defaultSection}) {
     final titleController = TextEditingController();
     final iconController = TextEditingController(text: '📝');
     final sectionController = TextEditingController(text: defaultSection ?? '');
-    return showDialog(
+    showDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Tambah Group Prompt'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: titleController,
-                  decoration: const InputDecoration(
-                    labelText: 'Judul Group (e.g. Copywriting, Coding)',
-                  ),
+      builder: (context) => AlertDialog(
+        title: const Text('Tambah Group Prompt'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: titleController,
+                decoration: const InputDecoration(
+                  labelText: 'Judul Group (e.g. Copywriting, Coding)',
                 ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: iconController,
-                  decoration: const InputDecoration(labelText: 'Icon Emoji'),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: iconController,
+                decoration: const InputDecoration(labelText: 'Icon Emoji'),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: sectionController,
+                decoration: const InputDecoration(
+                  labelText: 'Nama Seksi / Kategori',
                 ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: sectionController,
-                  decoration: const InputDecoration(
-                    labelText: 'Nama Seksi / Kategori',
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Batal'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                if (titleController.text.trim().isEmpty) return;
-                try {
-                  final baseDir = await _storageService.getBaseDirSetting();
-                  final id = DateTime.now().millisecondsSinceEpoch.toString();
-                  final targetSection = sectionController.text.trim().isEmpty
-                      ? 'General'
-                      : sectionController.text.trim();
-
-                  final newGroup = PromptGroup(
-                    id: id,
-                    title: titleController.text.trim(),
-                    sectionName: targetSection,
-                    icon: iconController.text.trim().isEmpty
-                        ? '📝'
-                        : iconController.text.trim(),
-                    lastUpdated: DateTime.now().toIso8601String(),
-                    prompts: [],
-                  );
-
-                  final jsonContent = jsonEncode(newGroup.toJson());
-                  await _storageService.savePromptGroup(
-                    baseDir,
-                    id,
-                    jsonContent,
-                  );
-
-                  _localEmptySections.remove(targetSection.toUpperCase());
-
-                  if (mounted) {
-                    Navigator.pop(context);
-                    setState(() {
-                      isSectionEditMode = isSectionEditMode;
-                    });
-                    _loadAllPrompts();
-                  }
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Gagal menyimpan group: $e')),
-                  );
-                }
-              },
-              child: const Text('Simpan'),
-            ),
-          ],
-        );
-      },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (titleController.text.trim().isEmpty) return;
+              _controller.addPromptGroup(
+                title: titleController.text,
+                icon: iconController.text,
+                section: sectionController.text,
+                context: context,
+              );
+              Navigator.pop(context);
+            },
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
     );
-  }
-
-  void _moveGroupOrderHorizontal(
-    List<PromptGroup> currentList,
-    int index,
-    int direction,
-  ) async {
-    int targetIndex = index + direction;
-    if (targetIndex < 0 || targetIndex >= currentList.length) return;
-
-    setState(() {
-      final item = currentList.removeAt(index);
-      currentList.insert(targetIndex, item);
-
-      final List<PromptGroup> updatedGlobal = [];
-      final Set<String> processedSections = {};
-      for (var g in _promptGroups) {
-        final sec = g.sectionName.toUpperCase();
-        if (!processedSections.contains(sec)) {
-          processedSections.add(sec);
-          if (sec == item.sectionName.toUpperCase()) {
-            updatedGlobal.addAll(currentList);
-          } else {
-            updatedGlobal.addAll(
-              _promptGroups.where((x) => x.sectionName.toUpperCase() == sec),
-            );
-          }
-        }
-      }
-      _promptGroups = updatedGlobal;
-    });
-
-    try {
-      final baseDir = await _storageService.getBaseDirSetting();
-      for (var group in _promptGroups) {
-        await _storageService.savePromptGroup(
-          baseDir,
-          group.id,
-          jsonEncode(group.toJson()),
-        );
-      }
-    } catch (e) {
-      debugPrint("Gagal mengamankan urutan group: $e");
-    }
   }
 
   void _showEditGroupDialog(PromptGroup group) {
     final titleController = TextEditingController(text: group.title);
     final iconController = TextEditingController(text: group.icon);
-
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -510,35 +206,15 @@ class _PromptScreenState extends State<PromptScreen> {
             child: const Text('Batal'),
           ),
           ElevatedButton(
-            onPressed: () async {
+            onPressed: () {
               if (titleController.text.trim().isEmpty) return;
+              _controller.editGroup(
+                group,
+                titleController.text,
+                iconController.text,
+                context,
+              );
               Navigator.pop(context);
-              setState(() => _isLoading = true);
-              try {
-                final baseDir = await _storageService.getBaseDirSetting();
-                final updatedGroup = PromptGroup(
-                  id: group.id,
-                  title: titleController.text.trim(),
-                  sectionName: group.sectionName,
-                  icon: iconController.text.trim().isEmpty
-                      ? '📝'
-                      : iconController.text.trim(),
-                  lastUpdated: DateTime.now().toIso8601String(),
-                  prompts: group.prompts,
-                );
-
-                await _storageService.savePromptGroup(
-                  baseDir,
-                  group.id,
-                  jsonEncode(updatedGroup.toJson()),
-                );
-                _loadAllPrompts();
-              } catch (e) {
-                setState(() => _isLoading = false);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Gagal mengubah group: $e')),
-                );
-              }
             },
             child: const Text('Simpan'),
           ),
@@ -547,15 +223,15 @@ class _PromptScreenState extends State<PromptScreen> {
     );
   }
 
-  void _showMoveSectionDialog(PromptGroup group) async {
+  void _showMoveSectionDialog(PromptGroup group) {
     final Map<String, List<PromptGroup>> sectionsMap = {};
-    for (var g in _promptGroups) {
+    for (var g in _controller.promptGroups) {
       final name = g.sectionName.isEmpty
           ? 'GENERAL'
           : g.sectionName.toUpperCase();
       sectionsMap.putIfAbsent(name, () => []);
     }
-    for (var sec in _localEmptySections) {
+    for (var sec in _controller.localEmptySections) {
       sectionsMap.putIfAbsent(sec, () => []);
     }
     final List<String> availableSections = sectionsMap.keys.toList();
@@ -574,35 +250,9 @@ class _PromptScreenState extends State<PromptScreen> {
               return ListTile(
                 title: Text(secName),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () async {
+                onTap: () {
+                  _controller.moveGroupToSection(group, secName, context);
                   Navigator.pop(context);
-                  setState(() => _isLoading = true);
-                  try {
-                    final baseDir = await _storageService.getBaseDirSetting();
-                    final updatedGroup = PromptGroup(
-                      id: group.id,
-                      title: group.title,
-                      sectionName: secName,
-                      icon: group.icon,
-                      lastUpdated: DateTime.now().toIso8601String(),
-                      prompts: group.prompts,
-                    );
-
-                    await _storageService.savePromptGroup(
-                      baseDir,
-                      group.id,
-                      jsonEncode(updatedGroup.toJson()),
-                    );
-                    _localEmptySections.remove(secName.toUpperCase());
-                    _loadAllPrompts();
-                  } catch (e) {
-                    setState(() => _isLoading = false);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Gagal memindahkan seksi group: $e'),
-                      ),
-                    );
-                  }
                 },
               );
             },
@@ -612,7 +262,7 @@ class _PromptScreenState extends State<PromptScreen> {
     );
   }
 
-  void _deleteGroupItem(PromptGroup group) {
+  void _showDeleteGroupItemDialog(PromptGroup group) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -627,24 +277,123 @@ class _PromptScreenState extends State<PromptScreen> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () async {
+            onPressed: () {
+              _controller.deleteGroupItem(group, context);
               Navigator.pop(context);
-              setState(() => _isLoading = true);
-              try {
-                final baseDir = await _storageService.getBaseDirSetting();
-                await _storageService.deletePromptGroup(baseDir, group.id);
-                _loadAllPrompts();
-              } catch (e) {
-                setState(() => _isLoading = false);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Gagal menghapus group: $e')),
-                );
-              }
             },
             child: const Text('Hapus', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: _controller,
+      builder: (context, _) {
+        final Map<String, List<PromptGroup>> sectionsMap = {};
+
+        for (var group in _controller.promptGroups) {
+          final secName = group.sectionName.isEmpty
+              ? 'GENERAL'
+              : group.sectionName.toUpperCase();
+          if (!sectionsMap.containsKey(secName)) {
+            sectionsMap[secName] = [];
+          }
+          sectionsMap[secName]!.add(group);
+        }
+
+        for (var sec in _controller.localEmptySections) {
+          sectionsMap.putIfAbsent(sec, () => []);
+        }
+
+        final sectionKeys = sectionsMap.keys.toList();
+        if (sectionKeys.contains('GENERAL')) {
+          sectionKeys.remove('GENERAL');
+          sectionKeys.insert(0, 'GENERAL');
+        }
+
+        return Scaffold(
+          backgroundColor: Colors.grey[200],
+          appBar: AppBar(
+            title: const Text('My Prompts'),
+            backgroundColor: Colors.indigo,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                onPressed: () => _controller.loadAllPrompts(context),
+              ),
+            ],
+          ),
+          drawer: const DrawerMenu(isPromptActive: true),
+          body: _controller.isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _controller.promptGroups.isEmpty &&
+                    _controller.localEmptySections.isEmpty
+              ? const Center(
+                  child: Text('Belum ada data seksi / prompt di penyimpanan.'),
+                )
+              : LayoutBuilder(
+                  builder: (context, constraints) {
+                    return ListView.builder(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      itemCount: sectionKeys.length,
+                      itemBuilder: (context, sIndex) {
+                        final sectionName = sectionKeys[sIndex];
+                        final groupsInSection = sectionsMap[sectionName]!;
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildSectionHeader(
+                              sIndex,
+                              sectionName,
+                              Colors.indigo[900]!,
+                              false,
+                              () => _showAddGroupDialog(
+                                defaultSection: sectionName,
+                              ),
+                              sectionKeys.length,
+                            ),
+                            groupsInSection.isEmpty
+                                ? const Padding(
+                                    padding: EdgeInsets.only(
+                                      left: 24,
+                                      top: 12,
+                                      bottom: 12,
+                                    ),
+                                    child: Text(
+                                      'Belum ada group di seksi ini.',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                  )
+                                : _buildPromptGrid(
+                                    groupsInSection,
+                                    constraints,
+                                  ),
+                            const SizedBox(height: 10),
+                          ],
+                        );
+                      },
+                    );
+                  },
+                ),
+          floatingActionButton: FloatingActionButton(
+            onPressed: _showAddSectionDialog,
+            backgroundColor: Colors.indigo,
+            tooltip: 'Tambah Seksi Baru',
+            child: const Icon(
+              Icons.create_new_folder_outlined,
+              size: 28,
+              color: Colors.white,
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -662,8 +411,7 @@ class _PromptScreenState extends State<PromptScreen> {
         splashColor: Colors.indigo.withOpacity(0.1),
         highlightColor: Colors.indigo.withOpacity(0.05),
         onLongPress: () {
-          // GUARD PENYALANGAN: Jika mode edit card sedang aktif, jangan ijinkan edit seksi terbuka
-          if (isCardEditMode) {
+          if (_controller.isCardEditMode) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('Matikan Mode Edit Kotak/Card terlebih dahulu!'),
@@ -672,15 +420,13 @@ class _PromptScreenState extends State<PromptScreen> {
             );
             return;
           }
-          setState(() {
-            isSectionEditMode = !isSectionEditMode;
-          });
+          _controller.toggleSectionEditMode();
         },
         onTap: () {},
         child: AnimatedPadding(
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeInOut,
-          padding: isSectionEditMode
+          padding: _controller.isSectionEditMode
               ? const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0)
               : const EdgeInsets.fromLTRB(16, 12, 16, 4),
           child: Column(
@@ -699,7 +445,7 @@ class _PromptScreenState extends State<PromptScreen> {
                             color: color,
                           ),
                         ),
-                  if (isSectionEditMode) ...[
+                  if (_controller.isSectionEditMode) ...[
                     Row(
                       children: [
                         IconButton(
@@ -709,7 +455,11 @@ class _PromptScreenState extends State<PromptScreen> {
                             color: Colors.blueGrey,
                           ),
                           onPressed: index > 0
-                              ? () => moveSectionOrder(index, -1)
+                              ? () => _controller.moveSectionOrder(
+                                  index,
+                                  -1,
+                                  context,
+                                )
                               : null,
                         ),
                         IconButton(
@@ -719,7 +469,11 @@ class _PromptScreenState extends State<PromptScreen> {
                             color: Colors.blueGrey,
                           ),
                           onPressed: index < totalSections - 1
-                              ? () => moveSectionOrder(index, 1)
+                              ? () => _controller.moveSectionOrder(
+                                  index,
+                                  1,
+                                  context,
+                                )
                               : null,
                         ),
                         IconButton(
@@ -728,7 +482,8 @@ class _PromptScreenState extends State<PromptScreen> {
                             size: 18,
                             color: Colors.indigo,
                           ),
-                          onPressed: () => editSectionName(sectionName),
+                          onPressed: () =>
+                              _showEditSectionNameDialog(sectionName),
                         ),
                         IconButton(
                           icon: const Icon(
@@ -736,7 +491,8 @@ class _PromptScreenState extends State<PromptScreen> {
                             size: 18,
                             color: Colors.redAccent,
                           ),
-                          onPressed: () => deleteSection(sectionName),
+                          onPressed: () =>
+                              _showDeleteSectionDialog(sectionName),
                         ),
                         IconButton(
                           icon: const Icon(
@@ -762,105 +518,6 @@ class _PromptScreenState extends State<PromptScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final Map<String, List<PromptGroup>> sectionsMap = {};
-
-    for (var group in _promptGroups) {
-      final secName = group.sectionName.isEmpty
-          ? 'GENERAL'
-          : group.sectionName.toUpperCase();
-      if (!sectionsMap.containsKey(secName)) {
-        sectionsMap[secName] = [];
-      }
-      sectionsMap[secName]!.add(group);
-    }
-
-    for (var sec in _localEmptySections) {
-      sectionsMap.putIfAbsent(sec, () => []);
-    }
-
-    final sectionKeys = sectionsMap.keys.toList();
-    if (sectionKeys.contains('GENERAL')) {
-      sectionKeys.remove('GENERAL');
-      sectionKeys.insert(0, 'GENERAL');
-    }
-
-    return Scaffold(
-      backgroundColor: Colors.grey[200],
-      appBar: AppBar(
-        title: const Text('My Prompts'),
-        backgroundColor: Colors.indigo,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadAllPrompts,
-          ),
-        ],
-      ),
-      drawer: const DrawerMenu(isPromptActive: true),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _promptGroups.isEmpty && _localEmptySections.isEmpty
-          ? const Center(
-              child: Text('Belum ada data seksi / prompt di penyimpanan.'),
-            )
-          : LayoutBuilder(
-              builder: (context, constraints) {
-                return ListView.builder(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  itemCount: sectionKeys.length,
-                  itemBuilder: (context, sIndex) {
-                    final sectionName = sectionKeys[sIndex];
-                    final groupsInSection = sectionsMap[sectionName]!;
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildSectionHeader(
-                          sIndex,
-                          sectionName,
-                          Colors.indigo[900]!,
-                          false,
-                          () =>
-                              _showAddGroupDialog(defaultSection: sectionName),
-                          sectionKeys.length,
-                        ),
-                        groupsInSection.isEmpty
-                            ? const Padding(
-                                padding: EdgeInsets.only(
-                                  left: 24,
-                                  top: 12,
-                                  bottom: 12,
-                                ),
-                                child: Text(
-                                  'Belum ada group di seksi ini.',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                              )
-                            : _buildPromptGrid(groupsInSection, constraints),
-                        const SizedBox(height: 10),
-                      ],
-                    );
-                  },
-                );
-              },
-            ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: showAddSectionDialog,
-        backgroundColor: Colors.indigo,
-        tooltip: 'Tambah Seksi Baru',
-        child: const Icon(
-          Icons.create_new_folder_outlined,
-          size: 28,
-          color: Colors.white,
-        ),
-      ),
-    );
-  }
-
   Widget _buildPromptGrid(
     List<PromptGroup> promptList,
     BoxConstraints constraints,
@@ -879,7 +536,7 @@ class _PromptScreenState extends State<PromptScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
-        childAspectRatio: isCardEditMode ? 0.85 : 1.15,
+        childAspectRatio: _controller.isCardEditMode ? 0.85 : 1.15,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
       ),
@@ -900,12 +557,15 @@ class _PromptScreenState extends State<PromptScreen> {
                   borderRadius: BorderRadius.only(
                     topLeft: const Radius.circular(16),
                     topRight: const Radius.circular(16),
-                    bottomLeft: Radius.circular(isCardEditMode ? 0 : 16),
-                    bottomRight: Radius.circular(isCardEditMode ? 0 : 16),
+                    bottomLeft: Radius.circular(
+                      _controller.isCardEditMode ? 0 : 16,
+                    ),
+                    bottomRight: Radius.circular(
+                      _controller.isCardEditMode ? 0 : 16,
+                    ),
                   ),
                   onLongPress: () {
-                    // GUARD PENYALANGAN: Jika mode edit seksi sedang aktif, jangan ijinkan edit card terbuka
-                    if (isSectionEditMode) {
+                    if (_controller.isSectionEditMode) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text(
@@ -916,11 +576,9 @@ class _PromptScreenState extends State<PromptScreen> {
                       );
                       return;
                     }
-                    setState(() {
-                      isCardEditMode = !isCardEditMode;
-                    });
+                    _controller.toggleCardEditMode();
                   },
-                  onTap: isCardEditMode
+                  onTap: _controller.isCardEditMode
                       ? null
                       : () {
                           Navigator.push(
@@ -929,7 +587,7 @@ class _PromptScreenState extends State<PromptScreen> {
                               builder: (context) =>
                                   PromptDetailScreen(promptGroup: promptGroup),
                             ),
-                          ).then((_) => _loadAllPrompts());
+                          ).then((_) => _controller.loadAllPrompts(context));
                         },
                   child: SizedBox.expand(
                     child: Padding(
@@ -982,7 +640,7 @@ class _PromptScreenState extends State<PromptScreen> {
                   ),
                 ),
               ),
-              if (isCardEditMode) ...[
+              if (_controller.isCardEditMode) ...[
                 Container(
                   color: Colors.transparent,
                   padding: const EdgeInsets.symmetric(
@@ -998,7 +656,7 @@ class _PromptScreenState extends State<PromptScreen> {
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                         onPressed: index > 0
-                            ? () => _moveGroupOrderHorizontal(
+                            ? () => _controller.moveGroupOrderHorizontal(
                                 promptList,
                                 index,
                                 -1,
@@ -1012,7 +670,7 @@ class _PromptScreenState extends State<PromptScreen> {
                           } else if (value == 'move_section') {
                             _showMoveSectionDialog(promptGroup);
                           } else if (value == 'delete') {
-                            _deleteGroupItem(promptGroup);
+                            _showDeleteGroupItemDialog(promptGroup);
                           }
                         },
                         itemBuilder: (BuildContext context) => [
@@ -1077,7 +735,7 @@ class _PromptScreenState extends State<PromptScreen> {
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                         onPressed: index < promptList.length - 1
-                            ? () => _moveGroupOrderHorizontal(
+                            ? () => _controller.moveGroupOrderHorizontal(
                                 promptList,
                                 index,
                                 1,
@@ -1097,7 +755,7 @@ class _PromptScreenState extends State<PromptScreen> {
 }
 
 // =========================================================================
-// 2. WIDGET HALAMAN DETAIL DAFTAR BANYAK PROMPT (Tetap sama)
+// 2. WIDGET HALAMAN DETAIL DAFTAR BANYAK PROMPT
 // =========================================================================
 class PromptDetailScreen extends StatelessWidget {
   final PromptGroup promptGroup;
