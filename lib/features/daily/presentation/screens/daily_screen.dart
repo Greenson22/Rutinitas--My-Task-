@@ -1,11 +1,10 @@
 // lib/features/daily/presentation/screens/daily_screen.dart
 
-import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import '../../../../core/services/storage_service.dart';
 import '../../../../core/presentation/widgets/drawer_menu.dart';
 import '../../data/models/daily_model.dart';
+import '../controllers/daily_controller.dart';
 import 'checklist_detail_screen.dart';
 
 class DailyScreen extends StatefulWidget {
@@ -16,90 +15,26 @@ class DailyScreen extends StatefulWidget {
 }
 
 class _DailyScreenState extends State<DailyScreen> {
-  final StorageService _storageService = StorageService();
-  List<ChecklistGroup> _allGroupRaw = [];
-  List<ChecklistGroup> _hiddenGroup = [];
-
-  String _selectedBaseDir = 'Documents';
-  bool _isLoading = true;
-
-  bool _isPageEditMode = false;
-  bool _showHiddenSection = false;
-
-  final Map<String, List<ChecklistGroup>> _groupedVisibleGroup = {};
-  final Map<String, List<ChecklistGroup>> _groupedHiddenGroup = {};
-  bool _isSectionEditMode = false;
+  late DailyController _controller;
 
   @override
   void initState() {
     super.initState();
-    _loadGroupsData();
+    _controller = DailyController();
+    // Daftarkan listener agar UI me-refresh otomatis saat controller memanggil notifyListeners()
+    _controller.addListener(_onControllerNotify);
+    _controller.loadGroupsData();
   }
 
-  Future<void> _loadGroupsData() async {
-    setState(() => _isLoading = true);
-    try {
-      _selectedBaseDir = await _storageService.getBaseDirSetting();
-      List<File> groupFiles = await _storageService.getAllChecklistGroups(
-        _selectedBaseDir,
-      );
-
-      // SOLUSI PERMANEN LINUX: Urutkan file berdasarkan nama file secara alfabetis/numerik.
-      // Dengan cara ini, prefix angka seperti 0_, 1_, 2_ akan memaksa Linux membaca sesuai urutan kustom kita.
-      groupFiles.sort((a, b) {
-        String nameA = a.path.split('/').last;
-        String nameB = b.path.split('/').last;
-        return nameA.compareTo(nameB);
-      });
-
-      List<ChecklistGroup> loadedGroups = [];
-      for (var file in groupFiles) {
-        String jsonString = await file.readAsString();
-        final Map<String, dynamic> parsedMap = jsonDecode(jsonString);
-        loadedGroups.add(ChecklistGroup.fromJson(parsedMap));
-      }
-
-      _allGroupRaw = loadedGroups;
-      _processGroupsDisplay();
-    } catch (e) {
-      setState(() => _isLoading = false);
-      debugPrint("Error loading groups: $e");
-    }
+  void _onControllerNotify() {
+    if (mounted) setState(() {});
   }
 
-  void _processGroupsDisplay() {
-    setState(() {
-      // 1. Saring data mentah group menjadi list terlihat dan tersembunyi
-      final visibleList = _allGroupRaw
-          .where((group) => !group.isHidden)
-          .toList();
-      final hiddenList = _allGroupRaw.where((group) => group.isHidden).toList();
-
-      // 2. Bersihkan penampung grup lama
-      _groupedVisibleGroup.clear();
-      _groupedHiddenGroup.clear();
-
-      // 3. Kelompokkan Hub Terlihat berdasarkan Kategori Seksi Utama
-      for (var group in visibleList) {
-        String kategori = group.sectionCategory.trim().isEmpty
-            ? "Lainnya"
-            : group.sectionCategory;
-        _groupedVisibleGroup.putIfAbsent(kategori, () => []);
-        _groupedVisibleGroup[kategori]!.add(group);
-      }
-
-      // 4. Kelompokkan Group Tersembunyi berdasarkan Kategori Seksi Utama
-      for (var group in hiddenList) {
-        String kategori = group.sectionCategory.trim().isEmpty
-            ? "Lainnya"
-            : group.sectionCategory;
-        _groupedHiddenGroup.putIfAbsent(kategori, () => []);
-        _groupedHiddenGroup[kategori]!.add(group);
-      }
-
-      _hiddenGroup = hiddenList;
-      _isLoading = false;
-    });
+  @override
+  void dispose() {
+    _controller.removeListener(_onControllerNotify);
+    _controller.dispose();
+    super.dispose();
   }
 
   void _showAddMainSectionDialog() {
@@ -123,10 +58,7 @@ class _DailyScreenState extends State<DailyScreen> {
             onPressed: () {
               final String namaSeksiBaru = sectionController.text.trim();
               if (namaSeksiBaru.isNotEmpty) {
-                setState(() {
-                  // Menambahkan seksi kosong baru ke dalam map tampilan produktif produktif
-                  _groupedVisibleGroup.putIfAbsent(namaSeksiBaru, () => []);
-                });
+                _controller.addLocalMainSection(namaSeksiBaru);
                 Navigator.pop(context);
 
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -146,7 +78,6 @@ class _DailyScreenState extends State<DailyScreen> {
     );
   }
 
-  // MODIFIKASI: Menerima parameter target seksi utama agar group langsung masuk ke kategori yang benar
   void _showAddGroupDialogAtSection(String targetMainSection) {
     final nameController = TextEditingController();
     final iconController = TextEditingController(text: '📁');
@@ -179,23 +110,12 @@ class _DailyScreenState extends State<DailyScreen> {
           ElevatedButton(
             onPressed: () async {
               if (nameController.text.isNotEmpty) {
-                int nextIndex = _allGroupRaw.length;
-                String newId =
-                    '${nextIndex}_hub_${DateTime.now().millisecondsSinceEpoch}';
-
-                ChecklistGroup newGroup = ChecklistGroup(
-                  id: newId,
-                  groupName: nameController.text.trim(),
-                  icon: iconController.text.trim(),
-                  sectionCategory:
-                      targetMainSection, // <--- Menyimpan relasi seksi utama
-                  isHidden: false,
-                  allList: [],
+                await _controller.createGroupAtSection(
+                  nameController.text.trim(),
+                  iconController.text.trim(),
+                  targetMainSection,
                 );
-
-                await _saveGroupDataToFile(newGroup);
-                Navigator.pop(context);
-                _loadGroupsData();
+                if (mounted) Navigator.pop(context);
               }
             },
             child: const Text('Buat Group'),
@@ -203,25 +123,6 @@ class _DailyScreenState extends State<DailyScreen> {
         ],
       ),
     );
-  }
-
-  Future<void> _saveGroupDataToFile(ChecklistGroup group) async {
-    File groupFile = await _storageService.getSpecificGroupFile(
-      _selectedBaseDir,
-      group.id,
-    );
-    final String jsonString = const JsonEncoder.withIndent(
-      '  ',
-    ).convert(group.toJson());
-    await _storageService.saveJsonData(groupFile, jsonString);
-  }
-
-  Future<void> _toggleGroupVisibility(ChecklistGroup group) async {
-    setState(() {
-      group.isHidden = !group.isHidden;
-    });
-    await _saveGroupDataToFile(group);
-    _processGroupsDisplay();
   }
 
   void _showEditGroupDialog(ChecklistGroup group) {
@@ -254,12 +155,12 @@ class _DailyScreenState extends State<DailyScreen> {
           ElevatedButton(
             onPressed: () async {
               if (nameController.text.isNotEmpty) {
-                group.groupName = nameController.text.trim();
-                group.icon = iconController.text.trim();
-
-                await _saveGroupDataToFile(group);
-                Navigator.pop(context);
-                _loadGroupsData();
+                await _controller.updateGroup(
+                  group,
+                  nameController.text.trim(),
+                  iconController.text.trim(),
+                );
+                if (mounted) Navigator.pop(context);
               }
             },
             child: const Text('Simpan'),
@@ -294,128 +195,14 @@ class _DailyScreenState extends State<DailyScreen> {
         false;
 
     if (confirm) {
-      try {
-        File groupFile = await _storageService.getSpecificGroupFile(
-          _selectedBaseDir,
-          group.id,
-        );
-        if (await groupFile.exists()) {
-          await groupFile.delete();
-        }
-        _loadGroupsData();
-      } catch (e) {
-        debugPrint("Error deleting group file: $e");
-      }
-    }
-  }
-
-  void _moveGroupOrder(
-    List<ChecklistGroup> targetList,
-    int currentIndex,
-    int direction,
-  ) async {
-    int newIndex = currentIndex + direction;
-    if (newIndex < 0 || newIndex >= targetList.length) return;
-
-    final itemA = targetList[currentIndex];
-    final itemB = targetList[newIndex];
-
-    int rawIdxA = _allGroupRaw.indexWhere((h) => h.id == itemA.id);
-    int rawIdxB = _allGroupRaw.indexWhere((h) => h.id == itemB.id);
-
-    if (rawIdxA != -1 && rawIdxB != -1) {
-      setState(() {
-        final temp = _allGroupRaw[rawIdxA];
-        _allGroupRaw[rawIdxA] = _allGroupRaw[rawIdxB];
-        _allGroupRaw[rawIdxB] = temp;
-      });
-
-      // PROSES RENAME FISIK BERKAS DI LINUX AGAR URUTAN TERKUNCI:
-      try {
-        for (int i = 0; i < _allGroupRaw.length; i++) {
-          final currentGroup = _allGroupRaw[i];
-
-          // Cari file yang lama terlebih dahulu
-          File oldFile = await _storageService.getSpecificGroupFile(
-            _selectedBaseDir,
-            currentGroup.id,
-          );
-
-          // Jika id belum mengandung nomor urut, atau nomor urutnya berubah, kita perbarui id dan nama filenya
-          String cleanId = currentGroup.id;
-          if (cleanId.contains('_hub_')) {
-            // Ambil id asli tanpa prefix urutan lama (misal dari "0_hub_123" diambil "hub_123")
-            cleanId = cleanId.substring(cleanId.indexOf('hub_'));
-          }
-
-          String newId = "${i}_$cleanId";
-          File newFile = await _storageService.getSpecificGroupFile(
-            _selectedBaseDir,
-            newId,
-          );
-
-          // Set id baru ke objek runtime agar sinkron
-          currentGroup.id = newId;
-
-          if (await oldFile.exists()) {
-            // Tulis data terbaru dengan struktur ID yang baru
-            final String jsonString = const JsonEncoder.withIndent(
-              '  ',
-            ).convert(currentGroup.toJson());
-            await newFile.writeAsString(jsonString);
-
-            // Hapus file lama jika namanya berbeda dengan file baru
-            if (oldFile.path != newFile.path) {
-              await oldFile.delete();
-            }
-          } else {
-            // Jika file lama tidak terdeteksi (karena perubahan state), langsung buat file baru
-            final String jsonString = const JsonEncoder.withIndent(
-              '  ',
-            ).convert(currentGroup.toJson());
-            await newFile.writeAsString(jsonString);
-          }
-        }
-      } catch (e) {
-        debugPrint("Gagal mengatur ulang urutan file di Linux: $e");
-      }
-
-      _processGroupsDisplay();
-    }
-  }
-
-  void _moveGroupToAnotherSection(
-    ChecklistGroup group,
-    String targetSection,
-  ) async {
-    setState(() {
-      // 1. Perbarui kategori seksi pada objek runtime
-      group.sectionCategory = targetSection.isEmpty ? "Lainnya" : targetSection;
-    });
-
-    // 2. Simpan perubahan fisik ke dalam file JSON group tersebut
-    await _saveGroupDataToFile(group);
-
-    // 3. Muat dan proses ulang tampilan layar agar terefresh secara instan
-    _loadGroupsData();
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Group "${group.groupName}" berhasil dipindahkan ke seksi "$targetSection"',
-          ),
-          backgroundColor: Colors.teal[800],
-        ),
-      );
+      await _controller.deleteGroup(group);
     }
   }
 
   void _showMoveSectionDialog(ChecklistGroup group) {
-    // Ambil daftar seluruh nama seksi unik yang tersedia dari map visible grup saat ini
-    List<String> availableSections = _groupedVisibleGroup.keys.toList();
+    List<String> availableSections = _controller.groupedVisibleGroup.keys
+        .toList();
 
-    // Pastikan seksi default "Lainnya" masuk ke dalam daftar opsi jika belum ada
     if (!availableSections.contains("Lainnya")) {
       availableSections.add("Lainnya");
     }
@@ -447,9 +234,22 @@ class _DailyScreenState extends State<DailyScreen> {
                   selected: isCurrentSection,
                   onTap: isCurrentSection
                       ? null
-                      : () {
+                      : () async {
                           Navigator.pop(context);
-                          _moveGroupToAnotherSection(group, sectionName);
+                          await _controller.moveGroupToAnotherSection(
+                            group,
+                            sectionName,
+                          );
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Group "${group.groupName}" berhasil dipindahkan ke seksi "$sectionName"',
+                                ),
+                                backgroundColor: Colors.teal[800],
+                              ),
+                            );
+                          }
                         },
                 );
               },
@@ -465,10 +265,6 @@ class _DailyScreenState extends State<DailyScreen> {
       },
     );
   }
-
-  // =========================================================================
-  // FITUR MANAJEMEN SEKSI UTAMA (RENAME, HAPUS, & PINDAH SEKSI)
-  // =========================================================================
 
   void _editMainSectionName(String oldSectionName) {
     final editController = TextEditingController(text: oldSectionName);
@@ -490,35 +286,11 @@ class _DailyScreenState extends State<DailyScreen> {
               final String newSectionName = editController.text.trim();
               if (newSectionName.isNotEmpty &&
                   newSectionName != oldSectionName) {
-                setState(() {
-                  // 1. Update data di map lokal yang sedang aktif
-                  if (_groupedVisibleGroup.containsKey(oldSectionName)) {
-                    final groups =
-                        _groupedVisibleGroup.remove(oldSectionName) ?? [];
-                    // Update field kategoriSeksi pada setiap objek hub di dalamnya
-                    for (var group in groups) {
-                      group.sectionCategory = newSectionName;
-                    }
-                    _groupedVisibleGroup[newSectionName] = groups;
-                  }
-
-                  // 2. Samakan perubahan ke list master raw data agar saat save file sinkron
-                  for (var group in _allGroupRaw) {
-                    if (group.sectionCategory == oldSectionName) {
-                      group.sectionCategory = newSectionName;
-                    }
-                  }
-                });
-
-                // 3. Simpan perubahan fisik ke seluruh file JSON hub terkait
-                for (var group in _allGroupRaw) {
-                  if (group.sectionCategory == newSectionName) {
-                    await _saveGroupDataToFile(group);
-                  }
-                }
-
-                Navigator.pop(context);
-                _loadGroupsData();
+                await _controller.updateMainSectionName(
+                  oldSectionName,
+                  newSectionName,
+                );
+                if (mounted) Navigator.pop(context);
               }
             },
             child: const Text('Simpan'),
@@ -529,7 +301,8 @@ class _DailyScreenState extends State<DailyScreen> {
   }
 
   void _deleteMainSection(String sectionName) async {
-    final listGroupDiSeksiIni = _groupedVisibleGroup[sectionName] ?? [];
+    final listGroupDiSeksiIni =
+        _controller.groupedVisibleGroup[sectionName] ?? [];
 
     final bool confirm =
         await showDialog<bool>(
@@ -556,57 +329,8 @@ class _DailyScreenState extends State<DailyScreen> {
         false;
 
     if (confirm) {
-      try {
-        // Hapus fisik semua berkas file JSON hub yang berada di seksi ini
-        for (var group in listGroupDiSeksiIni) {
-          File groupFile = await _storageService.getSpecificGroupFile(
-            _selectedBaseDir,
-            group.id,
-          );
-          if (await groupFile.exists()) {
-            await groupFile.delete();
-          }
-        }
-
-        setState(() {
-          _groupedVisibleGroup.remove(sectionName);
-          _allGroupRaw.removeWhere(
-            (group) => group.sectionCategory == sectionName,
-          );
-        });
-
-        _loadGroupsData();
-      } catch (e) {
-        debugPrint("Gagal menghapus seksi kategori beserta filenya: $e");
-      }
+      await _controller.deleteMainSection(sectionName);
     }
-  }
-
-  void _moveMainSectionOrder(String sectionName, int direction) {
-    final keys = _groupedVisibleGroup.keys.toList();
-    int currentIndex = keys.indexOf(sectionName);
-    int newIndex = currentIndex + direction;
-
-    if (newIndex < 0 || newIndex >= keys.length) return;
-
-    // Logika reorder map keys manual untuk UI, sedangkan untuk penyimpanan permanen di Linux
-    // akan mengandalkan pembaruan prefix nama file saat group di-reorder di fungsi bawaan Anda.
-    setState(() {
-      final tempMap = Map<String, List<ChecklistGroup>>.from(
-        _groupedVisibleGroup,
-      );
-      _groupedVisibleGroup.clear();
-
-      // Tukar posisi key
-      final tempKey = keys[currentIndex];
-      keys[currentIndex] = keys[newIndex];
-      keys[newIndex] = tempKey;
-
-      // Isi kembali map sesuai urutan key baru
-      for (var key in keys) {
-        _groupedVisibleGroup[key] = tempMap[key] ?? [];
-      }
-    });
   }
 
   @override
@@ -619,17 +343,19 @@ class _DailyScreenState extends State<DailyScreen> {
         actions: [
           IconButton(
             icon: Icon(
-              _showHiddenSection ? Icons.visibility : Icons.visibility_off,
+              _controller.showHiddenSection
+                  ? Icons.visibility
+                  : Icons.visibility_off,
             ),
-            onPressed: () =>
-                setState(() => _showHiddenSection = !_showHiddenSection),
+            onPressed: _controller.toggleShowHiddenSection,
           ),
         ],
       ),
       drawer: const DrawerMenu(isDailyActive: true),
-      body: _isLoading
+      body: _controller.isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _allGroupRaw.isEmpty && _groupedVisibleGroup.isEmpty
+          : _controller.allGroupRaw.isEmpty &&
+                _controller.groupedVisibleGroup.isEmpty
           ? const Center(
               child: Text(
                 'Belum ada Seksi Kategori. Tekan + di bawah untuk membuat baru!',
@@ -637,14 +363,14 @@ class _DailyScreenState extends State<DailyScreen> {
             )
           : LayoutBuilder(
               builder: (context, constraints) {
-                // Mengambil semua kunci seksi aktif ditambah seksi kosong yang baru dibuat
-                final semuaKunciSeksi = _groupedVisibleGroup.keys.toList();
+                final semuaKunciSeksi = _controller.groupedVisibleGroup.keys
+                    .toList();
 
                 return ListView(
                   children: [
                     ...semuaKunciSeksi.map((namaSeksiUtama) {
                       final listGroupDiSeksiIni =
-                          _groupedVisibleGroup[namaSeksiUtama] ?? [];
+                          _controller.groupedVisibleGroup[namaSeksiUtama] ?? [];
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -654,16 +380,13 @@ class _DailyScreenState extends State<DailyScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 InkWell(
-                                  onLongPress: () {
-                                    setState(() {
-                                      _isSectionEditMode = !_isSectionEditMode;
-                                    });
-                                  },
+                                  onLongPress:
+                                      _controller.toggleSectionEditMode,
                                   borderRadius: BorderRadius.circular(8),
                                   child: AnimatedPadding(
                                     duration: const Duration(milliseconds: 200),
                                     curve: Curves.easeInOut,
-                                    padding: _isSectionEditMode
+                                    padding: _controller.isSectionEditMode
                                         ? const EdgeInsets.symmetric(
                                             vertical: 12.0,
                                             horizontal: 8.0,
@@ -685,12 +408,10 @@ class _DailyScreenState extends State<DailyScreen> {
                                             letterSpacing: 0.8,
                                           ),
                                         ),
-                                        // KUMPULAN TOMBOL AKSI MANAJEMEN SEKSI UTAMA HUB
-                                        if (_isSectionEditMode) ...[
+                                        if (_controller.isSectionEditMode) ...[
                                           Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
-                                              // Tombol Pindah Naik
                                               IconButton(
                                                 icon: const Icon(
                                                   Icons.arrow_upward,
@@ -702,14 +423,13 @@ class _DailyScreenState extends State<DailyScreen> {
                                                           namaSeksiUtama,
                                                         ) >
                                                         0
-                                                    ? () =>
-                                                          _moveMainSectionOrder(
+                                                    ? () => _controller
+                                                          .moveMainSectionOrder(
                                                             namaSeksiUtama,
                                                             -1,
                                                           )
                                                     : null,
                                               ),
-                                              // Tombol Pindah Turun
                                               IconButton(
                                                 icon: const Icon(
                                                   Icons.arrow_downward,
@@ -722,14 +442,13 @@ class _DailyScreenState extends State<DailyScreen> {
                                                         ) <
                                                         semuaKunciSeksi.length -
                                                             1
-                                                    ? () =>
-                                                          _moveMainSectionOrder(
+                                                    ? () => _controller
+                                                          .moveMainSectionOrder(
                                                             namaSeksiUtama,
                                                             1,
                                                           )
                                                     : null,
                                               ),
-                                              // Tombol Ubah Nama (Rename)
                                               IconButton(
                                                 icon: const Icon(
                                                   Icons.edit,
@@ -741,7 +460,6 @@ class _DailyScreenState extends State<DailyScreen> {
                                                       namaSeksiUtama,
                                                     ),
                                               ),
-                                              // Tombol Hapus Seksi Utama beserta Isinya
                                               IconButton(
                                                 icon: const Icon(
                                                   Icons.delete,
@@ -753,7 +471,6 @@ class _DailyScreenState extends State<DailyScreen> {
                                                       namaSeksiUtama,
                                                     ),
                                               ),
-                                              // Tombol Tambah Hub bawaan Anda
                                               IconButton(
                                                 icon: const Icon(
                                                   Icons.add_circle_outline,
@@ -802,8 +519,8 @@ class _DailyScreenState extends State<DailyScreen> {
                         ],
                       );
                     }),
-                    // === KATEGORI Group TERSEMBUNYI ===
-                    if (_hiddenGroup.isNotEmpty && _showHiddenSection) ...[
+                    if (_controller.hiddenGroup.isNotEmpty &&
+                        _controller.showHiddenSection) ...[
                       const Padding(
                         padding: EdgeInsets.symmetric(
                           horizontal: 16.0,
@@ -811,7 +528,7 @@ class _DailyScreenState extends State<DailyScreen> {
                         ),
                         child: Divider(thickness: 2, color: Colors.grey),
                       ),
-                      ..._groupedHiddenGroup.entries.map((grup) {
+                      ..._controller.groupedHiddenGroup.entries.map((grup) {
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -841,15 +558,12 @@ class _DailyScreenState extends State<DailyScreen> {
                 );
               },
             ),
-      // REVISI FAB: Diubah fungsinya menjadi pembuat Kategori Seksi Utama Baru dan ikon diganti
       floatingActionButton: FloatingActionButton(
-        onPressed:
-            _showAddMainSectionDialog, // <--- Memanggil dialog tambah seksi utama
+        onPressed: _showAddMainSectionDialog,
         backgroundColor: Colors.teal[800],
         tooltip: 'Tambah Seksi Kategori Baru',
         child: const Icon(
-          Icons
-              .create_new_folder_outlined, // <--- Penggantian Icon Sesuai Perintah
+          Icons.create_new_folder_outlined,
           size: 28,
           color: Colors.white,
         ),
@@ -875,8 +589,7 @@ class _DailyScreenState extends State<DailyScreen> {
       padding: const EdgeInsets.all(12),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
-        // Rasio aspek disesuaikan agar pas saat memanjang ke bawah ketika mode edit aktif
-        childAspectRatio: _isPageEditMode ? 0.90 : 1.15,
+        childAspectRatio: _controller.isPageEditMode ? 0.90 : 1.15,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
       ),
@@ -884,7 +597,6 @@ class _DailyScreenState extends State<DailyScreen> {
       itemBuilder: (context, index) {
         final group = groupList[index];
 
-        // Menghitung total seluruh item dari semua seksi di dalam hub ini
         int totalItems = 0;
         for (var section in group.allList) {
           totalItems += section.items.length;
@@ -902,21 +614,20 @@ class _DailyScreenState extends State<DailyScreen> {
           color: Colors.white,
           child: Column(
             children: [
-              // Area Utama Konten Hub
               Expanded(
                 child: InkWell(
                   borderRadius: BorderRadius.only(
                     topLeft: const Radius.circular(16),
                     topRight: const Radius.circular(16),
-                    bottomLeft: Radius.circular(_isPageEditMode ? 0 : 16),
-                    bottomRight: Radius.circular(_isPageEditMode ? 0 : 16),
+                    bottomLeft: Radius.circular(
+                      _controller.isPageEditMode ? 0 : 16,
+                    ),
+                    bottomRight: Radius.circular(
+                      _controller.isPageEditMode ? 0 : 16,
+                    ),
                   ),
-                  onLongPress: () {
-                    setState(() {
-                      _isPageEditMode = !_isPageEditMode;
-                    });
-                  },
-                  onTap: _isPageEditMode
+                  onLongPress: _controller.togglePageEditMode,
+                  onTap: _controller.isPageEditMode
                       ? null
                       : () {
                           Navigator.push(
@@ -924,10 +635,10 @@ class _DailyScreenState extends State<DailyScreen> {
                             MaterialPageRoute(
                               builder: (context) => ChecklistDetailScreen(
                                 group: group,
-                                baseDir: _selectedBaseDir,
+                                baseDir: _controller.selectedBaseDir,
                               ),
                             ),
-                          ).then((_) => _loadGroupsData());
+                          ).then((_) => _controller.loadGroupsData());
                         },
                   child: SizedBox.expand(
                     child: Padding(
@@ -960,13 +671,11 @@ class _DailyScreenState extends State<DailyScreen> {
                             maxLines: 1,
                           ),
                           const SizedBox(height: 6),
-                          // Baris Informasi Statistik Hub
                           Wrap(
                             spacing: 6,
                             runSpacing: 4,
                             alignment: WrapAlignment.center,
                             children: [
-                              // Kotak Jumlah Seksi
                               Container(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 8,
@@ -991,7 +700,6 @@ class _DailyScreenState extends State<DailyScreen> {
                                   ),
                                 ),
                               ),
-                              // Kotak Jumlah Item
                               Container(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 8,
@@ -1024,8 +732,7 @@ class _DailyScreenState extends State<DailyScreen> {
                   ),
                 ),
               ),
-              // PANEL KONTROL RINGKAS (Tampil saat Mode Edit Aktif)
-              if (_isPageEditMode) ...[
+              if (_controller.isPageEditMode) ...[
                 Container(
                   color: Colors.transparent,
                   padding: const EdgeInsets.symmetric(
@@ -1035,27 +742,27 @@ class _DailyScreenState extends State<DailyScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      // 1. Tombol Pindah Kiri / Atas
                       IconButton(
                         icon: const Icon(Icons.arrow_back, size: 18),
                         color: index > 0 ? Colors.teal[800] : Colors.grey[300],
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                         onPressed: index > 0
-                            ? () => _moveGroupOrder(groupList, index, -1)
+                            ? () => _controller.moveGroupOrder(
+                                groupList,
+                                index,
+                                -1,
+                              )
                             : null,
                       ),
-
-                      // 2. MODIFIKASI BARU: Menu Titik Tiga (Ubah, Sembunyikan, Hapus)
                       PopupMenuButton<String>(
-                        onSelected: (value) {
+                        onSelected: (value) async {
                           if (value == 'edit') {
                             _showEditGroupDialog(group);
                           } else if (value == 'move_section') {
-                            // <--- Tambahkan cabang ini
                             _showMoveSectionDialog(group);
                           } else if (value == 'toggle_visibility') {
-                            _toggleGroupVisibility(group);
+                            await _controller.toggleGroupVisibility(group);
                           } else if (value == 'delete') {
                             _deleteGroup(group);
                           }
@@ -1135,8 +842,6 @@ class _DailyScreenState extends State<DailyScreen> {
                           ),
                         ],
                       ),
-
-                      // 3. Tombol Pindah Kanan / Bawah
                       IconButton(
                         icon: const Icon(Icons.arrow_forward, size: 18),
                         color: index < groupList.length - 1
@@ -1145,7 +850,11 @@ class _DailyScreenState extends State<DailyScreen> {
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                         onPressed: index < groupList.length - 1
-                            ? () => _moveGroupOrder(groupList, index, 1)
+                            ? () => _controller.moveGroupOrder(
+                                groupList,
+                                index,
+                                1,
+                              )
                             : null,
                       ),
                     ],
