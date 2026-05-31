@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../data/models/prompt_model.dart';
 import '../controllers/prompt_controller.dart';
-import '../widgets/add_prompt_item_dialog.dart'; // Import dialog baru di sini
+import '../widgets/prompt_detail_screen/add_prompt_item_dialog.dart'; // Import dialog baru di sini
 
 class PromptDetailScreen extends StatefulWidget {
   final PromptGroup promptGroup;
