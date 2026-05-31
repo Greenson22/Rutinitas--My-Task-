@@ -24,6 +24,9 @@ class _PromptScreenState extends State<PromptScreen> {
   // Meniru state edit mode dari daily_screen
   bool isSectionEditMode = false;
 
+  // Menampung nama seksi kosong baru yang belum memiliki group di dalamnya
+  final List<String> _localEmptySections = [];
+
   @override
   void initState() {
     super.initState();
@@ -36,13 +39,11 @@ class _PromptScreenState extends State<PromptScreen> {
       final baseDir = await _storageService.getBaseDirSetting();
       final files = await _storageService.getAllPromptGroups(baseDir);
       List<PromptGroup> loadedGroups = [];
-
       for (var file in files) {
         final content = await file.readAsString();
         final jsonMap = jsonDecode(content);
         loadedGroups.add(PromptGroup.fromJson(jsonMap));
       }
-
       setState(() {
         _promptGroups = loadedGroups;
         _isLoading = false;
@@ -55,9 +56,54 @@ class _PromptScreenState extends State<PromptScreen> {
     }
   }
 
-  // =========================================================================
+  // === FITUR UTAMA BARU: TAMBAH SEKSI UTAMA BARU KOSONG ===
+  void showAddSectionDialog() {
+    final sectionController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Tambah Seksi Kategori Baru'),
+        content: TextField(
+          controller: sectionController,
+          decoration: const InputDecoration(
+            hintText: 'Nama Seksi Utama (Misal: CODING, COPYWRITING)...',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final String namaSeksiBaru = sectionController.text
+                  .trim()
+                  .toUpperCase();
+              if (namaSeksiBaru.isNotEmpty) {
+                setState(() {
+                  if (!_localEmptySections.contains(namaSeksiBaru)) {
+                    _localEmptySections.add(namaSeksiBaru);
+                  }
+                });
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Seksi "$namaSeksiBaru" berhasil dibuat! Tekan tahan judul seksi lalu tekan tombol + untuk menambah group.',
+                    ),
+                    backgroundColor: Colors.indigo,
+                  ),
+                );
+              }
+            },
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void moveSectionOrder(int index, int direction) async {
-    // 1. Rekonstruksi struktur seksi (Map) saat ini dari data state lokal
     final Map<String, List<PromptGroup>> sectionsMap = {};
     for (var group in _promptGroups) {
       final secName = group.sectionName.isEmpty
@@ -67,6 +113,11 @@ class _PromptScreenState extends State<PromptScreen> {
         sectionsMap[secName] = [];
       }
       sectionsMap[secName]!.add(group);
+    }
+
+    // Satukan dengan seksi kosong lokal
+    for (var sec in _localEmptySections) {
+      sectionsMap.putIfAbsent(sec, () => []);
     }
 
     final sectionKeys = sectionsMap.keys.toList();
@@ -80,13 +131,10 @@ class _PromptScreenState extends State<PromptScreen> {
 
     final currentSectionName = sectionKeys[index];
     final targetSectionName = sectionKeys[targetIndex];
-
     final currentGroups = sectionsMap[currentSectionName] ?? [];
     final targetGroups = sectionsMap[targetSectionName] ?? [];
 
-    // 2. OPTIMISTIC UPDATE: Lakukan manipulasi data di memori RAM/UI terlebih dahulu
     setState(() {
-      // Tukar isi properti objek di memori secara lokal
       for (var group in currentGroups) {
         int idx = _promptGroups.indexWhere((g) => g.id == group.id);
         if (idx != -1) {
@@ -100,7 +148,6 @@ class _PromptScreenState extends State<PromptScreen> {
           );
         }
       }
-
       for (var group in targetGroups) {
         int idx = _promptGroups.indexWhere((g) => g.id == group.id);
         if (idx != -1) {
@@ -114,24 +161,17 @@ class _PromptScreenState extends State<PromptScreen> {
           );
         }
       }
-
-      // CATATAN: isSectionEditMode TIDAK diubah ke false di sini agar tombol tidak langsung hilang!
     });
 
-    // Berikan feedback visual instan berupa SnackBar
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Urutan seksi berhasil dipindahkan'),
-        duration: Duration(
-          milliseconds: 700,
-        ), // Durasi dipersingkat agar lebih snappy
+        duration: Duration(milliseconds: 700),
       ),
     );
 
-    // 3. BACKGROUND I/O TASK: Proses penulisan file fisik dijalankan di latar belakang
     try {
       final baseDir = await _storageService.getBaseDirSetting();
-
       for (var group in currentGroups) {
         final updatedGroup = PromptGroup(
           id: group.id,
@@ -147,7 +187,6 @@ class _PromptScreenState extends State<PromptScreen> {
           jsonEncode(updatedGroup.toJson()),
         );
       }
-
       for (var group in targetGroups) {
         final updatedGroup = PromptGroup(
           id: group.id,
@@ -165,16 +204,12 @@ class _PromptScreenState extends State<PromptScreen> {
       }
     } catch (e) {
       debugPrint("Gagal mengamankan urutan seksi di storage: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Penyimpanan sinkronisasi gagal: $e')),
-      );
-      _loadAllPrompts(); // Kembalikan ke state asli jika I/O gagal total
+      _loadAllPrompts();
     }
   }
 
   void editSectionName(String oldName) async {
     final textController = TextEditingController(text: oldName);
-
     showDialog(
       context: context,
       builder: (context) {
@@ -197,17 +232,16 @@ class _PromptScreenState extends State<PromptScreen> {
                   Navigator.pop(context);
                   return;
                 }
-
-                // Tutup dialog terlebih dahulu agar tidak membeku
                 Navigator.pop(context);
-
-                // Tampilkan loading spinner di UI
                 setState(() => _isLoading = true);
-
                 try {
-                  final baseDir = await _storageService.getBaseDirSetting();
+                  // Update seksi kosong lokal jika ada
+                  if (_localEmptySections.contains(oldName.toUpperCase())) {
+                    _localEmptySections.remove(oldName.toUpperCase());
+                    _localEmptySections.add(newName.toUpperCase());
+                  }
 
-                  // 1. Kumpulkan grup yang masuk ke dalam seksi lama
+                  final baseDir = await _storageService.getBaseDirSetting();
                   List<PromptGroup> groupsToUpdate = [];
                   for (var group in _promptGroups) {
                     final currentSecName = group.sectionName.isEmpty
@@ -218,40 +252,32 @@ class _PromptScreenState extends State<PromptScreen> {
                     }
                   }
 
-                  // 2. Tulis perubahan nama seksi baru ke Storage satu per satu secara aman
                   for (var group in groupsToUpdate) {
                     final updatedGroup = PromptGroup(
                       id: group.id,
                       title: group.title,
-                      sectionName: newName, // Ganti ke nama baru
+                      sectionName: newName,
                       icon: group.icon,
                       lastUpdated: DateTime.now().toIso8601String(),
                       prompts: group.prompts,
                     );
-
-                    final jsonContent = jsonEncode(updatedGroup.toJson());
                     await _storageService.savePromptGroup(
                       baseDir,
                       group.id,
-                      jsonContent,
+                      jsonEncode(updatedGroup.toJson()),
                     );
                   }
 
-                  // 3. Amankan State UI: Bersihkan memori lokal sebelum me-load ulang
                   if (mounted) {
                     setState(() {
-                      // Hapus grup lama dari state agar tidak terjadi penumpukan/duplikasi di RAM
                       _promptGroups.removeWhere((group) {
                         final currentSecName = group.sectionName.isEmpty
                             ? 'GENERAL'
                             : group.sectionName.toUpperCase();
                         return currentSecName == oldName.toUpperCase();
                       });
-
-                      isSectionEditMode = true; // Pertahankan mode edit seksi
+                      isSectionEditMode = true;
                     });
-
-                    // 4. Ambil data segar dari physical storage
                     await _loadAllPrompts();
                   }
                 } catch (e) {
@@ -288,10 +314,14 @@ class _PromptScreenState extends State<PromptScreen> {
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
               onPressed: () async {
+                Navigator.pop(context);
                 setState(() => _isLoading = true);
                 try {
-                  final baseDir = await _storageService.getBaseDirSetting();
+                  if (_localEmptySections.contains(sectionName.toUpperCase())) {
+                    _localEmptySections.remove(sectionName.toUpperCase());
+                  }
 
+                  final baseDir = await _storageService.getBaseDirSetting();
                   for (var group in _promptGroups) {
                     final currentSecName = group.sectionName.isEmpty
                         ? 'GENERAL'
@@ -303,11 +333,8 @@ class _PromptScreenState extends State<PromptScreen> {
                       );
                     }
                   }
-
                   if (mounted) {
-                    Navigator.pop(context);
                     setState(() {
-                      // Tetap pertahankan mode edit agar tombol tidak disembunyikan otomatis
                       isSectionEditMode = true;
                     });
                     _loadAllPrompts();
@@ -332,9 +359,8 @@ class _PromptScreenState extends State<PromptScreen> {
 
   Future<void> _showAddGroupDialog({String? defaultSection}) async {
     final titleController = TextEditingController();
-    final iconController = TextEditingController(text: '💡');
+    final iconController = TextEditingController(text: '📝');
     final sectionController = TextEditingController(text: defaultSection ?? '');
-
     return showDialog(
       context: context,
       builder: (context) {
@@ -376,15 +402,16 @@ class _PromptScreenState extends State<PromptScreen> {
                 try {
                   final baseDir = await _storageService.getBaseDirSetting();
                   final id = DateTime.now().millisecondsSinceEpoch.toString();
+                  final targetSection = sectionController.text.trim().isEmpty
+                      ? 'General'
+                      : sectionController.text.trim();
 
                   final newGroup = PromptGroup(
                     id: id,
                     title: titleController.text.trim(),
-                    sectionName: sectionController.text.trim().isEmpty
-                        ? 'General'
-                        : sectionController.text.trim(),
+                    sectionName: targetSection,
                     icon: iconController.text.trim().isEmpty
-                        ? '💡'
+                        ? '📝'
                         : iconController.text.trim(),
                     lastUpdated: DateTime.now().toIso8601String(),
                     prompts: [],
@@ -397,11 +424,12 @@ class _PromptScreenState extends State<PromptScreen> {
                     jsonContent,
                   );
 
+                  // Jika berhasil ditambahkan ke seksi kosong, hapus dari list temporary
+                  _localEmptySections.remove(targetSection.toUpperCase());
+
                   if (mounted) {
                     Navigator.pop(context);
                     setState(() {
-                      // Tetap aktifkan mode edit seksi jika penambahan dilakukan dari mode edit seksi
-                      // (Menghindari reset state seksi secara tidak sengaja)
                       isSectionEditMode = isSectionEditMode;
                     });
                     _loadAllPrompts();
@@ -420,9 +448,6 @@ class _PromptScreenState extends State<PromptScreen> {
     );
   }
 
-  // =========================================================================
-  // MENIRU TAMPILAN HEADER SEKSI DARI KODE YANG ANDA BERIKAN
-  // =========================================================================
   Widget _buildSectionHeader(
     int index,
     String sectionName,
@@ -509,7 +534,7 @@ class _PromptScreenState extends State<PromptScreen> {
                             color: Colors.indigo,
                             size: 18,
                           ),
-                          tooltip: 'Tambah Item ke Seksi Ini',
+                          tooltip: 'Tambah Group ke Seksi Ini',
                           onPressed: onAddPressed,
                         ),
                       ],
@@ -529,8 +554,9 @@ class _PromptScreenState extends State<PromptScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Memisahkan list prompt ke dalam Map berdasarkan sectionName agar bisa menggunakan seksi header
     final Map<String, List<PromptGroup>> sectionsMap = {};
+
+    // Kelompokkan data dari storage
     for (var group in _promptGroups) {
       final secName = group.sectionName.isEmpty
           ? 'GENERAL'
@@ -541,10 +567,12 @@ class _PromptScreenState extends State<PromptScreen> {
       sectionsMap[secName]!.add(group);
     }
 
-    // Mendapatkan list seksi yang unik
-    final sectionKeys = sectionsMap.keys.toList();
+    // Masukkan seksi kosong buatan lokal agar tampil di UI sebelum diisi group
+    for (var sec in _localEmptySections) {
+      sectionsMap.putIfAbsent(sec, () => []);
+    }
 
-    // Tips Tambahan (Opsional): Jika ingin urutan seksi "GENERAL" selalu berada paling atas:
+    final sectionKeys = sectionsMap.keys.toList();
     if (sectionKeys.contains('GENERAL')) {
       sectionKeys.remove('GENERAL');
       sectionKeys.insert(0, 'GENERAL');
@@ -565,8 +593,10 @@ class _PromptScreenState extends State<PromptScreen> {
       drawer: const DrawerMenu(isPromptActive: true),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _promptGroups.isEmpty
-          ? const Center(child: Text('Belum ada data prompt di penyimpanan.'))
+          : _promptGroups.isEmpty && _localEmptySections.isEmpty
+          ? const Center(
+              child: Text('Belum ada data seksi / prompt di penyimpanan.'),
+            )
           : LayoutBuilder(
               builder: (context, constraints) {
                 return ListView.builder(
@@ -575,11 +605,9 @@ class _PromptScreenState extends State<PromptScreen> {
                   itemBuilder: (context, sIndex) {
                     final sectionName = sectionKeys[sIndex];
                     final groupsInSection = sectionsMap[sectionName]!;
-
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Memanggil header seksi tiruan yang Anda minta
                         _buildSectionHeader(
                           sIndex,
                           sectionName,
@@ -589,7 +617,22 @@ class _PromptScreenState extends State<PromptScreen> {
                               _showAddGroupDialog(defaultSection: sectionName),
                           sectionKeys.length,
                         ),
-                        _buildPromptGrid(groupsInSection, constraints),
+                        groupsInSection.isEmpty
+                            ? const Padding(
+                                padding: EdgeInsets.only(
+                                  left: 24,
+                                  top: 12,
+                                  bottom: 12,
+                                ),
+                                child: Text(
+                                  'Belum ada group di seksi ini.',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              )
+                            : _buildPromptGrid(groupsInSection, constraints),
                         const SizedBox(height: 10),
                       ],
                     );
@@ -597,10 +640,12 @@ class _PromptScreenState extends State<PromptScreen> {
                 );
               },
             ),
+
+      // === PERBAIKAN DI SINI: FAB BERUBAH MENJADI TAMBAH SEKSI UTAMA ===
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddGroupDialog(),
+        onPressed: showAddSectionDialog, // Memanggil fungsi tambah seksi utama
         backgroundColor: Colors.indigo,
-        tooltip: 'Tambah Prompt Baru',
+        tooltip: 'Tambah Seksi Baru',
         child: const Icon(
           Icons.create_new_folder_outlined,
           size: 28,
@@ -622,7 +667,6 @@ class _PromptScreenState extends State<PromptScreen> {
     } else if (constraints.maxWidth >= 600) {
       crossAxisCount = 3;
     }
-
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -699,7 +743,7 @@ class _PromptScreenState extends State<PromptScreen> {
 }
 
 // =========================================================================
-// 2. WIDGET HALAMAN DETAIL DAFTAR BANYAK PROMPT
+// 2. WIDGET HALAMAN DETAIL DAFTAR BANYAK PROMPT (Tetap sama)
 // =========================================================================
 class PromptDetailScreen extends StatelessWidget {
   final PromptGroup promptGroup;
