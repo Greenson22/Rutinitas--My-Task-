@@ -506,6 +506,7 @@ class PromptController extends ChangeNotifier {
     required PromptGroup group,
     required String itemId,
     required String newActAs,
+    required String newDescription,
     required String newContent,
     required BuildContext context,
   }) async {

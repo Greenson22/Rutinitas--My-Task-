@@ -47,12 +47,14 @@ class PromptItem {
   final String id;
   final String actAs;
   final String content;
+  String? description;
   final bool isFavorite;
 
   PromptItem({
     required this.id,
     required this.actAs,
     required this.content,
+    this.description,
     required this.isFavorite,
   });
 
@@ -60,6 +62,7 @@ class PromptItem {
     return PromptItem(
       id: json['id'] ?? '',
       actAs: json['act_as'] ?? '',
+      description: json['description'],
       content: json['content'] ?? '',
       isFavorite: json['is_favorite'] ?? false,
     );
@@ -69,6 +72,7 @@ class PromptItem {
     return {
       'id': id,
       'act_as': actAs,
+      'description': description,
       'content': content,
       'is_favorite': isFavorite,
     };

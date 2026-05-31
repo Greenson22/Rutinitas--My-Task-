@@ -45,9 +45,10 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
   }
 
   // ========= FITUR BARU DIALOG =========
-
   void _showEditPromptDialog(PromptItem item) {
     final titleController = TextEditingController(text: item.actAs);
+    // TAMBAHAN: Inisialisasi controller untuk deskripsi
+    final descController = TextEditingController(text: item.description ?? '');
     final contentController = TextEditingController(text: item.content);
     final formKey = GlobalKey<FormState>();
 
@@ -55,10 +56,8 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        contentPadding: EdgeInsets
-            .zero, // Diatur nol agar header indigo penuh ke ujung sisi
-        title:
-            const SizedBox.shrink(), // Dipindahkan ke dalam content widget custom header
+        contentPadding: EdgeInsets.zero,
+        title: const SizedBox.shrink(),
         content: SizedBox(
           width: double.maxFinite,
           child: Form(
@@ -66,7 +65,7 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // 1. BANNER CUSTOM HEADER (Terinspirasi dari DailyChecklistDialog)
+                // 1. BANNER CUSTOM HEADER
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(
@@ -115,6 +114,18 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                         validator: (v) => v!.trim().isEmpty
                             ? 'Judul/Peran tidak boleh kosong'
                             : null,
+                      ),
+                      const SizedBox(height: 16),
+
+                      // === TAMBAHAN UTAMA: Input Deskripsi Pendek ===
+                      TextFormField(
+                        controller: descController,
+                        decoration: const InputDecoration(
+                          labelText: 'Deskripsi Pendek (Opsional)',
+                          hintText: 'Keterangan singkat guna/fungsi prompt',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
                       ),
                       const SizedBox(height: 16),
 
@@ -180,14 +191,16 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                         ),
                         onPressed: () async {
                           if (formKey.currentState!.validate()) {
-                            final updatedGroup = await _controller
-                                .editPromptItem(
-                                  group: _currentGroup,
-                                  itemId: item.id,
-                                  newActAs: titleController.text.trim(),
-                                  newContent: contentController.text.trim(),
-                                  context: context,
-                                );
+                            // TAMBAHAN: Mengirimkan parameter descController ke controller Anda
+                            final updatedGroup = await _controller.editPromptItem(
+                              group: _currentGroup,
+                              itemId: item.id,
+                              newActAs: titleController.text.trim(),
+                              newDescription: descController.text
+                                  .trim(), // <--- Pastikan fungsi editPromptItem di controller menerima parameter ini
+                              newContent: contentController.text.trim(),
+                              context: context,
+                            );
 
                             if (updatedGroup != null) {
                               setState(() => _currentGroup = updatedGroup);
