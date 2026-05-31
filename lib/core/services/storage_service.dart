@@ -259,4 +259,11 @@ class StorageService {
     final file = await getSpecificPromptFile(baseDirSetting, id);
     await file.writeAsString(jsonContent);
   }
+
+  Future<void> deletePromptGroup(String baseDir, String id) async {
+    final file = File('$baseDir/prompts/$id.json');
+    if (await file.exists()) {
+      await file.delete();
+    }
+  }
 }

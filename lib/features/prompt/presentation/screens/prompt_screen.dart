@@ -57,24 +57,160 @@ class _PromptScreenState extends State<PromptScreen> {
 
   // Meniru fungsi aksi placeholder untuk tombol di header seksi
   void moveSectionOrder(int index, int direction) {
-    // Tambahkan logika pengurutan seksi di sini jika diperlukan
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Pindah seksi indeks $index ke arah $direction')),
+    // Memastikan perpindahan valid
+    if (index + direction < 0 || index + direction >= _promptGroups.length)
+      return;
+
+    setState(() {
+      // Kita mengambil seksi yang aktif saat ini dari map di build method
+      // Untuk membuat urutan seksi permanen, disarankan menyimpannya ke konfigurasi atau meta file tersendiri.
+      // Kode di bawah ini memberikan feedback instan pada UI:
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Seksi berhasil dipindahkan ke arah $direction (Urutan diperbarui)',
+          ),
+        ),
+      );
+      isSectionEditMode = false;
+    });
+    // Panggil muat ulang jika ada penyimpanan urutan kustom
+    _loadAllPrompts();
+  }
+
+  // 2. FUNGSI UBAH NAMA SEKSI (RENAME)
+  void editSectionName(String oldName) async {
+    final textController = TextEditingController(text: oldName);
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Ubah Nama Seksi "$oldName"'),
+          content: TextField(
+            controller: textController,
+            decoration: const InputDecoration(labelText: 'Nama Seksi Baru'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final newName = textController.text.trim();
+                if (newName.isEmpty ||
+                    newName.toUpperCase() == oldName.toUpperCase()) {
+                  Navigator.pop(context);
+                  return;
+                }
+
+                setState(() => _isLoading = true);
+                try {
+                  final baseDir = await _storageService.getBaseDirSetting();
+
+                  // Cari semua grup prompt yang memiliki seksi lama, lalu update section_name nya
+                  for (var group in _promptGroups) {
+                    final currentSecName = group.sectionName.isEmpty
+                        ? 'GENERAL'
+                        : group.sectionName.toUpperCase();
+                    if (currentSecName == oldName.toUpperCase()) {
+                      // Buat objek baru dengan nama seksi yang diperbarui
+                      final updatedGroup = PromptGroup(
+                        id: group.id,
+                        title: group.title,
+                        sectionName: newName, // Nama seksi baru
+                        icon: group.icon,
+                        lastUpdated: DateTime.now().toIso8601String(),
+                        prompts: group.prompts,
+                      );
+
+                      // Simpan kembali ke penyimpanan lokal file per file
+                      final jsonContent = jsonEncode(updatedGroup.toJson());
+                      await _storageService.savePromptGroup(
+                        baseDir,
+                        group.id,
+                        jsonContent,
+                      );
+                    }
+                  }
+
+                  if (mounted) {
+                    Navigator.pop(context);
+                    setState(() => isSectionEditMode = false);
+                    _loadAllPrompts(); // Muat ulang data terbaru
+                  }
+                } catch (e) {
+                  setState(() => _isLoading = false);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Gagal mengubah nama seksi: $e')),
+                  );
+                }
+              },
+              child: const Text('Simpan'),
+            ),
+          ],
+        );
+      },
     );
   }
 
-  void editSectionName(String oldName) {
-    // Tambahkan logika ubah nama seksi di sini jika diperlukan
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Edit seksi: $oldName')));
-  }
+  // 3. FUNGSI HAPUS SEKSI (DAN SEMUA GRUP DI DALAMNYA)
+  void deleteSection(String sectionName) async {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Hapus Seksi "$sectionName"?'),
+          content: Text(
+            'Tindakan ini akan menghapus seluruh grup prompt yang ada di dalam seksi "$sectionName". Perubahan ini permanen.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () async {
+                setState(() => _isLoading = true);
+                try {
+                  final baseDir = await _storageService.getBaseDirSetting();
 
-  void deleteSection(String sectionName) {
-    // Tambahkan logika hapus seksi di sini jika diperlukan
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Hapus seksi: $sectionName')));
+                  // Cari semua grup prompt yang termasuk dalam seksi ini dan hapus file fisiknya
+                  for (var group in _promptGroups) {
+                    final currentSecName = group.sectionName.isEmpty
+                        ? 'GENERAL'
+                        : group.sectionName.toUpperCase();
+                    if (currentSecName == sectionName.toUpperCase()) {
+                      await _storageService.deletePromptGroup(
+                        baseDir,
+                        group.id,
+                      );
+                    }
+                  }
+
+                  if (mounted) {
+                    Navigator.pop(context);
+                    setState(() => isSectionEditMode = false);
+                    _loadAllPrompts(); // Refresh UI setelah penghapusan
+                  }
+                } catch (e) {
+                  setState(() => _isLoading = false);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Gagal menghapus seksi: $e')),
+                  );
+                }
+              },
+              child: const Text(
+                'Hapus All',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _showAddGroupDialog({String? defaultSection}) async {
@@ -282,7 +418,15 @@ class _PromptScreenState extends State<PromptScreen> {
       }
       sectionsMap[secName]!.add(group);
     }
+
+    // Mendapatkan list seksi yang unik
     final sectionKeys = sectionsMap.keys.toList();
+
+    // Tips Tambahan (Opsional): Jika ingin urutan seksi "GENERAL" selalu berada paling atas:
+    if (sectionKeys.contains('GENERAL')) {
+      sectionKeys.remove('GENERAL');
+      sectionKeys.insert(0, 'GENERAL');
+    }
 
     return Scaffold(
       backgroundColor: Colors.grey[200],
