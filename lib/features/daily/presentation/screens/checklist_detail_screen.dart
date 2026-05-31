@@ -1,12 +1,8 @@
 // lib/features/daily/presentation/screens/checklist_detail_screen.dart
 
-import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
-import '../../../../core/services/storage_service.dart';
 import '../../data/models/daily_model.dart';
-import '../widgets/daily_checklist_dialog.dart';
-import '../widgets/add_daily_subject_dialog.dart';
+import '../controllers/checklist_detail_controller.dart';
 
 class ChecklistDetailScreen extends StatefulWidget {
   final ChecklistGroup group;
@@ -22,236 +18,7 @@ class ChecklistDetailScreen extends StatefulWidget {
   State<ChecklistDetailScreen> createState() => _ChecklistDetailScreenState();
 }
 
-class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
-  final StorageService _storageService = StorageService();
-  bool _isPageEditMode = false;
-  bool _isSectionEditMode = false;
-  late ChecklistGroup _currentGroup;
-
-  // Konstanta untuk menandai nama seksi unik/default
-  static const String _defaultSectionName = "Checklist Standar";
-
-  @override
-  void initState() {
-    super.initState();
-    _currentGroup =
-        widget.group; // Mengambil data hub yang diklik dari layar sebelumnya
-  }
-
-  // Fungsi menyimpan khusus ke file JSON milik Hub ini saja
-  Future<void> _saveGroupData() async {
-    final Map<String, dynamic> updatedMap = _currentGroup.toJson();
-    final String jsonString = const JsonEncoder.withIndent(
-      '  ',
-    ).convert(updatedMap);
-    try {
-      File jsonFile = await _storageService.getSpecificGroupFile(
-        widget.baseDir,
-        _currentGroup.id,
-      );
-      await _storageService.saveJsonData(jsonFile, jsonString);
-    } catch (e) {
-      debugPrint("Error saving group data: $e");
-    }
-  }
-
-  void _openMateriChecklist(DailySubject subject) {
-    showDialog(
-      context: context,
-      builder: (context) => DailyChecklistDialog(
-        subject: subject,
-        onDataChanged: () {
-          _saveGroupData();
-          setState(() {});
-        },
-      ),
-    );
-  }
-
-  void _showAddSectionDialog() {
-    final sectionController = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Tambah Seksi Penempatan'),
-        content: TextField(
-          controller: sectionController,
-          decoration: const InputDecoration(hintText: 'Nama Seksi Baru...'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (sectionController.text.isNotEmpty) {
-                setState(() {
-                  // LOGIKA: Jika seksi pertama masih berupa seksi unik default, otomatis ubah namanya
-                  if (_currentGroup.allList.length == 1 &&
-                      _currentGroup.allList.first.sectionName ==
-                          _defaultSectionName) {
-                    _currentGroup.allList.first.sectionName = "Seksi Utama";
-                  }
-
-                  // Tambahkan seksi baru pilihan pengguna
-                  _currentGroup.allList.add(
-                    ChecklistSection(
-                      sectionName: sectionController.text,
-                      items: [],
-                    ),
-                  );
-                });
-                _saveGroupData();
-                Navigator.pop(context);
-              }
-            },
-            child: const Text('Simpan'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _addItemToSection(
-    BuildContext context,
-    ChecklistSection? targetSection,
-  ) {
-    showDialog(
-      context: context,
-      builder: (context) => AddDailySubjectDialog(
-        existingSections: _currentGroup.allList.isEmpty
-            ? [_defaultSectionName]
-            : _currentGroup.allList.map((sec) => sec.sectionName).toList(),
-        onSave: (newSubject) {
-          setState(() {
-            // Jika ditambahkan saat kosong, buat seksi unik terlebih dahulu
-            if (_currentGroup.allList.isEmpty) {
-              final newSection = ChecklistSection(
-                sectionName: _defaultSectionName,
-                items: [newSubject],
-              );
-              _currentGroup.allList.add(newSection);
-            } else {
-              // Jika seksi target ada, langsung masukkan ke seksi tersebut
-              targetSection?.items.add(newSubject);
-            }
-          });
-          _saveGroupData();
-        },
-      ),
-    );
-  }
-
-  // Tambahkan fungsi baru ini di dalam kelas _ChecklistDetailScreenState
-  void _deleteItemFromSection(
-    List<DailySubject> subjectsList,
-    DailySubject subject,
-  ) async {
-    // 1. Tampilkan dialog konfirmasi sebelum menghapus
-    final bool confirm =
-        await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Hapus Item Checklist?'),
-            content: Text(
-              'Apakah Anda yakin ingin menghapus "${subject.subjectName}" beserta seluruh sub-materinya?',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Batal'),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context, true),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                child: const Text('Hapus'),
-              ),
-            ],
-          ),
-        ) ??
-        false;
-
-    // 2. Jika dikonfirmasi, hapus dari list, simpan ke JSON, dan perbarui UI
-    if (confirm) {
-      setState(() {
-        subjectsList.remove(subject);
-      });
-      _saveGroupData(); // Menyimpan perubahan urutan/isi secara otomatis ke JSON lokal
-    }
-  }
-
-  void _editSectionName(ChecklistSection section) {
-    final editController = TextEditingController(text: section.sectionName);
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Ubah Nama Seksi'),
-        content: TextField(controller: editController),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (editController.text.isNotEmpty) {
-                setState(
-                  () => section.sectionName = editController.text.trim(),
-                );
-                _saveGroupData();
-                Navigator.pop(context);
-              }
-            },
-            child: const Text('Simpan'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _deleteSection(ChecklistSection section) async {
-    final bool confirm =
-        await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Hapus Seksi?'),
-            content: Text(
-              'Apakah Anda yakin ingin menghapus seksi "${section.sectionName}" beserta seluruh item di dalamnya?',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Batal'),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context, true),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                child: const Text('Hapus'),
-              ),
-            ],
-          ),
-        ) ??
-        false;
-
-    if (confirm) {
-      setState(() => _currentGroup.allList.remove(section));
-      _saveGroupData();
-    }
-  }
-
-  void _moveSectionOrder(int currentIndex, int direction) {
-    int newIndex = currentIndex + direction;
-    if (newIndex < 0 || newIndex >= _currentGroup.allList.length) return;
-
-    setState(() {
-      final temp = _currentGroup.allList[currentIndex];
-      _currentGroup.allList[currentIndex] = _currentGroup.allList[newIndex];
-      _currentGroup.allList[newIndex] = temp;
-    });
-    _saveGroupData();
-  }
-
+class _ChecklistDetailScreenState extends ChecklistDetailController {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -259,20 +26,18 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
       appBar: AppBar(
         title: Row(
           children: [
-            Text(_currentGroup.icon, style: const TextStyle(fontSize: 22)),
+            Text(currentGroup.icon, style: const TextStyle(fontSize: 22)),
             const SizedBox(width: 8),
-            Text(_currentGroup.groupName),
+            Text(currentGroup.groupName),
           ],
         ),
         backgroundColor: Colors.teal[700],
         actions: [],
       ),
-
-      // MODIFIKASI: Jika kosong, tampilkan tombol untuk langsung menambah item pertama
-      body: _currentGroup.allList.isEmpty
+      body: currentGroup.allList.isEmpty
           ? Center(
               child: ElevatedButton.icon(
-                onPressed: () => _addItemToSection(context, null),
+                onPressed: () => addItemToSection(context, null),
                 icon: const Icon(Icons.add_box),
                 label: const Text('Tambah Item Pertama'),
                 style: ElevatedButton.styleFrom(
@@ -284,26 +49,25 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
               builder: (context, constraints) {
                 return ListView.builder(
                   padding: const EdgeInsets.symmetric(vertical: 12),
-                  itemCount: _currentGroup.allList.length,
+                  itemCount: currentGroup.allList.length,
                   itemBuilder: (context, index) {
-                    final section = _currentGroup.allList[index];
+                    final section = currentGroup.allList[index];
 
                     // Evaluasi apakah ini seksi default tunggal yang perlu disembunyikan judulnya
                     final bool hideHeader =
-                        _currentGroup.allList.length == 1 &&
-                        section.sectionName == _defaultSectionName;
+                        currentGroup.allList.length == 1 &&
+                        section.sectionName ==
+                            ChecklistDetailController.defaultSectionName;
 
-                    // Di dalam ListView.builder milik widget build:
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // PERBAIKAN: Masukkan data index dan section ke fungsi header
                         _buildSectionHeader(
-                          index, // Berikan index saat ini
-                          section, // Berikan objek seksi saat ini
+                          index,
+                          section,
                           Colors.teal[800]!,
                           hideHeader,
-                          () => _addItemToSection(context, section),
+                          () => addItemToSection(context, section),
                         ),
                         _buildCategoryGrid(section.items, constraints),
                       ],
@@ -312,9 +76,8 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                 );
               },
             ),
-
       floatingActionButton: FloatingActionButton(
-        onPressed: _showAddSectionDialog,
+        onPressed: showAddSectionDialog,
         backgroundColor: Colors.teal[800],
         tooltip: 'Tambah Seksi Baru',
         child: const Icon(Icons.post_add, size: 30, color: Colors.white),
@@ -336,16 +99,14 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
         highlightColor: Colors.teal.withOpacity(0.05),
         onLongPress: () {
           setState(() {
-            _isSectionEditMode = !_isSectionEditMode;
+            isSectionEditMode = !isSectionEditMode;
           });
         },
         onTap: () {},
         child: AnimatedPadding(
-          // Menambahkan durasi dan kurva animasi yang serupa dengan seksi di group checklist
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeInOut,
-          // Mengubah padding secara dinamis berdasarkan status mode edit seksi (_isSectionEditMode)
-          padding: _isSectionEditMode
+          padding: isSectionEditMode
               ? const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0)
               : const EdgeInsets.fromLTRB(16, 12, 16, 4),
           child: Column(
@@ -364,11 +125,9 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                             color: color,
                           ),
                         ),
-                  // Tombol hanya muncul dideretan saat Mode Edit Aktif
-                  if (_isSectionEditMode) ...[
+                  if (isSectionEditMode) ...[
                     Row(
                       children: [
-                        // Tombol Naik Posisi
                         IconButton(
                           icon: const Icon(
                             Icons.arrow_upward,
@@ -376,39 +135,35 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                             color: Colors.blueGrey,
                           ),
                           onPressed: index > 0
-                              ? () => _moveSectionOrder(index, -1)
+                              ? () => moveSectionOrder(index, -1)
                               : null,
                         ),
-                        // Tombol Turun Posisi
                         IconButton(
                           icon: const Icon(
                             Icons.arrow_downward,
                             size: 18,
                             color: Colors.blueGrey,
                           ),
-                          onPressed: index < _currentGroup.allList.length - 1
-                              ? () => _moveSectionOrder(index, 1)
+                          onPressed: index < currentGroup.allList.length - 1
+                              ? () => moveSectionOrder(index, 1)
                               : null,
                         ),
-                        // Tombol Ganti Nama
                         IconButton(
                           icon: const Icon(
                             Icons.edit,
                             size: 18,
                             color: Colors.teal,
                           ),
-                          onPressed: () => _editSectionName(section),
+                          onPressed: () => editSectionName(section),
                         ),
-                        // Tombol Hapus Seksi
                         IconButton(
                           icon: const Icon(
                             Icons.delete,
                             size: 18,
                             color: Colors.redAccent,
                           ),
-                          onPressed: () => _deleteSection(section),
+                          onPressed: () => deleteSection(section),
                         ),
-                        // Tombol Tambah Item disisipkan di deretan paling kanan saat mode edit
                         IconButton(
                           icon: const Icon(
                             Icons.add_circle_outline,
@@ -421,7 +176,6 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                       ],
                     ),
                   ] else ...[
-                    // Jika tidak dalam mode edit, deretan tombol kosong agar judul seksi terlihat bersih
                     const SizedBox.shrink(),
                   ],
                 ],
@@ -434,7 +188,6 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
     );
   }
 
-  // === UI PROGRESS BAR & KARTU LAMA ANDA TETAP AMAN DI SINI ===
   Widget _buildCategoryGrid(
     List<DailySubject> subjectsList,
     BoxConstraints constraints,
@@ -454,7 +207,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
       padding: const EdgeInsets.all(12),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
-        childAspectRatio: _isPageEditMode ? 0.95 : 1.4,
+        childAspectRatio: isPageEditMode ? 0.95 : 1.4,
         crossAxisSpacing: 0,
         mainAxisSpacing: 0,
       ),
@@ -491,23 +244,19 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
           color: Colors.white,
           child: Column(
             children: [
-              // Area Konten Utama Materi
               Expanded(
                 child: InkWell(
-                  // Kotak hanya bisa diklik untuk membuka dialog jika mode edit mati
-                  onTap: _isPageEditMode
+                  onTap: isPageEditMode
                       ? null
-                      : () => _openMateriChecklist(subject),
-
-                  // TAMBAHAN: Menahan kotak untuk masuk atau keluar dari mode edit
+                      : () => openMateriChecklist(subject),
                   onLongPress: () {
                     setState(() {
-                      _isPageEditMode = !_isPageEditMode;
+                      isPageEditMode = !isPageEditMode;
                     });
                   },
                   borderRadius: BorderRadius.vertical(
                     top: const Radius.circular(12),
-                    bottom: Radius.circular(_isPageEditMode ? 0 : 12),
+                    bottom: Radius.circular(isPageEditMode ? 0 : 12),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(12.0),
@@ -515,7 +264,6 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        // PERUBAHAN DI SINI: Menghapus overflow ellipsis dan maxLines agar teks turun ke bawah
                         Text(
                           subject.subjectName,
                           style: const TextStyle(
@@ -635,9 +383,7 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                   ),
                 ),
               ),
-
-              // === PERBAIKAN: KONTROL MOVE (PINDAH POSISI URUTAN KARTU) TELAH DIKEMBALIKAN ===
-              if (_isPageEditMode) ...[
+              if (isPageEditMode) ...[
                 Container(
                   color: Colors.transparent,
                   padding: const EdgeInsets.symmetric(
@@ -647,7 +393,6 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      // Tombol Move Kiri / Atas Urutan Posisi Kartu
                       IconButton(
                         icon: const Icon(Icons.arrow_back, size: 16),
                         color: index > 0 ? Colors.teal[700] : Colors.grey[300],
@@ -656,17 +401,14 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                         onPressed: index > 0
                             ? () {
                                 setState(() {
-                                  // Logika tukar posisi di dalam seksi kustom yang aktif
                                   final temp = subjectsList[index];
                                   subjectsList[index] = subjectsList[index - 1];
                                   subjectsList[index - 1] = temp;
                                 });
-                                _saveGroupData(); // Auto-save urutan posisi baru ke JSON lokal
+                                saveGroupData();
                               }
                             : null,
                       ),
-
-                      // Popup Menu Pindah Seksi Penempatan secara Dinamis
                       PopupMenuButton<String>(
                         tooltip: 'Pindah Seksi',
                         icon: const Icon(
@@ -679,16 +421,16 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                         onSelected: (targetSectionName) {
                           setState(() {
                             final itemToMove = subjectsList.removeAt(index);
-                            _currentGroup.allList
+                            currentGroup.allList
                                 .firstWhere(
                                   (sec) => sec.sectionName == targetSectionName,
                                 )
                                 .items
                                 .add(itemToMove);
                           });
-                          _saveGroupData();
+                          saveGroupData();
                         },
-                        itemBuilder: (context) => _currentGroup.allList
+                        itemBuilder: (context) => currentGroup.allList
                             .map(
                               (sec) => PopupMenuItem<String>(
                                 value: sec.sectionName,
@@ -700,8 +442,6 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                             )
                             .toList(),
                       ),
-
-                      // Tombol Move Kanan / Bawah Urutan Posisi Kartu
                       IconButton(
                         icon: const Icon(Icons.arrow_forward, size: 16),
                         color: index < subjectsList.length - 1
@@ -712,17 +452,14 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                         onPressed: index < subjectsList.length - 1
                             ? () {
                                 setState(() {
-                                  // Logika tukar posisi di dalam seksi kustom yang aktif
                                   final temp = subjectsList[index];
                                   subjectsList[index] = subjectsList[index + 1];
                                   subjectsList[index + 1] = temp;
                                 });
-                                _saveGroupData(); // Auto-save urutan posisi baru ke JSON lokal
+                                saveGroupData();
                               }
                             : null,
                       ),
-
-                      // === TOMBOL BARU: UNTUK MENGHAPUS ITEM MATERI (KARTU) ===
                       IconButton(
                         icon: const Icon(
                           Icons.delete_outline,
@@ -732,10 +469,8 @@ class _ChecklistDetailScreenState extends State<ChecklistDetailScreen> {
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                         tooltip: 'Hapus Item Ini',
-                        onPressed: () => _deleteItemFromSection(
-                          subjectsList,
-                          subject,
-                        ), // Memanggil fungsi hapus
+                        onPressed: () =>
+                            deleteItemFromSection(subjectsList, subject),
                       ),
                     ],
                   ),
