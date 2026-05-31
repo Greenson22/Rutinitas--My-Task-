@@ -180,7 +180,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                   ],
                 ],
               ),
-              if (!hideTitle) const Divider(height: 8, thickness: 1),
+              if (!hideTitle) const Divider(height: 2, thickness: 1),
             ],
           ),
         ),
