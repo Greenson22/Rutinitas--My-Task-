@@ -441,39 +441,32 @@ class PromptController extends ChangeNotifier {
 
   Future<PromptGroup?> addPromptItemToGroup({
     required PromptGroup group,
-    required String title, // Mengisi properti actAs
-    required String
-    description, // Opsional jika dibutuhkan, atau untuk pelengkap log
-    required String content, // Mengisi properti content
+    required String title,
+    required String description,
+    required String content,
     required BuildContext context,
   }) async {
     _isLoading = true;
     notifyListeners();
     try {
       final baseDir = await _storageService.getBaseDirSetting();
-
-      // Membuat ID unik baru berbasis timestamp untuk item prompt
       final String newItemId = 'item_${DateTime.now().millisecondsSinceEpoch}';
 
-      // Bungkus data ke dalam objek model PromptItem
       final newPromptItem = PromptItem(
         id: newItemId,
         actAs: title.trim(),
         content: content.trim(),
-        isFavorite: false, // Default awal tidak favorit
+        isFavorite: false,
       );
 
-      // Tambahkan item baru ke dalam list prompts grup yang dituju
       group.prompts.add(newPromptItem);
 
-      // Simpan perubahan grup tersebut kembali ke berkas storage lokal
       await _storageService.savePromptGroup(
         baseDir,
         group.id,
         jsonEncode(group.toJson()),
       );
 
-      // Muat ulang data untuk menyinkronkan seluruh list global
       if (context.mounted) {
         await loadAllPrompts(context);
       }
@@ -490,7 +483,6 @@ class PromptController extends ChangeNotifier {
         );
       }
 
-      // Kembalikan objek grup yang paling baru dari list yang sudah di-refresh
       return _promptGroups.firstWhere(
         (element) => element.id == group.id,
         orElse: () => group,
@@ -502,6 +494,186 @@ class PromptController extends ChangeNotifier {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Gagal menambahkan item prompt: $e')),
         );
+      }
+      return null;
+    }
+  }
+
+  // =============== FITUR BARU: EDIT, HAPUS, PINDAH, SALIN PROMPT ===============
+
+  // Mengedit item prompt
+  Future<PromptGroup?> editPromptItem({
+    required PromptGroup group,
+    required String itemId,
+    required String newActAs,
+    required String newContent,
+    required BuildContext context,
+  }) async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      final baseDir = await _storageService.getBaseDirSetting();
+      final index = group.prompts.indexWhere((p) => p.id == itemId);
+
+      if (index != -1) {
+        final oldItem = group.prompts[index];
+        group.prompts[index] = PromptItem(
+          id: oldItem.id,
+          actAs: newActAs.trim(),
+          content: newContent.trim(),
+          isFavorite: oldItem.isFavorite,
+        );
+        await _storageService.savePromptGroup(
+          baseDir,
+          group.id,
+          jsonEncode(group.toJson()),
+        );
+
+        if (context.mounted) {
+          await loadAllPrompts(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Prompt berhasil diperbarui!')),
+          );
+        }
+      }
+      _isLoading = false;
+      notifyListeners();
+      return _promptGroups.firstWhere(
+        (g) => g.id == group.id,
+        orElse: () => group,
+      );
+    } catch (e) {
+      _isLoading = false;
+      notifyListeners();
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Gagal memperbarui prompt: $e')));
+      }
+      return null;
+    }
+  }
+
+  // Menghapus item prompt
+  Future<PromptGroup?> deletePromptItem({
+    required PromptGroup group,
+    required String itemId,
+    required BuildContext context,
+  }) async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      final baseDir = await _storageService.getBaseDirSetting();
+      group.prompts.removeWhere((p) => p.id == itemId);
+
+      await _storageService.savePromptGroup(
+        baseDir,
+        group.id,
+        jsonEncode(group.toJson()),
+      );
+
+      if (context.mounted) {
+        await loadAllPrompts(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Prompt berhasil dihapus!')),
+        );
+      }
+      _isLoading = false;
+      notifyListeners();
+      return _promptGroups.firstWhere(
+        (g) => g.id == group.id,
+        orElse: () => group,
+      );
+    } catch (e) {
+      _isLoading = false;
+      notifyListeners();
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Gagal menghapus prompt: $e')));
+      }
+      return null;
+    }
+  }
+
+  // Memindah atau Menyalin item prompt
+  Future<PromptGroup?> moveOrCopyPromptItem({
+    required PromptGroup sourceGroup,
+    required PromptGroup targetGroup,
+    required PromptItem item,
+    required bool isCopy,
+    required BuildContext context,
+  }) async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      final baseDir = await _storageService.getBaseDirSetting();
+      final String newItemId = 'item_${DateTime.now().millisecondsSinceEpoch}';
+
+      final newItem = PromptItem(
+        id: newItemId,
+        actAs: item.actAs,
+        content: item.content,
+        isFavorite: item.isFavorite,
+      );
+
+      if (sourceGroup.id == targetGroup.id) {
+        // Jika grup yang sama (Salin di grup yang sama)
+        sourceGroup.prompts.add(newItem);
+        if (!isCopy) {
+          sourceGroup.prompts.removeWhere((p) => p.id == item.id);
+        }
+        await _storageService.savePromptGroup(
+          baseDir,
+          sourceGroup.id,
+          jsonEncode(sourceGroup.toJson()),
+        );
+      } else {
+        // Jika beda grup
+        targetGroup.prompts.add(newItem);
+        await _storageService.savePromptGroup(
+          baseDir,
+          targetGroup.id,
+          jsonEncode(targetGroup.toJson()),
+        );
+
+        if (!isCopy) {
+          sourceGroup.prompts.removeWhere((p) => p.id == item.id);
+          await _storageService.savePromptGroup(
+            baseDir,
+            sourceGroup.id,
+            jsonEncode(sourceGroup.toJson()),
+          );
+        }
+      }
+
+      if (context.mounted) {
+        await loadAllPrompts(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              isCopy
+                  ? 'Prompt berhasil disalin!'
+                  : 'Prompt berhasil dipindahkan!',
+            ),
+          ),
+        );
+      }
+
+      _isLoading = false;
+      notifyListeners();
+      // Mengembalikan sourceGroup versi terbaru
+      return _promptGroups.firstWhere(
+        (g) => g.id == sourceGroup.id,
+        orElse: () => sourceGroup,
+      );
+    } catch (e) {
+      _isLoading = false;
+      notifyListeners();
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Gagal memproses prompt: $e')));
       }
       return null;
     }
