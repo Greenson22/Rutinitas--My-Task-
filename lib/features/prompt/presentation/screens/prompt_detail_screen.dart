@@ -516,7 +516,7 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
         return Scaffold(
           backgroundColor: const Color(0xFFF5F6FA),
 
-          // IMPLEMENTASI BARU: Menambahkan Material & InkWell pada PreferredSize AppBar
+          // Menambahkan Material & InkWell pada PreferredSize AppBar
           appBar: PreferredSize(
             preferredSize: const Size.fromHeight(kToolbarHeight),
             child: Material(
@@ -614,44 +614,65 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                 clipBehavior: Clip
                     .antiAlias, // Mencegah teks meluber saat animasi mengecil
                 child: _isSearchMode
-                    ? TextField(
-                        controller: _searchController,
-                        autofocus: true,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: 'Cari judul atau deskripsi prompt...',
-                          hintStyle: const TextStyle(
-                            color: Colors.white60,
-                            fontSize: 13,
+                    ? Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _searchController,
+                              autofocus: true,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                              ),
+                              decoration: InputDecoration(
+                                hintText: 'Cari judul atau deskripsi prompt...',
+                                hintStyle: const TextStyle(
+                                  color: Colors.white60,
+                                  fontSize: 13,
+                                ),
+                                prefixIcon: const Icon(
+                                  Icons.search,
+                                  color: Colors.white70,
+                                ),
+                                suffixIcon: _searchController.text.isNotEmpty
+                                    ? IconButton(
+                                        icon: const Icon(
+                                          Icons.clear,
+                                          color: Colors.white70,
+                                          size: 18,
+                                        ),
+                                        onPressed: () =>
+                                            _searchController.clear(),
+                                      )
+                                    : null,
+                                filled: true,
+                                fillColor: Colors.white.withOpacity(0.15),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  vertical: 0,
+                                  horizontal: 12,
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide.none,
+                                ),
+                              ),
+                            ),
                           ),
-                          prefixIcon: const Icon(
-                            Icons.search,
-                            color: Colors.white70,
+                          const SizedBox(width: 8),
+                          // IMPLEMENTASI BARU: Tombol Tambah Item diletakkan di sebelah search bar
+                          IconButton(
+                            onPressed: _openAddPromptDialog,
+                            style: IconButton.styleFrom(
+                              backgroundColor: Colors.white.withOpacity(0.15),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              padding: const EdgeInsets.all(12),
+                            ),
+                            icon: const Icon(Icons.add, color: Colors.white),
+                            tooltip: 'Tambah Item Prompt Baru',
                           ),
-                          suffixIcon: _searchController.text.isNotEmpty
-                              ? IconButton(
-                                  icon: const Icon(
-                                    Icons.clear,
-                                    color: Colors.white70,
-                                    size: 18,
-                                  ),
-                                  onPressed: () => _searchController.clear(),
-                                )
-                              : null,
-                          filled: true,
-                          fillColor: Colors.white.withOpacity(0.15),
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 0,
-                            horizontal: 12,
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
-                        ),
+                        ],
                       )
                     : const SizedBox.shrink(),
               ),
@@ -661,7 +682,7 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                 child: _currentGroup.prompts.isEmpty
                     ? const Center(
                         child: Text(
-                          'Grup ini belum memiliki item prompt.\nSilakan tambah menggunakan tombol di bawah.',
+                          'Grup ini belum memiliki item prompt.\nTahan judul layar untuk mencari dan menambah item.',
                           textAlign: TextAlign.center,
                           style: TextStyle(color: Colors.grey),
                         ),
@@ -958,14 +979,8 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
               ),
             ],
           ),
-          floatingActionButton: isSelectMode
-              ? null
-              : FloatingActionButton(
-                  onPressed: _openAddPromptDialog,
-                  backgroundColor: const Color(0xFF3F51B5),
-                  tooltip: 'Tambah Item Prompt Baru',
-                  child: const Icon(Icons.add, color: Colors.white),
-                ),
+          // IMPLEMENTASI BARU: Floating Action Button dihilangkan (di-set null) agar tidak double
+          floatingActionButton: null,
         );
       },
     );
