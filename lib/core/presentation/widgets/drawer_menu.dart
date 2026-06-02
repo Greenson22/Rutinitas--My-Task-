@@ -1,6 +1,5 @@
 // lib/core/presentation/widgets/drawer_menu.dart
 
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../../features/task_master/presentation/screens/home_screen.dart';
 import '../../../features/daily/presentation/screens/daily_screen.dart';
@@ -10,20 +9,22 @@ import '../../../features/task_master/presentation/widgets/settings_dialog.dart'
 import '../../services/storage_service.dart';
 import '../../../features/data_center/presentation/screens/data_center_screen.dart';
 import '../../../features/prompt/presentation/screens/prompt_screen.dart';
+import '../../../features/notes/presentation/screens/notes_screen.dart';
 
 class DrawerMenu extends StatefulWidget {
   final bool isDailyActive;
   final bool isJurnalActive;
   final bool isDataCenterActive;
   final bool isPromptActive;
+  final bool isNotesActive;
 
   const DrawerMenu({
     super.key,
     this.isDailyActive = false,
     this.isJurnalActive = false,
     this.isDataCenterActive = false,
-    this.isPromptActive =
-        false, // Default-nya false agar halaman lain tidak error
+    this.isPromptActive = false,
+    this.isNotesActive = false,
   });
 
   @override
@@ -207,7 +208,43 @@ class _DrawerMenuState extends State<DrawerMenu> {
               }
             },
           ),
+          ListTile(
+            leading: Icon(
+              Icons.note_alt_outlined,
+              // Gunakan widget.isNotesActive
+              color: widget.isNotesActive
+                  ? Colors.orange[700]
+                  : Colors.grey[700],
+            ),
+            title: Text(
+              'Catatan',
+              style: TextStyle(
+                // Gunakan widget.isNotesActive
+                fontWeight: widget.isNotesActive
+                    ? FontWeight.bold
+                    : FontWeight.normal,
+                color: widget.isNotesActive
+                    ? Colors.orange[700]
+                    : Colors.black87,
+              ),
+            ),
+            // Gunakan widget.isNotesActive
+            selected: widget.isNotesActive,
+            selectedTileColor: Colors.orange.withOpacity(0.1),
+            onTap: () {
+              // Tutup drawer terlebih dahulu
+              Navigator.pop(context);
 
+              // Jika halaman saat ini bukan halaman Notes, pindah ke NotesScreen
+              // Gunakan widget.isNotesActive
+              if (!widget.isNotesActive) {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => const NotesScreen()),
+                );
+              }
+            },
+          ),
           const Divider(),
           ListTile(
             leading: Icon(Icons.settings_outlined, color: Colors.blueGrey[700]),
