@@ -535,17 +535,19 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                     onPressed: () => Navigator.pop(context),
                   ),
             actions: [
-              if (isSelectMode)
+              // Tombol aksi massal hanya ditambahkan jika mode seleksi/pilih aktif
+              if (isSelectMode) ...[
                 IconButton(
                   icon: const Icon(Icons.drive_file_move, color: Colors.white),
                   tooltip: 'Pindahkan Semua Terpilih',
                   onPressed: () => _showMoveMassiveDialog(totalSelected),
                 ),
-              IconButton(
-                icon: const Icon(Icons.delete, color: Colors.white),
-                tooltip: 'Hapus Semua Terpilih',
-                onPressed: () => _showDeleteMassiveDialog(totalSelected),
-              ),
+                IconButton(
+                  icon: const Icon(Icons.delete, color: Colors.white),
+                  tooltip: 'Hapus Semua Terpilih',
+                  onPressed: () => _showDeleteMassiveDialog(totalSelected),
+                ),
+              ],
             ],
           ),
           body: _currentGroup.prompts.isEmpty
