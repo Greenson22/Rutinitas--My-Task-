@@ -140,11 +140,11 @@ class PromptController extends ChangeNotifier {
     try {
       final baseDir = await _storageService.getBaseDirSetting();
       for (var group in _promptGroups) {
-        await _storageService.savePromptGroup(
-          baseDir,
-          group.id,
-          jsonEncode(group.toJson()),
+        // MENGGUNAKAN HELPER
+        final String jsonString = _storageService.formatJsonPretty(
+          group.toJson(),
         );
+        await _storageService.savePromptGroup(baseDir, group.id, jsonString);
       }
     } catch (e) {
       debugPrint("Gagal mengamankan urutan seksi: $e");
@@ -194,11 +194,11 @@ class PromptController extends ChangeNotifier {
           lastUpdated: DateTime.now().toIso8601String(),
           prompts: group.prompts,
         );
-        await _storageService.savePromptGroup(
-          baseDir,
-          group.id,
-          jsonEncode(updatedGroup.toJson()),
+        // MENGGUNAKAN HELPER
+        final String jsonString = _storageService.formatJsonPretty(
+          updatedGroup.toJson(),
         );
+        await _storageService.savePromptGroup(baseDir, group.id, jsonString);
       }
 
       for (var group in _promptGroups) {
@@ -285,11 +285,11 @@ class PromptController extends ChangeNotifier {
         prompts: [],
       );
 
-      await _storageService.savePromptGroup(
-        baseDir,
-        id,
-        jsonEncode(newGroup.toJson()),
+      // MENGGUNAKAN HELPER
+      final String jsonString = _storageService.formatJsonPretty(
+        newGroup.toJson(),
       );
+      await _storageService.savePromptGroup(baseDir, id, jsonString);
       _localEmptySections.remove(targetSection.toUpperCase());
 
       if (context.mounted) await loadAllPrompts(context);
@@ -335,11 +335,11 @@ class PromptController extends ChangeNotifier {
     try {
       final baseDir = await _storageService.getBaseDirSetting();
       for (var group in _promptGroups) {
-        await _storageService.savePromptGroup(
-          baseDir,
-          group.id,
-          jsonEncode(group.toJson()),
+        // MENGGUNAKAN HELPER
+        final String jsonString = _storageService.formatJsonPretty(
+          group.toJson(),
         );
+        await _storageService.savePromptGroup(baseDir, group.id, jsonString);
       }
     } catch (e) {
       debugPrint("Gagal mengamankan urutan group: $e");
@@ -366,11 +366,11 @@ class PromptController extends ChangeNotifier {
         prompts: group.prompts,
       );
 
-      await _storageService.savePromptGroup(
-        baseDir,
-        group.id,
-        jsonEncode(updatedGroup.toJson()),
+      // MENGGUNAKAN HELPER
+      final String jsonString = _storageService.formatJsonPretty(
+        updatedGroup.toJson(),
       );
+      await _storageService.savePromptGroup(baseDir, group.id, jsonString);
       if (context.mounted) await loadAllPrompts(context);
     } catch (e) {
       _isLoading = false;
@@ -402,11 +402,11 @@ class PromptController extends ChangeNotifier {
         prompts: group.prompts,
       );
 
-      await _storageService.savePromptGroup(
-        baseDir,
-        group.id,
-        jsonEncode(updatedGroup.toJson()),
+      // MENGGUNAKAN HELPER
+      final String jsonString = _storageService.formatJsonPretty(
+        updatedGroup.toJson(),
       );
+      await _storageService.savePromptGroup(baseDir, group.id, jsonString);
       _localEmptySections.remove(targetSection.toUpperCase());
       if (context.mounted) await loadAllPrompts(context);
     } catch (e) {
@@ -461,11 +461,11 @@ class PromptController extends ChangeNotifier {
 
       group.prompts.add(newPromptItem);
 
-      await _storageService.savePromptGroup(
-        baseDir,
-        group.id,
-        jsonEncode(group.toJson()),
+      // MENGGUNAKAN HELPER
+      final String jsonString = _storageService.formatJsonPretty(
+        group.toJson(),
       );
+      await _storageService.savePromptGroup(baseDir, group.id, jsonString);
 
       if (context.mounted) {
         await loadAllPrompts(context);
@@ -522,14 +522,15 @@ class PromptController extends ChangeNotifier {
           id: oldItem.id,
           actAs: newActAs.trim(),
           content: newContent.trim(),
-          description: newDescription.trim(), // <--- TAMBAHKAN BARIS INI!
+          description: newDescription.trim(),
           isFavorite: oldItem.isFavorite,
         );
-        await _storageService.savePromptGroup(
-          baseDir,
-          group.id,
-          jsonEncode(group.toJson()),
+
+        // MENGGUNAKAN HELPER
+        final String jsonString = _storageService.formatJsonPretty(
+          group.toJson(),
         );
+        await _storageService.savePromptGroup(baseDir, group.id, jsonString);
 
         if (context.mounted) {
           await loadAllPrompts(context);
@@ -568,11 +569,11 @@ class PromptController extends ChangeNotifier {
       final baseDir = await _storageService.getBaseDirSetting();
       group.prompts.removeWhere((p) => p.id == itemId);
 
-      await _storageService.savePromptGroup(
-        baseDir,
-        group.id,
-        jsonEncode(group.toJson()),
+      // MENGGUNAKAN HELPER
+      final String jsonString = _storageService.formatJsonPretty(
+        group.toJson(),
       );
+      await _storageService.savePromptGroup(baseDir, group.id, jsonString);
 
       if (context.mounted) {
         await loadAllPrompts(context);
@@ -625,26 +626,41 @@ class PromptController extends ChangeNotifier {
         if (!isCopy) {
           sourceGroup.prompts.removeWhere((p) => p.id == item.id);
         }
+
+        // MENGGUNAKAN HELPER (Grup yang sama)
+        final String sourceJson = _storageService.formatJsonPretty(
+          sourceGroup.toJson(),
+        );
         await _storageService.savePromptGroup(
           baseDir,
           sourceGroup.id,
-          jsonEncode(sourceGroup.toJson()),
+          sourceJson,
         );
       } else {
         // Jika beda grup
         targetGroup.prompts.add(newItem);
+
+        // MENGGUNAKAN HELPER (Grup Target)
+        final String targetJson = _storageService.formatJsonPretty(
+          targetGroup.toJson(),
+        );
         await _storageService.savePromptGroup(
           baseDir,
           targetGroup.id,
-          jsonEncode(targetGroup.toJson()),
+          targetJson,
         );
 
         if (!isCopy) {
           sourceGroup.prompts.removeWhere((p) => p.id == item.id);
+
+          // MENGGUNAKAN HELPER (Grup Asal setelah dihapus itemnya)
+          final String sourceJson = _storageService.formatJsonPretty(
+            sourceGroup.toJson(),
+          );
           await _storageService.savePromptGroup(
             baseDir,
             sourceGroup.id,
-            jsonEncode(sourceGroup.toJson()),
+            sourceJson,
           );
         }
       }

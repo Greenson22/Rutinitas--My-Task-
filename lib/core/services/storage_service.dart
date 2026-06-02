@@ -1,5 +1,6 @@
 // lib/core/services/storage_service.dart
 
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
@@ -265,5 +266,9 @@ class StorageService {
     if (await file.exists()) {
       await file.delete();
     }
+  }
+
+  String formatJsonPretty(dynamic jsonObject) {
+    return const JsonEncoder.withIndent('  ').convert(jsonObject);
   }
 }
