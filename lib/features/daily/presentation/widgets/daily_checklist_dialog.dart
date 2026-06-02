@@ -1,9 +1,10 @@
 // lib/features/daily/presentation/widgets/daily_checklist_dialog.dart
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // <--- Tambahkan ini di baris paling atas
+import 'package:flutter/services.dart';
 import '../../data/models/daily_model.dart';
 import 'change_color_dialog.dart';
+import '../../../../core/presentation/widgets/base_popup_dialog.dart';
 
 class DailyChecklistDialog extends StatefulWidget {
   final DailySubject subject;
@@ -383,751 +384,21 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    List<SubSubjectItem> allFlattened = [];
-    _getAllItemsFlattened(widget.subject.subMateri, allFlattened);
+  void _updateSubjectOverallProgress() {
+    int total = widget.subject.subMateri.length;
+    int selesai = widget.subject.subMateri
+        .where((sm) => sm.progress == 'selesai')
+        .length;
 
-    bool isAllSelected =
-        allFlattened.isNotEmpty &&
-        allFlattened.every((item) => _selectedItems.contains(item));
-
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(
-              color: Color(
-                widget.subject.backgroundColor,
-              ), // Mengikuti warna real-time
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                // 1. JUDUL MATERI DI SEBELAH KIRI
-                Expanded(
-                  child: Text.rich(
-                    TextSpan(
-                      children: [
-                        TextSpan(
-                          text: '${widget.subject.subjectName} ',
-                          style: TextStyle(
-                            color: Color(widget.subject.textColor),
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        if (widget.subject.isDateActive &&
-                            widget.subject.date != null)
-                          ...DailySubject.buildColoredDateSpans(
-                            widget.subject,
-                            inHeader: true,
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-
-                // 2. DERETAN TOMBOL-TOMBOL AKSI DI SEBELAH KANAN
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // === TOMBOL BARU: SIMPAN CATATAN MANUAL ===
-                    // Hanya muncul jika tipe note dan ada perubahan teks yang belum disimpan
-                    if (widget.subject.type == 'note' && _isNoteModified) ...[
-                      IconButton(
-                        icon: const Icon(
-                          Icons.save_as,
-                          color: Colors
-                              .amberAccent, // Warna kontras penanda aksi penting
-                          size: 24,
-                        ),
-                        tooltip: 'Simpan Perubahan Catatan',
-                        constraints: const BoxConstraints(),
-                        padding: const EdgeInsets.all(4),
-                        onPressed: _saveManualNote,
-                      ),
-                      const SizedBox(width: 6),
-                    ],
-
-                    // Tombol Ubah Judul Materi
-                    IconButton(
-                      icon: const Icon(
-                        Icons.edit_note,
-                        color: Colors.white,
-                        size: 22,
-                      ),
-                      tooltip: 'Ubah Judul Materi',
-                      constraints: const BoxConstraints(),
-                      padding: const EdgeInsets.all(4),
-                      onPressed: _showEditSubjectNameDialog,
-                    ),
-                    const SizedBox(width: 4),
-
-                    // Tombol Ubah Warna Materi
-                    IconButton(
-                      icon: const Icon(
-                        Icons.palette,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                      tooltip: 'Ubah Warna Materi',
-                      constraints: const BoxConstraints(),
-                      padding: const EdgeInsets.all(4),
-                      onPressed: () {
-                        showDialog(
-                          context: context,
-                          builder: (ctx) => ChangeColorDialog(
-                            subject: widget.subject,
-                            onColorSaved: () {
-                              setState(() {}); // Refresh visual header dialog
-                              widget
-                                  .onDataChanged(); // Trigger auto-save JSON ke lokal storage
-                            },
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(width: 4),
-
-                    // Tombol Ubah Mode (Checklist / Catatan)
-                    IconButton(
-                      icon: Icon(
-                        widget.subject.type == 'note'
-                            ? Icons.checklist
-                            : Icons.notes,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                      tooltip: widget.subject.type == 'note'
-                          ? 'Ubah ke Mode Checklist'
-                          : 'Ubah ke Mode Catatan',
-                      constraints: const BoxConstraints(),
-                      padding: const EdgeInsets.all(4),
-                      onPressed: () {
-                        setState(() {
-                          // Ganti tipe tampilan
-                          widget.subject.type = widget.subject.type == 'note'
-                              ? 'list'
-                              : 'note';
-                          // Sembunyikan control panel jika pindah ke mode catatan
-                          if (widget.subject.type == 'note') {
-                            _showControlPanel = false;
-                          }
-                        });
-                        widget.onDataChanged(); // Auto-save perubahan tipe
-                      },
-                    ),
-
-                    // Tombol Toggle Tampilkan/Sembunyikan Pengaturan (Hanya muncul jika bukan mode note)
-                    if (widget.subject.type != 'note') ...[
-                      const SizedBox(width: 4),
-                      IconButton(
-                        icon: Icon(
-                          _showControlPanel ? Icons.tune : Icons.tune_outlined,
-                          color: _showControlPanel
-                              ? Colors.amberAccent
-                              : Colors.white,
-                          size: 20,
-                        ),
-                        tooltip: _showControlPanel
-                            ? 'Sembunyikan Pengaturan'
-                            : 'Tampilkan Pengaturan',
-                        constraints: const BoxConstraints(),
-                        padding: const EdgeInsets.all(4),
-                        onPressed: () {
-                          setState(() {
-                            _showControlPanel = !_showControlPanel;
-                          });
-                        },
-                      ),
-                    ],
-                  ],
-                ),
-              ],
-            ),
-          ),
-          // PANEL KONTROL YANG BISA DI-COLLAPSE (Tersembunyi secara default)
-          AnimatedSize(
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeInOut,
-            child: _showControlPanel
-                ? Container(
-                    color: Colors.grey.shade50,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // 1. PANEL INPUT UTAMA
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: _singleInputController,
-                                  decoration: const InputDecoration(
-                                    hintText: 'Tambah sub-materi utama baru...',
-                                    isDense: true,
-                                    contentPadding: EdgeInsets.symmetric(
-                                      vertical: 10,
-                                      horizontal: 12,
-                                    ),
-                                    border: OutlineInputBorder(),
-                                  ),
-                                  onSubmitted: (_) => _addRootSubMateri(),
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              // Tombol Tambah Manual (Bawaan)
-                              IconButton(
-                                icon: const Icon(
-                                  Icons.add_box,
-                                  color: Colors.teal,
-                                ),
-                                tooltip: 'Tambah Utama',
-                                onPressed: _addRootSubMateri,
-                              ),
-                              // === TOMBOL BARU: PASTE BANYAK BARIS DARI CLIPBOARD ===
-                              IconButton(
-                                icon: const Icon(
-                                  Icons.assignment_returned_outlined,
-                                  color: Colors.indigo,
-                                ),
-                                tooltip: 'Paste Banyak Baris dari Clipboard',
-                                onPressed: () async {
-                                  ClipboardData? data = await Clipboard.getData(
-                                    Clipboard.kTextPlain,
-                                  );
-                                  if (data != null &&
-                                      data.text != null &&
-                                      data.text!.trim().isNotEmpty) {
-                                    List<String> lines = data.text!
-                                        .split('\n')
-                                        .where((line) => line.trim().isNotEmpty)
-                                        .toList();
-
-                                    if (lines.isEmpty) return;
-
-                                    // === TAHAP 2: DIALOG KONFIRMASI SEBELUM PASTE ===
-                                    bool? konfirmasi = await showDialog<bool>(
-                                      context: context,
-                                      builder: (ctx) => AlertDialog(
-                                        title: const Text(
-                                          'Konfirmasi Paste Banyak List',
-                                        ),
-                                        content: Text(
-                                          'Apakah Anda yakin ingin menambahkan ${lines.length} item baru dari clipboard langsung ke materi ini?',
-                                        ),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () =>
-                                                Navigator.pop(ctx, false),
-                                            child: const Text('Batal'),
-                                          ),
-                                          ElevatedButton(
-                                            onPressed: () =>
-                                                Navigator.pop(ctx, true),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: Colors.indigo,
-                                            ),
-                                            child: const Text('Ya, Tambahkan'),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-
-                                    if (konfirmasi != true)
-                                      return; // Batalkan jika memilih tidak/batal
-
-                                    // Proses memasukkan data setelah dikonfirmasi
-                                    int countAdded = 0;
-                                    setState(() {
-                                      for (var line in lines) {
-                                        widget.subject.subMateri.add(
-                                          SubSubjectItem(
-                                            subjectName: line.trim(),
-                                            progress: 'belum',
-                                          ),
-                                        );
-                                        countAdded++;
-                                      }
-                                    });
-
-                                    if (countAdded > 0) {
-                                      _updateSubjectOverallProgress(); // Memperbarui persentase progress subjek
-                                      widget
-                                          .onDataChanged(); // Trigger auto-save ke JSON lokal
-
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            '⏱ Berhasil menambahkan $countAdded item dari clipboard!',
-                                          ),
-                                          duration: const Duration(seconds: 2),
-                                          backgroundColor: Colors.teal[800],
-                                        ),
-                                      );
-                                    }
-                                  } else {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'Clipboard kosong atau tidak berisi teks.',
-                                        ),
-                                      ),
-                                    );
-                                  }
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                        // 2. PANEL KONTROL TANGGAL & MODE EDIT MASAL
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16.0,
-                            vertical: 4.0,
-                          ),
-                          child: Column(
-                            children: [
-                              Row(
-                                children: [
-                                  const Text(
-                                    'Aktifkan Tanggal:',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  Transform.scale(
-                                    scale: 0.8,
-                                    child: Switch(
-                                      value: widget.subject.isDateActive,
-                                      activeColor: Colors.teal,
-                                      onChanged: (val) {
-                                        setState(() {
-                                          widget.subject.isDateActive = val;
-                                          if (val &&
-                                              (widget.subject.date == null ||
-                                                  widget
-                                                      .subject
-                                                      .date!
-                                                      .isEmpty)) {
-                                            final now = DateTime.now();
-                                            widget.subject.date =
-                                                "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
-                                          }
-                                        });
-                                        widget.onDataChanged();
-                                      },
-                                    ),
-                                  ),
-                                  if (widget.subject.isDateActive) ...[
-                                    const SizedBox(width: 8),
-                                    DropdownButton<String>(
-                                      value: widget.subject.dateType,
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.black87,
-                                      ),
-                                      isDense: true,
-                                      underline: const SizedBox(),
-                                      items: const [
-                                        DropdownMenuItem(
-                                          value: 'single',
-                                          child: Text('Biasa'),
-                                        ),
-                                        DropdownMenuItem(
-                                          value: 'range',
-                                          child: Text('Rentang'),
-                                        ),
-                                      ],
-                                      onChanged: (val) {
-                                        if (val != null) {
-                                          setState(() {
-                                            widget.subject.dateType = val;
-                                            if (val == 'range' &&
-                                                (widget.subject.endDate ==
-                                                        null ||
-                                                    widget
-                                                        .subject
-                                                        .endDate!
-                                                        .isEmpty)) {
-                                              final besok = DateTime.now().add(
-                                                const Duration(days: 1),
-                                              );
-                                              widget.subject.endDate =
-                                                  "${besok.year}-${besok.month.toString().padLeft(2, '0')}-${besok.day.toString().padLeft(2, '0')}";
-                                            }
-                                          });
-                                          widget.onDataChanged();
-                                        }
-                                      },
-                                    ),
-                                  ],
-                                  const Spacer(),
-                                ],
-                              ),
-                              if (widget.subject.isDateActive)
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 4.0),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.start,
-                                    children: [
-                                      TextButton(
-                                        onPressed: () =>
-                                            _selectSubjectDate(context, false),
-                                        style: TextButton.styleFrom(
-                                          padding: EdgeInsets.zero,
-                                        ),
-                                        child: Text(
-                                          widget.subject.dateType == 'range'
-                                              ? 'Dari: ${widget.subject.date}'
-                                              : widget.subject.date ??
-                                                    'Pilih Tanggal',
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.teal,
-                                          ),
-                                        ),
-                                      ),
-                                      if (widget.subject.dateType ==
-                                          'range') ...[
-                                        const Padding(
-                                          padding: EdgeInsets.symmetric(
-                                            horizontal: 6.0,
-                                          ),
-                                          child: Text(
-                                            '—',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.grey,
-                                            ),
-                                          ),
-                                        ),
-                                        TextButton(
-                                          onPressed: () =>
-                                              _selectSubjectDate(context, true),
-                                          style: TextButton.styleFrom(
-                                            padding: EdgeInsets.zero,
-                                          ),
-                                          child: Text(
-                                            'Sampai: ${widget.subject.endDate}',
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.teal,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                ),
-                              if (_isEditMode && allFlattened.isNotEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 4.0,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Checkbox(
-                                        activeColor: Colors.teal,
-                                        value: isAllSelected,
-                                        onChanged: (bool? checked) {
-                                          setState(() {
-                                            if (checked == true) {
-                                              _selectedItems.clear();
-                                              _selectedItems.addAll(
-                                                allFlattened,
-                                              );
-                                            } else {
-                                              _selectedItems.clear();
-                                            }
-                                          });
-                                        },
-                                      ),
-                                      const Text(
-                                        'Pilih Semua Item',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                        const Divider(height: 1),
-                      ],
-                    ),
-                  )
-                : const SizedBox.shrink(),
-          ),
-
-          // KONTEN TREE LIST
-          Flexible(
-            child: widget.subject.type == 'note'
-                // JIKA MODE CATATAN: Tampilkan area input teks multi-baris
-                ? Container(
-                    color: Colors.white,
-                    padding: const EdgeInsets.all(16.0),
-                    child: TextField(
-                      controller: _noteController,
-                      maxLines: null, // Biarkan teks mengisi ruang ke bawah
-                      expands: true,
-                      textAlignVertical: TextAlignVertical.top,
-                      decoration: InputDecoration(
-                        hintText: 'Tulis catatan Anda di sini...',
-                        border: InputBorder.none,
-                        hintStyle: TextStyle(color: Colors.grey[400]),
-                      ),
-                      onChanged: (text) {
-                        // Cek apakah teks sekarang berbeda dengan teks awal di model data
-                        final originalText = widget.subject.noteContent ?? '';
-                        if (text != originalText && !_isNoteModified) {
-                          setState(() {
-                            _isNoteModified =
-                                true; // Munculkan tombol simpan di atas
-                          });
-                        } else if (text == originalText && _isNoteModified) {
-                          setState(() {
-                            _isNoteModified =
-                                false; // Sembunyikan jika dikembalikan ke teks awal
-                          });
-                        }
-                      },
-                    ),
-                  )
-                // JIKA MODE CHECKLIST: Tampilkan list materi seperti biasa
-                : (widget.subject.subMateri.isEmpty
-                      ? const Padding(
-                          padding: EdgeInsets.all(24.0),
-                          child: Text('Tidak ada item sub materi.'),
-                        )
-                      : ListView(
-                          shrinkWrap: true,
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 8,
-                            horizontal: 4,
-                          ),
-                          children: [
-                            // 1. Tampilkan sub-materi yang BELUM SELESAI
-                            ...List.generate(widget.subject.subMateri.length, (
-                              index,
-                            ) {
-                              final item = widget.subject.subMateri[index];
-                              if (item.progress == 'selesai')
-                                return const SizedBox.shrink();
-
-                              return _buildTreeRow(
-                                item,
-                                0,
-                                index,
-                                isFirst: index == 0,
-                                isLast:
-                                    index ==
-                                    widget.subject.subMateri.length - 1,
-                              );
-                            }),
-
-                            // 2. Berikan Garis Pembatas dan Keterangan jika ada item yang selesai
-                            if (widget.subject.subMateri.any(
-                              (item) => item.progress == 'selesai',
-                            )) ...[
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 12.0,
-                                  horizontal: 16.0,
-                                ),
-                                child: Row(
-                                  children: [
-                                    const Expanded(
-                                      child: Divider(
-                                        thickness: 1.5,
-                                        color: Colors.green,
-                                      ),
-                                    ),
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10.0,
-                                      ),
-                                      child: Text(
-                                        'List Telah Selesai',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.green[700],
-                                        ),
-                                      ),
-                                    ),
-                                    const Expanded(
-                                      child: Divider(
-                                        thickness: 1.5,
-                                        color: Colors.green,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-
-                            // 3. Tampilkan sub-materi yang SUDAH SELESAI di paling bawah
-                            ...List.generate(widget.subject.subMateri.length, (
-                              index,
-                            ) {
-                              final item = widget.subject.subMateri[index];
-                              if (item.progress != 'selesai')
-                                return const SizedBox.shrink();
-
-                              return _buildTreeRow(
-                                item,
-                                0,
-                                index,
-                                isFirst: index == 0,
-                                isLast:
-                                    index ==
-                                    widget.subject.subMateri.length - 1,
-                              );
-                            }),
-                          ],
-                        )),
-          ),
-          const Divider(height: 1),
-
-          // FOOTER PANEL ACTION
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                if (_isEditMode) ...[
-                  Text(
-                    '${_selectedItems.length} Terpilih',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.indigo,
-                    ),
-                  ),
-                  ElevatedButton.icon(
-                    onPressed: _selectedItems.isEmpty
-                        ? null
-                        : () async {
-                            final confirm = await _showConfirmDialog(
-                              title: 'Hapus Masal',
-                              content: 'Hapus seluruh item terpilih?',
-                            );
-                            if (!confirm) return;
-                            setState(() {
-                              for (var item in _selectedItems) {
-                                _deleteItemFromTree(
-                                  widget.subject.subMateri,
-                                  item,
-                                );
-                              }
-                              _selectedItems.clear();
-                            });
-                            _updateSubjectOverallProgress();
-                            widget.onDataChanged();
-                          },
-                    icon: const Icon(
-                      Icons.delete_sweep,
-                      color: Colors.white,
-                      size: 18,
-                    ),
-                    label: const Text(
-                      'Hapus Masal',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                    ),
-                  ),
-                ] else ...[
-                  // BARIS BARU: Wadah Tombol Undo, Redo, dan Reset
-                  Row(
-                    children: [
-                      // Tombol Undo (Hanya aktif/muncul saat stack tidak kosong)
-                      if (_undoStack.isNotEmpty)
-                        IconButton(
-                          icon: const Icon(Icons.undo, color: Colors.blueGrey),
-                          tooltip: 'Undo Checklist',
-                          onPressed: _executeUndo,
-                        ),
-                      // Tombol Redo (Hanya aktif/muncul saat stack tidak kosong)
-                      if (_redoStack.isNotEmpty)
-                        IconButton(
-                          icon: const Icon(Icons.redo, color: Colors.blueGrey),
-                          tooltip: 'Redo Checklist',
-                          onPressed: _executeRedo,
-                        ),
-
-                      TextButton.icon(
-                        onPressed: () async {
-                          final confirm = await _showConfirmDialog(
-                            title: 'Reset Progress',
-                            content:
-                                'Reset semua progress menjadi Belum Selesai?',
-                          );
-                          if (!confirm) return;
-
-                          _saveToHistory(); // Simpan riwayat sebelum melakukan total reset
-
-                          void resetRecursive(List<SubSubjectItem> list) {
-                            for (var item in list) {
-                              item.progress = 'belum';
-                              item.finishedDate = null;
-                              resetRecursive(item.subMateri);
-                            }
-                          }
-
-                          setState(() {
-                            resetRecursive(widget.subject.subMateri);
-                          });
-                          _updateSubjectOverallProgress();
-                          widget.onDataChanged();
-                        },
-                        icon: const Icon(
-                          Icons.refresh,
-                          color: Colors.red,
-                          size: 18,
-                        ),
-                        label: const Text(
-                          'Reset',
-                          style: TextStyle(color: Colors.red),
-                        ),
-                      ),
-                    ],
-                  ),
-                  ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Color(widget.subject.backgroundColor),
-                    ),
-                    child: Text(
-                      'Tutup',
-                      style: TextStyle(color: Color(widget.subject.textColor)),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
+    if (total == 0) {
+      widget.subject.progress = 'belum';
+    } else if (selesai == total) {
+      widget.subject.progress = 'selesai';
+    } else if (selesai > 0) {
+      widget.subject.progress = 'sementara';
+    } else {
+      widget.subject.progress = 'belum';
+    }
   }
 
   // WIDGET REKURSIF UNTUK RENDERING NESTED ITEMS (DENGAN HIGHLIGHT)
@@ -1394,20 +665,675 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     );
   }
 
-  void _updateSubjectOverallProgress() {
-    int total = widget.subject.subMateri.length;
-    int selesai = widget.subject.subMateri
-        .where((sm) => sm.progress == 'selesai')
-        .length;
+  @override
+  Widget build(BuildContext context) {
+    List<SubSubjectItem> allFlattened = [];
+    _getAllItemsFlattened(widget.subject.subMateri, allFlattened);
 
-    if (total == 0) {
-      widget.subject.progress = 'belum';
-    } else if (selesai == total) {
-      widget.subject.progress = 'selesai';
-    } else if (selesai > 0) {
-      widget.subject.progress = 'sementara';
-    } else {
-      widget.subject.progress = 'belum';
-    }
+    bool isAllSelected =
+        allFlattened.isNotEmpty &&
+        allFlattened.every((item) => _selectedItems.contains(item));
+
+    return BasePopupDialog(
+      themeColor: Color(widget.subject.backgroundColor),
+      titleColor: Color(widget.subject.textColor),
+      // --- 1. HEADER (Disuntikkan ke parameter title) ---
+      title: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // JUDUL MATERI DI SEBELAH KIRI
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: '${widget.subject.subjectName} ',
+                    style: TextStyle(
+                      color: Color(widget.subject.textColor),
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  if (widget.subject.isDateActive &&
+                      widget.subject.date != null)
+                    ...DailySubject.buildColoredDateSpans(
+                      widget.subject,
+                      inHeader: true,
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          // DERETAN TOMBOL-TOMBOL AKSI DI SEBELAH KANAN
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (widget.subject.type == 'note' && _isNoteModified) ...[
+                IconButton(
+                  icon: const Icon(
+                    Icons.save_as,
+                    color: Colors.amberAccent,
+                    size: 24,
+                  ),
+                  tooltip: 'Simpan Perubahan Catatan',
+                  constraints: const BoxConstraints(),
+                  padding: const EdgeInsets.all(4),
+                  onPressed: _saveManualNote,
+                ),
+                const SizedBox(width: 6),
+              ],
+              IconButton(
+                icon: const Icon(
+                  Icons.edit_note,
+                  color: Colors.white,
+                  size: 22,
+                ),
+                tooltip: 'Ubah Judul Materi',
+                constraints: const BoxConstraints(),
+                padding: const EdgeInsets.all(4),
+                onPressed: _showEditSubjectNameDialog,
+              ),
+              const SizedBox(width: 4),
+              IconButton(
+                icon: const Icon(Icons.palette, color: Colors.white, size: 20),
+                tooltip: 'Ubah Warna Materi',
+                constraints: const BoxConstraints(),
+                padding: const EdgeInsets.all(4),
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (ctx) => ChangeColorDialog(
+                      subject: widget.subject,
+                      onColorSaved: () {
+                        setState(() {});
+                        widget.onDataChanged();
+                      },
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(width: 4),
+              IconButton(
+                icon: Icon(
+                  widget.subject.type == 'note' ? Icons.checklist : Icons.notes,
+                  color: Colors.white,
+                  size: 20,
+                ),
+                tooltip: widget.subject.type == 'note'
+                    ? 'Ubah ke Mode Checklist'
+                    : 'Ubah ke Mode Catatan',
+                constraints: const BoxConstraints(),
+                padding: const EdgeInsets.all(4),
+                onPressed: () {
+                  setState(() {
+                    widget.subject.type = widget.subject.type == 'note'
+                        ? 'list'
+                        : 'note';
+                    if (widget.subject.type == 'note')
+                      _showControlPanel = false;
+                  });
+                  widget.onDataChanged();
+                },
+              ),
+              if (widget.subject.type != 'note') ...[
+                const SizedBox(width: 4),
+                IconButton(
+                  icon: Icon(
+                    _showControlPanel ? Icons.tune : Icons.tune_outlined,
+                    color: _showControlPanel
+                        ? Colors.amberAccent
+                        : Colors.white,
+                    size: 20,
+                  ),
+                  tooltip: _showControlPanel
+                      ? 'Sembunyikan Pengaturan'
+                      : 'Tampilkan Pengaturan',
+                  constraints: const BoxConstraints(),
+                  padding: const EdgeInsets.all(4),
+                  onPressed: () =>
+                      setState(() => _showControlPanel = !_showControlPanel),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+
+      // --- 2. KONTEN (Disuntikkan ke parameter content) ---
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // PANEL KONTROL
+          AnimatedSize(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeInOut,
+            child: _showControlPanel
+                ? Container(
+                    color: Colors.grey.shade50,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // 1. PANEL INPUT UTAMA
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _singleInputController,
+                                  decoration: const InputDecoration(
+                                    hintText: 'Tambah sub-materi utama baru...',
+                                    isDense: true,
+                                    contentPadding: EdgeInsets.symmetric(
+                                      vertical: 10,
+                                      horizontal: 12,
+                                    ),
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  onSubmitted: (_) => _addRootSubMateri(),
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.add_box,
+                                  color: Colors.teal,
+                                ),
+                                tooltip: 'Tambah Utama',
+                                onPressed: _addRootSubMateri,
+                              ),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.assignment_returned_outlined,
+                                  color: Colors.indigo,
+                                ),
+                                tooltip: 'Paste Banyak Baris dari Clipboard',
+                                onPressed: () async {
+                                  ClipboardData? data = await Clipboard.getData(
+                                    Clipboard.kTextPlain,
+                                  );
+                                  if (data != null &&
+                                      data.text != null &&
+                                      data.text!.trim().isNotEmpty) {
+                                    List<String> lines = data.text!
+                                        .split('\n')
+                                        .where((line) => line.trim().isNotEmpty)
+                                        .toList();
+                                    if (lines.isEmpty) return;
+                                    bool? konfirmasi = await showDialog<bool>(
+                                      context: context,
+                                      builder: (ctx) => AlertDialog(
+                                        title: const Text(
+                                          'Konfirmasi Paste Banyak List',
+                                        ),
+                                        content: Text(
+                                          'Apakah Anda yakin ingin menambahkan ${lines.length} item baru dari clipboard langsung ke materi ini?',
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.pop(ctx, false),
+                                            child: const Text('Batal'),
+                                          ),
+                                          ElevatedButton(
+                                            onPressed: () =>
+                                                Navigator.pop(ctx, true),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.indigo,
+                                            ),
+                                            child: const Text('Ya, Tambahkan'),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                    if (konfirmasi != true) return;
+                                    int countAdded = 0;
+                                    setState(() {
+                                      for (var line in lines) {
+                                        widget.subject.subMateri.add(
+                                          SubSubjectItem(
+                                            subjectName: line.trim(),
+                                            progress: 'belum',
+                                          ),
+                                        );
+                                        countAdded++;
+                                      }
+                                    });
+                                    if (countAdded > 0) {
+                                      _updateSubjectOverallProgress();
+                                      widget.onDataChanged();
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            '⏱ Berhasil menambahkan $countAdded item dari clipboard!',
+                                          ),
+                                          duration: const Duration(seconds: 2),
+                                          backgroundColor: Colors.teal[800],
+                                        ),
+                                      );
+                                    }
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Clipboard kosong atau tidak berisi teks.',
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                        // 2. KONTROL TANGGAL & EDIT MASAL
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16.0,
+                            vertical: 4.0,
+                          ),
+                          child: Column(
+                            children: [
+                              Row(
+                                children: [
+                                  const Text(
+                                    'Aktifkan Tanggal:',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  Transform.scale(
+                                    scale: 0.8,
+                                    child: Switch(
+                                      value: widget.subject.isDateActive,
+                                      activeColor: Colors.teal,
+                                      onChanged: (val) {
+                                        setState(() {
+                                          widget.subject.isDateActive = val;
+                                          if (val &&
+                                              (widget.subject.date == null ||
+                                                  widget
+                                                      .subject
+                                                      .date!
+                                                      .isEmpty)) {
+                                            final now = DateTime.now();
+                                            widget.subject.date =
+                                                "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+                                          }
+                                        });
+                                        widget.onDataChanged();
+                                      },
+                                    ),
+                                  ),
+                                  if (widget.subject.isDateActive) ...[
+                                    const SizedBox(width: 8),
+                                    DropdownButton<String>(
+                                      value: widget.subject.dateType,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.black87,
+                                      ),
+                                      isDense: true,
+                                      underline: const SizedBox(),
+                                      items: const [
+                                        DropdownMenuItem(
+                                          value: 'single',
+                                          child: Text('Biasa'),
+                                        ),
+                                        DropdownMenuItem(
+                                          value: 'range',
+                                          child: Text('Rentang'),
+                                        ),
+                                      ],
+                                      onChanged: (val) {
+                                        if (val != null) {
+                                          setState(() {
+                                            widget.subject.dateType = val;
+                                            if (val == 'range' &&
+                                                (widget.subject.endDate ==
+                                                        null ||
+                                                    widget
+                                                        .subject
+                                                        .endDate!
+                                                        .isEmpty)) {
+                                              final besok = DateTime.now().add(
+                                                const Duration(days: 1),
+                                              );
+                                              widget.subject.endDate =
+                                                  "${besok.year}-${besok.month.toString().padLeft(2, '0')}-${besok.day.toString().padLeft(2, '0')}";
+                                            }
+                                          });
+                                          widget.onDataChanged();
+                                        }
+                                      },
+                                    ),
+                                  ],
+                                  const Spacer(),
+                                ],
+                              ),
+                              if (widget.subject.isDateActive)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 4.0),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.start,
+                                    children: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            _selectSubjectDate(context, false),
+                                        style: TextButton.styleFrom(
+                                          padding: EdgeInsets.zero,
+                                        ),
+                                        child: Text(
+                                          widget.subject.dateType == 'range'
+                                              ? 'Dari: ${widget.subject.date}'
+                                              : widget.subject.date ??
+                                                    'Pilih Tanggal',
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.teal,
+                                          ),
+                                        ),
+                                      ),
+                                      if (widget.subject.dateType ==
+                                          'range') ...[
+                                        const Padding(
+                                          padding: EdgeInsets.symmetric(
+                                            horizontal: 6.0,
+                                          ),
+                                          child: Text(
+                                            '—',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                        ),
+                                        TextButton(
+                                          onPressed: () =>
+                                              _selectSubjectDate(context, true),
+                                          style: TextButton.styleFrom(
+                                            padding: EdgeInsets.zero,
+                                          ),
+                                          child: Text(
+                                            'Sampai: ${widget.subject.endDate}',
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.teal,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              if (_isEditMode && allFlattened.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 4.0,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Checkbox(
+                                        activeColor: Colors.teal,
+                                        value: isAllSelected,
+                                        onChanged: (bool? checked) {
+                                          setState(() {
+                                            if (checked == true) {
+                                              _selectedItems.clear();
+                                              _selectedItems.addAll(
+                                                allFlattened,
+                                              );
+                                            } else {
+                                              _selectedItems.clear();
+                                            }
+                                          });
+                                        },
+                                      ),
+                                      const Text(
+                                        'Pilih Semua Item',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        const Divider(height: 1),
+                      ],
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
+
+          // KONTEN LIST / NOTE
+          Flexible(
+            child: widget.subject.type == 'note'
+                ? Container(
+                    color: Colors.white,
+                    padding: const EdgeInsets.all(16.0),
+                    child: TextField(
+                      controller: _noteController,
+                      maxLines: null,
+                      expands: true,
+                      textAlignVertical: TextAlignVertical.top,
+                      decoration: InputDecoration(
+                        hintText: 'Tulis catatan Anda di sini...',
+                        border: InputBorder.none,
+                        hintStyle: TextStyle(color: Colors.grey[400]),
+                      ),
+                      onChanged: (text) {
+                        final originalText = widget.subject.noteContent ?? '';
+                        if (text != originalText && !_isNoteModified) {
+                          setState(() => _isNoteModified = true);
+                        } else if (text == originalText && _isNoteModified) {
+                          setState(() => _isNoteModified = false);
+                        }
+                      },
+                    ),
+                  )
+                : (widget.subject.subMateri.isEmpty
+                      ? const Padding(
+                          padding: EdgeInsets.all(24.0),
+                          child: Text('Tidak ada item sub materi.'),
+                        )
+                      : ListView(
+                          shrinkWrap: true,
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 8,
+                            horizontal: 4,
+                          ),
+                          children: [
+                            ...List.generate(widget.subject.subMateri.length, (
+                              index,
+                            ) {
+                              final item = widget.subject.subMateri[index];
+                              if (item.progress == 'selesai')
+                                return const SizedBox.shrink();
+                              return _buildTreeRow(
+                                item,
+                                0,
+                                index,
+                                isFirst: index == 0,
+                                isLast:
+                                    index ==
+                                    widget.subject.subMateri.length - 1,
+                              );
+                            }),
+                            if (widget.subject.subMateri.any(
+                              (item) => item.progress == 'selesai',
+                            )) ...[
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12.0,
+                                  horizontal: 16.0,
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Expanded(
+                                      child: Divider(
+                                        thickness: 1.5,
+                                        color: Colors.green,
+                                      ),
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10.0,
+                                      ),
+                                      child: Text(
+                                        'List Telah Selesai',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.green[700],
+                                        ),
+                                      ),
+                                    ),
+                                    const Expanded(
+                                      child: Divider(
+                                        thickness: 1.5,
+                                        color: Colors.green,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                            ...List.generate(widget.subject.subMateri.length, (
+                              index,
+                            ) {
+                              final item = widget.subject.subMateri[index];
+                              if (item.progress != 'selesai')
+                                return const SizedBox.shrink();
+                              return _buildTreeRow(
+                                item,
+                                0,
+                                index,
+                                isFirst: index == 0,
+                                isLast:
+                                    index ==
+                                    widget.subject.subMateri.length - 1,
+                              );
+                            }),
+                          ],
+                        )),
+          ),
+        ],
+      ),
+
+      // --- 3. FOOTER CUSTOM (Disuntikkan ke parameter footer) ---
+      footer: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            if (_isEditMode) ...[
+              Text(
+                '${_selectedItems.length} Terpilih',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.indigo,
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: _selectedItems.isEmpty
+                    ? null
+                    : () async {
+                        final confirm = await _showConfirmDialog(
+                          title: 'Hapus Masal',
+                          content: 'Hapus seluruh item terpilih?',
+                        );
+                        if (!confirm) return;
+                        setState(() {
+                          for (var item in _selectedItems) {
+                            _deleteItemFromTree(widget.subject.subMateri, item);
+                          }
+                          _selectedItems.clear();
+                        });
+                        _updateSubjectOverallProgress();
+                        widget.onDataChanged();
+                      },
+                icon: const Icon(
+                  Icons.delete_sweep,
+                  color: Colors.white,
+                  size: 18,
+                ),
+                label: const Text(
+                  'Hapus Masal',
+                  style: TextStyle(color: Colors.white),
+                ),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              ),
+            ] else ...[
+              Row(
+                children: [
+                  if (_undoStack.isNotEmpty)
+                    IconButton(
+                      icon: const Icon(Icons.undo, color: Colors.blueGrey),
+                      tooltip: 'Undo Checklist',
+                      onPressed: _executeUndo,
+                    ),
+                  if (_redoStack.isNotEmpty)
+                    IconButton(
+                      icon: const Icon(Icons.redo, color: Colors.blueGrey),
+                      tooltip: 'Redo Checklist',
+                      onPressed: _executeRedo,
+                    ),
+                  TextButton.icon(
+                    onPressed: () async {
+                      final confirm = await _showConfirmDialog(
+                        title: 'Reset Progress',
+                        content: 'Reset semua progress menjadi Belum Selesai?',
+                      );
+                      if (!confirm) return;
+                      _saveToHistory();
+                      void resetRecursive(List<SubSubjectItem> list) {
+                        for (var item in list) {
+                          item.progress = 'belum';
+                          item.finishedDate = null;
+                          resetRecursive(item.subMateri);
+                        }
+                      }
+
+                      setState(() {
+                        resetRecursive(widget.subject.subMateri);
+                      });
+                      _updateSubjectOverallProgress();
+                      widget.onDataChanged();
+                    },
+                    icon: const Icon(
+                      Icons.refresh,
+                      color: Colors.red,
+                      size: 18,
+                    ),
+                    label: const Text(
+                      'Reset',
+                      style: TextStyle(color: Colors.red),
+                    ),
+                  ),
+                ],
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Color(widget.subject.backgroundColor),
+                ),
+                child: Text(
+                  'Tutup',
+                  style: TextStyle(color: Color(widget.subject.textColor)),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 }

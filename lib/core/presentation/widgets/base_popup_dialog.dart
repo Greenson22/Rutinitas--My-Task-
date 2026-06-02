@@ -1,3 +1,4 @@
+// lib/core/presentation/widgets/base_popup_dialog.dart
 import 'package:flutter/material.dart';
 
 class BasePopupDialog extends StatelessWidget {
@@ -5,6 +6,7 @@ class BasePopupDialog extends StatelessWidget {
   final Color themeColor;
   final Color titleColor;
   final Widget content;
+  final Widget? footer; // Tambahan properti footer opsional
 
   const BasePopupDialog({
     super.key,
@@ -12,6 +14,7 @@ class BasePopupDialog extends StatelessWidget {
     required this.themeColor,
     required this.titleColor,
     required this.content,
+    this.footer, // Inisialisasi footer
   });
 
   @override
@@ -24,7 +27,8 @@ class BasePopupDialog extends StatelessWidget {
           // 1. HEADER (Warna Background & Judul)
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            // Hilangkan padding vertikal default yang terlalu tebal karena kita menggunakan icon button di header checklist
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
               color: themeColor,
               borderRadius: const BorderRadius.only(
@@ -39,20 +43,26 @@ class BasePopupDialog extends StatelessWidget {
           Flexible(child: content),
           const Divider(height: 1),
 
-          // 3. FOOTER (Tombol Tutup)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: ElevatedButton.styleFrom(backgroundColor: themeColor),
-                  child: Text('Tutup', style: TextStyle(color: titleColor)),
+          // 3. FOOTER (Gunakan custom jika ada, jika tidak gunakan default)
+          footer ??
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
                 ),
-              ],
-            ),
-          ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: themeColor,
+                      ),
+                      child: Text('Tutup', style: TextStyle(color: titleColor)),
+                    ),
+                  ],
+                ),
+              ),
         ],
       ),
     );
