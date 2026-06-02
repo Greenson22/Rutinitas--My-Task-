@@ -752,4 +752,95 @@ class PromptController extends ChangeNotifier {
       return null;
     }
   }
+
+  // Tambahkan method baru ini di dalam class PromptController
+
+  Future<PromptGroup?> moveSelectedPromptItems({
+    required PromptGroup sourceGroup,
+    required PromptGroup targetGroup,
+    required BuildContext context,
+  }) async {
+    if (_selectedPromptIds.isEmpty) return sourceGroup;
+
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final baseDir = await _storageService.getBaseDirSetting();
+
+      // 1. Ambil item-item yang terpilih dari sourceGroup
+      final itemsToMove = sourceGroup.prompts
+          .where((p) => _selectedPromptIds.contains(p.id))
+          .toList();
+
+      if (sourceGroup.id == targetGroup.id) {
+        // Jika grup target sama dengan grup asal, cukup bersihkan seleksi
+        _selectedPromptIds.clear();
+      } else {
+        // 2. Buat duplikat item dengan ID baru agar unik di group target (opsional, menyesuaikan skema data Anda)
+        final List<PromptItem> preparedItems = itemsToMove.map((item) {
+          return PromptItem(
+            id: 'item_${DateTime.now().millisecondsSinceEpoch}_${item.id}',
+            actAs: item.actAs,
+            content: item.content,
+            description: item.description,
+            isFavorite: item.isFavorite,
+          );
+        }).toList();
+
+        // 3. Masukkan ke targetGroup dan simpan targetGroup
+        targetGroup.prompts.addAll(preparedItems);
+        final String targetJson = _storageService.formatJsonPretty(
+          targetGroup.toJson(),
+        );
+        await _storageService.savePromptGroup(
+          baseDir,
+          targetGroup.id,
+          targetJson,
+        );
+
+        // 4. Hapus dari sourceGroup dan simpan sourceGroup
+        sourceGroup.prompts.removeWhere(
+          (p) => _selectedPromptIds.contains(p.id),
+        );
+        final String sourceJson = _storageService.formatJsonPretty(
+          sourceGroup.toJson(),
+        );
+        await _storageService.savePromptGroup(
+          baseDir,
+          sourceGroup.id,
+          sourceJson,
+        );
+      }
+
+      // 5. Reset state seleksi
+      _selectedPromptIds.clear();
+
+      if (context.mounted) {
+        await loadAllPrompts(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Semua prompt terpilih berhasil dipindahkan!'),
+          ),
+        );
+      }
+
+      _isLoading = false;
+      notifyListeners();
+
+      return _promptGroups.firstWhere(
+        (g) => g.id == sourceGroup.id,
+        orElse: () => sourceGroup,
+      );
+    } catch (e) {
+      _isLoading = false;
+      notifyListeners();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal memindahkan beberapa prompt: $e')),
+        );
+      }
+      return null;
+    }
+  }
 }

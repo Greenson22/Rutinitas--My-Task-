@@ -335,6 +335,98 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
     );
   }
 
+  void _showMoveMassiveDialog(int totalSelected) {
+    final otherGroups = _controller.promptGroups
+        .where((g) => g.id != _currentGroup.id)
+        .toList();
+
+    if (otherGroups.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Tidak ada grup prompt lain yang tersedia.'),
+        ),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => BasePopupDialog(
+        title: Text(
+          'Pindahkan $totalSelected Prompt Terpilih',
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+        ),
+        themeColor: Colors.indigo,
+        titleColor: Colors.white,
+        content: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Pilih Grup Target Pemindahan:',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+              const SizedBox(height: 6),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: otherGroups.length,
+                  itemBuilder: (c, idx) {
+                    final targetG = otherGroups[idx];
+                    return ListTile(
+                      dense: true,
+                      leading: Text(
+                        targetG.icon,
+                        style: const TextStyle(fontSize: 18),
+                      ),
+                      title: Text(
+                        targetG.title,
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                      subtitle: Text(
+                        targetG.sectionName,
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                      trailing: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.indigo,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                        ),
+                        onPressed: () async {
+                          Navigator.pop(ctx);
+                          final res = await _controller.moveSelectedPromptItems(
+                            sourceGroup: _currentGroup,
+                            targetGroup: targetG,
+                            context: context,
+                          );
+                          if (res != null) {
+                            setState(() {
+                              _currentGroup = res;
+                            });
+                          }
+                        },
+                        child: const Text(
+                          'Pindah Ke Sini',
+                          style: TextStyle(color: Colors.white, fontSize: 12),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -377,10 +469,15 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
             actions: [
               if (isSelectMode)
                 IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.white),
-                  tooltip: 'Hapus Semua Terpilih',
-                  onPressed: () => _showDeleteMassiveDialog(totalSelected),
+                  icon: const Icon(Icons.drive_file_move, color: Colors.white),
+                  tooltip: 'Pindahkan Semua Terpilih',
+                  onPressed: () => _showMoveMassiveDialog(totalSelected),
                 ),
+              IconButton(
+                icon: const Icon(Icons.delete, color: Colors.white),
+                tooltip: 'Hapus Semua Terpilih',
+                onPressed: () => _showDeleteMassiveDialog(totalSelected),
+              ),
             ],
           ),
           body: _currentGroup.prompts.isEmpty
