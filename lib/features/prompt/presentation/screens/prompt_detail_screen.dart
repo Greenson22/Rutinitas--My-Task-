@@ -58,62 +58,130 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
     final actAsController = TextEditingController(text: item.actAs);
     final descController = TextEditingController(text: item.description ?? '');
     final contentController = TextEditingController(text: item.content);
+    final formKey = GlobalKey<FormState>();
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Edit Item Prompt'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: actAsController,
-                decoration: const InputDecoration(labelText: 'Act As / Judul'),
+      builder: (ctx) => BasePopupDialog(
+        themeColor: Colors.indigo,
+        titleColor: Colors.white,
+        // 1. HEADER DIALOG
+        title: Row(
+          children: const [
+            Icon(Icons.edit_note_rounded, color: Colors.white, size: 24),
+            SizedBox(width: 8),
+            Text(
+              'Edit Item Prompt',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
               ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: descController,
-                decoration: const InputDecoration(
-                  labelText: 'Deskripsi Singkat',
+            ),
+          ],
+        ),
+        // 2. KONTEN / FORM FIELDS
+        content: Form(
+          key: formKey,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: actAsController,
+                  decoration: const InputDecoration(
+                    labelText: 'Act As / Judul',
+                    hintText: 'Misal: Ahli SEO, Kode Reviewer',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  validator: (v) =>
+                      v!.trim().isEmpty ? 'Judul tidak boleh kosong' : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: descController,
+                  decoration: const InputDecoration(
+                    labelText: 'Deskripsi Singkat (Opsional)',
+                    hintText: 'Keterangan singkat guna/fungsi prompt',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: contentController,
+                  maxLines: 5,
+                  minLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Isi Prompt template',
+                    hintText: 'Masukkan instruksi detail AI...',
+                    border: OutlineInputBorder(),
+                    alignLabelWithHint: true,
+                  ),
+                  validator: (v) => v!.trim().isEmpty
+                      ? 'Isi prompt tidak boleh kosong'
+                      : null,
+                ),
+              ],
+            ),
+          ),
+        ),
+        // 3. ACTIONS FOOTER PANEL
+        footer: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text(
+                  'Batal',
+                  style: TextStyle(color: Colors.grey),
                 ),
               ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: contentController,
-                maxLines: 4,
-                decoration: const InputDecoration(
-                  labelText: 'Isi Prompt template',
+              const SizedBox(width: 8),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.indigo,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                onPressed: () async {
+                  if (formKey.currentState!.validate()) {
+                    Navigator.pop(ctx);
+                    final res = await _controller.editPromptItem(
+                      group: _currentGroup,
+                      itemId: item.id,
+                      newActAs: actAsController.text,
+                      newDescription: descController.text,
+                      newContent: contentController.text,
+                      context: context,
+                    );
+                    if (res != null) {
+                      setState(() {
+                        _currentGroup = res;
+                      });
+                    }
+                  }
+                },
+                child: const Text(
+                  'Simpan',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              final res = await _controller.editPromptItem(
-                group: _currentGroup,
-                itemId: item.id,
-                newActAs: actAsController.text,
-                newDescription: descController.text,
-                newContent: contentController.text,
-                context: context,
-              );
-              if (res != null) {
-                setState(() {
-                  _currentGroup = res;
-                });
-              }
-            },
-            child: const Text('Simpan'),
-          ),
-        ],
       ),
     );
   }
