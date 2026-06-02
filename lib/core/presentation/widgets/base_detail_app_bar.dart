@@ -52,7 +52,16 @@ class BaseDetailAppBar extends StatelessWidget implements PreferredSizeWidget {
             )
           : IconButton(
               icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () => Navigator.pop(context),
+              onPressed: () {
+                // Periksa apakah ada halaman untuk kembali di tumpukan navigasi
+                if (Navigator.canPop(context)) {
+                  Navigator.pop(context);
+                } else {
+                  // Jika ini halaman utama, buka drawer menu atau abaikan saja
+                  // agar tidak melempar layar putih
+                  Scaffold.of(context).openDrawer();
+                }
+              },
             ),
       // flexibleSpace dengan InkWell untuk mendeteksi Long Press di area kosong AppBar
       flexibleSpace: Material(
