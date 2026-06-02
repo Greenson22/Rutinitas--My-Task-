@@ -116,7 +116,7 @@ class _BaseDetailListScreenState<T> extends State<BaseDetailListScreen<T>> {
       backgroundColor: const Color(0xFFF5F6FA),
       appBar: AppBar(
         backgroundColor: _isSelectMode
-            ? Colors.red[900]
+            ? Colors.yellow[900]
             : const Color(0xFF3F51B5),
         elevation: 0,
         // 1. Teks title dibuat statis tanpa inkwell internal agar tidak tabrakan gesture
@@ -261,14 +261,14 @@ class _BaseDetailListScreenState<T> extends State<BaseDetailListScreen<T>> {
                       return Card(
                         elevation: isSelected ? 4 : 0,
                         color: isSelected
-                            ? Colors.red.withOpacity(0.08)
+                            ? Colors.yellow.withOpacity(0.08)
                             : Colors.white,
                         margin: const EdgeInsets.only(bottom: 12),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                           side: BorderSide(
                             color: isSelected
-                                ? Colors.red[700]!
+                                ? Colors.yellow[700]!
                                 : Colors.grey.shade100,
                             width: isSelected ? 1.5 : 1,
                           ),
@@ -296,7 +296,7 @@ class _BaseDetailListScreenState<T> extends State<BaseDetailListScreen<T>> {
                               children: [
                                 if (_isSelectMode) ...[
                                   Checkbox(
-                                    activeColor: Colors.red[700],
+                                    activeColor: Colors.yellow[700],
                                     value: isSelected,
                                     onChanged: (_) => _toggleSelect(item),
                                   ),
