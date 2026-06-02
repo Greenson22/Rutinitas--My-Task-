@@ -1,21 +1,19 @@
 import 'package:flutter/material.dart';
+import 'base_detail_app_bar.dart'; // Import widget AppBar baru
 
 class BaseDetailListScreen<T> extends StatefulWidget {
   final String pageTitle;
   final List<T> items;
 
-  // Fitur Flags (Bisa diaktifkan / dinonaktifkan)
   final bool enableSearch;
   final bool enableMultiSelect;
   final bool enableAddButton;
   final bool enableFavoriteSort;
 
-  // Pemetaan Data (Agar Fleksibel untuk Model Apapun)
   final String Function(T item) itemTitle;
   final String Function(T item) itemSubtitle;
   final bool Function(T item) itemIsFavorite;
 
-  // Callback Aksi
   final VoidCallback? onAddPressed;
   final Function(T item)? onItemTap;
   final Function(T item)? onItemLongPress;
@@ -28,10 +26,10 @@ class BaseDetailListScreen<T> extends StatefulWidget {
     super.key,
     required this.pageTitle,
     required this.items,
-    this.enableSearch = true, // Default aktif
-    this.enableMultiSelect = true, // Default aktif
-    this.enableAddButton = true, // Default aktif
-    this.enableFavoriteSort = true, // Default aktif
+    this.enableSearch = true,
+    this.enableMultiSelect = true,
+    this.enableAddButton = true,
+    this.enableFavoriteSort = true,
     required this.itemTitle,
     required this.itemSubtitle,
     required this.itemIsFavorite,
@@ -91,9 +89,16 @@ class _BaseDetailListScreenState<T> extends State<BaseDetailListScreen<T>> {
     });
   }
 
+  void _handleToggleSearch() {
+    setState(() {
+      _isSearchMode = !_isSearchMode;
+      if (!_isSearchMode) _searchController.clear();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    // 1. LOGIKA FILTERING
+    // LOGIKA FILTERING
     List<T> filteredItems = widget.items.where((item) {
       if (_searchQuery.isEmpty) return true;
       final title = widget.itemTitle(item).toLowerCase();
@@ -101,7 +106,7 @@ class _BaseDetailListScreenState<T> extends State<BaseDetailListScreen<T>> {
       return title.contains(_searchQuery) || subtitle.contains(_searchQuery);
     }).toList();
 
-    // 2. LOGIKA SORTING FAVORITE
+    // LOGIKA SORTING FAVORITE
     if (widget.enableFavoriteSort) {
       filteredItems.sort((a, b) {
         final aFav = widget.itemIsFavorite(a);
@@ -114,74 +119,25 @@ class _BaseDetailListScreenState<T> extends State<BaseDetailListScreen<T>> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6FA),
-      appBar: AppBar(
-        backgroundColor: _isSelectMode
-            ? Colors.yellow[900]
-            : const Color(0xFF3F51B5),
-        elevation: 0,
-        // 1. Teks title dibuat statis tanpa inkwell internal agar tidak tabrakan gesture
-        title: Text(
-          _isSelectMode
-              ? '${_selectedItems.length} Terpilih'
-              : widget.pageTitle,
-          style: const TextStyle(
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-          ),
-        ),
-        leading: _isSelectMode
-            ? IconButton(
-                icon: const Icon(Icons.close, color: Colors.white),
-                onPressed: _clearSelection,
-              )
-            : IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
-                onPressed: () => Navigator.pop(context),
-              ),
-        // 2. Gunakan flexibleSpace untuk memasang InkWell seluas seluruh dimensi AppBar
-        flexibleSpace: Material(
-          color:
-              Colors.transparent, // Supaya warna AppBar di atas tetap terlihat
-          child: InkWell(
-            onLongPress: () {
-              if (widget.enableSearch && !_isSelectMode) {
-                setState(() {
-                  _isSearchMode = !_isSearchMode;
-                  if (!_isSearchMode) _searchController.clear();
-                });
+      // PENGGUNAAN APP BAR BARU DI SINI
+      appBar: BaseDetailAppBar(
+        pageTitle: widget.pageTitle,
+        isSelectMode: _isSelectMode,
+        selectedItemsCount: _selectedItems.length,
+        isSearchMode: _isSearchMode,
+        enableSearch: widget.enableSearch,
+        enableMultiSelect: widget.enableMultiSelect,
+        onClearSelection: _clearSelection,
+        onToggleSearchMode: _handleToggleSearch,
+        onMoveMassive: widget.onMoveMassive != null
+            ? () => widget.onMoveMassive!(_selectedItems)
+            : null,
+        onDeleteMassive: widget.onDeleteMassive != null
+            ? () {
+                widget.onDeleteMassive!(_selectedItems);
+                _clearSelection();
               }
-            },
-            child:
-                const SizedBox.expand(), // Memaksa InkWell memenuhi seluruh area AppBar
-          ),
-        ),
-        actions: [
-          if (_isSelectMode) ...[
-            if (widget.onMoveMassive != null)
-              IconButton(
-                icon: const Icon(Icons.drive_file_move, color: Colors.white),
-                onPressed: () => widget.onMoveMassive!(_selectedItems),
-              ),
-            if (widget.onDeleteMassive != null)
-              IconButton(
-                icon: const Icon(Icons.delete, color: Colors.white),
-                onPressed: () {
-                  widget.onDeleteMassive!(_selectedItems);
-                  _clearSelection();
-                },
-              ),
-          ] else if (_isSearchMode) ...[
-            IconButton(
-              icon: const Icon(Icons.search_off_rounded, color: Colors.white),
-              onPressed: () {
-                setState(() {
-                  _isSearchMode = false;
-                  _searchController.clear();
-                });
-              },
-            ),
-          ],
-        ],
+            : null,
       ),
       body: Column(
         children: [
@@ -279,8 +235,9 @@ class _BaseDetailListScreenState<T> extends State<BaseDetailListScreen<T>> {
                             if (_isSelectMode) {
                               _toggleSelect(item);
                             } else {
-                              if (widget.onItemTap != null)
+                              if (widget.onItemTap != null) {
                                 widget.onItemTap!(item);
+                              }
                             }
                           },
                           onLongPress: () {
@@ -356,7 +313,6 @@ class _BaseDetailListScreenState<T> extends State<BaseDetailListScreen<T>> {
                                     ],
                                   ),
                                 ),
-                                // ACTION POPUP MENU INDIVIDU
                                 if (_isSelectMode &&
                                     _selectedItems.length <= 1 &&
                                     widget.itemMenuBuilder != null) ...[
