@@ -130,7 +130,8 @@ class _DrawerMenuState extends State<DrawerMenu> {
                 !widget.isDailyActive &&
                 !widget.isJurnalActive &&
                 !widget.isDataCenterActive &&
-                !widget.isPromptActive, // Update kondisi active
+                !widget.isPromptActive &&
+                !widget.isNotesActive, // Update kondisi active
             onTap: () {
               Navigator.pop(context);
               Navigator.pushReplacement(
@@ -214,7 +215,7 @@ class _DrawerMenuState extends State<DrawerMenu> {
             icon: Icons
                 .note_alt_outlined, // Menggunakan ikon bernuansa prompt/AI/pikiran
             title: 'Catatan',
-            isActive: widget.isPromptActive,
+            isActive: widget.isNotesActive,
             onTap: () {
               Navigator.pop(context);
               if (!widget.isNotesActive) {
