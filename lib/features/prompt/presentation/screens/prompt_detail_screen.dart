@@ -55,8 +55,10 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        titlePadding: EdgeInsets.zero,
         contentPadding: EdgeInsets.zero,
+        // contentPadding: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const SizedBox.shrink(),
         content: SizedBox(
           width: double.maxFinite,
