@@ -552,248 +552,268 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                     style: TextStyle(color: Colors.grey),
                   ),
                 )
-              : ListView.builder(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
-                  itemCount: _currentGroup.prompts.length,
-                  itemBuilder: (context, index) {
-                    final item = _currentGroup.prompts[index];
-                    final bool isSelected = _controller.selectedPromptIds
-                        .contains(item.id);
+              : () {
+                  // LOGIKA SORTING: Urutkan list lokal agar item 'isFavorite == true' berada di atas
+                  final sortedPrompts = List<PromptItem>.from(
+                    _currentGroup.prompts,
+                  );
+                  sortedPrompts.sort((a, b) {
+                    if (a.isFavorite && !b.isFavorite) return -1;
+                    if (!a.isFavorite && b.isFavorite) return 1;
+                    return 0;
+                  });
 
-                    final bool hasDescription =
-                        item.description != null &&
-                        item.description!.trim().isNotEmpty;
+                  return ListView.builder(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    itemCount: sortedPrompts.length,
+                    itemBuilder: (context, index) {
+                      final item = sortedPrompts[index];
+                      final bool isSelected = _controller.selectedPromptIds
+                          .contains(item.id);
 
-                    return Card(
-                      elevation: isSelected ? 4 : 0,
-                      color: isSelected
-                          ? Colors.red.withOpacity(0.08)
-                          : Colors.white,
-                      margin: const EdgeInsets.only(bottom: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        side: BorderSide(
-                          color: isSelected
-                              ? Colors.red[700]!
-                              : Colors.grey.shade100,
-                          width: isSelected ? 1.5 : 1,
-                        ),
-                      ),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(16),
-                        onTap: () {
-                          if (isSelectMode) {
-                            _controller.toggleSelectPromptItem(item.id);
-                          } else {
-                            _copyToClipboard(item.content);
-                          }
-                        },
-                        onLongPress: () {
-                          _controller.toggleSelectPromptItem(item.id);
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Row(
-                            children: [
-                              if (isSelectMode) ...[
-                                Checkbox(
-                                  activeColor: Colors.red[700],
-                                  value: isSelected,
-                                  onChanged: (_) => _controller
-                                      .toggleSelectPromptItem(item.id),
-                                ),
-                                const SizedBox(width: 12),
-                              ] else ...[
-                                Container(
-                                  width: 44,
-                                  height: 44,
-                                  decoration: const BoxDecoration(
-                                    color: Color(0xFFE8EAF6),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(
-                                    Icons.description_rounded,
-                                    color: Color(0xFF3F51B5),
-                                    size: 20,
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                              ],
+                      final bool hasDescription =
+                          item.description != null &&
+                          item.description!.trim().isNotEmpty;
 
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            item.actAs,
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 15,
-                                              color: Color(0xFF2E3A59),
-                                            ),
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                        if (item.isFavorite) ...[
-                                          const SizedBox(width: 6),
-                                          const Icon(
-                                            Icons.star_rounded,
-                                            color: Colors.amber,
-                                            size: 20,
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      hasDescription
-                                          ? item.description!
-                                          : 'Tidak ada deskripsi',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        color: hasDescription
-                                            ? Colors.grey[600]
-                                            : Colors.grey[400],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-
-                              // ================= ACTION BUTTONS =================
-                              if (isSelectMode && totalSelected <= 1) ...[
-                                const SizedBox(width: 8),
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const SizedBox(width: 12),
-                                    PopupMenuButton<String>(
-                                      icon: const Icon(
-                                        Icons.more_vert_rounded,
-                                        color: Colors.black38,
-                                        size: 20,
-                                      ),
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
-                                      onSelected: (value) async {
-                                        if (value == 'edit') {
-                                          _openEditPromptDialog(item);
-                                        } else if (value == 'toggle_favorite') {
-                                          final res = await _controller
-                                              .toggleFavoritePromptItem(
-                                                group: _currentGroup,
-                                                itemId: item.id,
-                                                context: context,
-                                              );
-                                          if (res != null) {
-                                            setState(() {
-                                              _currentGroup = res;
-                                            });
-                                          }
-                                        } else if (value == 'move_or_copy') {
-                                          _showMoveOrCopyDialog(item);
-                                        } else if (value == 'delete') {
-                                          _showDeleteSingleDialog(item);
-                                        }
-                                      },
-                                      itemBuilder: (ctx) => [
-                                        const PopupMenuItem(
-                                          value: 'edit',
-                                          child: Row(
-                                            children: [
-                                              Icon(
-                                                Icons.edit_note_rounded,
-                                                size: 20,
-                                                color: Colors.teal,
-                                              ),
-                                              SizedBox(width: 10),
-                                              Text(
-                                                'Edit Prompt',
-                                                style: TextStyle(fontSize: 13),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        PopupMenuItem(
-                                          value: 'toggle_favorite',
-                                          child: Row(
-                                            children: [
-                                              Icon(
-                                                item.isFavorite
-                                                    ? Icons.star_rounded
-                                                    : Icons.star_border_rounded,
-                                                size: 20,
-                                                color: Colors.amber,
-                                              ),
-                                              const SizedBox(width: 10),
-                                              Text(
-                                                item.isFavorite
-                                                    ? 'Hapus Favorit'
-                                                    : 'Jadikan Favorit',
-                                                style: const TextStyle(
-                                                  fontSize: 13,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        const PopupMenuItem(
-                                          value: 'move_or_copy',
-                                          child: Row(
-                                            children: [
-                                              Icon(
-                                                Icons.drive_file_move_outlined,
-                                                size: 20,
-                                                color: Colors.indigo,
-                                              ),
-                                              SizedBox(width: 10),
-                                              Text(
-                                                'Pindah / Salin',
-                                                style: TextStyle(fontSize: 13),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        const PopupMenuDivider(),
-                                        const PopupMenuItem(
-                                          value: 'delete',
-                                          child: Row(
-                                            children: [
-                                              Icon(
-                                                Icons.delete_outline_rounded,
-                                                size: 20,
-                                                color: Colors.redAccent,
-                                              ),
-                                              SizedBox(width: 10),
-                                              Text(
-                                                'Hapus Prompt',
-                                                style: TextStyle(
-                                                  fontSize: 13,
-                                                  color: Colors.redAccent,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ],
+                      return Card(
+                        elevation: isSelected ? 4 : 0,
+                        color: isSelected
+                            ? Colors.red.withOpacity(0.08)
+                            : Colors.white,
+                        margin: const EdgeInsets.only(bottom: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          side: BorderSide(
+                            color: isSelected
+                                ? Colors.red[700]!
+                                : Colors.grey.shade100,
+                            width: isSelected ? 1.5 : 1,
                           ),
                         ),
-                      ),
-                    );
-                  },
-                ),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () {
+                            if (isSelectMode) {
+                              _controller.toggleSelectPromptItem(item.id);
+                            } else {
+                              _copyToClipboard(item.content);
+                            }
+                          },
+                          onLongPress: () {
+                            _controller.toggleSelectPromptItem(item.id);
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Row(
+                              children: [
+                                if (isSelectMode) ...[
+                                  Checkbox(
+                                    activeColor: Colors.red[700],
+                                    value: isSelected,
+                                    onChanged: (_) => _controller
+                                        .toggleSelectPromptItem(item.id),
+                                  ),
+                                  const SizedBox(width: 12),
+                                ] else ...[
+                                  Container(
+                                    width: 44,
+                                    height: 44,
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFFE8EAF6),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.description_rounded,
+                                      color: Color(0xFF3F51B5),
+                                      size: 20,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                ],
+
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              item.actAs,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 15,
+                                                color: Color(0xFF2E3A59),
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                          if (item.isFavorite) ...[
+                                            const SizedBox(width: 6),
+                                            const Icon(
+                                              Icons.star_rounded,
+                                              color: Colors.amber,
+                                              size: 20,
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        hasDescription
+                                            ? item.description!
+                                            : 'Tidak ada deskripsi',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: hasDescription
+                                              ? Colors.grey[600]
+                                              : Colors.grey[400],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
+                                // ================= ACTION BUTTONS =================
+                                if (isSelectMode && totalSelected <= 1) ...[
+                                  const SizedBox(width: 8),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const SizedBox(width: 12),
+                                      PopupMenuButton<String>(
+                                        icon: const Icon(
+                                          Icons.more_vert_rounded,
+                                          color: Colors.black38,
+                                          size: 20,
+                                        ),
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        onSelected: (value) async {
+                                          if (value == 'edit') {
+                                            _openEditPromptDialog(item);
+                                          } else if (value ==
+                                              'toggle_favorite') {
+                                            final res = await _controller
+                                                .toggleFavoritePromptItem(
+                                                  group: _currentGroup,
+                                                  itemId: item.id,
+                                                  context: context,
+                                                );
+                                            if (res != null) {
+                                              setState(() {
+                                                _currentGroup = res;
+                                              });
+                                            }
+                                          } else if (value == 'move_or_copy') {
+                                            _showMoveOrCopyDialog(item);
+                                          } else if (value == 'delete') {
+                                            _showDeleteSingleDialog(item);
+                                          }
+                                        },
+                                        itemBuilder: (ctx) => [
+                                          const PopupMenuItem(
+                                            value: 'edit',
+                                            child: Row(
+                                              children: [
+                                                Icon(
+                                                  Icons.edit_note_rounded,
+                                                  size: 20,
+                                                  color: Colors.teal,
+                                                ),
+                                                SizedBox(width: 10),
+                                                Text(
+                                                  'Edit Prompt',
+                                                  style: TextStyle(
+                                                    fontSize: 13,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          PopupMenuItem(
+                                            value: 'toggle_favorite',
+                                            child: Row(
+                                              children: [
+                                                Icon(
+                                                  item.isFavorite
+                                                      ? Icons.star_rounded
+                                                      : Icons
+                                                            .star_border_rounded,
+                                                  size: 20,
+                                                  color: Colors.amber,
+                                                ),
+                                                const SizedBox(width: 10),
+                                                Text(
+                                                  item.isFavorite
+                                                      ? 'Hapus Favorit'
+                                                      : 'Jadikan Favorit',
+                                                  style: const TextStyle(
+                                                    fontSize: 13,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const PopupMenuItem(
+                                            value: 'move_or_copy',
+                                            child: Row(
+                                              children: [
+                                                Icon(
+                                                  Icons
+                                                      .drive_file_move_outlined,
+                                                  size: 20,
+                                                  color: Colors.indigo,
+                                                ),
+                                                SizedBox(width: 10),
+                                                Text(
+                                                  'Pindah / Salin',
+                                                  style: TextStyle(
+                                                    fontSize: 13,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const PopupMenuDivider(),
+                                          const PopupMenuItem(
+                                            value: 'delete',
+                                            child: Row(
+                                              children: [
+                                                Icon(
+                                                  Icons.delete_outline_rounded,
+                                                  size: 20,
+                                                  color: Colors.redAccent,
+                                                ),
+                                                SizedBox(width: 10),
+                                                Text(
+                                                  'Hapus Prompt',
+                                                  style: TextStyle(
+                                                    fontSize: 13,
+                                                    color: Colors.redAccent,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                }(),
           floatingActionButton: isSelectMode
               ? null
               : FloatingActionButton(
