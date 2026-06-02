@@ -65,7 +65,6 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
       builder: (ctx) => BasePopupDialog(
         themeColor: Colors.indigo,
         titleColor: Colors.white,
-        // 1. HEADER DIALOG
         title: Row(
           children: const [
             Icon(Icons.edit_note_rounded, color: Colors.white, size: 24),
@@ -80,7 +79,6 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
             ),
           ],
         ),
-        // 2. KONTEN / FORM FIELDS
         content: Form(
           key: formKey,
           child: SingleChildScrollView(
@@ -128,7 +126,6 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
             ),
           ),
         ),
-        // 3. ACTIONS FOOTER PANEL
         footer: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
@@ -510,9 +507,7 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
         final int totalSelected = _controller.selectedPromptIds.length;
 
         return Scaffold(
-          backgroundColor: const Color(
-            0xFFF5F6FA,
-          ), // Background abu-abu terang sesuai gambar
+          backgroundColor: const Color(0xFFF5F6FA),
           appBar: AppBar(
             title: Text(
               isSelectMode ? '$totalSelected Terpilih' : _currentGroup.title,
@@ -535,7 +530,6 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                     onPressed: () => Navigator.pop(context),
                   ),
             actions: [
-              // Tombol aksi massal hanya ditambahkan jika mode seleksi/pilih aktif
               if (isSelectMode) ...[
                 IconButton(
                   icon: const Icon(Icons.drive_file_move, color: Colors.white),
@@ -569,27 +563,22 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                     final bool isSelected = _controller.selectedPromptIds
                         .contains(item.id);
 
-                    // Mengecek ketersediaan deskripsi
                     final bool hasDescription =
                         item.description != null &&
                         item.description!.trim().isNotEmpty;
 
                     return Card(
-                      elevation: isSelected
-                          ? 4
-                          : 0, // Mengurangi elevasi default agar flat minimalis
+                      elevation: isSelected ? 4 : 0,
                       color: isSelected
                           ? Colors.red.withOpacity(0.08)
                           : Colors.white,
                       margin: const EdgeInsets.only(bottom: 12),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(
-                          16,
-                        ), // Sisi melengkung halus sesuai gambar
+                        borderRadius: BorderRadius.circular(16),
                         side: BorderSide(
                           color: isSelected
                               ? Colors.red[700]!
-                              : Colors.grey.shade100, // Border tipis transparan
+                              : Colors.grey.shade100,
                           width: isSelected ? 1.5 : 1,
                         ),
                       ),
@@ -609,7 +598,6 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                           padding: const EdgeInsets.all(16),
                           child: Row(
                             children: [
-                              // MODE SELEKSI: Tampilkan Checkbox
                               if (isSelectMode) ...[
                                 Checkbox(
                                   activeColor: Colors.red[700],
@@ -618,30 +606,23 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                                       .toggleSelectPromptItem(item.id),
                                 ),
                                 const SizedBox(width: 12),
-                              ]
-                              // MODE NORMAL: Tampilkan Ikon Dokumen Biru Elegan
-                              else ...[
+                              ] else ...[
                                 Container(
                                   width: 44,
                                   height: 44,
-                                  decoration: BoxDecoration(
-                                    color: const Color(
-                                      0xFFE8EAF6,
-                                    ), // Biru pastel sangat muda
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFFE8EAF6),
                                     shape: BoxShape.circle,
                                   ),
                                   child: const Icon(
                                     Icons.description_rounded,
-                                    color: Color(
-                                      0xFF3F51B5,
-                                    ), // Warna ikon disesuaikan tema
+                                    color: Color(0xFF3F51B5),
                                     size: 20,
                                   ),
                                 ),
                                 const SizedBox(width: 16),
                               ],
 
-                              // TEXT CONTENT
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -652,9 +633,7 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                                       style: const TextStyle(
                                         fontWeight: FontWeight.bold,
                                         fontSize: 15,
-                                        color: Color(
-                                          0xFF2E3A59,
-                                        ), // Warna teks kontras modern
+                                        color: Color(0xFF2E3A59),
                                       ),
                                     ),
                                     const SizedBox(height: 4),
@@ -673,8 +652,11 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                                 ),
                               ),
 
-                              // ACTION BUTTONS (Hanya muncul jika tidak dalam select mode)
-                              if (!isSelectMode) ...[
+                              // ================= ACTION BUTTONS =================
+                              // Diperbarui: Menggunakan `totalSelected <= 1` agar menu titik tiga
+                              // TETAP MUNCUL ketika mode pilih pertama kali diaktifkan melalui Long Press.
+                              // Tombol akan otomatis tersembunyi jika Anda mencentang item kedua atau kembali ke mode normal.
+                              if (isSelectMode && totalSelected <= 1) ...[
                                 const SizedBox(width: 8),
                                 Row(
                                   mainAxisSize: MainAxisSize.min,
