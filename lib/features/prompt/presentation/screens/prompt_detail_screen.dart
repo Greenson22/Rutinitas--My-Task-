@@ -343,10 +343,17 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                     subtitle: Padding(
                       padding: const EdgeInsets.only(top: 6.0),
                       child: Text(
-                        item.content,
-                        style: const TextStyle(
+                        (item.description != null &&
+                                item.description!.trim().isNotEmpty)
+                            ? item.description!
+                            : 'Tidak ada deskripsi', // Teks jika deskripsi kosong
+                        style: TextStyle(
                           fontSize: 13,
-                          color: Colors.black87,
+                          color:
+                              (item.description != null &&
+                                  item.description!.trim().isNotEmpty)
+                              ? Colors.black87
+                              : Colors.grey, // Warna teks abu-abu jika kosong
                           height: 1.4,
                         ),
                       ),
