@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:rutinitasku/core/presentation/widgets/drawer_menu.dart';
 import '../../models/note_model.dart';
 // Sesuaikan import ini dengan lokasi barrel file atau file template Anda
 import '../../../../core/presentation/widgets/widgets.dart';
@@ -51,6 +52,7 @@ class _NotesScreenState extends State<NotesScreen> {
     return GroupedSectionLayout<NoteModel>(
       title: 'Catatan Saya',
       appBarColor: _themeColor,
+      drawer: const DrawerMenu(isDailyActive: true),
       isLoading: false,
       isEmpty: _groupedNotes.isEmpty,
       emptyMessage: 'Belum ada catatan. Silakan tambah baru!',
