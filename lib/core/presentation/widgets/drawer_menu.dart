@@ -208,33 +208,16 @@ class _DrawerMenuState extends State<DrawerMenu> {
               }
             },
           ),
-          ListTile(
-            leading: Icon(
-              Icons.note_alt_outlined,
-              // Gunakan widget.isNotesActive
-              color: widget.isNotesActive
-                  ? Colors.orange[700]
-                  : Colors.grey[700],
-            ),
-            title: Text(
-              'Catatan',
-              style: TextStyle(
-                // Gunakan widget.isNotesActive
-                fontWeight: widget.isNotesActive
-                    ? FontWeight.bold
-                    : FontWeight.normal,
-                color: widget.isNotesActive
-                    ? Colors.orange[700]
-                    : Colors.black87,
-              ),
-            ),
-            // Gunakan widget.isNotesActive
-            selected: widget.isNotesActive,
-            selectedTileColor: Colors.orange.withOpacity(0.1),
+
+          // TAMBAHKAN: 6. Menu Catatan Baru
+          _buildMenuTile(
+            icon: Icons
+                .note_alt_outlined, // Menggunakan ikon bernuansa prompt/AI/pikiran
+            title: 'Catatan',
+            isActive: widget.isPromptActive,
             onTap: () {
               // Tutup drawer terlebih dahulu
               Navigator.pop(context);
-
               // Jika halaman saat ini bukan halaman Notes, pindah ke NotesScreen
               // Gunakan widget.isNotesActive
               if (!widget.isNotesActive) {
