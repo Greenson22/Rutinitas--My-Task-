@@ -68,12 +68,31 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
     // 3. Gunakan Template GroupedSectionLayout
     return GroupedSectionLayout<DailySubject>(
       title: '${currentGroup.icon} ${currentGroup.groupName}',
-      appBarColor: Colors.teal[700]!,
+      // appBarColor dihapus karena diatur otomatis di dalam BaseDetailAppBar
       isLoading: false,
       isEmpty: false, // Sudah ditangani di atas
       sectionKeys: sectionKeys,
       groupedItems: groupedItems,
       childAspectRatio: isPageEditMode ? 0.95 : 1.4,
+
+      // ==========================================
+      // ARGUMEN BARU UNTUK BASE DETAIL APP BAR
+      // ==========================================
+      isSelectMode:
+          false, // Set true jika halaman ini mengaktifkan mode seleksi massal
+      selectedItemsCount: 0, // Jumlah item yang sedang dipilih/dicentang
+      isSearchMode: false, // Set true jika dalam kondisi mode pencarian aktif
+      onClearSelection: () {
+        // Aksi ketika tombol batal seleksi massal (ikon close) ditekan
+      },
+      onToggleSearchMode: () {
+        // Aksi ketika area kosong AppBar ditekan lama untuk masuk/keluar mode pencarian
+      },
+      enableSearch:
+          false, // Ubah ke true jika ingin mengaktifkan fitur pencarian bawaan AppBar
+      enableMultiSelect:
+          false, // Ubah ke true jika ingin mengaktifkan fitur multi-select bawaan AppBar
+      // ==========================================
       floatingActionButton: FloatingActionButton(
         onPressed: showAddSectionDialog,
         backgroundColor: Colors.teal[800],
@@ -282,7 +301,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
               ),
             ),
             const PopupMenuDivider(),
-            // Pilihan Hapus Item (Karena template InteractiveGridCard tidak menyediakan tombol delete)
+            // Pilihan Hapus Item
             const PopupMenuItem<String>(
               value: 'DELETE_ACTION',
               child: Text(

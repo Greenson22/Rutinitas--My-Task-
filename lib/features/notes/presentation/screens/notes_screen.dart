@@ -51,13 +51,32 @@ class _NotesScreenState extends State<NotesScreen> {
   Widget build(BuildContext context) {
     return GroupedSectionLayout<NoteModel>(
       title: 'Catatan Saya',
-      appBarColor: _themeColor,
+      // appBarColor dihapus karena warna diatur otomatis di dalam BaseDetailAppBar
       drawer: const DrawerMenu(isNotesActive: true),
       isLoading: false,
       isEmpty: _groupedNotes.isEmpty,
       emptyMessage: 'Belum ada catatan. Silakan tambah baru!',
       sectionKeys: _sectionKeys,
       groupedItems: _groupedNotes,
+
+      // ==========================================
+      // ARGUMEN BARU UNTUK BASE DETAIL APP BAR
+      // ==========================================
+      isSelectMode:
+          false, // Set true jika halaman ini mengaktifkan fitur multi-select
+      selectedItemsCount: 0, // Jumlah item yang sedang dipilih/dicentang
+      isSearchMode: false, // Set true jika dalam kondisi mode pencarian aktif
+      onClearSelection: () {
+        // Aksi ketika tombol silang (batal select) di AppBar ditekan
+      },
+      onToggleSearchMode: () {
+        // Aksi ketika area kosong AppBar ditekan lama untuk mengaktifkan/menonaktifkan search mode
+      },
+      enableSearch:
+          false, // Ubah ke true jika ingin mengaktifkan fitur search bawaan AppBar
+      enableMultiSelect:
+          false, // Ubah ke true jika ingin mengaktifkan fitur multi-select bawaan AppBar
+      // ==========================================
 
       // Floating Action Button (opsional)
       floatingActionButton: FloatingActionButton(

@@ -354,18 +354,9 @@ class _DailyScreenState extends State<DailyScreen> {
 
     return GroupedSectionLayout<ChecklistGroup>(
       title: 'My Checklist Groups',
-      appBarColor: Colors.teal[800]!,
+      // appBarColor dan actions lama dihapus karena siklus hidup AppBar
+      // dikendalikan sepenuhnya oleh BaseDetailAppBar di dalam layout.
       drawer: const DrawerMenu(isDailyActive: true),
-      actions: [
-        IconButton(
-          icon: Icon(
-            _controller.showHiddenSection
-                ? Icons.visibility
-                : Icons.visibility_off,
-          ),
-          onPressed: _controller.toggleShowHiddenSection,
-        ),
-      ],
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddMainSectionDialog,
         backgroundColor: Colors.teal[800],
@@ -385,6 +376,24 @@ class _DailyScreenState extends State<DailyScreen> {
       sectionKeys: allKeys,
       groupedItems: allItems,
       childAspectRatio: _controller.isPageEditMode ? 0.90 : 1.15,
+
+      // ==========================================
+      // ARGUMEN WAJIB BARU UNTUK BASE DETAIL APP BAR
+      // ==========================================
+      isSelectMode: false, // Set true jika mengaktifkan multi-select group
+      selectedItemsCount: 0, // Jumlah item checklist group terpilih
+      isSearchMode: false, // Status apakah user sedang mencari nama group
+      onClearSelection: () {
+        // Callback reset/bersihkan item terpilih massal
+      },
+      onToggleSearchMode: () {
+        // Callback mematikan atau menghidupkan bar pencarian text input
+      },
+      enableSearch:
+          false, // Aktifkan (true) jika Anda ingin mengizinkan pencarian di halaman ini
+      enableMultiSelect:
+          false, // Aktifkan (true) jika ingin mengizinkan seleksi massal di halaman ini
+      // ==========================================
 
       // 2. Gunakan Template InteractiveSectionHeader untuk setiap header seksi
       sectionHeaderBuilder: (context, index, sectionKey) {

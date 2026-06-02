@@ -1,15 +1,25 @@
 import 'package:flutter/material.dart';
+import 'base_detail_app_bar.dart'; // Impor berkas BaseDetailAppBar
 
 class GroupedSectionLayout<T> extends StatelessWidget {
   final String title;
-  final Color appBarColor;
   final Widget? drawer;
-  final List<Widget>? actions;
   final Widget? floatingActionButton;
 
   final bool isLoading;
   final bool isEmpty;
   final String emptyMessage;
+
+  // Properti Tambahan untuk BaseDetailAppBar
+  final bool isSelectMode;
+  final int selectedItemsCount;
+  final bool isSearchMode;
+  final VoidCallback onClearSelection;
+  final VoidCallback onToggleSearchMode;
+  final bool enableSearch;
+  final bool enableMultiSelect;
+  final VoidCallback? onMoveMassive;
+  final VoidCallback? onDeleteMassive;
 
   // Data Map berupa Kategori/Seksi -> List Item
   final List<String> sectionKeys;
@@ -32,13 +42,22 @@ class GroupedSectionLayout<T> extends StatelessWidget {
   const GroupedSectionLayout({
     super.key,
     required this.title,
-    required this.appBarColor,
     this.drawer,
-    this.actions,
     this.floatingActionButton,
     required this.isLoading,
     required this.isEmpty,
     this.emptyMessage = 'Belum ada data.',
+    // Parameter Wajib & Opsional Baru untuk BaseDetailAppBar
+    required this.isSelectMode,
+    required this.selectedItemsCount,
+    required this.isSearchMode,
+    required this.onClearSelection,
+    required this.onToggleSearchMode,
+    this.enableSearch = true,
+    this.enableMultiSelect = true,
+    this.onMoveMassive,
+    this.onDeleteMassive,
+    // Parameter Eksisting
     required this.sectionKeys,
     required this.groupedItems,
     required this.sectionHeaderBuilder,
@@ -50,10 +69,18 @@ class GroupedSectionLayout<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[200],
-      appBar: AppBar(
-        title: Text(title),
-        backgroundColor: appBarColor,
-        actions: actions,
+      // Mengganti AppBar bawaan dengan BaseDetailAppBar
+      appBar: BaseDetailAppBar(
+        pageTitle: title,
+        isSelectMode: isSelectMode,
+        selectedItemsCount: selectedItemsCount,
+        isSearchMode: isSearchMode,
+        onClearSelection: onClearSelection,
+        onToggleSearchMode: onToggleSearchMode,
+        enableSearch: enableSearch,
+        enableMultiSelect: enableMultiSelect,
+        onMoveMassive: onMoveMassive,
+        onDeleteMassive: onDeleteMassive,
       ),
       drawer: drawer,
       floatingActionButton: floatingActionButton,
