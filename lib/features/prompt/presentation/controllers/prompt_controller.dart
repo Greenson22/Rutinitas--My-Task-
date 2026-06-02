@@ -13,12 +13,19 @@ class PromptController extends ChangeNotifier {
   bool _isCardEditMode = false;
   final List<String> _localEmptySections = [];
 
+  // State tambahan untuk Fitur Multi-Select Prompt Item
+  final Set<String> _selectedPromptIds = {};
+
   // Getters
   List<PromptGroup> get promptGroups => _promptGroups;
   bool get isLoading => _isLoading;
   bool get isSectionEditMode => _isSectionEditMode;
   bool get isCardEditMode => _isCardEditMode;
   List<String> get localEmptySections => _localEmptySections;
+
+  // Getter Multi-Select
+  bool get isMultiSelectMode => _selectedPromptIds.isNotEmpty;
+  Set<String> get selectedPromptIds => _selectedPromptIds;
 
   // Setters / Toggles
   void toggleSectionEditMode() {
@@ -28,6 +35,21 @@ class PromptController extends ChangeNotifier {
 
   void toggleCardEditMode() {
     _isCardEditMode = !_isCardEditMode;
+    notifyListeners();
+  }
+
+  // Fungsi Interaksi Multi-Select
+  void toggleSelectPromptItem(String itemId) {
+    if (_selectedPromptIds.contains(itemId)) {
+      _selectedPromptIds.remove(itemId);
+    } else {
+      _selectedPromptIds.add(itemId);
+    }
+    notifyListeners();
+  }
+
+  void clearSelectedPrompts() {
+    _selectedPromptIds.clear();
     notifyListeners();
   }
 
@@ -140,7 +162,6 @@ class PromptController extends ChangeNotifier {
     try {
       final baseDir = await _storageService.getBaseDirSetting();
       for (var group in _promptGroups) {
-        // MENGGUNAKAN HELPER
         final String jsonString = _storageService.formatJsonPretty(
           group.toJson(),
         );
@@ -194,7 +215,6 @@ class PromptController extends ChangeNotifier {
           lastUpdated: DateTime.now().toIso8601String(),
           prompts: group.prompts,
         );
-        // MENGGUNAKAN HELPER
         final String jsonString = _storageService.formatJsonPretty(
           updatedGroup.toJson(),
         );
@@ -285,7 +305,6 @@ class PromptController extends ChangeNotifier {
         prompts: [],
       );
 
-      // MENGGUNAKAN HELPER
       final String jsonString = _storageService.formatJsonPretty(
         newGroup.toJson(),
       );
@@ -335,7 +354,6 @@ class PromptController extends ChangeNotifier {
     try {
       final baseDir = await _storageService.getBaseDirSetting();
       for (var group in _promptGroups) {
-        // MENGGUNAKAN HELPER
         final String jsonString = _storageService.formatJsonPretty(
           group.toJson(),
         );
@@ -366,7 +384,6 @@ class PromptController extends ChangeNotifier {
         prompts: group.prompts,
       );
 
-      // MENGGUNAKAN HELPER
       final String jsonString = _storageService.formatJsonPretty(
         updatedGroup.toJson(),
       );
@@ -402,7 +419,6 @@ class PromptController extends ChangeNotifier {
         prompts: group.prompts,
       );
 
-      // MENGGUNAKAN HELPER
       final String jsonString = _storageService.formatJsonPretty(
         updatedGroup.toJson(),
       );
@@ -461,7 +477,6 @@ class PromptController extends ChangeNotifier {
 
       group.prompts.add(newPromptItem);
 
-      // MENGGUNAKAN HELPER
       final String jsonString = _storageService.formatJsonPretty(
         group.toJson(),
       );
@@ -499,7 +514,7 @@ class PromptController extends ChangeNotifier {
     }
   }
 
-  // =============== FITUR BARU: EDIT, HAPUS, PINDAH, SALIN PROMPT ===============
+  // =============== FITUR EDIT, HAPUS, PINDAH, SALIN PROMPT ===============
 
   // Mengedit item prompt
   Future<PromptGroup?> editPromptItem({
@@ -526,7 +541,6 @@ class PromptController extends ChangeNotifier {
           isFavorite: oldItem.isFavorite,
         );
 
-        // MENGGUNAKAN HELPER
         final String jsonString = _storageService.formatJsonPretty(
           group.toJson(),
         );
@@ -557,7 +571,7 @@ class PromptController extends ChangeNotifier {
     }
   }
 
-  // Menghapus item prompt
+  // Menghapus item prompt tunggal
   Future<PromptGroup?> deletePromptItem({
     required PromptGroup group,
     required String itemId,
@@ -569,7 +583,6 @@ class PromptController extends ChangeNotifier {
       final baseDir = await _storageService.getBaseDirSetting();
       group.prompts.removeWhere((p) => p.id == itemId);
 
-      // MENGGUNAKAN HELPER
       final String jsonString = _storageService.formatJsonPretty(
         group.toJson(),
       );
@@ -621,13 +634,11 @@ class PromptController extends ChangeNotifier {
       );
 
       if (sourceGroup.id == targetGroup.id) {
-        // Jika grup yang sama (Salin di grup yang sama)
         sourceGroup.prompts.add(newItem);
         if (!isCopy) {
           sourceGroup.prompts.removeWhere((p) => p.id == item.id);
         }
 
-        // MENGGUNAKAN HELPER (Grup yang sama)
         final String sourceJson = _storageService.formatJsonPretty(
           sourceGroup.toJson(),
         );
@@ -637,10 +648,8 @@ class PromptController extends ChangeNotifier {
           sourceJson,
         );
       } else {
-        // Jika beda grup
         targetGroup.prompts.add(newItem);
 
-        // MENGGUNAKAN HELPER (Grup Target)
         final String targetJson = _storageService.formatJsonPretty(
           targetGroup.toJson(),
         );
@@ -653,7 +662,6 @@ class PromptController extends ChangeNotifier {
         if (!isCopy) {
           sourceGroup.prompts.removeWhere((p) => p.id == item.id);
 
-          // MENGGUNAKAN HELPER (Grup Asal setelah dihapus itemnya)
           final String sourceJson = _storageService.formatJsonPretty(
             sourceGroup.toJson(),
           );
@@ -680,7 +688,6 @@ class PromptController extends ChangeNotifier {
 
       _isLoading = false;
       notifyListeners();
-      // Mengembalikan sourceGroup versi terbaru
       return _promptGroups.firstWhere(
         (g) => g.id == sourceGroup.id,
         orElse: () => sourceGroup,
@@ -692,6 +699,55 @@ class PromptController extends ChangeNotifier {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Gagal memproses prompt: $e')));
+      }
+      return null;
+    }
+  }
+
+  // =============== FITUR BARU: HAPUS MASSAL (MULTIPLE DELETE) ===============
+  Future<PromptGroup?> deleteSelectedPromptItems({
+    required PromptGroup group,
+    required BuildContext context,
+  }) async {
+    if (_selectedPromptIds.isEmpty) return group;
+
+    _isLoading = true;
+    notifyListeners();
+    try {
+      final baseDir = await _storageService.getBaseDirSetting();
+
+      // Menghapus semua item prompt yang id-nya terdaftar di dalam set terpilih
+      group.prompts.removeWhere((p) => _selectedPromptIds.contains(p.id));
+
+      final String jsonString = _storageService.formatJsonPretty(
+        group.toJson(),
+      );
+      await _storageService.savePromptGroup(baseDir, group.id, jsonString);
+
+      // Reset daftar pilihan kembali kosong setelah berhasil dihapus
+      _selectedPromptIds.clear();
+
+      if (context.mounted) {
+        await loadAllPrompts(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Semua prompt terpilih berhasil dihapus!'),
+          ),
+        );
+      }
+      _isLoading = false;
+      notifyListeners();
+      return _promptGroups.firstWhere(
+        (g) => g.id == group.id,
+        orElse: () => group,
+      );
+    } catch (e) {
+      _isLoading = false;
+      notifyListeners();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal menghapus beberapa prompt: $e')),
+        );
       }
       return null;
     }
