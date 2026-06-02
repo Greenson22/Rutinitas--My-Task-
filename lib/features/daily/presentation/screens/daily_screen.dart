@@ -3,6 +3,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../../core/presentation/widgets/drawer_menu.dart';
+import '../../../../core/presentation/widgets/grouped_section_layout.dart';
+import '../../../../core/presentation/widgets/interactive_grid_card.dart';
+import '../../../../core/presentation/widgets/interactive_section_header.dart';
 import '../../data/models/daily_model.dart';
 import '../controllers/daily_controller.dart';
 import 'checklist_detail_screen.dart';
@@ -21,7 +24,6 @@ class _DailyScreenState extends State<DailyScreen> {
   void initState() {
     super.initState();
     _controller = DailyController();
-    // Daftarkan listener agar UI me-refresh otomatis saat controller memanggil notifyListeners()
     _controller.addListener(_onControllerNotify);
     _controller.loadGroupsData();
   }
@@ -335,116 +337,35 @@ class _DailyScreenState extends State<DailyScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[200],
-      appBar: AppBar(
-        title: const Text('My Checklist Groups'),
-        backgroundColor: Colors.teal[800],
-        actions: [
-          IconButton(
-            icon: Icon(
-              _controller.showHiddenSection
-                  ? Icons.visibility
-                  : Icons.visibility_off,
-            ),
-            onPressed: _controller.toggleShowHiddenSection,
-          ),
-        ],
-      ),
+    // 1. Gabungkan seksi visible dan hidden ke dalam 1 map agar terbaca oleh GroupedSectionLayout
+    final List<String> allKeys = _controller.groupedVisibleGroup.keys.toList();
+    final Map<String, List<ChecklistGroup>> allItems = Map.from(
+      _controller.groupedVisibleGroup,
+    );
+    final int visibleKeysCount = allKeys.length;
+
+    if (_controller.hiddenGroup.isNotEmpty && _controller.showHiddenSection) {
+      for (var entry in _controller.groupedHiddenGroup.entries) {
+        final hiddenKey = '${entry.key}_hidden_key';
+        allKeys.add(hiddenKey);
+        allItems[hiddenKey] = entry.value;
+      }
+    }
+
+    return GroupedSectionLayout<ChecklistGroup>(
+      title: 'My Checklist Groups',
+      appBarColor: Colors.teal[800]!,
       drawer: const DrawerMenu(isDailyActive: true),
-      body: _controller.isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _controller.allGroupRaw.isEmpty &&
-                _controller.groupedVisibleGroup.isEmpty
-          ? const Center(
-              child: Text(
-                'Belum ada Seksi Kategori. Tekan + di bawah untuk membuat baru!',
-              ),
-            )
-          : LayoutBuilder(
-              builder: (context, constraints) {
-                final semuaKunciSeksi = _controller.groupedVisibleGroup.keys
-                    .toList();
-
-                return ListView(
-                  children: [
-                    ...semuaKunciSeksi.map((namaSeksiUtama) {
-                      final listGroupDiSeksiIni =
-                          _controller.groupedVisibleGroup[namaSeksiUtama] ?? [];
-                      final int indexSeksi = semuaKunciSeksi.indexOf(
-                        namaSeksiUtama,
-                      );
-
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildSectionHeader(
-                            index: indexSeksi,
-                            totalCount: semuaKunciSeksi.length,
-                            sectionName: namaSeksiUtama,
-                            color: Colors.teal[900]!,
-                          ),
-                          listGroupDiSeksiIni.isEmpty
-                              ? const Padding(
-                                  padding: EdgeInsets.only(
-                                    left: 24,
-                                    top: 12,
-                                    bottom: 12,
-                                  ),
-                                  child: Text(
-                                    'Belum ada group di seksi ini.',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                                )
-                              : _buildGroupGrid(
-                                  listGroupDiSeksiIni,
-                                  constraints,
-                                ),
-                        ],
-                      );
-                    }),
-                    if (_controller.hiddenGroup.isNotEmpty &&
-                        _controller.showHiddenSection) ...[
-                      const Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 16.0,
-                          vertical: 8.0,
-                        ),
-                        child: Divider(thickness: 2, color: Colors.grey),
-                      ),
-                      ..._controller.groupedHiddenGroup.entries.map((grup) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    '${grup.key} (Tersembunyi)',
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.blueGrey,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            _buildGroupGrid(grup.value, constraints),
-                          ],
-                        );
-                      }),
-                    ],
-                  ],
-                );
-              },
-            ),
+      actions: [
+        IconButton(
+          icon: Icon(
+            _controller.showHiddenSection
+                ? Icons.visibility
+                : Icons.visibility_off,
+          ),
+          onPressed: _controller.toggleShowHiddenSection,
+        ),
+      ],
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddMainSectionDialog,
         backgroundColor: Colors.teal[800],
@@ -455,403 +376,231 @@ class _DailyScreenState extends State<DailyScreen> {
           color: Colors.white,
         ),
       ),
-    );
-  }
+      isLoading: _controller.isLoading,
+      isEmpty:
+          _controller.allGroupRaw.isEmpty &&
+          _controller.groupedVisibleGroup.isEmpty,
+      emptyMessage:
+          'Belum ada Seksi Kategori. Tekan + di bawah untuk membuat baru!',
+      sectionKeys: allKeys,
+      groupedItems: allItems,
+      childAspectRatio: _controller.isPageEditMode ? 0.90 : 1.15,
 
-  Widget _buildSectionHeader({
-    required int index,
-    required int totalCount,
-    required String sectionName,
-    required Color color,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        splashColor: Colors.teal.withOpacity(0.1),
-        highlightColor: Colors.teal.withOpacity(0.05),
-        onLongPress: _controller.toggleSectionEditMode,
-        onTap: () {},
-        child: AnimatedPadding(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeInOut,
-          padding: _controller.isSectionEditMode
-              ? const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0)
-              : const EdgeInsets.fromLTRB(16, 12, 16, 4),
-          child: Column(
+      // 2. Gunakan Template InteractiveSectionHeader untuk setiap header seksi
+      sectionHeaderBuilder: (context, index, sectionKey) {
+        if (index >= visibleKeysCount) {
+          // Render tampilan statis untuk seksi yang tersembunyi
+          String originalName = sectionKey.replaceAll('_hidden_key', '');
+          return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    sectionName.toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: color,
-                      letterSpacing: 0.8,
-                    ),
+              if (index == visibleKeysCount)
+                const Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 8.0,
                   ),
-                  if (_controller.isSectionEditMode) ...[
-                    Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(
-                            Icons.arrow_upward,
-                            size: 18,
-                            color: Colors.blueGrey,
-                          ),
-                          onPressed: index > 0
-                              ? () => _controller.moveMainSectionOrder(
-                                  sectionName,
-                                  -1,
-                                )
-                              : null,
-                        ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.arrow_downward,
-                            size: 18,
-                            color: Colors.blueGrey,
-                          ),
-                          onPressed: index < totalCount - 1
-                              ? () => _controller.moveMainSectionOrder(
-                                  sectionName,
-                                  1,
-                                )
-                              : null,
-                        ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.edit,
-                            size: 18,
-                            color: Colors.teal,
-                          ),
-                          onPressed: () => _editMainSectionName(sectionName),
-                        ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.delete,
-                            size: 18,
-                            color: Colors.redAccent,
-                          ),
-                          onPressed: () => _deleteMainSection(sectionName),
-                        ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.add_circle_outline,
-                            color: Colors.teal,
-                            size: 18,
-                          ),
-                          tooltip: 'Tambah Group ke Seksi Ini',
-                          onPressed: () =>
-                              _showAddGroupDialogAtSection(sectionName),
-                        ),
-                      ],
-                    ),
-                  ] else ...[
-                    const SizedBox.shrink(),
-                  ],
-                ],
+                  child: Divider(thickness: 2, color: Colors.grey),
+                ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                child: Text(
+                  '$originalName (Tersembunyi)',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.blueGrey,
+                  ),
+                ),
               ),
-              const Divider(height: 2, thickness: 1),
             ],
-          ),
-        ),
-      ),
-    );
-  }
+          );
+        }
 
-  Widget _buildGroupGrid(
-    List<ChecklistGroup> groupList,
-    BoxConstraints constraints,
-  ) {
-    int crossAxisCount = 2;
-    if (constraints.maxWidth >= 1200) {
-      crossAxisCount = 5;
-    } else if (constraints.maxWidth >= 900) {
-      crossAxisCount = 4;
-    } else if (constraints.maxWidth >= 600) {
-      crossAxisCount = 3;
-    }
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.all(12),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: crossAxisCount,
-        childAspectRatio: _controller.isPageEditMode ? 0.90 : 1.15,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-      ),
-      itemCount: groupList.length,
-      itemBuilder: (context, index) {
-        final group = groupList[index];
+        return InteractiveSectionHeader(
+          sectionName: sectionKey,
+          themeColor: Colors.teal[900]!,
+          isEditMode: _controller.isSectionEditMode,
+          isFirst: index == 0,
+          isLast: index == visibleKeysCount - 1,
+          onToggleEdit: _controller.toggleSectionEditMode,
+          onMoveUp: () => _controller.moveMainSectionOrder(sectionKey, -1),
+          onMoveDown: () => _controller.moveMainSectionOrder(sectionKey, 1),
+          onEditName: () => _editMainSectionName(sectionKey),
+          onDelete: () => _deleteMainSection(sectionKey),
+          onAddItem: () => _showAddGroupDialogAtSection(sectionKey),
+        );
+      },
 
+      // 3. Gunakan Template InteractiveGridCard untuk merender kotak checklist
+      gridItemBuilder: (context, group, index, sectionItems) {
         int totalItems = 0;
         for (var section in group.allList) {
           totalItems += section.items.length;
         }
 
-        return Card(
-          elevation: 3,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(
-              color: group.isHidden ? Colors.grey : Colors.teal[800]!,
-              width: 3.5,
-            ),
-          ),
-          color: Colors.white,
-          child: Column(
-            children: [
-              Expanded(
-                child: InkWell(
-                  borderRadius: BorderRadius.only(
-                    topLeft: const Radius.circular(16),
-                    topRight: const Radius.circular(16),
-                    bottomLeft: Radius.circular(
-                      _controller.isPageEditMode ? 0 : 16,
-                    ),
-                    bottomRight: Radius.circular(
-                      _controller.isPageEditMode ? 0 : 16,
-                    ),
-                  ),
-                  onLongPress: _controller.togglePageEditMode,
-                  onTap: _controller.isPageEditMode
-                      ? null
-                      : () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => ChecklistDetailScreen(
-                                group: group,
-                                baseDir: _controller.selectedBaseDir,
-                              ),
-                            ),
-                          ).then((_) => _controller.loadGroupsData());
-                        },
-                  child: SizedBox.expand(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12.0),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Text(
-                            group.icon,
-                            style: TextStyle(
-                              fontSize: 28,
-                              color: group.isHidden
-                                  ? Colors.grey
-                                  : Colors.black,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            group.groupName,
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                              color: group.isHidden
-                                  ? Colors.grey
-                                  : Colors.black87,
-                            ),
-                            textAlign: TextAlign.center,
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
-                          ),
-                          const SizedBox(height: 6),
-                          Wrap(
-                            spacing: 6,
-                            runSpacing: 4,
-                            alignment: WrapAlignment.center,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 3,
-                                ),
-                                decoration: BoxDecoration(
-                                  color:
-                                      (group.isHidden
-                                              ? Colors.grey
-                                              : Colors.teal[800]!)
-                                          .withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  '${group.allList.length} Seksi',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: group.isHidden
-                                        ? Colors.grey[700]
-                                        : Colors.teal[900]!,
-                                  ),
-                                ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 3,
-                                ),
-                                decoration: BoxDecoration(
-                                  color:
-                                      (group.isHidden
-                                              ? Colors.grey
-                                              : Colors.indigo[800]!)
-                                          .withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  '$totalItems Item',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: group.isHidden
-                                        ? Colors.grey[700]
-                                        : Colors.indigo[900]!,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+        return InteractiveGridCard(
+          themeColor: Colors.teal[800]!,
+          isEditMode: _controller.isPageEditMode,
+          isHiddenStyle: group.isHidden,
+          isFirst: index == 0,
+          isLast: index == sectionItems.length - 1,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ChecklistDetailScreen(
+                  group: group,
+                  baseDir: _controller.selectedBaseDir,
                 ),
               ),
-              if (_controller.isPageEditMode) ...[
-                Container(
-                  color: Colors.transparent,
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 2,
-                    horizontal: 8,
+            ).then((_) => _controller.loadGroupsData());
+          },
+          onLongPress: _controller.togglePageEditMode,
+          onMoveLeft: () => _controller.moveGroupOrder(sectionItems, index, -1),
+          onMoveRight: () => _controller.moveGroupOrder(sectionItems, index, 1),
+          popupMenuItems: [
+            PopupMenuItem(
+              value: 'edit',
+              child: Row(
+                children: const [
+                  Icon(Icons.edit, size: 18, color: Colors.teal),
+                  SizedBox(width: 10),
+                  Text('Ubah Nama & Ikon', style: TextStyle(fontSize: 13)),
+                ],
+              ),
+            ),
+            PopupMenuItem(
+              value: 'move_section',
+              child: Row(
+                children: const [
+                  Icon(
+                    Icons.drive_file_move_outlined,
+                    size: 18,
+                    color: Colors.indigo,
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.arrow_back, size: 18),
-                        color: index > 0 ? Colors.teal[800] : Colors.grey[300],
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        onPressed: index > 0
-                            ? () => _controller.moveGroupOrder(
-                                groupList,
-                                index,
-                                -1,
-                              )
-                            : null,
-                      ),
-                      PopupMenuButton<String>(
-                        onSelected: (value) async {
-                          if (value == 'edit') {
-                            _showEditGroupDialog(group);
-                          } else if (value == 'move_section') {
-                            _showMoveSectionDialog(group);
-                          } else if (value == 'toggle_visibility') {
-                            await _controller.toggleGroupVisibility(group);
-                          } else if (value == 'delete') {
-                            _deleteGroup(group);
-                          }
-                        },
-                        itemBuilder: (BuildContext context) => [
-                          PopupMenuItem(
-                            value: 'edit',
-                            child: Row(
-                              children: const [
-                                Icon(Icons.edit, size: 18, color: Colors.teal),
-                                SizedBox(width: 10),
-                                Text(
-                                  'Ubah Nama & Ikon',
-                                  style: TextStyle(fontSize: 13),
-                                ),
-                              ],
-                            ),
-                          ),
-                          PopupMenuItem(
-                            value: 'move_section',
-                            child: Row(
-                              children: const [
-                                Icon(
-                                  Icons.drive_file_move_outlined,
-                                  size: 18,
-                                  color: Colors.indigo,
-                                ),
-                                SizedBox(width: 10),
-                                Text(
-                                  'Pindahkan Seksi',
-                                  style: TextStyle(fontSize: 13),
-                                ),
-                              ],
-                            ),
-                          ),
-                          PopupMenuItem(
-                            value: 'toggle_visibility',
-                            child: Row(
-                              children: [
-                                Icon(
-                                  group.isHidden
-                                      ? Icons.visibility
-                                      : Icons.visibility_off,
-                                  size: 18,
-                                  color: Colors.blueGrey[700],
-                                ),
-                                const SizedBox(width: 10),
-                                Text(
-                                  group.isHidden
-                                      ? 'Tampilkan Group'
-                                      : 'Sembunyikan Group',
-                                  style: const TextStyle(fontSize: 13),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const PopupMenuDivider(),
-                          PopupMenuItem(
-                            value: 'delete',
-                            child: Row(
-                              children: const [
-                                Icon(
-                                  Icons.delete_outline,
-                                  size: 18,
-                                  color: Colors.redAccent,
-                                ),
-                                SizedBox(width: 10),
-                                Text(
-                                  'Hapus Group',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: Colors.redAccent,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.arrow_forward, size: 18),
-                        color: index < groupList.length - 1
-                            ? Colors.teal[800]
-                            : Colors.grey[300],
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        onPressed: index < groupList.length - 1
-                            ? () => _controller.moveGroupOrder(
-                                groupList,
-                                index,
-                                1,
-                              )
-                            : null,
-                      ),
-                    ],
+                  SizedBox(width: 10),
+                  Text('Pindahkan Seksi', style: TextStyle(fontSize: 13)),
+                ],
+              ),
+            ),
+            PopupMenuItem(
+              value: 'toggle_visibility',
+              child: Row(
+                children: [
+                  Icon(
+                    group.isHidden ? Icons.visibility : Icons.visibility_off,
+                    size: 18,
+                    color: Colors.blueGrey[700],
                   ),
+                  const SizedBox(width: 10),
+                  Text(
+                    group.isHidden ? 'Tampilkan Group' : 'Sembunyikan Group',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+            const PopupMenuDivider(),
+            PopupMenuItem(
+              value: 'delete',
+              child: Row(
+                children: const [
+                  Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
+                  SizedBox(width: 10),
+                  Text(
+                    'Hapus Group',
+                    style: TextStyle(fontSize: 13, color: Colors.redAccent),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          onPopupSelected: (value) async {
+            if (value == 'edit') {
+              _showEditGroupDialog(group);
+            } else if (value == 'move_section') {
+              _showMoveSectionDialog(group);
+            } else if (value == 'toggle_visibility') {
+              await _controller.toggleGroupVisibility(group);
+            } else if (value == 'delete') {
+              _deleteGroup(group);
+            }
+          },
+          content: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                group.icon,
+                style: TextStyle(
+                  fontSize: 28,
+                  color: group.isHidden ? Colors.grey : Colors.black,
                 ),
-              ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                group.groupName,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: group.isHidden ? Colors.grey : Colors.black87,
+                ),
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                alignment: WrapAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: (group.isHidden ? Colors.grey : Colors.teal[800]!)
+                          .withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '${group.allList.length} Seksi',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: group.isHidden
+                            ? Colors.grey[700]
+                            : Colors.teal[900]!,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color:
+                          (group.isHidden ? Colors.grey : Colors.indigo[800]!)
+                              .withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '$totalItems Item',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: group.isHidden
+                            ? Colors.grey[700]
+                            : Colors.indigo[900]!,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         );
