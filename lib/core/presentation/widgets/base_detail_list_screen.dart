@@ -119,29 +119,14 @@ class _BaseDetailListScreenState<T> extends State<BaseDetailListScreen<T>> {
             ? Colors.red[900]
             : const Color(0xFF3F51B5),
         elevation: 0,
-        // PENERAPAN FIX: Menggunakan GestureDetector dengan Opaque & Container lebar penuh
-        title: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onLongPress: () {
-            if (widget.enableSearch && !_isSelectMode) {
-              setState(() {
-                _isSearchMode = !_isSearchMode;
-                if (!_isSearchMode) _searchController.clear();
-              });
-            }
-          },
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text(
-              _isSelectMode
-                  ? '${_selectedItems.length} Terpilih'
-                  : widget.pageTitle,
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
-              ),
-            ),
+        // 1. Teks title dibuat statis tanpa inkwell internal agar tidak tabrakan gesture
+        title: Text(
+          _isSelectMode
+              ? '${_selectedItems.length} Terpilih'
+              : widget.pageTitle,
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
           ),
         ),
         leading: _isSelectMode
@@ -153,6 +138,23 @@ class _BaseDetailListScreenState<T> extends State<BaseDetailListScreen<T>> {
                 icon: const Icon(Icons.arrow_back, color: Colors.white),
                 onPressed: () => Navigator.pop(context),
               ),
+        // 2. Gunakan flexibleSpace untuk memasang InkWell seluas seluruh dimensi AppBar
+        flexibleSpace: Material(
+          color:
+              Colors.transparent, // Supaya warna AppBar di atas tetap terlihat
+          child: InkWell(
+            onLongPress: () {
+              if (widget.enableSearch && !_isSelectMode) {
+                setState(() {
+                  _isSearchMode = !_isSearchMode;
+                  if (!_isSearchMode) _searchController.clear();
+                });
+              }
+            },
+            child:
+                const SizedBox.expand(), // Memaksa InkWell memenuhi seluruh area AppBar
+          ),
+        ),
         actions: [
           if (_isSelectMode) ...[
             if (widget.onMoveMassive != null)
