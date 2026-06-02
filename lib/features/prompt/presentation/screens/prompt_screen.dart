@@ -314,12 +314,6 @@ class _PromptScreenState extends State<PromptScreen> {
           title: 'My Prompts',
           appBarColor: Colors.indigo,
           drawer: const DrawerMenu(isPromptActive: true),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: () => _controller.loadAllPrompts(context),
-            ),
-          ],
           floatingActionButton: FloatingActionButton(
             onPressed: _showAddSectionDialog,
             backgroundColor: Colors.indigo,
