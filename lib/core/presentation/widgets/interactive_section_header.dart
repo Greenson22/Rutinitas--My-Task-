@@ -6,6 +6,7 @@ class InteractiveSectionHeader extends StatelessWidget {
   final bool isEditMode;
   final bool isFirst;
   final bool isLast;
+  final bool isUpperCase;
 
   // Aksi
   final VoidCallback onToggleEdit;
@@ -20,6 +21,7 @@ class InteractiveSectionHeader extends StatelessWidget {
     required this.sectionName,
     required this.themeColor,
     required this.isEditMode,
+    this.isUpperCase = true,
     required this.isFirst,
     required this.isLast,
     required this.onToggleEdit,
@@ -32,6 +34,9 @@ class InteractiveSectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final String displayedTitle = isUpperCase
+        ? sectionName.toUpperCase()
+        : sectionName;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -52,7 +57,7 @@ class InteractiveSectionHeader extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    sectionName.toUpperCase(),
+                    displayedTitle,
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.bold,

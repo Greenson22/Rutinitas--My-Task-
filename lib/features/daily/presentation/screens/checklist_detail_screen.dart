@@ -94,6 +94,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
           sectionName: section.sectionName,
           themeColor: Colors.teal[800]!,
           isEditMode: isSectionEditMode,
+          isUpperCase: false,
           isFirst: index == 0,
           isLast: index == currentGroup.allList.length - 1,
           onToggleEdit: () {
