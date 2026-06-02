@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:rutinitasku/core/presentation/widgets/base_popup_dialog.dart';
+import '../../../../core/presentation/widgets/base_detail_list_screen.dart'; // Sesuaikan dengan path file BaseDetailListScreen Anda
 import '../../data/models/prompt_model.dart';
 import '../controllers/prompt_controller.dart';
 import '../widgets/prompt_detail_screen/add_prompt_item_dialog.dart';
@@ -19,33 +20,20 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
   late PromptGroup _currentGroup;
   final PromptController _controller = PromptController();
 
-  // State untuk Fitur Search via Long Press AppBar
-  bool _isSearchMode = false;
-  final TextEditingController _searchController = TextEditingController();
-  String _searchQuery = '';
-
   @override
   void initState() {
     super.initState();
     _currentGroup = widget.promptGroup;
+
     // Muat semua grup ke controller agar fitur pindah/salin bisa mengambil daftar grup lain
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _controller.loadAllPrompts(context);
-    });
-
-    // Listener untuk mendeteksi perubahan input pencarian
-    _searchController.addListener(() {
-      setState(() {
-        _searchQuery = _searchController.text.trim().toLowerCase();
-      });
     });
   }
 
   @override
   void dispose() {
-    // Pastikan state multi-select dibersihkan saat keluar dari screen ini
     _controller.clearSelectedPrompts();
-    _searchController.dispose();
     super.dispose();
   }
 
@@ -60,6 +48,16 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
             _currentGroup = updatedGroup;
           });
         },
+      ),
+    );
+  }
+
+  void _copyToClipboard(String text) {
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Isi prompt berhasil disalin ke clipboard!'),
+        duration: Duration(seconds: 1),
       ),
     );
   }
@@ -227,13 +225,13 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
     );
   }
 
-  void _showDeleteMassiveDialog(int totalSelected) {
+  void _showDeleteMassiveDialog(List<PromptItem> selectedItems) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Hapus Item Terpilih?'),
         content: Text(
-          'Apakah Anda yakin ingin menghapus $totalSelected prompt ini secara permanen?',
+          'Apakah Anda yakin ingin menghapus ${selectedItems.length} prompt ini secara permanen?',
         ),
         actions: [
           TextButton(
@@ -244,6 +242,13 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () async {
               Navigator.pop(ctx);
+
+              // Sinkronisasi state selected IDs ke controller sebelum melakukan mass delete
+              _controller.clearSelectedPrompts();
+              for (var item in selectedItems) {
+                _controller.toggleSelectPromptItem(item.id);
+              }
+
               final res = await _controller.deleteSelectedPromptItems(
                 group: _currentGroup,
                 context: context,
@@ -399,17 +404,7 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
     );
   }
 
-  void _copyToClipboard(String text) {
-    Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Isi prompt berhasil disalin ke clipboard!'),
-        duration: Duration(seconds: 1),
-      ),
-    );
-  }
-
-  void _showMoveMassiveDialog(int totalSelected) {
+  void _showMoveMassiveDialog(List<PromptItem> selectedItems) {
     final otherGroups = _controller.promptGroups
         .where((g) => g.id != _currentGroup.id)
         .toList();
@@ -425,7 +420,7 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
       context: context,
       builder: (ctx) => BasePopupDialog(
         title: Text(
-          'Pindahkan $totalSelected Prompt Terpilih',
+          'Pindahkan ${selectedItems.length} Prompt Terpilih',
           style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
@@ -472,6 +467,13 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                         ),
                         onPressed: () async {
                           Navigator.pop(ctx);
+
+                          // Sinkronisasi state selected IDs ke controller sebelum melakukan mass move
+                          _controller.clearSelectedPrompts();
+                          for (var item in selectedItems) {
+                            _controller.toggleSelectPromptItem(item.id);
+                          }
+
                           final res = await _controller.moveSelectedPromptItems(
                             sourceGroup: _currentGroup,
                             targetGroup: targetG,
@@ -504,483 +506,120 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
     return ListenableBuilder(
       listenable: _controller,
       builder: (context, _) {
+        // Melakukan sinkronisasi data terbaru dari controller global jika ada pembaruan
         final PromptGroup updatedGroup = _controller.promptGroups.firstWhere(
           (g) => g.id == _currentGroup.id,
           orElse: () => _currentGroup,
         );
         _currentGroup = updatedGroup;
 
-        final bool isSelectMode = _controller.isMultiSelectMode;
-        final int totalSelected = _controller.selectedPromptIds.length;
+        return BaseDetailListScreen<PromptItem>(
+          pageTitle: _currentGroup.title,
+          items: _currentGroup.prompts,
+          enableSearch: true,
+          enableMultiSelect: true,
+          enableAddButton: true,
+          enableFavoriteSort: true,
 
-        return Scaffold(
-          backgroundColor: const Color(0xFFF5F6FA),
+          // Pemetaan fungsi data Model ke String / Bool komponen Base
+          itemTitle: (item) => item.actAs,
+          itemSubtitle: (item) =>
+              (item.description != null && item.description!.trim().isNotEmpty)
+              ? item.description!
+              : 'Tidak ada deskripsi',
+          itemIsFavorite: (item) => item.isFavorite,
 
-          // Menambahkan Material & InkWell pada PreferredSize AppBar
-          appBar: PreferredSize(
-            preferredSize: const Size.fromHeight(kToolbarHeight),
-            child: Material(
-              // Latar belakang diatur di tingkat Material agar tidak menutup splash effect
-              color: isSelectMode ? Colors.red[900] : const Color(0xFF3F51B5),
-              child: InkWell(
-                onLongPress: () {
-                  if (!isSelectMode) {
-                    setState(() {
-                      _isSearchMode =
-                          !_isSearchMode; // Toggle mode search on/off
-                      if (!_isSearchMode) _searchController.clear();
-                    });
-                  }
-                },
-                // Memberikan kustomisasi warna efek riak agar kontras dengan warna utama
-                splashColor: Colors.white.withOpacity(0.2),
-                highlightColor: Colors.white.withOpacity(0.1),
-                child: AppBar(
-                  // Buat background AppBar transparan supaya riak air dari Material terlihat
-                  backgroundColor: Colors.transparent,
-                  elevation: 0,
-                  title: Text(
-                    isSelectMode
-                        ? '$totalSelected Terpilih'
-                        : _currentGroup.title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
-                  leading: isSelectMode
-                      ? IconButton(
-                          icon: const Icon(Icons.close, color: Colors.white),
-                          onPressed: () => _controller.clearSelectedPrompts(),
-                        )
-                      : IconButton(
-                          icon: const Icon(
-                            Icons.arrow_back,
-                            color: Colors.white,
-                          ),
-                          onPressed: () => Navigator.pop(context),
-                        ),
-                  actions: [
-                    if (isSelectMode) ...[
-                      IconButton(
-                        icon: const Icon(
-                          Icons.drive_file_move,
-                          color: Colors.white,
-                        ),
-                        tooltip: 'Pindahkan Semua Terpilih',
-                        onPressed: () => _showMoveMassiveDialog(totalSelected),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.white),
-                        tooltip: 'Hapus Semua Terpilih',
-                        onPressed: () =>
-                            _showDeleteMassiveDialog(totalSelected),
-                      ),
-                    ] else if (_isSearchMode) ...[
-                      // Berikan tombol close search di AppBar jika search aktif
-                      IconButton(
-                        icon: const Icon(
-                          Icons.search_off_rounded,
-                          color: Colors.white,
-                        ),
-                        tooltip: 'Tutup Pencarian',
-                        onPressed: () {
-                          setState(() {
-                            _isSearchMode = false;
-                            _searchController.clear();
-                          });
-                        },
-                      ),
-                    ],
-                  ],
-                ),
+          // Callback Aksi Utama
+          onAddPressed: _openAddPromptDialog,
+          onItemTap: (item) => _copyToClipboard(item.content),
+          onDeleteMassive: _showDeleteMassiveDialog,
+          onMoveMassive: _showMoveMassiveDialog,
+
+          // Pembuat Menu Aksi Individual di Mode Seleksi Tunggal
+          itemMenuBuilder: (item) => [
+            const PopupMenuItem(
+              value: 'edit',
+              child: Row(
+                children: [
+                  Icon(Icons.edit_note_rounded, size: 20, color: Colors.teal),
+                  SizedBox(width: 10),
+                  Text('Edit Prompt', style: TextStyle(fontSize: 13)),
+                ],
               ),
             ),
-          ),
-          body: Column(
-            children: [
-              // 2. WIDGET SEARCH DENGAN ANIMASI MEMBUKA (Slide/Expand down)
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 250),
-                curve: Curves.easeInOut,
-                height: _isSearchMode ? 70.0 : 0.0,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 8,
-                ),
-                color: const Color(
-                  0xFF3F51B5,
-                ), // Warna latar belakang area search disamakan AppBar
-                clipBehavior: Clip
-                    .antiAlias, // Mencegah teks meluber saat animasi mengecil
-                child: _isSearchMode
-                    ? Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _searchController,
-                              autofocus: true,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                              ),
-                              decoration: InputDecoration(
-                                hintText: 'Cari judul atau deskripsi prompt...',
-                                hintStyle: const TextStyle(
-                                  color: Colors.white60,
-                                  fontSize: 13,
-                                ),
-                                prefixIcon: const Icon(
-                                  Icons.search,
-                                  color: Colors.white70,
-                                ),
-                                suffixIcon: _searchController.text.isNotEmpty
-                                    ? IconButton(
-                                        icon: const Icon(
-                                          Icons.clear,
-                                          color: Colors.white70,
-                                          size: 18,
-                                        ),
-                                        onPressed: () =>
-                                            _searchController.clear(),
-                                      )
-                                    : null,
-                                filled: true,
-                                fillColor: Colors.white.withOpacity(0.15),
-                                contentPadding: const EdgeInsets.symmetric(
-                                  vertical: 0,
-                                  horizontal: 12,
-                                ),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide.none,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          // IMPLEMENTASI BARU: Tombol Tambah Item diletakkan di sebelah search bar
-                          IconButton(
-                            onPressed: _openAddPromptDialog,
-                            style: IconButton.styleFrom(
-                              backgroundColor: Colors.white.withOpacity(0.15),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              padding: const EdgeInsets.all(12),
-                            ),
-                            icon: const Icon(Icons.add, color: Colors.white),
-                            tooltip: 'Tambah Item Prompt Baru',
-                          ),
-                        ],
-                      )
-                    : const SizedBox.shrink(),
+            PopupMenuItem(
+              value: 'toggle_favorite',
+              child: Row(
+                children: [
+                  Icon(
+                    item.isFavorite
+                        ? Icons.star_rounded
+                        : Icons.star_border_rounded,
+                    size: 20,
+                    color: Colors.amber,
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    item.isFavorite ? 'Hapus Favorit' : 'Jadikan Favorit',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ],
               ),
-
-              // 3. DAFTAR ITEM PROMPT
-              Expanded(
-                child: _currentGroup.prompts.isEmpty
-                    ? const Center(
-                        child: Text(
-                          'Grup ini belum memiliki item prompt.\nTahan judul layar untuk mencari dan menambah item.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.grey),
-                        ),
-                      )
-                    : () {
-                        // LOGIKA FILTERING
-                        final filteredPrompts = _currentGroup.prompts.where((
-                          item,
-                        ) {
-                          if (_searchQuery.isEmpty) return true;
-                          final titleMatch = item.actAs.toLowerCase().contains(
-                            _searchQuery,
-                          );
-                          final descMatch =
-                              item.description?.toLowerCase().contains(
-                                _searchQuery,
-                              ) ??
-                              false;
-                          return titleMatch || descMatch;
-                        }).toList();
-
-                        if (filteredPrompts.isEmpty) {
-                          return const Center(
-                            child: Text(
-                              'Tidak ada item prompt yang cocok.',
-                              style: TextStyle(color: Colors.grey),
-                            ),
-                          );
-                        }
-
-                        // LOGIKA SORTING FAVORITE
-                        filteredPrompts.sort((a, b) {
-                          if (a.isFavorite && !b.isFavorite) return -1;
-                          if (!a.isFavorite && b.isFavorite) return 1;
-                          return 0;
-                        });
-
-                        return ListView.builder(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 12,
-                          ),
-                          itemCount: filteredPrompts.length,
-                          itemBuilder: (context, index) {
-                            final item = filteredPrompts[index];
-                            final bool isSelected = _controller
-                                .selectedPromptIds
-                                .contains(item.id);
-                            final bool hasDescription =
-                                item.description != null &&
-                                item.description!.trim().isNotEmpty;
-
-                            return Card(
-                              elevation: isSelected ? 4 : 0,
-                              color: isSelected
-                                  ? Colors.red.withOpacity(0.08)
-                                  : Colors.white,
-                              margin: const EdgeInsets.only(bottom: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                                side: BorderSide(
-                                  color: isSelected
-                                      ? Colors.red[700]!
-                                      : Colors.grey.shade100,
-                                  width: isSelected ? 1.5 : 1,
-                                ),
-                              ),
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(16),
-                                onTap: () {
-                                  if (isSelectMode) {
-                                    _controller.toggleSelectPromptItem(item.id);
-                                  } else {
-                                    _copyToClipboard(item.content);
-                                  }
-                                },
-                                onLongPress: () {
-                                  _controller.toggleSelectPromptItem(item.id);
-                                },
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Row(
-                                    children: [
-                                      if (isSelectMode) ...[
-                                        Checkbox(
-                                          activeColor: Colors.red[700],
-                                          value: isSelected,
-                                          onChanged: (_) => _controller
-                                              .toggleSelectPromptItem(item.id),
-                                        ),
-                                        const SizedBox(width: 12),
-                                      ] else ...[
-                                        Container(
-                                          width: 44,
-                                          height: 44,
-                                          decoration: const BoxDecoration(
-                                            color: Color(0xFFE8EAF6),
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: const Icon(
-                                            Icons.description_rounded,
-                                            color: Color(0xFF3F51B5),
-                                            size: 20,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 16),
-                                      ],
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Row(
-                                              children: [
-                                                Expanded(
-                                                  child: Text(
-                                                    item.actAs,
-                                                    style: const TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                      fontSize: 15,
-                                                      color: Color(0xFF2E3A59),
-                                                    ),
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                  ),
-                                                ),
-                                                if (item.isFavorite) ...[
-                                                  const SizedBox(width: 6),
-                                                  const Icon(
-                                                    Icons.star_rounded,
-                                                    color: Colors.amber,
-                                                    size: 20,
-                                                  ),
-                                                ],
-                                              ],
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              hasDescription
-                                                  ? item.description!
-                                                  : 'Tidak ada deskripsi',
-                                              style: TextStyle(
-                                                fontSize: 13,
-                                                color: hasDescription
-                                                    ? Colors.grey[600]
-                                                    : Colors.grey[400],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      // ================= ACTION BUTTONS =================
-                                      if (isSelectMode &&
-                                          totalSelected <= 1) ...[
-                                        const SizedBox(width: 8),
-                                        Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            const SizedBox(width: 12),
-                                            PopupMenuButton<String>(
-                                              icon: const Icon(
-                                                Icons.more_vert_rounded,
-                                                color: Colors.black38,
-                                                size: 20,
-                                              ),
-                                              padding: EdgeInsets.zero,
-                                              constraints:
-                                                  const BoxConstraints(),
-                                              onSelected: (value) async {
-                                                if (value == 'edit') {
-                                                  _openEditPromptDialog(item);
-                                                } else if (value ==
-                                                    'toggle_favorite') {
-                                                  final res = await _controller
-                                                      .toggleFavoritePromptItem(
-                                                        group: _currentGroup,
-                                                        itemId: item.id,
-                                                        context: context,
-                                                      );
-                                                  if (res != null) {
-                                                    setState(() {
-                                                      _currentGroup = res;
-                                                    });
-                                                  }
-                                                } else if (value ==
-                                                    'move_or_copy') {
-                                                  _showMoveOrCopyDialog(item);
-                                                } else if (value == 'delete') {
-                                                  _showDeleteSingleDialog(item);
-                                                }
-                                              },
-                                              itemBuilder: (ctx) => [
-                                                const PopupMenuItem(
-                                                  value: 'edit',
-                                                  child: Row(
-                                                    children: [
-                                                      Icon(
-                                                        Icons.edit_note_rounded,
-                                                        size: 20,
-                                                        color: Colors.teal,
-                                                      ),
-                                                      SizedBox(width: 10),
-                                                      Text(
-                                                        'Edit Prompt',
-                                                        style: TextStyle(
-                                                          fontSize: 13,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                                PopupMenuItem(
-                                                  value: 'toggle_favorite',
-                                                  child: Row(
-                                                    children: [
-                                                      Icon(
-                                                        item.isFavorite
-                                                            ? Icons.star_rounded
-                                                            : Icons
-                                                                  .star_border_rounded,
-                                                        size: 20,
-                                                        color: Colors.amber,
-                                                      ),
-                                                      const SizedBox(width: 10),
-                                                      Text(
-                                                        item.isFavorite
-                                                            ? 'Hapus Favorit'
-                                                            : 'Jadikan Favorit',
-                                                        style: const TextStyle(
-                                                          fontSize: 13,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                                const PopupMenuItem(
-                                                  value: 'move_or_copy',
-                                                  child: Row(
-                                                    children: [
-                                                      Icon(
-                                                        Icons
-                                                            .drive_file_move_outlined,
-                                                        size: 20,
-                                                        color: Colors.indigo,
-                                                      ),
-                                                      SizedBox(width: 10),
-                                                      Text(
-                                                        'Pindah / Salin',
-                                                        style: TextStyle(
-                                                          fontSize: 13,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                                const PopupMenuDivider(),
-                                                const PopupMenuItem(
-                                                  value: 'delete',
-                                                  child: Row(
-                                                    children: [
-                                                      Icon(
-                                                        Icons
-                                                            .delete_outline_rounded,
-                                                        size: 20,
-                                                        color: Colors.redAccent,
-                                                      ),
-                                                      SizedBox(width: 10),
-                                                      Text(
-                                                        'Hapus Prompt',
-                                                        style: TextStyle(
-                                                          fontSize: 13,
-                                                          color:
-                                                              Colors.redAccent,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        );
-                      }(),
+            ),
+            const PopupMenuItem(
+              value: 'move_or_copy',
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.drive_file_move_outlined,
+                    size: 20,
+                    color: Colors.indigo,
+                  ),
+                  SizedBox(width: 10),
+                  Text('Pindah / Salin', style: TextStyle(fontSize: 13)),
+                ],
               ),
-            ],
-          ),
-          // IMPLEMENTASI BARU: Floating Action Button dihilangkan (di-set null) agar tidak double
-          floatingActionButton: null,
+            ),
+            const PopupMenuDivider(),
+            const PopupMenuItem(
+              value: 'delete',
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.delete_outline_rounded,
+                    size: 20,
+                    color: Colors.redAccent,
+                  ),
+                  SizedBox(width: 10),
+                  Text(
+                    'Hapus Prompt',
+                    style: TextStyle(fontSize: 13, color: Colors.redAccent),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          onItemMenuSelected: (value, item) async {
+            if (value == 'edit') {
+              _openEditPromptDialog(item);
+            } else if (value == 'toggle_favorite') {
+              final res = await _controller.toggleFavoritePromptItem(
+                group: _currentGroup,
+                itemId: item.id,
+                context: context,
+              );
+              if (res != null) {
+                setState(() {
+                  _currentGroup = res;
+                });
+              }
+            } else if (value == 'move_or_copy') {
+              _showMoveOrCopyDialog(item);
+            } else if (value == 'delete') {
+              _showDeleteSingleDialog(item);
+            }
+          },
         );
       },
     );

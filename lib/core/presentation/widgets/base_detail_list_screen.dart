@@ -119,7 +119,9 @@ class _BaseDetailListScreenState<T> extends State<BaseDetailListScreen<T>> {
             ? Colors.red[900]
             : const Color(0xFF3F51B5),
         elevation: 0,
+        // PENERAPAN FIX: Menggunakan GestureDetector dengan Opaque & Container lebar penuh
         title: GestureDetector(
+          behavior: HitTestBehavior.opaque,
           onLongPress: () {
             if (widget.enableSearch && !_isSelectMode) {
               setState(() {
@@ -128,13 +130,17 @@ class _BaseDetailListScreenState<T> extends State<BaseDetailListScreen<T>> {
               });
             }
           },
-          child: Text(
-            _isSelectMode
-                ? '${_selectedItems.length} Terpilih'
-                : widget.pageTitle,
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              color: Colors.white,
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              _isSelectMode
+                  ? '${_selectedItems.length} Terpilih'
+                  : widget.pageTitle,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
             ),
           ),
         ),
@@ -221,9 +227,7 @@ class _BaseDetailListScreenState<T> extends State<BaseDetailListScreen<T>> {
                         IconButton(
                           onPressed: widget.onAddPressed,
                           style: IconButton.styleFrom(
-                            backgroundColor: Colors.white.withOpacity(
-                              0.15,
-                            ), // Pindahkan ke sini
+                            backgroundColor: Colors.white.withOpacity(0.15),
                           ),
                           icon: const Icon(Icons.add, color: Colors.white),
                         ),
