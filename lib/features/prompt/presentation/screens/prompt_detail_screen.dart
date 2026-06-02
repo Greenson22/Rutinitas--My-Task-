@@ -27,10 +27,10 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _currentGroup = widget.promptGroup; //[cite: 1]
+    _currentGroup = widget.promptGroup;
     // Muat semua grup ke controller agar fitur pindah/salin bisa mengambil daftar grup lain
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _controller.loadAllPrompts(context); //[cite: 1]
+      _controller.loadAllPrompts(context);
     });
 
     // Listener untuk mendeteksi perubahan input pencarian
@@ -44,13 +44,12 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
   @override
   void dispose() {
     // Pastikan state multi-select dibersihkan saat keluar dari screen ini
-    _controller.clearSelectedPrompts(); //[cite: 1]
+    _controller.clearSelectedPrompts();
     _searchController.dispose();
     super.dispose();
   }
 
   void _openAddPromptDialog() {
-    //[cite: 1]
     showDialog(
       context: context,
       builder: (ctx) => AddPromptItemDialog(
@@ -67,7 +66,6 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
 
   // ========= FITUR EDIT, HAPUS, MOVE/COPY DIALOG =========
   void _openEditPromptDialog(PromptItem item) {
-    //[cite: 1]
     final actAsController = TextEditingController(text: item.actAs);
     final descController = TextEditingController(text: item.description ?? '');
     final contentController = TextEditingController(text: item.content);
@@ -197,7 +195,6 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
   }
 
   void _showDeleteSingleDialog(PromptItem item) {
-    //[cite: 1]
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -231,7 +228,6 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
   }
 
   void _showDeleteMassiveDialog(int totalSelected) {
-    //[cite: 1]
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -269,7 +265,6 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
   }
 
   void _showMoveOrCopyDialog(PromptItem item) {
-    //[cite: 1]
     final otherGroups = _controller.promptGroups
         .where((g) => g.id != _currentGroup.id)
         .toList();
@@ -405,7 +400,6 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
   }
 
   void _copyToClipboard(String text) {
-    //[cite: 1]
     Clipboard.setData(ClipboardData(text: text));
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -416,7 +410,6 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
   }
 
   void _showMoveMassiveDialog(int totalSelected) {
-    //[cite: 1]
     final otherGroups = _controller.promptGroups
         .where((g) => g.id != _currentGroup.id)
         .toList();
@@ -515,88 +508,92 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
           (g) => g.id == _currentGroup.id,
           orElse: () => _currentGroup,
         );
-        _currentGroup = updatedGroup; //[cite: 1]
+        _currentGroup = updatedGroup;
 
-        final bool isSelectMode = _controller.isMultiSelectMode; //[cite: 1]
-        final int totalSelected =
-            _controller.selectedPromptIds.length; //[cite: 1]
+        final bool isSelectMode = _controller.isMultiSelectMode;
+        final int totalSelected = _controller.selectedPromptIds.length;
 
         return Scaffold(
-          backgroundColor: const Color(0xFFF5F6FA), //[cite: 1]
-          // 1. Bungkus AppBar dengan PreferredSize + GestureDetector agar bisa mendeteksi Long Press
+          backgroundColor: const Color(0xFFF5F6FA),
+
+          // IMPLEMENTASI BARU: Menambahkan Material & InkWell pada PreferredSize AppBar
           appBar: PreferredSize(
             preferredSize: const Size.fromHeight(kToolbarHeight),
-            child: GestureDetector(
-              onLongPress: () {
-                if (!isSelectMode) {
-                  setState(() {
-                    _isSearchMode = !_isSearchMode; // Toggle mode search on/off
-                    if (!_isSearchMode) _searchController.clear();
-                  });
-                }
-              },
-              child: AppBar(
-                title: Text(
-                  isSelectMode
-                      ? '$totalSelected Terpilih'
-                      : _currentGroup.title, //[cite: 1]
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
+            child: Material(
+              // Latar belakang diatur di tingkat Material agar tidak menutup splash effect
+              color: isSelectMode ? Colors.red[900] : const Color(0xFF3F51B5),
+              child: InkWell(
+                onLongPress: () {
+                  if (!isSelectMode) {
+                    setState(() {
+                      _isSearchMode =
+                          !_isSearchMode; // Toggle mode search on/off
+                      if (!_isSearchMode) _searchController.clear();
+                    });
+                  }
+                },
+                // Memberikan kustomisasi warna efek riak agar kontras dengan warna utama
+                splashColor: Colors.white.withOpacity(0.2),
+                highlightColor: Colors.white.withOpacity(0.1),
+                child: AppBar(
+                  // Buat background AppBar transparan supaya riak air dari Material terlihat
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  title: Text(
+                    isSelectMode
+                        ? '$totalSelected Terpilih'
+                        : _currentGroup.title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
                   ),
-                ),
-                backgroundColor: isSelectMode
-                    ? Colors.red[900]
-                    : const Color(0xFF3F51B5), //[cite: 1]
-                elevation: 0, //[cite: 1]
-                leading: isSelectMode
-                    ? IconButton(
-                        icon: const Icon(Icons.close, color: Colors.white),
+                  leading: isSelectMode
+                      ? IconButton(
+                          icon: const Icon(Icons.close, color: Colors.white),
+                          onPressed: () => _controller.clearSelectedPrompts(),
+                        )
+                      : IconButton(
+                          icon: const Icon(
+                            Icons.arrow_back,
+                            color: Colors.white,
+                          ),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                  actions: [
+                    if (isSelectMode) ...[
+                      IconButton(
+                        icon: const Icon(
+                          Icons.drive_file_move,
+                          color: Colors.white,
+                        ),
+                        tooltip: 'Pindahkan Semua Terpilih',
+                        onPressed: () => _showMoveMassiveDialog(totalSelected),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.white),
+                        tooltip: 'Hapus Semua Terpilih',
                         onPressed: () =>
-                            _controller.clearSelectedPrompts(), //[cite: 1]
-                      )
-                    : IconButton(
-                        icon: const Icon(Icons.arrow_back, color: Colors.white),
-                        onPressed: () => Navigator.pop(context), //[cite: 1]
+                            _showDeleteMassiveDialog(totalSelected),
                       ),
-                actions: [
-                  if (isSelectMode) ...[
-                    //[cite: 1]
-                    IconButton(
-                      icon: const Icon(
-                        Icons.drive_file_move,
-                        color: Colors.white,
-                      ), //[cite: 1]
-                      tooltip: 'Pindahkan Semua Terpilih',
-                      onPressed: () =>
-                          _showMoveMassiveDialog(totalSelected), //[cite: 1]
-                    ),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.delete,
-                        color: Colors.white,
-                      ), //[cite: 1]
-                      tooltip: 'Hapus Semua Terpilih',
-                      onPressed: () =>
-                          _showDeleteMassiveDialog(totalSelected), //[cite: 1]
-                    ),
-                  ] else if (_isSearchMode) ...[
-                    // Berikan tombol close search di AppBar jika search aktif
-                    IconButton(
-                      icon: const Icon(
-                        Icons.search_off_rounded,
-                        color: Colors.white,
+                    ] else if (_isSearchMode) ...[
+                      // Berikan tombol close search di AppBar jika search aktif
+                      IconButton(
+                        icon: const Icon(
+                          Icons.search_off_rounded,
+                          color: Colors.white,
+                        ),
+                        tooltip: 'Tutup Pencarian',
+                        onPressed: () {
+                          setState(() {
+                            _isSearchMode = false;
+                            _searchController.clear();
+                          });
+                        },
                       ),
-                      tooltip: 'Tutup Pencarian',
-                      onPressed: () {
-                        setState(() {
-                          _isSearchMode = false;
-                          _searchController.clear();
-                        });
-                      },
-                    ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),
@@ -661,13 +658,10 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
 
               // 3. DAFTAR ITEM PROMPT
               Expanded(
-                child:
-                    _currentGroup
-                        .prompts
-                        .isEmpty //[cite: 1]
+                child: _currentGroup.prompts.isEmpty
                     ? const Center(
                         child: Text(
-                          'Grup ini belum memiliki item prompt.\nSilakan tambah menggunakan tombol di bawah.', //[cite: 1]
+                          'Grup ini belum memiliki item prompt.\nSilakan tambah menggunakan tombol di bawah.',
                           textAlign: TextAlign.center,
                           style: TextStyle(color: Colors.grey),
                         ),
@@ -700,11 +694,9 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
 
                         // LOGIKA SORTING FAVORITE
                         filteredPrompts.sort((a, b) {
-                          if (a.isFavorite && !b.isFavorite)
-                            return -1; //[cite: 1]
-                          if (!a.isFavorite && b.isFavorite)
-                            return 1; //[cite: 1]
-                          return 0; //[cite: 1]
+                          if (a.isFavorite && !b.isFavorite) return -1;
+                          if (!a.isFavorite && b.isFavorite) return 1;
+                          return 0;
                         });
 
                         return ListView.builder(
@@ -717,85 +709,65 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                             final item = filteredPrompts[index];
                             final bool isSelected = _controller
                                 .selectedPromptIds
-                                .contains(item.id); //[cite: 1]
+                                .contains(item.id);
                             final bool hasDescription =
                                 item.description != null &&
-                                item.description!.trim().isNotEmpty; //[cite: 1]
+                                item.description!.trim().isNotEmpty;
 
                             return Card(
-                              elevation: isSelected ? 4 : 0, //[cite: 1]
+                              elevation: isSelected ? 4 : 0,
                               color: isSelected
                                   ? Colors.red.withOpacity(0.08)
-                                  : Colors.white, //[cite: 1]
-                              margin: const EdgeInsets.only(
-                                bottom: 12,
-                              ), //[cite: 1]
+                                  : Colors.white,
+                              margin: const EdgeInsets.only(bottom: 12),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(
-                                  16,
-                                ), //[cite: 1]
+                                borderRadius: BorderRadius.circular(16),
                                 side: BorderSide(
                                   color: isSelected
                                       ? Colors.red[700]!
-                                      : Colors.grey.shade100, //[cite: 1]
-                                  width: isSelected ? 1.5 : 1, //[cite: 1]
+                                      : Colors.grey.shade100,
+                                  width: isSelected ? 1.5 : 1,
                                 ),
                               ),
                               child: InkWell(
-                                borderRadius: BorderRadius.circular(
-                                  16,
-                                ), //[cite: 1]
+                                borderRadius: BorderRadius.circular(16),
                                 onTap: () {
                                   if (isSelectMode) {
-                                    //[cite: 1]
-                                    _controller.toggleSelectPromptItem(
-                                      item.id,
-                                    ); //[cite: 1]
+                                    _controller.toggleSelectPromptItem(item.id);
                                   } else {
-                                    _copyToClipboard(item.content); //[cite: 1]
+                                    _copyToClipboard(item.content);
                                   }
                                 },
                                 onLongPress: () {
-                                  _controller.toggleSelectPromptItem(
-                                    item.id,
-                                  ); //[cite: 1]
+                                  _controller.toggleSelectPromptItem(item.id);
                                 },
                                 child: Padding(
-                                  padding: const EdgeInsets.all(16), //[cite: 1]
+                                  padding: const EdgeInsets.all(16),
                                   child: Row(
                                     children: [
                                       if (isSelectMode) ...[
-                                        //[cite: 1]
                                         Checkbox(
-                                          activeColor:
-                                              Colors.red[700], //[cite: 1]
-                                          value: isSelected, //[cite: 1]
+                                          activeColor: Colors.red[700],
+                                          value: isSelected,
                                           onChanged: (_) => _controller
-                                              .toggleSelectPromptItem(
-                                                item.id,
-                                              ), //[cite: 1]
+                                              .toggleSelectPromptItem(item.id),
                                         ),
-                                        const SizedBox(width: 12), //[cite: 1]
+                                        const SizedBox(width: 12),
                                       ] else ...[
                                         Container(
-                                          width: 44, //[cite: 1]
-                                          height: 44, //[cite: 1]
+                                          width: 44,
+                                          height: 44,
                                           decoration: const BoxDecoration(
-                                            color: Color(
-                                              0xFFE8EAF6,
-                                            ), //[cite: 1]
-                                            shape: BoxShape.circle, //[cite: 1]
+                                            color: Color(0xFFE8EAF6),
+                                            shape: BoxShape.circle,
                                           ),
                                           child: const Icon(
-                                            Icons
-                                                .description_rounded, //[cite: 1]
-                                            color: Color(
-                                              0xFF3F51B5,
-                                            ), //[cite: 1]
-                                            size: 20, //[cite: 1]
+                                            Icons.description_rounded,
+                                            color: Color(0xFF3F51B5),
+                                            size: 20,
                                           ),
                                         ),
-                                        const SizedBox(width: 16), //[cite: 1]
+                                        const SizedBox(width: 16),
                                       ],
                                       Expanded(
                                         child: Column(
@@ -807,46 +779,37 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                                               children: [
                                                 Expanded(
                                                   child: Text(
-                                                    item.actAs, //[cite: 1]
+                                                    item.actAs,
                                                     style: const TextStyle(
                                                       fontWeight:
                                                           FontWeight.bold,
                                                       fontSize: 15,
                                                       color: Color(0xFF2E3A59),
                                                     ),
-                                                    overflow: TextOverflow
-                                                        .ellipsis, //[cite: 1]
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
                                                   ),
                                                 ),
                                                 if (item.isFavorite) ...[
-                                                  //[cite: 1]
-                                                  const SizedBox(
-                                                    width: 6,
-                                                  ), //[cite: 1]
+                                                  const SizedBox(width: 6),
                                                   const Icon(
-                                                    Icons
-                                                        .star_rounded, //[cite: 1]
-                                                    color: Colors
-                                                        .amber, //[cite: 1]
-                                                    size: 20, //[cite: 1]
+                                                    Icons.star_rounded,
+                                                    color: Colors.amber,
+                                                    size: 20,
                                                   ),
                                                 ],
                                               ],
                                             ),
-                                            const SizedBox(
-                                              height: 4,
-                                            ), //[cite: 1]
+                                            const SizedBox(height: 4),
                                             Text(
                                               hasDescription
-                                                  ? item.description! //[cite: 1]
-                                                  : 'Tidak ada deskripsi', //[cite: 1]
+                                                  ? item.description!
+                                                  : 'Tidak ada deskripsi',
                                               style: TextStyle(
-                                                fontSize: 13, //[cite: 1]
+                                                fontSize: 13,
                                                 color: hasDescription
-                                                    ? Colors
-                                                          .grey[600] //[cite: 1]
-                                                    : Colors
-                                                          .grey[400], //[cite: 1]
+                                                    ? Colors.grey[600]
+                                                    : Colors.grey[400],
                                               ),
                                             ),
                                           ],
@@ -855,62 +818,41 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                                       // ================= ACTION BUTTONS =================
                                       if (isSelectMode &&
                                           totalSelected <= 1) ...[
-                                        //[cite: 1]
-                                        const SizedBox(width: 8), //[cite: 1]
+                                        const SizedBox(width: 8),
                                         Row(
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
-                                            const SizedBox(
-                                              width: 12,
-                                            ), //[cite: 1]
+                                            const SizedBox(width: 12),
                                             PopupMenuButton<String>(
                                               icon: const Icon(
-                                                Icons
-                                                    .more_vert_rounded, //[cite: 1]
-                                                color:
-                                                    Colors.black38, //[cite: 1]
-                                                size: 20, //[cite: 1]
+                                                Icons.more_vert_rounded,
+                                                color: Colors.black38,
+                                                size: 20,
                                               ),
-                                              padding:
-                                                  EdgeInsets.zero, //[cite: 1]
+                                              padding: EdgeInsets.zero,
                                               constraints:
-                                                  const BoxConstraints(), //[cite: 1]
+                                                  const BoxConstraints(),
                                               onSelected: (value) async {
                                                 if (value == 'edit') {
-                                                  //[cite: 1]
-                                                  _openEditPromptDialog(
-                                                    item,
-                                                  ); //[cite: 1]
+                                                  _openEditPromptDialog(item);
                                                 } else if (value ==
                                                     'toggle_favorite') {
-                                                  //[cite: 1]
                                                   final res = await _controller
                                                       .toggleFavoritePromptItem(
-                                                        //[cite: 1]
-                                                        group:
-                                                            _currentGroup, //[cite: 1]
-                                                        itemId:
-                                                            item.id, //[cite: 1]
-                                                        context:
-                                                            context, //[cite: 1]
+                                                        group: _currentGroup,
+                                                        itemId: item.id,
+                                                        context: context,
                                                       );
                                                   if (res != null) {
-                                                    //[cite: 1]
                                                     setState(() {
                                                       _currentGroup = res;
                                                     });
                                                   }
                                                 } else if (value ==
                                                     'move_or_copy') {
-                                                  //[cite: 1]
-                                                  _showMoveOrCopyDialog(
-                                                    item,
-                                                  ); //[cite: 1]
+                                                  _showMoveOrCopyDialog(item);
                                                 } else if (value == 'delete') {
-                                                  //[cite: 1]
-                                                  _showDeleteSingleDialog(
-                                                    item,
-                                                  ); //[cite: 1]
+                                                  _showDeleteSingleDialog(item);
                                                 }
                                               },
                                               itemBuilder: (ctx) => [
@@ -919,104 +861,82 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                                                   child: Row(
                                                     children: [
                                                       Icon(
-                                                        Icons
-                                                            .edit_note_rounded, //[cite: 1]
-                                                        size: 20, //[cite: 1]
-                                                        color: Colors
-                                                            .teal, //[cite: 1]
+                                                        Icons.edit_note_rounded,
+                                                        size: 20,
+                                                        color: Colors.teal,
                                                       ),
-                                                      SizedBox(
-                                                        width: 10,
-                                                      ), //[cite: 1]
+                                                      SizedBox(width: 10),
                                                       Text(
-                                                        'Edit Prompt', //[cite: 1]
+                                                        'Edit Prompt',
                                                         style: TextStyle(
-                                                          fontSize:
-                                                              13, //[cite: 1]
+                                                          fontSize: 13,
                                                         ),
                                                       ),
                                                     ],
                                                   ),
                                                 ),
                                                 PopupMenuItem(
-                                                  value:
-                                                      'toggle_favorite', //[cite: 1]
+                                                  value: 'toggle_favorite',
                                                   child: Row(
                                                     children: [
                                                       Icon(
-                                                        item
-                                                                .isFavorite //[cite: 1]
-                                                            ? Icons
-                                                                  .star_rounded //[cite: 1]
+                                                        item.isFavorite
+                                                            ? Icons.star_rounded
                                                             : Icons
-                                                                  .star_border_rounded, //[cite: 1]
-                                                        size: 20, //[cite: 1]
-                                                        color: Colors
-                                                            .amber, //[cite: 1]
+                                                                  .star_border_rounded,
+                                                        size: 20,
+                                                        color: Colors.amber,
                                                       ),
-                                                      const SizedBox(
-                                                        width: 10,
-                                                      ), //[cite: 1]
+                                                      const SizedBox(width: 10),
                                                       Text(
-                                                        item
-                                                                .isFavorite //[cite: 1]
-                                                            ? 'Hapus Favorit' //[cite: 1]
-                                                            : 'Jadikan Favorit', //[cite: 1]
+                                                        item.isFavorite
+                                                            ? 'Hapus Favorit'
+                                                            : 'Jadikan Favorit',
                                                         style: const TextStyle(
-                                                          fontSize:
-                                                              13, //[cite: 1]
+                                                          fontSize: 13,
                                                         ),
                                                       ),
                                                     ],
                                                   ),
                                                 ),
                                                 const PopupMenuItem(
-                                                  value:
-                                                      'move_or_copy', //[cite: 1]
+                                                  value: 'move_or_copy',
                                                   child: Row(
                                                     children: [
                                                       Icon(
                                                         Icons
-                                                            .drive_file_move_outlined, //[cite: 1]
-                                                        size: 20, //[cite: 1]
-                                                        color: Colors
-                                                            .indigo, //[cite: 1]
+                                                            .drive_file_move_outlined,
+                                                        size: 20,
+                                                        color: Colors.indigo,
                                                       ),
-                                                      SizedBox(
-                                                        width: 10,
-                                                      ), //[cite: 1]
+                                                      SizedBox(width: 10),
                                                       Text(
-                                                        'Pindah / Salin', //[cite: 1]
+                                                        'Pindah / Salin',
                                                         style: TextStyle(
-                                                          fontSize:
-                                                              13, //[cite: 1]
+                                                          fontSize: 13,
                                                         ),
                                                       ),
                                                     ],
                                                   ),
                                                 ),
-                                                const PopupMenuDivider(), //[cite: 1]
+                                                const PopupMenuDivider(),
                                                 const PopupMenuItem(
-                                                  value: 'delete', //[cite: 1]
+                                                  value: 'delete',
                                                   child: Row(
                                                     children: [
                                                       Icon(
                                                         Icons
-                                                            .delete_outline_rounded, //[cite: 1]
-                                                        size: 20, //[cite: 1]
-                                                        color: Colors
-                                                            .redAccent, //[cite: 1]
+                                                            .delete_outline_rounded,
+                                                        size: 20,
+                                                        color: Colors.redAccent,
                                                       ),
-                                                      SizedBox(
-                                                        width: 10,
-                                                      ), //[cite: 1]
+                                                      SizedBox(width: 10),
                                                       Text(
-                                                        'Hapus Prompt', //[cite: 1]
+                                                        'Hapus Prompt',
                                                         style: TextStyle(
-                                                          fontSize:
-                                                              13, //[cite: 1]
-                                                          color: Colors
-                                                              .redAccent, //[cite: 1]
+                                                          fontSize: 13,
+                                                          color:
+                                                              Colors.redAccent,
                                                         ),
                                                       ),
                                                     ],
@@ -1038,15 +958,13 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
               ),
             ],
           ),
-          floatingActionButton:
-              isSelectMode //[cite: 1]
-              ? null //[cite: 1]
+          floatingActionButton: isSelectMode
+              ? null
               : FloatingActionButton(
-                  //[cite: 1]
-                  onPressed: _openAddPromptDialog, //[cite: 1]
-                  backgroundColor: const Color(0xFF3F51B5), //[cite: 1]
-                  tooltip: 'Tambah Item Prompt Baru', //[cite: 1]
-                  child: const Icon(Icons.add, color: Colors.white), //[cite: 1]
+                  onPressed: _openAddPromptDialog,
+                  backgroundColor: const Color(0xFF3F51B5),
+                  tooltip: 'Tambah Item Prompt Baru',
+                  child: const Icon(Icons.add, color: Colors.white),
                 ),
         );
       },
