@@ -472,6 +472,7 @@ class PromptController extends ChangeNotifier {
         id: newItemId,
         actAs: title.trim(),
         content: content.trim(),
+        description: description.trim().isEmpty ? null : description.trim(),
         isFavorite: false,
       );
 
@@ -537,7 +538,9 @@ class PromptController extends ChangeNotifier {
           id: oldItem.id,
           actAs: newActAs.trim(),
           content: newContent.trim(),
-          description: newDescription.trim(),
+          description: newDescription.trim().isEmpty
+              ? null
+              : newDescription.trim(),
           isFavorite: oldItem.isFavorite,
         );
 
@@ -630,6 +633,7 @@ class PromptController extends ChangeNotifier {
         id: newItemId,
         actAs: item.actAs,
         content: item.content,
+        description: item.description,
         isFavorite: item.isFavorite,
       );
 
@@ -704,7 +708,7 @@ class PromptController extends ChangeNotifier {
     }
   }
 
-  // =============== FITUR BARU: HAPUS MASSAL (MULTIPLE DELETE) ===============
+  // =============== FITUR: HAPUS MASSAL (MULTIPLE DELETE) ===============
   Future<PromptGroup?> deleteSelectedPromptItems({
     required PromptGroup group,
     required BuildContext context,
@@ -753,8 +757,7 @@ class PromptController extends ChangeNotifier {
     }
   }
 
-  // Tambahkan method baru ini di dalam class PromptController
-
+  // =============== FITUR: PINDAH MASSAL (MULTIPLE MOVE) ===============
   Future<PromptGroup?> moveSelectedPromptItems({
     required PromptGroup sourceGroup,
     required PromptGroup targetGroup,
@@ -777,7 +780,7 @@ class PromptController extends ChangeNotifier {
         // Jika grup target sama dengan grup asal, cukup bersihkan seleksi
         _selectedPromptIds.clear();
       } else {
-        // 2. Buat duplikat item dengan ID baru agar unik di group target (opsional, menyesuaikan skema data Anda)
+        // 2. Buat duplikat item dengan ID baru agar unik di group target
         final List<PromptItem> preparedItems = itemsToMove.map((item) {
           return PromptItem(
             id: 'item_${DateTime.now().millisecondsSinceEpoch}_${item.id}',
@@ -838,6 +841,62 @@ class PromptController extends ChangeNotifier {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Gagal memindahkan beberapa prompt: $e')),
+        );
+      }
+      return null;
+    }
+  }
+
+  // =============== FITUR BARU: TOGGLE FAVORITE PROMPT ITEM ===============
+  Future<PromptGroup?> toggleFavoritePromptItem({
+    required PromptGroup group,
+    required String itemId,
+    required BuildContext context,
+  }) async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      final baseDir = await _storageService.getBaseDirSetting();
+      final index = group.prompts.indexWhere((p) => p.id == itemId);
+
+      if (index != -1) {
+        final oldItem = group.prompts[index];
+        // Balikkan nilai status isFavorite
+        group.prompts[index] = PromptItem(
+          id: oldItem.id,
+          actAs: oldItem.actAs,
+          content: oldItem.content,
+          description: oldItem.description,
+          isFavorite: !oldItem.isFavorite,
+        );
+
+        final String jsonString = _storageService.formatJsonPretty(
+          group.toJson(),
+        );
+        await _storageService.savePromptGroup(baseDir, group.id, jsonString);
+
+        if (context.mounted) {
+          await loadAllPrompts(context);
+          final String statusText = group.prompts[index].isFavorite
+              ? 'ditambahkan ke favorit'
+              : 'dihapus dari favorit';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Prompt "${oldItem.actAs}" $statusText!')),
+          );
+        }
+      }
+      _isLoading = false;
+      notifyListeners();
+      return _promptGroups.firstWhere(
+        (g) => g.id == group.id,
+        orElse: () => group,
+      );
+    } catch (e) {
+      _isLoading = false;
+      notifyListeners();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal memperbarui status favorit: $e')),
         );
       }
       return null;

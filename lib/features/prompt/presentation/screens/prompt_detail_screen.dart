@@ -628,13 +628,28 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Text(
-                                      item.actAs,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 15,
-                                        color: Color(0xFF2E3A59),
-                                      ),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            item.actAs,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 15,
+                                              color: Color(0xFF2E3A59),
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        if (item.isFavorite) ...[
+                                          const SizedBox(width: 6),
+                                          const Icon(
+                                            Icons.star_rounded,
+                                            color: Colors.amber,
+                                            size: 20,
+                                          ),
+                                        ],
+                                      ],
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
@@ -653,9 +668,6 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                               ),
 
                               // ================= ACTION BUTTONS =================
-                              // Diperbarui: Menggunakan `totalSelected <= 1` agar menu titik tiga
-                              // TETAP MUNCUL ketika mode pilih pertama kali diaktifkan melalui Long Press.
-                              // Tombol akan otomatis tersembunyi jika Anda mencentang item kedua atau kembali ke mode normal.
                               if (isSelectMode && totalSelected <= 1) ...[
                                 const SizedBox(width: 8),
                                 Row(
@@ -670,9 +682,21 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                                       ),
                                       padding: EdgeInsets.zero,
                                       constraints: const BoxConstraints(),
-                                      onSelected: (value) {
+                                      onSelected: (value) async {
                                         if (value == 'edit') {
                                           _openEditPromptDialog(item);
+                                        } else if (value == 'toggle_favorite') {
+                                          final res = await _controller
+                                              .toggleFavoritePromptItem(
+                                                group: _currentGroup,
+                                                itemId: item.id,
+                                                context: context,
+                                              );
+                                          if (res != null) {
+                                            setState(() {
+                                              _currentGroup = res;
+                                            });
+                                          }
                                         } else if (value == 'move_or_copy') {
                                           _showMoveOrCopyDialog(item);
                                         } else if (value == 'delete') {
@@ -693,6 +717,29 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                                               Text(
                                                 'Edit Prompt',
                                                 style: TextStyle(fontSize: 13),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        PopupMenuItem(
+                                          value: 'toggle_favorite',
+                                          child: Row(
+                                            children: [
+                                              Icon(
+                                                item.isFavorite
+                                                    ? Icons.star_rounded
+                                                    : Icons.star_border_rounded,
+                                                size: 20,
+                                                color: Colors.amber,
+                                              ),
+                                              const SizedBox(width: 10),
+                                              Text(
+                                                item.isFavorite
+                                                    ? 'Hapus Favorit'
+                                                    : 'Jadikan Favorit',
+                                                style: const TextStyle(
+                                                  fontSize: 13,
+                                                ),
                                               ),
                                             ],
                                           ),
