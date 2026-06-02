@@ -522,6 +522,7 @@ class PromptController extends ChangeNotifier {
           id: oldItem.id,
           actAs: newActAs.trim(),
           content: newContent.trim(),
+          description: newDescription.trim(), // <--- TAMBAHKAN BARIS INI!
           isFavorite: oldItem.isFavorite,
         );
         await _storageService.savePromptGroup(
