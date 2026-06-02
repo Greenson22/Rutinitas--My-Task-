@@ -52,7 +52,7 @@ class _NotesScreenState extends State<NotesScreen> {
     return GroupedSectionLayout<NoteModel>(
       title: 'Catatan Saya',
       appBarColor: _themeColor,
-      drawer: const DrawerMenu(isDailyActive: true),
+      drawer: const DrawerMenu(isNotesActive: true),
       isLoading: false,
       isEmpty: _groupedNotes.isEmpty,
       emptyMessage: 'Belum ada catatan. Silakan tambah baru!',

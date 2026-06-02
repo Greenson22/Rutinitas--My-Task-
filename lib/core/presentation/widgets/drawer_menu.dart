@@ -216,10 +216,7 @@ class _DrawerMenuState extends State<DrawerMenu> {
             title: 'Catatan',
             isActive: widget.isPromptActive,
             onTap: () {
-              // Tutup drawer terlebih dahulu
               Navigator.pop(context);
-              // Jika halaman saat ini bukan halaman Notes, pindah ke NotesScreen
-              // Gunakan widget.isNotesActive
               if (!widget.isNotesActive) {
                 Navigator.pushReplacement(
                   context,
