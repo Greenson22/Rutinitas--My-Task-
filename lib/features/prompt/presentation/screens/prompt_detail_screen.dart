@@ -679,18 +679,6 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                                 Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    IconButton(
-                                      icon: const Icon(
-                                        Icons.copy_rounded,
-                                        color: Colors.black38,
-                                        size: 20,
-                                      ),
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
-                                      tooltip: 'Salin Konten',
-                                      onPressed: () =>
-                                          _copyToClipboard(item.content),
-                                    ),
                                     const SizedBox(width: 12),
                                     PopupMenuButton<String>(
                                       icon: const Icon(
