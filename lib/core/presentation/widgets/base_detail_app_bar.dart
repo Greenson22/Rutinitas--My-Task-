@@ -51,15 +51,18 @@ class BaseDetailAppBar extends StatelessWidget implements PreferredSizeWidget {
               onPressed: onClearSelection,
             )
           : IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              // Otomatis ganti ikon: jika bisa kembali pakai panah, jika di utama pakai menu
+              icon: Icon(
+                Navigator.canPop(context) ? Icons.arrow_back : Icons.menu,
+                color: Colors.white,
+              ),
               onPressed: () {
-                // Periksa apakah ada halaman untuk kembali di tumpukan navigasi
                 if (Navigator.canPop(context)) {
                   Navigator.pop(context);
                 } else {
-                  // Jika ini halaman utama, buka drawer menu atau abaikan saja
-                  // agar tidak melempar layar putih
-                  Scaffold.of(context).openDrawer();
+                  Scaffold.of(
+                    context,
+                  ).openDrawer(); // Membuka drawer dengan ikon menu yang sesuai
                 }
               },
             ),
