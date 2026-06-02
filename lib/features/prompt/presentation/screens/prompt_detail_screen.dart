@@ -317,48 +317,64 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
               itemBuilder: (context, index) {
                 final item = _currentGroup.prompts[index];
                 return Card(
-                  margin: const EdgeInsets.only(bottom: 12),
+                  margin: const EdgeInsets.only(
+                    bottom: 8,
+                  ), // Dikurangi dari 12 agar jarak antar kartu lebih rapat
                   elevation: 2,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: ListTile(
-                    contentPadding: const EdgeInsets.all(16),
+                    dense:
+                        true, // 1. MENGAKTIFKAN DENSE MODE: Membuat komponen internal ListTile otomatis lebih rapat/pendek
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 6,
+                    ), // 2. DIKURANGI: Mengubah vertikal padding dari 16 menjadi 6
                     leading: CircleAvatar(
                       backgroundColor: Colors.indigo[50],
+                      radius:
+                          16, // 3. OPTIONAL: Sedikit mengecilkan ukuran lingkar avatar dari default bawaan (biasanya 20)
                       child: Icon(
                         item.isFavorite ? Icons.star : Icons.description,
                         color: item.isFavorite ? Colors.orange : Colors.indigo,
-                        size: 20,
+                        size:
+                            16, // Menyesuaikan ukuran icon di dalam avatar kecil
                       ),
                     ),
                     title: Text(
                       item.actAs,
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: 15,
+                        fontSize:
+                            14, // Sedikit disesuaikan untuk keseimbangan dense mode
                         color: Colors.indigo,
                       ),
                     ),
                     subtitle: Padding(
-                      padding: const EdgeInsets.only(top: 6.0),
+                      padding: const EdgeInsets.only(
+                        top: 2.0,
+                      ), // Jarak atas teks subtitle dikurangi dari 6.0 menjadi 2.0
                       child: Text(
                         (item.description != null &&
                                 item.description!.trim().isNotEmpty)
                             ? item.description!
-                            : 'Tidak ada deskripsi', // Teks jika deskripsi kosong
+                            : 'Tidak ada deskripsi',
+                        maxLines:
+                            1, // 4. PEMBATAS BARIS: Memastikan teks deskripsi yang panjang tidak merusak ukuran tinggi kartu
+                        overflow: TextOverflow
+                            .ellipsis, // Memberikan efek titik-titik (...) jika teks deskripsi terlalu panjang
                         style: TextStyle(
-                          fontSize: 13,
+                          fontSize: 12,
                           color:
                               (item.description != null &&
                                   item.description!.trim().isNotEmpty)
                               ? Colors.black87
-                              : Colors.grey, // Warna teks abu-abu jika kosong
-                          height: 1.4,
+                              : Colors.grey,
+                          height: 1.2,
                         ),
                       ),
                     ),
-                    // ========= MENU AKSI BARU (TRAILING) =========
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -366,9 +382,15 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                           icon: const Icon(
                             Icons.copy,
                             color: Colors.grey,
-                            size: 20,
+                            size:
+                                18, // Sedikit diperkecil agar pas dengan tinggi item yang pendek
                           ),
                           tooltip: 'Salin Teks Prompt',
+                          constraints:
+                              const BoxConstraints(), // Menghilangkan batas ukuran default IconButton
+                          padding: const EdgeInsets.all(
+                            4,
+                          ), // Merapatkan area sentuh tombol copy
                           onPressed: () async {
                             await Clipboard.setData(
                               ClipboardData(text: item.content),
@@ -388,9 +410,14 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                           icon: const Icon(
                             Icons.more_vert,
                             color: Colors.grey,
-                            size: 20,
+                            size: 18, // Sedikit diperkecil
                           ),
                           tooltip: 'Menu Tambahan',
+                          constraints:
+                              const BoxConstraints(), // Menghilangkan batas ukuran default
+                          padding: const EdgeInsets.all(
+                            4,
+                          ), // Merapatkan area sentuh tombol menu
                           onSelected: (value) {
                             if (value == 'edit') {
                               _showEditPromptDialog(item);
@@ -403,6 +430,7 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                             }
                           },
                           itemBuilder: (BuildContext context) => [
+                            // ... isi item popupMenu Anda tetap sama seperti sebelumnya ...
                             const PopupMenuItem(
                               value: 'edit',
                               child: Row(
