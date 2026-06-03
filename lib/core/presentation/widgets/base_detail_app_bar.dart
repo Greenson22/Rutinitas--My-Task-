@@ -32,7 +32,7 @@ class BaseDetailAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.enableMultiSelect = true,
     this.onMoveMassive,
     this.onDeleteMassive,
-    this.searchBarContent, // Tambahkan di sini
+    this.searchBarContent,
   });
 
   @override
@@ -55,7 +55,6 @@ class BaseDetailAppBar extends StatelessWidget implements PreferredSizeWidget {
               onPressed: onClearSelection,
             )
           : IconButton(
-              // Otomatis ganti ikon: jika bisa kembali pakai panah, jika di utama pakai menu
               icon: Icon(
                 Navigator.canPop(context) ? Icons.arrow_back : Icons.menu,
                 color: Colors.white,
@@ -64,13 +63,10 @@ class BaseDetailAppBar extends StatelessWidget implements PreferredSizeWidget {
                 if (Navigator.canPop(context)) {
                   Navigator.pop(context);
                 } else {
-                  Scaffold.of(
-                    context,
-                  ).openDrawer(); // Membuka drawer dengan ikon menu yang sesuai
+                  Scaffold.of(context).openDrawer();
                 }
               },
             ),
-      // flexibleSpace dengan InkWell untuk mendeteksi Long Press di area kosong AppBar
       flexibleSpace: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -97,29 +93,36 @@ class BaseDetailAppBar extends StatelessWidget implements PreferredSizeWidget {
         ] else if (isSearchMode) ...[
           IconButton(
             icon: const Icon(Icons.search_off_rounded, color: Colors.white),
-            onPressed: onToggleSearchMode, // Mematikan search mode
+            onPressed: onToggleSearchMode,
           ),
         ],
       ],
-      // Implementasi pemindahan AnimatedContainer ke dalam bottom AppBar
-      bottom: PreferredSize(
-        preferredSize: Size.fromHeight(isSearchMode ? 70.0 : 0.0),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeInOut,
-          height: isSearchMode ? 70.0 : 0.0,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          color: const Color(0xFF3F51B5),
-          clipBehavior: Clip.antiAlias,
-          child: isSearchMode && searchBarContent != null
-              ? searchBarContent
-              : const SizedBox.shrink(),
-        ),
-      ),
+      // Menggunakan SizedOverflowBox agar layout internal AppBar tidak menjerit eror
+      // saat batasan tinggi mengecil secara tiba-tiba ketika search dinonaktifkan.
+      bottom: isSearchMode
+          ? PreferredSize(
+              preferredSize: const Size.fromHeight(70.0),
+              child: ClipRect(
+                child: Container(
+                  height: 70.0,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  color: const Color(0xFF3F51B5),
+                  child: SizedOverflowBox(
+                    size: const Size.fromHeight(54.0),
+                    alignment: Alignment.topCenter,
+                    child: searchBarContent ?? const SizedBox.shrink(),
+                  ),
+                ),
+              ),
+            )
+          : null, // Jika tidak dalam search mode, kembalikan null agar AppBar kembali ke ukuran normal (56.0)
     );
   }
 
-  // Mengubah tinggi preferredSize secara dinamis saat mode pencarian aktif
+  // Ukuran tinggi akan dinamis mengecil kembali ke kToolbarHeight (56.0) saat search mati
   @override
   Size get preferredSize =>
       Size.fromHeight(kToolbarHeight + (isSearchMode ? 70.0 : 0.0));

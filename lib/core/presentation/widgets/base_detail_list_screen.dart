@@ -1,3 +1,4 @@
+// lib/core/presentation/widgets/base_detail_list_screen.dart
 import 'package:flutter/material.dart';
 import 'base_detail_app_bar.dart'; // Import widget AppBar baru
 
@@ -119,7 +120,7 @@ class _BaseDetailListScreenState<T> extends State<BaseDetailListScreen<T>> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6FA),
-      // PENGGUNAAN APP BAR BARU DI SINI
+      // Menggunakan BaseDetailAppBar langsung secara natural
       appBar: BaseDetailAppBar(
         pageTitle: widget.pageTitle,
         isSelectMode: _isSelectMode,
@@ -138,7 +139,6 @@ class _BaseDetailListScreenState<T> extends State<BaseDetailListScreen<T>> {
                 _clearSelection();
               }
             : null,
-        // Menyuntikkan struktur row kolom pencarian dan tombol add langsung ke AppBar
         searchBarContent: Row(
           children: [
             Expanded(
