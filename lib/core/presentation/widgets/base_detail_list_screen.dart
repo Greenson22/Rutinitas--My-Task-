@@ -138,64 +138,47 @@ class _BaseDetailListScreenState<T> extends State<BaseDetailListScreen<T>> {
                 _clearSelection();
               }
             : null,
+        // Menyuntikkan struktur row kolom pencarian dan tombol add langsung ke AppBar
+        searchBarContent: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _searchController,
+                autofocus: true,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: 'Cari...',
+                  hintStyle: const TextStyle(
+                    color: Colors.white60,
+                    fontSize: 13,
+                  ),
+                  prefixIcon: const Icon(Icons.search, color: Colors.white70),
+                  filled: true,
+                  fillColor: Colors.white.withOpacity(0.15),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                ),
+              ),
+            ),
+            if (widget.enableAddButton && widget.onAddPressed != null) ...[
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: widget.onAddPressed,
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.white.withOpacity(0.15),
+                ),
+                icon: const Icon(Icons.add, color: Colors.white),
+              ),
+            ],
+          ],
+        ),
       ),
       body: Column(
         children: [
-          // ANIMATED SEARCH BAR
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeInOut,
-            height: _isSearchMode ? 70.0 : 0.0,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            color: const Color(0xFF3F51B5),
-            clipBehavior: Clip.antiAlias,
-            child: _isSearchMode
-                ? Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _searchController,
-                          autofocus: true,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                          ),
-                          decoration: InputDecoration(
-                            hintText: 'Cari...',
-                            hintStyle: const TextStyle(
-                              color: Colors.white60,
-                              fontSize: 13,
-                            ),
-                            prefixIcon: const Icon(
-                              Icons.search,
-                              color: Colors.white70,
-                            ),
-                            filled: true,
-                            fillColor: Colors.white.withOpacity(0.15),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide.none,
-                            ),
-                          ),
-                        ),
-                      ),
-                      if (widget.enableAddButton &&
-                          widget.onAddPressed != null) ...[
-                        const SizedBox(width: 8),
-                        IconButton(
-                          onPressed: widget.onAddPressed,
-                          style: IconButton.styleFrom(
-                            backgroundColor: Colors.white.withOpacity(0.15),
-                          ),
-                          icon: const Icon(Icons.add, color: Colors.white),
-                        ),
-                      ],
-                    ],
-                  )
-                : const SizedBox.shrink(),
-          ),
-
-          // LIST VIEW
+          // LIST VIEW UTAMA
           Expanded(
             child: filteredItems.isEmpty
                 ? const Center(

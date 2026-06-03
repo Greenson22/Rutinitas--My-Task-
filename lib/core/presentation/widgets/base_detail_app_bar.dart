@@ -17,6 +17,9 @@ class BaseDetailAppBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback? onMoveMassive;
   final VoidCallback? onDeleteMassive;
 
+  // Konten isi kolom pencarian yang disuntikkan dari parent screen
+  final Widget? searchBarContent;
+
   const BaseDetailAppBar({
     super.key,
     required this.pageTitle,
@@ -29,6 +32,7 @@ class BaseDetailAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.enableMultiSelect = true,
     this.onMoveMassive,
     this.onDeleteMassive,
+    this.searchBarContent, // Tambahkan di sini
   });
 
   @override
@@ -97,9 +101,26 @@ class BaseDetailAppBar extends StatelessWidget implements PreferredSizeWidget {
           ),
         ],
       ],
+      // Implementasi pemindahan AnimatedContainer ke dalam bottom AppBar
+      bottom: PreferredSize(
+        preferredSize: Size.fromHeight(isSearchMode ? 70.0 : 0.0),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeInOut,
+          height: isSearchMode ? 70.0 : 0.0,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          color: const Color(0xFF3F51B5),
+          clipBehavior: Clip.antiAlias,
+          child: isSearchMode && searchBarContent != null
+              ? searchBarContent
+              : const SizedBox.shrink(),
+        ),
+      ),
     );
   }
 
+  // Mengubah tinggi preferredSize secara dinamis saat mode pencarian aktif
   @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+  Size get preferredSize =>
+      Size.fromHeight(kToolbarHeight + (isSearchMode ? 70.0 : 0.0));
 }
