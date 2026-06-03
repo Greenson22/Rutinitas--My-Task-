@@ -337,7 +337,6 @@ class _DailyScreenState extends State<DailyScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // 1. Gabungkan seksi visible dan hidden ke dalam 1 map agar terbaca oleh GroupedSectionLayout
     final List<String> allKeys = _controller.groupedVisibleGroup.keys.toList();
     final Map<String, List<ChecklistGroup>> allItems = Map.from(
       _controller.groupedVisibleGroup,
@@ -354,8 +353,6 @@ class _DailyScreenState extends State<DailyScreen> {
 
     return GroupedSectionLayout<ChecklistGroup>(
       title: 'My Checklist Groups',
-      // appBarColor dan actions lama dihapus karena siklus hidup AppBar
-      // dikendalikan sepenuhnya oleh BaseDetailAppBar di dalam layout.
       drawer: const DrawerMenu(isDailyActive: true),
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddMainSectionDialog,
@@ -375,30 +372,22 @@ class _DailyScreenState extends State<DailyScreen> {
           'Belum ada Seksi Kategori. Tekan + di bawah untuk membuat baru!',
       sectionKeys: allKeys,
       groupedItems: allItems,
-      childAspectRatio: _controller.isPageEditMode ? 0.90 : 1.15,
+      // childAspectRatio dilepas karena sudah dikalkulasi dinamis secara internal oleh layout
 
       // ==========================================
-      // ARGUMEN WAJIB BARU UNTUK BASE DETAIL APP BAR
+      // INTEGRASI PROPERTI GROUPED SECTION LAYOUT
       // ==========================================
-      isSelectMode: false, // Set true jika mengaktifkan multi-select group
-      selectedItemsCount: 0, // Jumlah item checklist group terpilih
-      isSearchMode: false, // Status apakah user sedang mencari nama group
-      onClearSelection: () {
-        // Callback reset/bersihkan item terpilih massal
-      },
-      onToggleSearchMode: () {
-        // Callback mematikan atau menghidupkan bar pencarian text input
-      },
-      enableSearch:
-          false, // Aktifkan (true) jika Anda ingin mengizinkan pencarian di halaman ini
-      enableMultiSelect:
-          false, // Aktifkan (true) jika ingin mengizinkan seleksi massal di halaman ini
+      isSelectMode: false,
+      selectedItemsCount: 0,
+      onClearSelection: () {},
+      enableSearch: true, // Berikan izin akses search bar
+      enableMultiSelect: false,
+      // Parameter isSearchMode dan onToggleSearchMode dilepas karena dikelola internal layout
       // ==========================================
 
-      // 2. Gunakan Template InteractiveSectionHeader untuk setiap header seksi
-      sectionHeaderBuilder: (context, index, sectionKey) {
+      // MENYESUAIKAN SIGNATURE BUILDER: Menangkap parameter isLayoutEditMode dari internal layout
+      sectionHeaderBuilder: (context, index, sectionKey, isLayoutEditMode) {
         if (index >= visibleKeysCount) {
-          // Render tampilan statis untuk seksi yang tersembunyi
           String originalName = sectionKey.replaceAll('_hidden_key', '');
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -429,7 +418,8 @@ class _DailyScreenState extends State<DailyScreen> {
         return InteractiveSectionHeader(
           sectionName: sectionKey,
           themeColor: Colors.teal[900]!,
-          isEditMode: _controller.isSectionEditMode,
+          // Singkronisasi mode edit seksi mengikuti pemicu AppBar ditahan lama
+          isEditMode: isLayoutEditMode ? true : _controller.isSectionEditMode,
           isFirst: index == 0,
           isLast: index == visibleKeysCount - 1,
           onToggleEdit: _controller.toggleSectionEditMode,
@@ -441,8 +431,8 @@ class _DailyScreenState extends State<DailyScreen> {
         );
       },
 
-      // 3. Gunakan Template InteractiveGridCard untuk merender kotak checklist
-      gridItemBuilder: (context, group, index, sectionItems) {
+      // MENYESUAIKAN SIGNATURE BUILDER: Menangkap parameter isLayoutEditMode dari internal layout
+      gridItemBuilder: (context, group, index, sectionItems, isLayoutEditMode) {
         int totalItems = 0;
         for (var section in group.allList) {
           totalItems += section.items.length;
@@ -450,7 +440,8 @@ class _DailyScreenState extends State<DailyScreen> {
 
         return InteractiveGridCard(
           themeColor: Colors.teal[800]!,
-          isEditMode: _controller.isPageEditMode,
+          // Singkronisasi mode edit card mengikuti pemicu AppBar ditahan lama
+          isEditMode: isLayoutEditMode ? true : _controller.isPageEditMode,
           isHiddenStyle: group.isHidden,
           isFirst: index == 0,
           isLast: index == sectionItems.length - 1,

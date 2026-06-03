@@ -312,7 +312,6 @@ class _PromptScreenState extends State<PromptScreen> {
 
         return GroupedSectionLayout<PromptGroup>(
           title: 'My Prompts',
-          // appBarColor dihapus karena warna diatur oleh BaseDetailAppBar
           drawer: const DrawerMenu(isPromptActive: true),
           floatingActionButton: FloatingActionButton(
             onPressed: _showAddSectionDialog,
@@ -331,38 +330,33 @@ class _PromptScreenState extends State<PromptScreen> {
           emptyMessage: 'Belum ada data seksi / prompt di penyimpanan.',
 
           // ==========================================
-          // ARGUMEN BARU UNTUK BASE DETAIL APP BAR
+          // INTEGRASI PROPERTI GROUPED SECTION LAYOUT
           // ==========================================
-          isSelectMode: false, // Set true jika mengimplementasikan multi-select
-          selectedItemsCount: 0, // Jumlah item yang sedang dicentang/dipilih
-          isSearchMode:
-              false, // Set true jika dalam kondisi mode pencarian aktif
-          onClearSelection: () {
-            // Aksi ketika tombol silang (batal select) ditekan
-          },
-          onToggleSearchMode: () {
-            // Aksi ketika area AppBar ditekan lama untuk mengaktifkan/menonaktifkan search
-          },
-          enableSearch:
-              false, // Ubah ke true jika fitur search ingin diaktifkan
-          enableMultiSelect:
-              false, // Ubah ke true jika fitur seleksi massal ingin diaktifkan
+          isSelectMode: false,
+          selectedItemsCount: 0,
+          onClearSelection: () {},
+          enableSearch: true, // Izinkan input search diaktifkan secara internal
+          enableMultiSelect: false,
 
+          // Parameter isSearchMode dan onToggleSearchMode dihilangkan karena dikontrol internal layout
+          // childAspectRatio dihitung otomatis oleh state internal layout (.dart baru)
           // ==========================================
           sectionKeys: sectionKeys,
           groupedItems: sectionsMap,
-          childAspectRatio: _controller.isCardEditMode ? 0.85 : 1.15,
-          sectionHeaderBuilder: (context, sIndex, sectionName) {
+          // MENYESUAIKAN SIGNATURE BUILDER: Menangkap variabel `isLayoutEditMode` dari internal layout
+          sectionHeaderBuilder: (context, sIndex, sectionName, isLayoutEditMode) {
             return InteractiveSectionHeader(
               sectionName: sectionName,
               themeColor: Colors.indigo[900]!,
-              isEditMode: _controller.isSectionEditMode,
-              isUpperCase:
-                  false, // Karena mapping di atas sudah menjadikan string uppercase
+              // Menggunakan mode edit internal layout jika aktif, jika tidak kembali ke controller
+              isEditMode: isLayoutEditMode
+                  ? true
+                  : _controller.isSectionEditMode,
+              isUpperCase: false,
               isFirst: sIndex == 0,
               isLast: sIndex == sectionKeys.length - 1,
               onToggleEdit: () {
-                if (_controller.isCardEditMode) {
+                if (_controller.isCardEditMode || isLayoutEditMode) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text(
@@ -383,10 +377,12 @@ class _PromptScreenState extends State<PromptScreen> {
               onAddItem: () => _showAddGroupDialog(defaultSection: sectionName),
             );
           },
-          gridItemBuilder: (context, promptGroup, index, items) {
+          // MENYESUAIKAN SIGNATURE BUILDER: Menangkap variabel `isLayoutEditMode` dari internal layout
+          gridItemBuilder: (context, promptGroup, index, items, isLayoutEditMode) {
             return InteractiveGridCard(
               themeColor: Colors.indigo,
-              isEditMode: _controller.isCardEditMode,
+              // Otomatis aktifkan edit mode card jika AppBar sedang ditahan lama
+              isEditMode: isLayoutEditMode ? true : _controller.isCardEditMode,
               isFirst: index == 0,
               isLast: index == items.length - 1,
               onTap: () {

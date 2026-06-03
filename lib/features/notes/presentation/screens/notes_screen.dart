@@ -1,7 +1,8 @@
+// lib/features/notes/presentation/screens/notes_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:rutinitasku/core/presentation/widgets/drawer_menu.dart';
 import '../../models/note_model.dart';
-// Sesuaikan import ini dengan lokasi barrel file atau file template Anda
 import '../../../../core/presentation/widgets/widgets.dart';
 
 class NotesScreen extends StatefulWidget {
@@ -15,7 +16,7 @@ class _NotesScreenState extends State<NotesScreen> {
   // Warna tema khusus untuk fitur Notes
   final Color _themeColor = Colors.orange[700]!;
 
-  // State untuk mode edit (berlaku global atau per-item sesuai kebutuhan)
+  // State untuk mode edit manual lokal tetap dipertahankan sebagai fallback
   bool _isSectionEditMode = false;
   bool _isCardEditMode = false;
 
@@ -51,7 +52,6 @@ class _NotesScreenState extends State<NotesScreen> {
   Widget build(BuildContext context) {
     return GroupedSectionLayout<NoteModel>(
       title: 'Catatan Saya',
-      // appBarColor dihapus karena warna diatur otomatis di dalam BaseDetailAppBar
       drawer: const DrawerMenu(isNotesActive: true),
       isLoading: false,
       isEmpty: _groupedNotes.isEmpty,
@@ -60,42 +60,32 @@ class _NotesScreenState extends State<NotesScreen> {
       groupedItems: _groupedNotes,
 
       // ==========================================
-      // ARGUMEN BARU UNTUK BASE DETAIL APP BAR
+      // INTEGRASI PROPERTI GROUPED SECTION LAYOUT
       // ==========================================
-      isSelectMode:
-          false, // Set true jika halaman ini mengaktifkan fitur multi-select
-      selectedItemsCount: 0, // Jumlah item yang sedang dipilih/dicentang
-      isSearchMode: false, // Set true jika dalam kondisi mode pencarian aktif
-      onClearSelection: () {
-        // Aksi ketika tombol silang (batal select) di AppBar ditekan
-      },
-      onToggleSearchMode: () {
-        // Aksi ketika area kosong AppBar ditekan lama untuk mengaktifkan/menonaktifkan search mode
-      },
-      enableSearch:
-          false, // Ubah ke true jika ingin mengaktifkan fitur search bawaan AppBar
-      enableMultiSelect:
-          false, // Ubah ke true jika ingin mengaktifkan fitur multi-select bawaan AppBar
+      isSelectMode: false,
+      selectedItemsCount: 0,
+      onClearSelection: () {},
+      enableSearch: true, // Berikan izin akses search bar saat ditahan lama
+      enableMultiSelect: false,
+      // Parameter isSearchMode dan onToggleSearchMode dilepas karena dikelola internal layout
       // ==========================================
 
-      // Floating Action Button (opsional)
+      // Floating Action Button
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          // Aksi tambah catatan atau kategori baru
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Tambah catatan ditekan')),
-          );
+          _showActionMsg('Tambah catatan ditekan');
         },
         backgroundColor: _themeColor,
         child: const Icon(Icons.add, color: Colors.white),
       ),
 
-      // 1. Membangun Header Seksi
-      sectionHeaderBuilder: (context, index, sectionName) {
+      // MENYESUAIKAN SIGNATURE BUILDER: Menangkap parameter isLayoutEditMode dari internal layout
+      sectionHeaderBuilder: (context, index, sectionName, isLayoutEditMode) {
         return InteractiveSectionHeader(
           sectionName: sectionName,
           themeColor: _themeColor,
-          isEditMode: _isSectionEditMode,
+          // Sinkronisasi: otomatis masuk mode edit seksi saat AppBar ditahan lama
+          isEditMode: isLayoutEditMode ? true : _isSectionEditMode,
           isFirst: index == 0,
           isLast: index == _sectionKeys.length - 1,
           onToggleEdit: () {
@@ -111,11 +101,12 @@ class _NotesScreenState extends State<NotesScreen> {
         );
       },
 
-      // 2. Membangun Kartu Grid untuk Catatan
-      gridItemBuilder: (context, note, index, sectionItems) {
+      // MENYESUAIKAN SIGNATURE BUILDER: Menangkap parameter isLayoutEditMode dari internal layout
+      gridItemBuilder: (context, note, index, sectionItems, isLayoutEditMode) {
         return InteractiveGridCard(
           themeColor: _themeColor,
-          isEditMode: _isCardEditMode,
+          // Sinkronisasi: otomatis masuk mode edit card saat AppBar ditahan lama
+          isEditMode: isLayoutEditMode ? true : _isCardEditMode,
           isFirst: index == 0,
           isLast: index == sectionItems.length - 1,
           onTap: () {
@@ -173,7 +164,7 @@ class _NotesScreenState extends State<NotesScreen> {
     );
   }
 
-  // Fungsi pembantu untuk menampilkan aksi (bisa diganti dengan logika asli)
+  // Fungsi pembantu untuk menampilkan aksi
   void _showActionMsg(String message) {
     ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
