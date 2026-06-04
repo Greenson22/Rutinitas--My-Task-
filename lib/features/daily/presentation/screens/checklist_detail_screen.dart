@@ -47,12 +47,6 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
             style: ElevatedButton.styleFrom(backgroundColor: Colors.teal[700]),
           ),
         ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: showAddSectionDialog,
-          backgroundColor: Colors.teal[800],
-          tooltip: 'Tambah Seksi Baru',
-          child: const Icon(Icons.post_add, size: 30, color: Colors.white),
-        ),
       );
     }
 
@@ -95,13 +89,6 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
       // Hubungkan fungsi pencarian dan penambahan seksi utama ke layout AppBar
       onSearchChanged: updateSearchQuery,
       onAddPressed: showAddSectionDialog,
-
-      floatingActionButton: FloatingActionButton(
-        onPressed: showAddSectionDialog,
-        backgroundColor: Colors.teal[800],
-        tooltip: 'Tambah Seksi Baru',
-        child: const Icon(Icons.post_add, size: 30, color: Colors.white),
-      ),
 
       sectionHeaderBuilder: (context, index, sectionName, isLayoutEditMode) {
         final section = currentGroup.allList[index];

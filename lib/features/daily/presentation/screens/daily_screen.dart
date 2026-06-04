@@ -354,16 +354,6 @@ class _DailyScreenState extends State<DailyScreen> {
     return GroupedSectionLayout<ChecklistGroup>(
       title: 'My Checklist Groups',
       drawer: const DrawerMenu(isDailyActive: true),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showAddMainSectionDialog,
-        backgroundColor: Colors.teal[800],
-        tooltip: 'Tambah Seksi Kategori Baru',
-        child: const Icon(
-          Icons.create_new_folder_outlined,
-          size: 28,
-          color: Colors.white,
-        ),
-      ),
       isLoading: _controller.isLoading,
 
       // Jika seksi visual di layout kosong DAN data raw kosong, baru tampilkan empty placeholder
