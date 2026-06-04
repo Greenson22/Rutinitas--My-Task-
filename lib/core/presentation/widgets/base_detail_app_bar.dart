@@ -109,7 +109,6 @@ class BaseDetailAppBar extends StatelessWidget implements PreferredSizeWidget {
                     horizontal: 14,
                     vertical: 8,
                   ),
-                  color: const Color(0xFF3F51B5),
                   child: SizedOverflowBox(
                     size: const Size.fromHeight(54.0),
                     alignment: Alignment.topCenter,
