@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:rutinitasku/core/presentation/widgets/drawer_menu.dart';
 import '../../models/note_model.dart';
 import '../../../../core/presentation/widgets/widgets.dart';
+import 'category_notes_screen.dart'; // Import screen detail kategori baru
 
 class NotesScreen extends StatefulWidget {
   const NotesScreen({super.key});
@@ -20,33 +21,11 @@ class _NotesScreenState extends State<NotesScreen> {
   bool _isSectionEditMode = false;
   bool _isCardEditMode = false;
 
-  // Dummy Data
-  final List<String> _sectionKeys = ['Penting', 'Pekerjaan', 'Pribadi'];
-  final Map<String, List<NoteModel>> _groupedNotes = {
-    'Penting': [
-      NoteModel(
-        id: '1',
-        title: 'Ide Proyek',
-        content: 'Buat aplikasi manajemen tugas.',
-        category: 'Penting',
-      ),
-      NoteModel(
-        id: '2',
-        title: 'Belanja',
-        content: 'Beli kopi dan susu.',
-        category: 'Penting',
-      ),
-    ],
-    'Pekerjaan': [
-      NoteModel(
-        id: '3',
-        title: 'Meeting Klien',
-        content: 'Siapkan slide presentasi Q3.',
-        category: 'Pekerjaan',
-      ),
-    ],
-    'Pribadi': [], // Contoh seksi kosong
-  };
+  // DATA DUMMY TELAH DIHAPUS.
+  // Untuk keperluan visualisasi awal, struktur Map & List dikosongkan.
+  // Di masa mendatang, isi list dan map ini diambil dari database / state management (Bloc/Provider).
+  final List<String> _sectionKeys = [];
+  final Map<String, List<NoteModel>> _groupedNotes = {};
 
   @override
   Widget build(BuildContext context) {
@@ -65,26 +44,24 @@ class _NotesScreenState extends State<NotesScreen> {
       isSelectMode: false,
       selectedItemsCount: 0,
       onClearSelection: () {},
-      enableSearch: true, // Berikan izin akses search bar saat ditahan lama
+      enableSearch: true,
       enableMultiSelect: false,
-      // Parameter isSearchMode dan onToggleSearchMode dilepas karena dikelola internal layout
       // ==========================================
 
-      // Floating Action Button
+      // Floating Action Button untuk menambah kategori atau catatan baru
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          _showActionMsg('Tambah catatan ditekan');
+          _showActionMsg('Tambah catatan baru ditekan');
         },
         backgroundColor: _themeColor,
         child: const Icon(Icons.add, color: Colors.white),
       ),
 
-      // MENYESUAIKAN SIGNATURE BUILDER: Menangkap parameter isLayoutEditMode dari internal layout
+      // Menangkap parameter isLayoutEditMode dari internal layout
       sectionHeaderBuilder: (context, index, sectionName, isLayoutEditMode) {
         return InteractiveSectionHeader(
           sectionName: sectionName,
           themeColor: _themeColor,
-          // Sinkronisasi: otomatis masuk mode edit seksi saat AppBar ditahan lama
           isEditMode: isLayoutEditMode ? true : _isSectionEditMode,
           isFirst: index == 0,
           isLast: index == _sectionKeys.length - 1,
@@ -101,15 +78,15 @@ class _NotesScreenState extends State<NotesScreen> {
         );
       },
 
-      // MENYESUAIKAN SIGNATURE BUILDER: Menangkap parameter isLayoutEditMode dari internal layout
+      // Menangkap parameter isLayoutEditMode dari internal layout
       gridItemBuilder: (context, note, index, sectionItems, isLayoutEditMode) {
         return InteractiveGridCard(
           themeColor: _themeColor,
-          // Sinkronisasi: otomatis masuk mode edit card saat AppBar ditahan lama
           isEditMode: isLayoutEditMode ? true : _isCardEditMode,
           isFirst: index == 0,
           isLast: index == sectionItems.length - 1,
           onTap: () {
+            // Membuka detail catatan spesifik
             _showActionMsg('Membuka catatan: ${note.title}');
           },
           onLongPress: () {
@@ -133,7 +110,7 @@ class _NotesScreenState extends State<NotesScreen> {
             _showActionMsg('Pilih pop-up [$value] pada: ${note.title}');
           },
 
-          // Konten visual dalam kartu
+          // Konten visual dalam kartu pratinjau catatan
           content: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -164,7 +141,7 @@ class _NotesScreenState extends State<NotesScreen> {
     );
   }
 
-  // Fungsi pembantu untuk menampilkan aksi
+  // Fungsi pembantu untuk menampilkan info aksi sementara
   void _showActionMsg(String message) {
     ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
