@@ -1,6 +1,8 @@
 // lib/features/notes/presentation/screens/notes_screen.dart
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:rutinitasku/core/presentation/widgets/drawer_menu.dart';
+import 'package:rutinitasku/core/services/storage_service.dart';
 import '../../models/note_model.dart';
 import '../../../../core/presentation/widgets/widgets.dart';
 import 'category_notes_screen.dart';
@@ -13,13 +15,65 @@ class NotesScreen extends StatefulWidget {
 }
 
 class _NotesScreenState extends State<NotesScreen> {
+  final StorageService _storageService = StorageService();
   final Color _themeColor = Colors.orange[700]!;
+
+  bool _isLoading = true;
   bool _isSectionEditMode = false;
   bool _isCardEditMode = false;
 
-  // Struktur: Nama Seksi -> Daftar Grup Catatan
   final List<String> _sectionKeys = ['Catatan Utama'];
   final Map<String, List<NoteGroup>> _groupedCategories = {'Catatan Utama': []};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNotesData();
+  }
+
+  Future<void> _loadNotesData() async {
+    setState(() => _isLoading = true);
+    try {
+      final baseDir = await _storageService.getBaseDirSetting();
+      final files = await _storageService.getAllNoteGroups(baseDir);
+
+      List<NoteGroup> loadedGroups = [];
+      for (var file in files) {
+        final content = await file.readAsString();
+        loadedGroups.add(NoteGroup.fromJson(jsonDecode(content)));
+      }
+
+      setState(() {
+        _groupedCategories['Catatan Utama'] = loadedGroups;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      debugPrint("Gagal memuat catatan: $e");
+    }
+  }
+
+  Future<void> _saveGroupData(NoteGroup group) async {
+    try {
+      final baseDir = await _storageService.getBaseDirSetting();
+      final jsonString = _storageService.formatJsonPretty(group.toJson());
+      await _storageService.saveNoteGroup(baseDir, group.id, jsonString);
+    } catch (e) {
+      debugPrint("Gagal menyimpan grup: $e");
+    }
+  }
+
+  Future<void> _deleteGroupData(NoteGroup group) async {
+    try {
+      final baseDir = await _storageService.getBaseDirSetting();
+      await _storageService.deleteNoteGroup(baseDir, group.id);
+      setState(() {
+        _groupedCategories['Catatan Utama']?.remove(group);
+      });
+    } catch (e) {
+      debugPrint("Gagal menghapus grup: $e");
+    }
+  }
 
   void _showAddGroupDialog(String sectionName) {
     final TextEditingController groupController = TextEditingController();
@@ -40,20 +94,53 @@ class _NotesScreenState extends State<NotesScreen> {
             child: const Text('Batal'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               final newName = groupController.text.trim();
               if (newName.isNotEmpty) {
-                setState(() {
-                  _groupedCategories[sectionName]!.add(
-                    NoteGroup(
-                      id: DateTime.now().millisecondsSinceEpoch.toString(),
-                      groupName: newName,
-                      icon: '📁',
-                      notes: [],
-                    ),
-                  );
-                });
-                Navigator.pop(context);
+                final newGroup = NoteGroup(
+                  id: DateTime.now().millisecondsSinceEpoch.toString(),
+                  groupName: newName,
+                  icon: '📁',
+                  notes: [],
+                );
+
+                setState(() => _groupedCategories[sectionName]!.add(newGroup));
+                await _saveGroupData(newGroup);
+                if (mounted) Navigator.pop(context);
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: _themeColor),
+            child: const Text('Simpan', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditGroupDialog(NoteGroup group) {
+    final TextEditingController nameController = TextEditingController(
+      text: group.groupName,
+    );
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit Nama Grup'),
+        content: TextField(
+          controller: nameController,
+          decoration: const InputDecoration(labelText: 'Nama Grup Baru'),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (nameController.text.trim().isNotEmpty) {
+                setState(() => group.groupName = nameController.text.trim());
+                await _saveGroupData(group);
+                if (mounted) Navigator.pop(context);
               }
             },
             style: ElevatedButton.styleFrom(backgroundColor: _themeColor),
@@ -69,7 +156,7 @@ class _NotesScreenState extends State<NotesScreen> {
     return GroupedSectionLayout<NoteGroup>(
       title: 'Notes',
       drawer: const DrawerMenu(isNotesActive: true),
-      isLoading: false,
+      isLoading: _isLoading,
       isEmpty: _groupedCategories['Catatan Utama']!.isEmpty,
       emptyMessage: 'Belum ada grup catatan. Buat folder catatan pertama Anda!',
       sectionKeys: _sectionKeys,
@@ -104,16 +191,13 @@ class _NotesScreenState extends State<NotesScreen> {
               isFirst: index == 0,
               isLast: index == sectionItems.length - 1,
               onTap: () {
-                // Navigasi ke layar detail item
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => CategoryNotesScreen(
-                      categoryName: noteGroup.groupName,
-                      notes: noteGroup.notes,
-                    ),
+                    builder: (context) =>
+                        CategoryNotesScreen(noteGroup: noteGroup),
                   ),
-                ).then((_) => setState(() {})); // Segarkan UI saat kembali
+                ).then((_) => _loadNotesData());
               },
               onLongPress: () =>
                   setState(() => _isCardEditMode = !_isCardEditMode),
@@ -130,8 +214,10 @@ class _NotesScreenState extends State<NotesScreen> {
                 ),
               ],
               onPopupSelected: (value) {
-                if (value == 'delete') {
-                  setState(() => sectionItems.remove(noteGroup));
+                if (value == 'edit') {
+                  _showEditGroupDialog(noteGroup);
+                } else if (value == 'delete') {
+                  _deleteGroupData(noteGroup);
                 }
               },
               content: Column(
