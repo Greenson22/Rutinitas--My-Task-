@@ -272,11 +272,49 @@ class StorageService {
     return const JsonEncoder.withIndent('  ').convert(jsonObject);
   }
 
+  // =========================================================================
+  // === NOTES STORAGE ===
+  // =========================================================================
+
   Future<Directory> getNotesDir(String baseDirSetting) async {
     final Directory notesDir = Directory('$baseDirSetting/notes');
     if (!await notesDir.exists()) {
       await notesDir.create(recursive: true);
     }
     return notesDir;
+  }
+
+  Future<List<File>> getAllNoteGroups(String baseDirSetting) async {
+    final Directory notesDir = await getNotesDir(baseDirSetting);
+    try {
+      List<FileSystemEntity> files = notesDir.listSync();
+      return files
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.json'))
+          .toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  Future<File> getSpecificNoteFile(String baseDirSetting, String id) async {
+    final Directory notesDir = await getNotesDir(baseDirSetting);
+    return File('${notesDir.path}/$id.json');
+  }
+
+  Future<void> saveNoteGroup(
+    String baseDirSetting,
+    String id,
+    String jsonContent,
+  ) async {
+    final file = await getSpecificNoteFile(baseDirSetting, id);
+    await file.writeAsString(jsonContent);
+  }
+
+  Future<void> deleteNoteGroup(String baseDirSetting, String id) async {
+    final file = await getSpecificNoteFile(baseDirSetting, id);
+    if (await file.exists()) {
+      await file.delete();
+    }
   }
 }
