@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:rutinitasku/core/services/storage_service.dart';
 import '../../models/note_model.dart';
 import '../../../../core/presentation/widgets/base_detail_list_screen.dart';
-import '../../../../core/presentation/widgets/base_popup_dialog.dart'; // Tambahkan import ini
+import '../../../../core/presentation/widgets/base_popup_dialog.dart';
 
 class NoteDetailScreen extends StatefulWidget {
   final NoteGroup noteGroup;
@@ -45,144 +45,173 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   }
 
   void _showNoteDialog({NoteModel? existingNote}) {
+    // Controller judul diinisialisasi dengan nilai lama, atau 'Catatan Baru' jika bernilai kosong
     final titleController = TextEditingController(
-      text: existingNote?.title ?? '',
+      text: existingNote != null ? existingNote.title : 'Catatan Baru',
     );
     final contentController = TextEditingController(
       text: existingNote?.content ?? '',
     );
 
+    // Menyimpan status apakah judul sedang dalam mode edit atau tidak
+    // Default: jika catatan baru langsung masuk mode edit judul, jika catatan lama dalam mode baca
+    bool isEditingTitle = existingNote == null;
+
     showDialog(
       context: context,
-      builder: (context) => BasePopupDialog(
-        title: Text(
-          existingNote == null ? 'Catatan Baru' : 'Edit Catatan',
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        themeColor: Colors.orange[700] ?? Colors.orange,
-        titleColor: Colors.white,
-
-        // --- PERUBAHAN UTAMA DI BAGIAN CONTENT ---
-        // Memberikan batasan tinggi (60% dari layar) agar fitur expands: true dapat bekerja
-        // dengan baik tanpa menyebabkan error unbound height.
-        content: Container(
-          height: MediaQuery.of(context).size.height * 0.6,
-          color: Colors.white,
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              // 1. Input Judul Borderless
-              TextField(
-                controller: titleController,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-                decoration: InputDecoration(
-                  hintText: 'Judul Catatan...',
-                  hintStyle: TextStyle(color: Colors.grey[400]),
-                  border: InputBorder.none,
-                  isDense: true,
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              const Divider(height: 24),
-              // 2. Input Konten Borderless (Memenuhi sisa ruang kosong)
-              Expanded(
-                child: TextField(
-                  controller: contentController,
-                  maxLines: null,
-                  expands: true, // Membuat TextField memanjang secara otomatis
-                  textAlignVertical: TextAlignVertical.top,
-                  decoration: InputDecoration(
-                    hintText: 'Tulis catatan Anda di sini...',
-                    hintStyle: TextStyle(color: Colors.grey[400]),
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        // --- PERUBAHAN UTAMA DI BAGIAN FOOTER ---
-        footer: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment
-                .spaceBetween, // Mendorong elemen ke ujung kiri dan kanan
-            children: [
-              // Tombol Reset di sebelah kiri
-              TextButton.icon(
-                onPressed: () {
-                  titleController.clear();
-                  contentController.clear();
-                },
-                icon: const Icon(
-                  Icons.refresh,
-                  color: Colors.redAccent,
-                  size: 18,
-                ),
-                label: const Text(
-                  'Reset',
-                  style: TextStyle(
-                    color: Colors.redAccent,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              // Tombol Simpan di sebelah kanan
-              ElevatedButton(
-                onPressed: () async {
-                  if (titleController.text.trim().isEmpty) return;
-
-                  setState(() {
-                    if (existingNote == null) {
-                      _currentGroup.notes.add(
-                        NoteModel(
-                          id: DateTime.now().millisecondsSinceEpoch.toString(),
-                          title: titleController.text.trim(),
-                          content: contentController.text.trim(),
-                          createdAt: DateTime.now(),
-                          updatedAt: DateTime.now(),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return BasePopupDialog(
+            // --- HEADER BERUPA WIDGET DINAMIS ---
+            title: Row(
+              children: [
+                Expanded(
+                  child: isEditingTitle
+                      ? TextField(
+                          controller: titleController,
+                          autofocus: true,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          decoration: const InputDecoration(
+                            hintText: 'Judul Catatan...',
+                            hintStyle: TextStyle(color: Colors.white60),
+                            border: InputBorder.none,
+                            isDense: true,
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                        )
+                      : Text(
+                          titleController.text,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      );
-                    } else {
-                      final index = _currentGroup.notes.indexWhere(
-                        (n) => n.id == existingNote.id,
-                      );
-                      if (index != -1) {
-                        _currentGroup.notes[index] = NoteModel(
-                          id: existingNote.id,
-                          title: titleController.text.trim(),
-                          content: contentController.text.trim(),
-                          createdAt: existingNote.createdAt,
-                          updatedAt: DateTime.now(),
-                        );
+                ),
+                const SizedBox(width: 8),
+                // Tombol Ubah / Selesai Judul
+                IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  icon: Icon(
+                    isEditingTitle ? Icons.check : Icons.edit,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                  tooltip: isEditingTitle ? 'Selesai' : 'Ubah Judul',
+                  onPressed: () {
+                    setDialogState(() {
+                      if (isEditingTitle) {
+                        // Jika selesai mengedit dan ternyata kosong, kembalikan ke teks default
+                        if (titleController.text.trim().isEmpty) {
+                          titleController.text =
+                              existingNote?.title ?? 'Catatan Baru';
+                        }
                       }
-                    }
-                  });
+                      isEditingTitle = !isEditingTitle;
+                    });
+                  },
+                ),
+              ],
+            ),
+            themeColor: Colors.orange[700] ?? Colors.orange,
+            titleColor: Colors.white,
 
-                  await _saveCurrentGroup();
-                  if (mounted) Navigator.pop(context);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange[700],
-                ),
-                child: const Text(
-                  'Simpan',
-                  style: TextStyle(color: Colors.white),
-                ),
+            content: Container(
+              height: MediaQuery.of(context).size.height * 0.6,
+              color: Colors.white,
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  // Sesuai permintaan sebelumnya, kolom input judul lama di body sudah dihilangkan sepenuhnya
+                  // Hanya menyisakan area input konten yang responsif
+                  Expanded(
+                    child: TextField(
+                      controller: contentController,
+                      maxLines: null,
+                      expands: true,
+                      textAlignVertical: TextAlignVertical.top,
+                      decoration: InputDecoration(
+                        hintText: 'Tulis catatan Anda di sini...',
+                        hintStyle: TextStyle(color: Colors.grey[400]),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
+            ),
+
+            footer: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 12.0,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Tombol Simpan
+                  ElevatedButton(
+                    onPressed: () async {
+                      // Pastikan nilai judul tidak kosong saat disimpan
+                      String finalTitle = titleController.text.trim();
+                      if (finalTitle.isEmpty) {
+                        finalTitle = existingNote?.title ?? 'Catatan Baru';
+                      }
+
+                      setState(() {
+                        if (existingNote == null) {
+                          // Simpan sebagai Catatan Baru
+                          _currentGroup.notes.add(
+                            NoteModel(
+                              id: DateTime.now().millisecondsSinceEpoch
+                                  .toString(),
+                              title: finalTitle,
+                              content: contentController.text.trim(),
+                              createdAt: DateTime.now(),
+                              updatedAt: DateTime.now(),
+                            ),
+                          );
+                        } else {
+                          // Simpan Pembaruan Catatan Lama dengan Judul baru/lama hasil edit di header
+                          final index = _currentGroup.notes.indexWhere(
+                            (n) => n.id == existingNote.id,
+                          );
+                          if (index != -1) {
+                            _currentGroup.notes[index] = NoteModel(
+                              id: existingNote.id,
+                              title: finalTitle,
+                              content: contentController.text.trim(),
+                              createdAt: existingNote.createdAt,
+                              updatedAt: DateTime.now(),
+                            );
+                          }
+                        }
+                      });
+
+                      await _saveCurrentGroup();
+                      if (mounted) Navigator.pop(context);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange[700],
+                    ),
+                    child: const Text(
+                      'Simpan',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
