@@ -1,6 +1,6 @@
 // lib/features/notes/presentation/screens/note_detail_screen.dart
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Ditambahkan untuk LogicalKeyboardKey & HardwareKeyboard
+import 'package:flutter/services.dart';
 import 'package:rutinitasku/core/services/storage_service.dart';
 import '../../models/note_model.dart';
 import '../../../../core/presentation/widgets/base_detail_list_screen.dart';
@@ -58,7 +58,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     bool hasChanges = false;
     StateSetter? dialogStateSetter;
 
-    // Fungsi untuk mengecek apakah ada perubahan
     void checkChanges() {
       final changed =
           titleController.text != originalTitle ||
@@ -76,7 +75,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     titleController.addListener(checkChanges);
     contentController.addListener(checkChanges);
 
-    // Fungsi Eksekusi Simpan
     Future<void> performSave(BuildContext dialogCtx) async {
       String finalTitle = titleController.text.trim();
       if (finalTitle.isEmpty) {
@@ -85,7 +83,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
       setState(() {
         if (existingNote == null) {
-          // Simpan sebagai Catatan Baru
           _currentGroup.notes.add(
             NoteModel(
               id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -96,7 +93,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
             ),
           );
         } else {
-          // Simpan Pembaruan Catatan Lama
           final index = _currentGroup.notes.indexWhere(
             (n) => n.id == existingNote.id,
           );
@@ -123,7 +119,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           dialogStateSetter = setDialogState;
 
           return Focus(
-            // Menangkap event shortcut keyboard (Ctrl+S atau Cmd+S)
             onKeyEvent: (node, event) {
               final isControlPressed =
                   HardwareKeyboard.instance.isControlPressed ||
@@ -172,6 +167,22 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                           ),
                   ),
                   const SizedBox(width: 8),
+                  // Tombol Simpan diletakkan di sini (Kanan Atas, Sebelah Kiri Ganti Judul)
+                  if (hasChanges) ...[
+                    IconButton(
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      icon: const Icon(
+                        Icons.save, // Menggunakan ikon memori / floppy disk
+                        color: Colors.amberAccent,
+                        size: 20,
+                      ),
+                      tooltip: 'Simpan Catatan',
+                      onPressed: () => performSave(dialogContext),
+                    ),
+                    const SizedBox(width: 10),
+                  ],
+                  // Tombol Ubah / Selesai Judul
                   IconButton(
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
@@ -195,7 +206,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                   ),
                 ],
               ),
-              themeColor: Colors.orange[700] ?? Colors.orange,
+              themeColor: Colors.indigo,
               titleColor: Colors.white,
               content: Container(
                 height: MediaQuery.of(context).size.height * 0.6,
@@ -228,18 +239,16 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    // Tombol simpan hanya di-render jika ada perubahan
-                    if (hasChanges)
-                      ElevatedButton(
-                        onPressed: () => performSave(dialogContext),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange[700],
-                        ),
-                        child: const Text(
-                          'Simpan',
-                          style: TextStyle(color: Colors.white),
-                        ),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(dialogContext),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.grey[400],
                       ),
+                      child: const Text(
+                        'Tutup',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -248,7 +257,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         },
       ),
     ).then((_) {
-      // Bersihkan controller saat dialog tertutup
       titleController.dispose();
       contentController.dispose();
     });

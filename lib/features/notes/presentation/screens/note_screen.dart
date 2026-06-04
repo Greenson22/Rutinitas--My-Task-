@@ -16,7 +16,7 @@ class NotesScreen extends StatefulWidget {
 
 class _NotesScreenState extends State<NotesScreen> {
   final StorageService _storageService = StorageService();
-  final Color _themeColor = Colors.orange[700]!;
+  final Color _themeColor = Colors.indigo!;
 
   bool _isLoading = true;
   bool _isSectionEditMode = false;
