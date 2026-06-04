@@ -19,8 +19,11 @@ class DailyController extends ChangeNotifier {
   bool showHiddenSection = false;
   bool isSectionEditMode = false;
 
-  // ---> TAMBAHAN: State untuk menyimpan text pencarian <---
+  // State untuk menyimpan text pencarian
   String searchQuery = '';
+
+  // State untuk melacak seksi kosong yang baru ditambahkan secara lokal
+  final List<String> _localEmptySections = [];
 
   final Map<String, List<ChecklistGroup>> groupedVisibleGroup = {};
   final Map<String, List<ChecklistGroup>> groupedHiddenGroup = {};
@@ -41,7 +44,7 @@ class DailyController extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ---> TAMBAHAN: Fungsi untuk memperbarui query pencarian <---
+  // Fungsi untuk memperbarui query pencarian
   void updateSearchQuery(String query) {
     searchQuery = query.toLowerCase();
     _processGroupsDisplay();
@@ -80,20 +83,24 @@ class DailyController extends ChangeNotifier {
     }
   }
 
-  // Pengelompokan Tampilan dengan Pencarian
+  // Pengelompokan Tampilan
   void _processGroupsDisplay() {
-    // ---> UBAH: Lakukan filtering data berdasarkan nama group (searchQuery) <---
+    // Jalankan filter pencarian jika query diisi
     final filteredList = allGroupRaw.where((group) {
       if (searchQuery.isEmpty) return true;
       return group.groupName.toLowerCase().contains(searchQuery);
     }).toList();
 
-    // ---> UBAH: Gunakan data yang sudah di-filter <---
     final visibleList = filteredList.where((group) => !group.isHidden).toList();
     final hiddenList = filteredList.where((group) => group.isHidden).toList();
 
     groupedVisibleGroup.clear();
     groupedHiddenGroup.clear();
+
+    // Kembalikan struktur seksi kosong lokal terlebih dahulu agar tidak hilang saat re-process
+    for (var section in _localEmptySections) {
+      groupedVisibleGroup[section] = [];
+    }
 
     for (var group in visibleList) {
       String kategori = group.sectionCategory.trim().isEmpty
@@ -118,12 +125,12 @@ class DailyController extends ChangeNotifier {
 
   // Tambah Seksi Baru Kosong ke UI lokal
   void addLocalMainSection(String sectionName) {
+    if (!_localEmptySections.contains(sectionName)) {
+      _localEmptySections.add(sectionName);
+    }
     groupedVisibleGroup.putIfAbsent(sectionName, () => []);
     notifyListeners();
   }
-
-  // (Method lain seperti createGroupAtSection, saveGroupDataToFile, dll biarkan sama/tidak ada perubahan)
-  // ... (Paste sisa kodenya sama seperti asli)
 
   // Tambah Group Baru ke File
   Future<void> createGroupAtSection(
@@ -143,10 +150,14 @@ class DailyController extends ChangeNotifier {
       allList: [],
     );
 
+    // Jika seksi ini diisi group riil, hapus dari daftar seksi kosong lokal karena sudah ada di file sistem
+    _localEmptySections.remove(targetMainSection);
+
     await saveGroupDataToFile(newGroup);
     await loadGroupsData();
   }
 
+  // Simpan Data Group Tunggal ke File JSON
   Future<void> saveGroupDataToFile(ChecklistGroup group) async {
     File groupFile = await _storageService.getSpecificGroupFile(
       selectedBaseDir,
@@ -158,12 +169,14 @@ class DailyController extends ChangeNotifier {
     await _storageService.saveJsonData(groupFile, jsonString);
   }
 
+  // Toggle Visibilitas Sembunyi/Tampil Group
   Future<void> toggleGroupVisibility(ChecklistGroup group) async {
     group.isHidden = !group.isHidden;
     await saveGroupDataToFile(group);
     _processGroupsDisplay();
   }
 
+  // Update Nama dan Ikon Group
   Future<void> updateGroup(
     ChecklistGroup group,
     String newName,
@@ -175,6 +188,7 @@ class DailyController extends ChangeNotifier {
     await loadGroupsData();
   }
 
+  // Hapus Berkas Group Permanen
   Future<void> deleteGroup(ChecklistGroup group) async {
     try {
       File groupFile = await _storageService.getSpecificGroupFile(
@@ -190,6 +204,7 @@ class DailyController extends ChangeNotifier {
     }
   }
 
+  // Tukar Urutan Posisi Group
   Future<void> moveGroupOrder(
     List<ChecklistGroup> targetList,
     int currentIndex,
@@ -217,10 +232,12 @@ class DailyController extends ChangeNotifier {
             selectedBaseDir,
             currentGroup.id,
           );
+
           String cleanId = currentGroup.id;
           if (cleanId.contains('_hub_')) {
             cleanId = cleanId.substring(cleanId.indexOf('hub_'));
           }
+
           String newId = "${i}_$cleanId";
           File newFile = await _storageService.getSpecificGroupFile(
             selectedBaseDir,
@@ -246,10 +263,12 @@ class DailyController extends ChangeNotifier {
       } catch (e) {
         debugPrint("Gagal mengatur ulang urutan file di Linux: $e");
       }
+
       _processGroupsDisplay();
     }
   }
 
+  // Pindahkan Group ke Seksi Kategori Lain
   Future<void> moveGroupToAnotherSection(
     ChecklistGroup group,
     String targetSection,
@@ -259,10 +278,16 @@ class DailyController extends ChangeNotifier {
     await loadGroupsData();
   }
 
+  // Ubah Nama Seksi Utama
   Future<void> updateMainSectionName(
     String oldSectionName,
     String newSectionName,
   ) async {
+    if (_localEmptySections.contains(oldSectionName)) {
+      int idx = _localEmptySections.indexOf(oldSectionName);
+      _localEmptySections[idx] = newSectionName;
+    }
+
     if (groupedVisibleGroup.containsKey(oldSectionName)) {
       final groups = groupedVisibleGroup.remove(oldSectionName) ?? [];
       for (var group in groups) {
@@ -270,11 +295,13 @@ class DailyController extends ChangeNotifier {
       }
       groupedVisibleGroup[newSectionName] = groups;
     }
+
     for (var group in allGroupRaw) {
       if (group.sectionCategory == oldSectionName) {
         group.sectionCategory = newSectionName;
       }
     }
+
     for (var group in allGroupRaw) {
       if (group.sectionCategory == newSectionName) {
         await saveGroupDataToFile(group);
@@ -283,7 +310,9 @@ class DailyController extends ChangeNotifier {
     await loadGroupsData();
   }
 
+  // Hapus Seksi Utama beserta Isinya
   Future<void> deleteMainSection(String sectionName) async {
+    _localEmptySections.remove(sectionName);
     final listGroupDiSeksiIni = groupedVisibleGroup[sectionName] ?? [];
     try {
       for (var group in listGroupDiSeksiIni) {
@@ -303,16 +332,21 @@ class DailyController extends ChangeNotifier {
     }
   }
 
+  // Ubah Urutan Tampilan Map Seksi Utama di UI
   void moveMainSectionOrder(String sectionName, int direction) {
     final keys = groupedVisibleGroup.keys.toList();
     int currentIndex = keys.indexOf(sectionName);
     int newIndex = currentIndex + direction;
+
     if (newIndex < 0 || newIndex >= keys.length) return;
+
     final tempMap = Map<String, List<ChecklistGroup>>.from(groupedVisibleGroup);
     groupedVisibleGroup.clear();
+
     final tempKey = keys[currentIndex];
     keys[currentIndex] = keys[newIndex];
     keys[newIndex] = tempKey;
+
     for (var key in keys) {
       groupedVisibleGroup[key] = tempMap[key] ?? [];
     }

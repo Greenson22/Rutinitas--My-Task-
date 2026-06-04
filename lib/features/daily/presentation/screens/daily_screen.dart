@@ -365,29 +365,24 @@ class _DailyScreenState extends State<DailyScreen> {
         ),
       ),
       isLoading: _controller.isLoading,
-      isEmpty: _controller.allGroupRaw.isEmpty,
+
+      // Jika seksi visual di layout kosong DAN data raw kosong, baru tampilkan empty placeholder
+      isEmpty: _controller.allGroupRaw.isEmpty && allKeys.isEmpty,
+
       emptyMessage:
           'Belum ada Seksi Kategori. Tekan + di bawah untuk membuat baru!',
       sectionKeys: allKeys,
       groupedItems: allItems,
-      // childAspectRatio dilepas karena sudah dikalkulasi dinamis secara internal oleh layout
-
-      // ==========================================
-      // INTEGRASI PROPERTI GROUPED SECTION LAYOUT
-      // ==========================================
       isSelectMode: false,
       selectedItemsCount: 0,
       onClearSelection: () {},
-      enableSearch: true, // Berikan izin akses search bar
+      enableSearch: true,
       enableMultiSelect: false,
-      // ---> TAMBAHAN: Tautkan method controller untuk pencarian <---
-      onSearchChanged: _controller.updateSearchQuery,
-      // ---> TAMBAHAN: Tautkan dialog Add ke tombol (+) di Appbar <---
-      onAddPressed: _showAddMainSectionDialog,
-      // Parameter isSearchMode dan onToggleSearchMode dilepas karena dikelola internal layout
-      // ==========================================
 
-      // MENYESUAIKAN SIGNATURE BUILDER: Menangkap parameter isLayoutEditMode dari internal layout
+      // Menghubungkan fungsi pencarian dan penambahan ke Appbar layout
+      onSearchChanged: _controller.updateSearchQuery,
+      onAddPressed: _showAddMainSectionDialog,
+
       sectionHeaderBuilder: (context, index, sectionKey, isLayoutEditMode) {
         if (index >= visibleKeysCount) {
           String originalName = sectionKey.replaceAll('_hidden_key', '');
@@ -420,7 +415,6 @@ class _DailyScreenState extends State<DailyScreen> {
         return InteractiveSectionHeader(
           sectionName: sectionKey,
           themeColor: Colors.teal[900]!,
-          // Singkronisasi mode edit seksi mengikuti pemicu AppBar ditahan lama
           isEditMode: isLayoutEditMode ? true : _controller.isSectionEditMode,
           isFirst: index == 0,
           isLast: index == visibleKeysCount - 1,
@@ -433,7 +427,6 @@ class _DailyScreenState extends State<DailyScreen> {
         );
       },
 
-      // MENYESUAIKAN SIGNATURE BUILDER: Menangkap parameter isLayoutEditMode dari internal layout
       gridItemBuilder: (context, group, index, sectionItems, isLayoutEditMode) {
         int totalItems = 0;
         for (var section in group.allList) {
@@ -442,7 +435,6 @@ class _DailyScreenState extends State<DailyScreen> {
 
         return InteractiveGridCard(
           themeColor: Colors.teal[800]!,
-          // Singkronisasi mode edit card mengikuti pemicu AppBar ditahan lama
           isEditMode: isLayoutEditMode ? true : _controller.isPageEditMode,
           isHiddenStyle: group.isHidden,
           isFirst: index == 0,

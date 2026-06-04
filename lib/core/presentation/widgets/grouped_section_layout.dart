@@ -76,8 +76,7 @@ class GroupedSectionLayout<T> extends StatefulWidget {
 class _GroupedSectionLayoutState<T> extends State<GroupedSectionLayout<T>> {
   bool _internalSearchMode = false;
   bool _internalEditMode = false;
-  final TextEditingController _searchController =
-      TextEditingController(); // PENTING: Inisialisasi Controller
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void dispose() {
@@ -123,7 +122,7 @@ class _GroupedSectionLayoutState<T> extends State<GroupedSectionLayout<T>> {
           children: [
             Expanded(
               child: TextField(
-                controller: _searchController, // Hubungkan controller di sini
+                controller: _searchController,
                 autofocus: true,
                 style: const TextStyle(color: Colors.white, fontSize: 14),
                 onChanged: widget.onSearchChanged,
@@ -164,15 +163,19 @@ class _GroupedSectionLayoutState<T> extends State<GroupedSectionLayout<T>> {
           : LayoutBuilder(
               builder: (context, constraints) {
                 return ListView.builder(
-                  // Mengubah ke ListView.builder agar alokasi indeks lebih aman
                   itemCount: widget.sectionKeys.length,
                   itemBuilder: (context, index) {
                     final sectionName = widget.sectionKeys[index];
                     final itemsInSection =
                         widget.groupedItems[sectionName] ?? [];
 
-                    // Jika sedang mencari dan seksi ini tidak punya item yang cocok, sembunyikan widget
-                    if (_internalSearchMode && itemsInSection.isEmpty) {
+                    // PERBAIKAN LOGIKA: Seksi kosong tidak akan disembunyikan jika nama seksi
+                    // tersebut mengandung kata kunci pencarian yang sedang diketik[cite: 2].
+                    if (_internalSearchMode &&
+                        itemsInSection.isEmpty &&
+                        !sectionName.toLowerCase().contains(
+                          _searchController.text.toLowerCase(),
+                        )) {
                       return const SizedBox.shrink();
                     }
 
