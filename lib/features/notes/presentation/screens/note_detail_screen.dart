@@ -229,7 +229,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       itemSubtitle: (note) {
         String created = _formatDate(note.createdAt);
         String updated = _formatDate(note.updatedAt);
-        return '${note.content}\n\nDibuat: $created\nDiperbarui: $updated';
+        return 'Dibuat: $created\nDiperbarui: $updated';
       },
       itemIsFavorite: (note) => false,
       onAddPressed: () => _showNoteDialog(),
