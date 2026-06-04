@@ -101,7 +101,7 @@ class _GroupedSectionLayoutState<T> extends State<GroupedSectionLayout<T>> {
           // Trigger utama: Saat ditahan, balikkan status search bar dan edit/add mode secara simultan
           setState(() {
             _internalSearchMode = !_internalSearchMode;
-            _internalEditMode = !_internalEditMode;
+            // _internalEditMode = !_internalEditMode;
           });
         },
         enableSearch: widget.enableSearch,
