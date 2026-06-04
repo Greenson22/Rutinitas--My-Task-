@@ -16,6 +16,9 @@ class PromptController extends ChangeNotifier {
   // State tambahan untuk Fitur Multi-Select Prompt Item
   final Set<String> _selectedPromptIds = {};
 
+  // State tambahan untuk Fitur Pencarian Dinamis
+  String _searchQuery = '';
+
   // Getters
   List<PromptGroup> get promptGroups => _promptGroups;
   bool get isLoading => _isLoading;
@@ -26,6 +29,58 @@ class PromptController extends ChangeNotifier {
   // Getter Multi-Select
   bool get isMultiSelectMode => _selectedPromptIds.isNotEmpty;
   Set<String> get selectedPromptIds => _selectedPromptIds;
+
+  // Getter Pencarian
+  String get searchQuery => _searchQuery;
+
+  // =========================================================================
+  // LOGIKA FILTER PENCARIAN (DYNAMIC FILTERING)
+  // =========================================================================
+
+  /// Mengambil data groups yang telah difilter berdasarkan kata kunci pencarian secara otomatis.
+  /// Menyaring baik berdasarkan Judul Grup maupun Item Prompt di dalamnya.
+  List<PromptGroup> get filteredPromptGroups {
+    if (_searchQuery.isEmpty) {
+      return _promptGroups;
+    }
+
+    return _promptGroups
+        .map((group) {
+          final bool matchesGroupTitle = group.title.toLowerCase().contains(
+            _searchQuery,
+          );
+
+          // Filter item di dalam group yang mengandung kata kunci pencarian
+          final matchedPrompts = group.prompts.where((prompt) {
+            return prompt.actAs.toLowerCase().contains(_searchQuery) ||
+                (prompt.description?.toLowerCase().contains(_searchQuery) ??
+                    false) ||
+                prompt.content.toLowerCase().contains(_searchQuery);
+          }).toList();
+
+          // Jika judul grup cocok atau ada item di dalamnya yang cocok, kembalikan grup tersebut
+          if (matchesGroupTitle || matchedPrompts.isNotEmpty) {
+            return PromptGroup(
+              id: group.id,
+              title: group.title,
+              sectionName: group.sectionName,
+              icon: group.icon,
+              lastUpdated: group.lastUpdated,
+              // Jika judul grup cocok secara umum, tampilkan seluruh isi, jika tidak tampilkan yang match saja
+              prompts: matchesGroupTitle ? group.prompts : matchedPrompts,
+            );
+          }
+          return null;
+        })
+        .whereType<PromptGroup>()
+        .toList(); // Menghapus objek bernilai null
+  }
+
+  /// Memperbarui kata kunci pencarian dari input text field layout
+  void updateSearchQuery(String query) {
+    _searchQuery = query.trim().toLowerCase();
+    notifyListeners(); // Memicu pembangunan ulang UI (ListenableBuilder)
+  }
 
   // Setters / Toggles
   void toggleSectionEditMode() {

@@ -292,7 +292,9 @@ class _PromptScreenState extends State<PromptScreen> {
       listenable: _controller,
       builder: (context, _) {
         final Map<String, List<PromptGroup>> sectionsMap = {};
-        for (var group in _controller.promptGroups) {
+
+        // Menggunakan data terfilter berdasarkan input kata kunci pencarian
+        for (var group in _controller.filteredPromptGroups) {
           final secName = group.sectionName.isEmpty
               ? 'GENERAL'
               : group.sectionName.toUpperCase();
@@ -301,9 +303,14 @@ class _PromptScreenState extends State<PromptScreen> {
           }
           sectionsMap[secName]!.add(group);
         }
-        for (var sec in _controller.localEmptySections) {
-          sectionsMap.putIfAbsent(sec, () => []);
+
+        // Kategori lokal kosong disembunyikan ketika pengguna sedang melakukan pencarian
+        if (_controller.searchQuery.isEmpty) {
+          for (var sec in _controller.localEmptySections) {
+            sectionsMap.putIfAbsent(sec, () => []);
+          }
         }
+
         final sectionKeys = sectionsMap.keys.toList();
         if (sectionKeys.contains('GENERAL')) {
           sectionKeys.remove('GENERAL');
@@ -324,190 +331,208 @@ class _PromptScreenState extends State<PromptScreen> {
             ),
           ),
           isLoading: _controller.isLoading,
-          isEmpty:
-              _controller.promptGroups.isEmpty &&
-              _controller.localEmptySections.isEmpty,
-          emptyMessage: 'Belum ada data seksi / prompt di penyimpanan.',
+          isEmpty: sectionsMap.isEmpty,
+          emptyMessage: _controller.searchQuery.isNotEmpty
+              ? 'Tidak ada prompt yang cocok dengan pencarian Anda.'
+              : 'Belum ada data seksi / prompt di penyimpanan.',
 
-          // ==========================================
-          // INTEGRASI PROPERTI GROUPED SECTION LAYOUT
-          // ==========================================
           isSelectMode: false,
           selectedItemsCount: 0,
           onClearSelection: () {},
-          enableSearch: true, // Izinkan input search diaktifkan secara internal
+          enableSearch: true,
           enableMultiSelect: false,
 
-          // Parameter isSearchMode dan onToggleSearchMode dihilangkan karena dikontrol internal layout
-          // childAspectRatio dihitung otomatis oleh state internal layout (.dart baru)
-          // ==========================================
+          // INTEGRASI CALLBACK SEARCH DAN ADD KE CONTROLLER
+          onSearchChanged: (query) {
+            _controller.updateSearchQuery(query);
+          },
+          onAddPressed: () {
+            _showAddGroupDialog();
+          },
+
           sectionKeys: sectionKeys,
           groupedItems: sectionsMap,
-          // MENYESUAIKAN SIGNATURE BUILDER: Menangkap variabel `isLayoutEditMode` dari internal layout
-          sectionHeaderBuilder: (context, sIndex, sectionName, isLayoutEditMode) {
-            return InteractiveSectionHeader(
-              sectionName: sectionName,
-              themeColor: Colors.indigo[900]!,
-              // Menggunakan mode edit internal layout jika aktif, jika tidak kembali ke controller
-              isEditMode: isLayoutEditMode
-                  ? true
-                  : _controller.isSectionEditMode,
-              isUpperCase: false,
-              isFirst: sIndex == 0,
-              isLast: sIndex == sectionKeys.length - 1,
-              onToggleEdit: () {
-                if (_controller.isCardEditMode || isLayoutEditMode) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Matikan Mode Edit Kotak/Card terlebih dahulu!',
+
+          sectionHeaderBuilder:
+              (context, sIndex, sectionName, isLayoutEditMode) {
+                return InteractiveSectionHeader(
+                  sectionName: sectionName,
+                  themeColor: Colors.indigo[900]!,
+                  isEditMode: isLayoutEditMode
+                      ? true
+                      : _controller.isSectionEditMode,
+                  isUpperCase: false,
+                  isFirst: sIndex == 0,
+                  isLast: sIndex == sectionKeys.length - 1,
+                  onToggleEdit: () {
+                    if (_controller.isCardEditMode || isLayoutEditMode) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Matikan Mode Edit Kotak/Card terlebih dahulu!',
+                          ),
+                          duration: Duration(seconds: 1),
+                        ),
+                      );
+                      return;
+                    }
+                    _controller.toggleSectionEditMode();
+                  },
+                  onMoveUp: () =>
+                      _controller.moveSectionOrder(sIndex, -1, context),
+                  onMoveDown: () =>
+                      _controller.moveSectionOrder(sIndex, 1, context),
+                  onEditName: () => _showEditSectionNameDialog(sectionName),
+                  onDelete: () => _showDeleteSectionDialog(sectionName),
+                  onAddItem: () =>
+                      _showAddGroupDialog(defaultSection: sectionName),
+                );
+              },
+
+          gridItemBuilder:
+              (context, promptGroup, index, items, isLayoutEditMode) {
+                return InteractiveGridCard(
+                  themeColor: Colors.indigo,
+                  isEditMode: isLayoutEditMode
+                      ? true
+                      : _controller.isCardEditMode,
+                  isFirst: index == 0,
+                  isLast: index == items.length - 1,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            PromptDetailScreen(promptGroup: promptGroup),
                       ),
-                      duration: Duration(seconds: 1),
+                    ).then((_) => _controller.loadAllPrompts(context));
+                  },
+                  onLongPress: () {
+                    if (_controller.isSectionEditMode) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Matikan Mode Edit Kategori/Seksi terlebih dahulu!',
+                          ),
+                          duration: Duration(seconds: 1),
+                        ),
+                      );
+                      return;
+                    }
+                    _controller.toggleCardEditMode();
+                  },
+                  onMoveLeft: () =>
+                      _controller.moveGroupOrderHorizontal(items, index, -1),
+                  onMoveRight: () =>
+                      _controller.moveGroupOrderHorizontal(items, index, 1),
+                  popupMenuItems: const [
+                    PopupMenuItem(
+                      value: 'edit',
+                      child: Row(
+                        children: [
+                          Icon(Icons.edit, size: 18, color: Colors.teal),
+                          SizedBox(width: 10),
+                          Text(
+                            'Ubah Nama & Ikon',
+                            style: TextStyle(fontSize: 13),
+                          ),
+                        ],
+                      ),
                     ),
-                  );
-                  return;
-                }
-                _controller.toggleSectionEditMode();
-              },
-              onMoveUp: () => _controller.moveSectionOrder(sIndex, -1, context),
-              onMoveDown: () =>
-                  _controller.moveSectionOrder(sIndex, 1, context),
-              onEditName: () => _showEditSectionNameDialog(sectionName),
-              onDelete: () => _showDeleteSectionDialog(sectionName),
-              onAddItem: () => _showAddGroupDialog(defaultSection: sectionName),
-            );
-          },
-          // MENYESUAIKAN SIGNATURE BUILDER: Menangkap variabel `isLayoutEditMode` dari internal layout
-          gridItemBuilder: (context, promptGroup, index, items, isLayoutEditMode) {
-            return InteractiveGridCard(
-              themeColor: Colors.indigo,
-              // Otomatis aktifkan edit mode card jika AppBar sedang ditahan lama
-              isEditMode: isLayoutEditMode ? true : _controller.isCardEditMode,
-              isFirst: index == 0,
-              isLast: index == items.length - 1,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        PromptDetailScreen(promptGroup: promptGroup),
-                  ),
-                ).then((_) => _controller.loadAllPrompts(context));
-              },
-              onLongPress: () {
-                if (_controller.isSectionEditMode) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Matikan Mode Edit Kategori/Seksi terlebih dahulu!',
+                    PopupMenuItem(
+                      value: 'move_section',
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.drive_file_move_outlined,
+                            size: 18,
+                            color: Colors.indigo,
+                          ),
+                          SizedBox(width: 10),
+                          Text(
+                            'Pindahkan Seksi',
+                            style: TextStyle(fontSize: 13),
+                          ),
+                        ],
                       ),
-                      duration: Duration(seconds: 1),
                     ),
-                  );
-                  return;
-                }
-                _controller.toggleCardEditMode();
-              },
-              onMoveLeft: () =>
-                  _controller.moveGroupOrderHorizontal(items, index, -1),
-              onMoveRight: () =>
-                  _controller.moveGroupOrderHorizontal(items, index, 1),
-              popupMenuItems: const [
-                PopupMenuItem(
-                  value: 'edit',
-                  child: Row(
-                    children: [
-                      Icon(Icons.edit, size: 18, color: Colors.teal),
-                      SizedBox(width: 10),
-                      Text('Ubah Nama & Ikon', style: TextStyle(fontSize: 13)),
-                    ],
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 'move_section',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.drive_file_move_outlined,
-                        size: 18,
-                        color: Colors.indigo,
+                    PopupMenuDivider(),
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.delete_outline,
+                            size: 18,
+                            color: Colors.redAccent,
+                          ),
+                          SizedBox(width: 10),
+                          Text(
+                            'Hapus Group',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.redAccent,
+                            ),
+                          ),
+                        ],
                       ),
-                      SizedBox(width: 10),
-                      Text('Pindahkan Seksi', style: TextStyle(fontSize: 13)),
-                    ],
-                  ),
-                ),
-                PopupMenuDivider(),
-                PopupMenuItem(
-                  value: 'delete',
-                  child: Row(
+                    ),
+                  ],
+                  onPopupSelected: (value) {
+                    if (value == 'edit') {
+                      _showEditGroupDialog(promptGroup);
+                    } else if (value == 'move_section') {
+                      _showMoveSectionDialog(promptGroup);
+                    } else if (value == 'delete') {
+                      _showDeleteGroupItemDialog(promptGroup);
+                    }
+                  },
+                  content: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Icon(
-                        Icons.delete_outline,
-                        size: 18,
-                        color: Colors.redAccent,
-                      ),
-                      SizedBox(width: 10),
                       Text(
-                        'Hapus Group',
-                        style: TextStyle(fontSize: 13, color: Colors.redAccent),
+                        promptGroup.icon,
+                        style: const TextStyle(
+                          fontSize: 28,
+                          color: Colors.black,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        promptGroup.title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: Colors.black87,
+                        ),
+                        textAlign: TextAlign.center,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.indigo.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          '${promptGroup.prompts.length} Item',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.indigo,
+                          ),
+                        ),
                       ),
                     ],
                   ),
-                ),
-              ],
-              onPopupSelected: (value) {
-                if (value == 'edit') {
-                  _showEditGroupDialog(promptGroup);
-                } else if (value == 'move_section') {
-                  _showMoveSectionDialog(promptGroup);
-                } else if (value == 'delete') {
-                  _showDeleteGroupItemDialog(promptGroup);
-                }
+                );
               },
-              content: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Text(
-                    promptGroup.icon,
-                    style: const TextStyle(fontSize: 28, color: Colors.black),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    promptGroup.title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: Colors.black87,
-                    ),
-                    textAlign: TextAlign.center,
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                  ),
-                  const SizedBox(height: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.indigo.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      '${promptGroup.prompts.length} Item',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.indigo,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
         );
       },
     );

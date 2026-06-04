@@ -1,5 +1,6 @@
+// lib/core/presentation/widgets/grouped_section_layout.dart
 import 'package:flutter/material.dart';
-import 'base_detail_app_bar.dart'; // Impor berkas BaseDetailAppBar
+import 'base_detail_app_bar.dart';
 
 class GroupedSectionLayout<T> extends StatefulWidget {
   final String title;
@@ -10,7 +11,6 @@ class GroupedSectionLayout<T> extends StatefulWidget {
   final bool isEmpty;
   final String emptyMessage;
 
-  // Properti Multi-Select eksternal tetap dipertahankan jika dibutuhkan oleh screen induk
   final bool isSelectMode;
   final int selectedItemsCount;
   final VoidCallback onClearSelection;
@@ -19,12 +19,12 @@ class GroupedSectionLayout<T> extends StatefulWidget {
   final VoidCallback? onMoveMassive;
   final VoidCallback? onDeleteMassive;
 
-  // Data Map berupa Kategori/Seksi -> List Item
+  final ValueChanged<String>? onSearchChanged;
+  final VoidCallback? onAddPressed;
+
   final List<String> sectionKeys;
   final Map<String, List<T>> groupedItems;
 
-  // Builder untuk menyusun Header & Kotak Grid
-  // MODIFIKASI: Menambahkan parameter `isPageEditMode` ke builder agar seksi & card tahu kapan harus merubah mode add/edit
   final Widget Function(
     BuildContext context,
     int index,
@@ -32,6 +32,7 @@ class GroupedSectionLayout<T> extends StatefulWidget {
     bool isPageEditMode,
   )
   sectionHeaderBuilder;
+
   final Widget Function(
     BuildContext context,
     T item,
@@ -41,7 +42,6 @@ class GroupedSectionLayout<T> extends StatefulWidget {
   )
   gridItemBuilder;
 
-  // Proporsi kotak default saat normal
   final double childAspectRatio;
 
   const GroupedSectionLayout({
@@ -59,12 +59,13 @@ class GroupedSectionLayout<T> extends StatefulWidget {
     this.enableMultiSelect = true,
     this.onMoveMassive,
     this.onDeleteMassive,
+    this.onSearchChanged,
+    this.onAddPressed,
     required this.sectionKeys,
     required this.groupedItems,
     required this.sectionHeaderBuilder,
     required this.gridItemBuilder,
     this.childAspectRatio = 1.15,
-    // Parameter isSearchMode & onToggleSearchMode dihapus dari konstruktor karena dikelola internal
   });
 
   @override
@@ -73,13 +74,19 @@ class GroupedSectionLayout<T> extends StatefulWidget {
 }
 
 class _GroupedSectionLayoutState<T> extends State<GroupedSectionLayout<T>> {
-  // Manajemen state internal untuk Search dan Mode Edit/Add kartu
   bool _internalSearchMode = false;
   bool _internalEditMode = false;
+  final TextEditingController _searchController =
+      TextEditingController(); // PENTING: Inisialisasi Controller
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Penyesuaian aspek rasio otomatis: jika mode edit aktif maka kotak memanjang kebawah (0.95), jika normal pakai default
     final currentAspectRatio = _internalEditMode
         ? 0.95
         : widget.childAspectRatio;
@@ -90,24 +97,63 @@ class _GroupedSectionLayoutState<T> extends State<GroupedSectionLayout<T>> {
         pageTitle: widget.title,
         isSelectMode: widget.isSelectMode,
         selectedItemsCount: widget.selectedItemsCount,
-        isSearchMode: _internalSearchMode, // Menggunakan state internal
+        isSearchMode: _internalSearchMode,
         onClearSelection: () {
           setState(() {
             _internalSearchMode = false;
           });
+          _searchController.clear();
+          if (widget.onSearchChanged != null) widget.onSearchChanged!('');
           widget.onClearSelection();
         },
         onToggleSearchMode: () {
-          // Trigger utama: Saat ditahan, balikkan status search bar dan edit/add mode secara simultan
           setState(() {
             _internalSearchMode = !_internalSearchMode;
-            // _internalEditMode = !_internalEditMode;
           });
+          if (!_internalSearchMode) {
+            _searchController.clear();
+            if (widget.onSearchChanged != null) widget.onSearchChanged!('');
+          }
         },
         enableSearch: widget.enableSearch,
         enableMultiSelect: widget.enableMultiSelect,
         onMoveMassive: widget.onMoveMassive,
         onDeleteMassive: widget.onDeleteMassive,
+        searchBarContent: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _searchController, // Hubungkan controller di sini
+                autofocus: true,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                onChanged: widget.onSearchChanged,
+                decoration: InputDecoration(
+                  hintText: 'Cari...',
+                  hintStyle: const TextStyle(
+                    color: Colors.white60,
+                    fontSize: 13,
+                  ),
+                  prefixIcon: const Icon(Icons.search, color: Colors.white70),
+                  filled: true,
+                  fillColor: Colors.white.withOpacity(0.15),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              onPressed: widget.onAddPressed,
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.white.withOpacity(0.15),
+              ),
+              icon: const Icon(Icons.add, color: Colors.white),
+            ),
+          ],
+        ),
       ),
       drawer: widget.drawer,
       floatingActionButton: widget.floatingActionButton,
@@ -117,26 +163,28 @@ class _GroupedSectionLayoutState<T> extends State<GroupedSectionLayout<T>> {
           ? Center(child: Text(widget.emptyMessage))
           : LayoutBuilder(
               builder: (context, constraints) {
-                return ListView(
-                  children: widget.sectionKeys.map((sectionName) {
+                return ListView.builder(
+                  // Mengubah ke ListView.builder agar alokasi indeks lebih aman
+                  itemCount: widget.sectionKeys.length,
+                  itemBuilder: (context, index) {
+                    final sectionName = widget.sectionKeys[index];
                     final itemsInSection =
                         widget.groupedItems[sectionName] ?? [];
-                    final sectionIndex = widget.sectionKeys.indexOf(
-                      sectionName,
-                    );
+
+                    // Jika sedang mencari dan seksi ini tidak punya item yang cocok, sembunyikan widget
+                    if (_internalSearchMode && itemsInSection.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
 
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // 1. Render Header Seksi (Menyuntikkan state _internalEditMode)
                         widget.sectionHeaderBuilder(
                           context,
-                          sectionIndex,
+                          index,
                           sectionName,
                           _internalEditMode,
                         ),
-
-                        // 2. Render Grid / Pesan Kosong
                         itemsInSection.isEmpty
                             ? const Padding(
                                 padding: EdgeInsets.only(
@@ -159,7 +207,7 @@ class _GroupedSectionLayoutState<T> extends State<GroupedSectionLayout<T>> {
                               ),
                       ],
                     );
-                  }).toList(),
+                  },
                 );
               },
             ),
@@ -186,13 +234,12 @@ class _GroupedSectionLayoutState<T> extends State<GroupedSectionLayout<T>> {
       padding: const EdgeInsets.all(12),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
-        childAspectRatio: aspectRatio, // Menggunakan rasio aspek dinamis
+        childAspectRatio: aspectRatio,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
       ),
       itemCount: items.length,
       itemBuilder: (context, index) {
-        // Menyuntikkan state _internalEditMode langsung ke grid item builder
         return widget.gridItemBuilder(
           context,
           items[index],
