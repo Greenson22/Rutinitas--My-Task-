@@ -645,8 +645,7 @@ class _HomeScreenState extends State<HomeScreen> {
       // =========================================================================
       appBar: BaseDetailAppBar(
         pageTitle: 'Task Master',
-        isSelectMode:
-            _isPageEditMode, // Diikat ke mode edit layout halaman Anda
+        isSelectMode: false, // Diikat ke mode edit layout halaman Anda
         selectedItemsCount:
             _visibleCategories.length, // Placeholder jumlah item aktif
         isSearchMode: _internalSearchMode,
