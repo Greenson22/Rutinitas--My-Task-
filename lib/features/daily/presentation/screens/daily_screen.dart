@@ -365,9 +365,7 @@ class _DailyScreenState extends State<DailyScreen> {
         ),
       ),
       isLoading: _controller.isLoading,
-      isEmpty:
-          _controller.allGroupRaw.isEmpty &&
-          _controller.groupedVisibleGroup.isEmpty,
+      isEmpty: _controller.allGroupRaw.isEmpty,
       emptyMessage:
           'Belum ada Seksi Kategori. Tekan + di bawah untuk membuat baru!',
       sectionKeys: allKeys,
@@ -382,6 +380,10 @@ class _DailyScreenState extends State<DailyScreen> {
       onClearSelection: () {},
       enableSearch: true, // Berikan izin akses search bar
       enableMultiSelect: false,
+      // ---> TAMBAHAN: Tautkan method controller untuk pencarian <---
+      onSearchChanged: _controller.updateSearchQuery,
+      // ---> TAMBAHAN: Tautkan dialog Add ke tombol (+) di Appbar <---
+      onAddPressed: _showAddMainSectionDialog,
       // Parameter isSearchMode dan onToggleSearchMode dilepas karena dikelola internal layout
       // ==========================================
 
