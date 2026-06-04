@@ -292,8 +292,8 @@ class _PromptScreenState extends State<PromptScreen> {
       listenable: _controller,
       builder: (context, _) {
         final Map<String, List<PromptGroup>> sectionsMap = {};
+        final bool isSearching = _controller.searchQuery.isNotEmpty;
 
-        // Menggunakan data terfilter berdasarkan input kata kunci pencarian
         for (var group in _controller.filteredPromptGroups) {
           final secName = group.sectionName.isEmpty
               ? 'GENERAL'
@@ -304,8 +304,7 @@ class _PromptScreenState extends State<PromptScreen> {
           sectionsMap[secName]!.add(group);
         }
 
-        // Kategori lokal kosong disembunyikan ketika pengguna sedang melakukan pencarian
-        if (_controller.searchQuery.isEmpty) {
+        if (!isSearching) {
           for (var sec in _controller.localEmptySections) {
             sectionsMap.putIfAbsent(sec, () => []);
           }
@@ -320,19 +319,11 @@ class _PromptScreenState extends State<PromptScreen> {
         return GroupedSectionLayout<PromptGroup>(
           title: 'My Prompts',
           drawer: const DrawerMenu(isPromptActive: true),
-          floatingActionButton: FloatingActionButton(
-            onPressed: _showAddSectionDialog,
-            backgroundColor: Colors.indigo,
-            tooltip: 'Tambah Seksi Baru',
-            child: const Icon(
-              Icons.create_new_folder_outlined,
-              size: 28,
-              color: Colors.white,
-            ),
-          ),
+          // MODIFIKASI: floatingActionButton dihapus (bernilai null) agar tombol tambah di bawah hilang
+          floatingActionButton: null,
           isLoading: _controller.isLoading,
           isEmpty: sectionsMap.isEmpty,
-          emptyMessage: _controller.searchQuery.isNotEmpty
+          emptyMessage: isSearching
               ? 'Tidak ada prompt yang cocok dengan pencarian Anda.'
               : 'Belum ada data seksi / prompt di penyimpanan.',
 
@@ -342,12 +333,12 @@ class _PromptScreenState extends State<PromptScreen> {
           enableSearch: true,
           enableMultiSelect: false,
 
-          // INTEGRASI CALLBACK SEARCH DAN ADD KE CONTROLLER
           onSearchChanged: (query) {
             _controller.updateSearchQuery(query);
           },
+          // MODIFIKASI: Aksi tombol add di AppBar dialihkan untuk memicu dialog Tambah Seksi Kategori Baru
           onAddPressed: () {
-            _showAddGroupDialog();
+            _showAddSectionDialog();
           },
 
           sectionKeys: sectionKeys,
@@ -355,6 +346,9 @@ class _PromptScreenState extends State<PromptScreen> {
 
           sectionHeaderBuilder:
               (context, sIndex, sectionName, isLayoutEditMode) {
+                if (sIndex >= sectionKeys.length)
+                  return const SizedBox.shrink();
+
                 return InteractiveSectionHeader(
                   sectionName: sectionName,
                   themeColor: Colors.indigo[900]!,
@@ -362,26 +356,29 @@ class _PromptScreenState extends State<PromptScreen> {
                       ? true
                       : _controller.isSectionEditMode,
                   isUpperCase: false,
-                  isFirst: sIndex == 0,
-                  isLast: sIndex == sectionKeys.length - 1,
+                  isFirst: isSearching ? true : (sIndex == 0),
+                  isLast: isSearching
+                      ? true
+                      : (sIndex == sectionKeys.length - 1),
                   onToggleEdit: () {
-                    if (_controller.isCardEditMode || isLayoutEditMode) {
+                    if (isSearching) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text(
-                            'Matikan Mode Edit Kotak/Card terlebih dahulu!',
+                            'Matikan pencarian untuk mengubah struktur seksi!',
                           ),
-                          duration: Duration(seconds: 1),
                         ),
                       );
                       return;
                     }
                     _controller.toggleSectionEditMode();
                   },
-                  onMoveUp: () =>
-                      _controller.moveSectionOrder(sIndex, -1, context),
-                  onMoveDown: () =>
-                      _controller.moveSectionOrder(sIndex, 1, context),
+                  onMoveUp: isSearching
+                      ? () {}
+                      : () => _controller.moveSectionOrder(sIndex, -1, context),
+                  onMoveDown: isSearching
+                      ? () {}
+                      : () => _controller.moveSectionOrder(sIndex, 1, context),
                   onEditName: () => _showEditSectionNameDialog(sectionName),
                   onDelete: () => _showDeleteSectionDialog(sectionName),
                   onAddItem: () =>
@@ -391,13 +388,15 @@ class _PromptScreenState extends State<PromptScreen> {
 
           gridItemBuilder:
               (context, promptGroup, index, items, isLayoutEditMode) {
+                if (index >= items.length) return const SizedBox.shrink();
+
                 return InteractiveGridCard(
                   themeColor: Colors.indigo,
                   isEditMode: isLayoutEditMode
                       ? true
                       : _controller.isCardEditMode,
-                  isFirst: index == 0,
-                  isLast: index == items.length - 1,
+                  isFirst: isSearching ? true : (index == 0),
+                  isLast: isSearching ? true : (index == items.length - 1),
                   onTap: () {
                     Navigator.push(
                       context,
@@ -408,23 +407,22 @@ class _PromptScreenState extends State<PromptScreen> {
                     ).then((_) => _controller.loadAllPrompts(context));
                   },
                   onLongPress: () {
-                    if (_controller.isSectionEditMode) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Matikan Mode Edit Kategori/Seksi terlebih dahulu!',
-                          ),
-                          duration: Duration(seconds: 1),
-                        ),
-                      );
-                      return;
-                    }
                     _controller.toggleCardEditMode();
                   },
-                  onMoveLeft: () =>
-                      _controller.moveGroupOrderHorizontal(items, index, -1),
-                  onMoveRight: () =>
-                      _controller.moveGroupOrderHorizontal(items, index, 1),
+                  onMoveLeft: isSearching
+                      ? () {}
+                      : () => _controller.moveGroupOrderHorizontal(
+                          items,
+                          index,
+                          -1,
+                        ),
+                  onMoveRight: isSearching
+                      ? () {}
+                      : () => _controller.moveGroupOrderHorizontal(
+                          items,
+                          index,
+                          1,
+                        ),
                   popupMenuItems: const [
                     PopupMenuItem(
                       value: 'edit',
