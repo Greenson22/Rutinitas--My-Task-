@@ -154,7 +154,7 @@ class _NotesScreenState extends State<NotesScreen> {
   @override
   Widget build(BuildContext context) {
     return GroupedSectionLayout<NoteGroup>(
-      title: 'Notes',
+      title: 'Note Groups',
       drawer: const DrawerMenu(isNotesActive: true),
       isLoading: _isLoading,
       isEmpty: _groupedCategories['Catatan Utama']!.isEmpty,

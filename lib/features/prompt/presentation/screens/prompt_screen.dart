@@ -317,7 +317,7 @@ class _PromptScreenState extends State<PromptScreen> {
         }
 
         return GroupedSectionLayout<PromptGroup>(
-          title: 'My Prompts',
+          title: 'Prompt Groups',
           drawer: const DrawerMenu(isPromptActive: true),
           // MODIFIKASI: floatingActionButton dihapus (bernilai null) agar tombol tambah di bawah hilang
           floatingActionButton: null,
