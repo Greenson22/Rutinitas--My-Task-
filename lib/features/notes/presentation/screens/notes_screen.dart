@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:rutinitasku/core/presentation/widgets/drawer_menu.dart';
 import '../../models/note_model.dart';
 import '../../../../core/presentation/widgets/widgets.dart';
-import 'category_notes_screen.dart'; // Import screen detail kategori baru
+import 'category_notes_screen.dart';
 
 class NotesScreen extends StatefulWidget {
   const NotesScreen({super.key});
@@ -14,18 +14,60 @@ class NotesScreen extends StatefulWidget {
 }
 
 class _NotesScreenState extends State<NotesScreen> {
-  // Warna tema khusus untuk fitur Notes
   final Color _themeColor = Colors.orange[700]!;
 
-  // State untuk mode edit manual lokal tetap dipertahankan sebagai fallback
   bool _isSectionEditMode = false;
   bool _isCardEditMode = false;
 
-  // DATA DUMMY TELAH DIHAPUS.
-  // Untuk keperluan visualisasi awal, struktur Map & List dikosongkan.
-  // Di masa mendatang, isi list dan map ini diambil dari database / state management (Bloc/Provider).
+  // State lokal untuk visualisasi fitur UI
   final List<String> _sectionKeys = [];
   final Map<String, List<NoteModel>> _groupedNotes = {};
+
+  // ==========================================
+  // FITUR: TAMBAH GROUP / KATEGORI
+  // ==========================================
+  void _showAddGroupDialog() {
+    final TextEditingController groupController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Tambah Kategori Baru'),
+        content: TextField(
+          controller: groupController,
+          decoration: const InputDecoration(
+            hintText: 'Nama Kategori (Misal: Ide, Pekerjaan)...',
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final newGroupName = groupController.text.trim();
+              if (newGroupName.isNotEmpty) {
+                setState(() {
+                  // Mencegah duplikasi nama kategori
+                  if (!_sectionKeys.contains(newGroupName)) {
+                    _sectionKeys.add(newGroupName);
+                    _groupedNotes[newGroupName] = [];
+                  }
+                });
+                Navigator.pop(context);
+                _showActionMsg(
+                  'Kategori "$newGroupName" berhasil ditambahkan!',
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: _themeColor),
+            child: const Text('Simpan', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,30 +76,20 @@ class _NotesScreenState extends State<NotesScreen> {
       drawer: const DrawerMenu(isNotesActive: true),
       isLoading: false,
       isEmpty: _groupedNotes.isEmpty,
-      emptyMessage: 'Belum ada catatan. Silakan tambah baru!',
+      emptyMessage:
+          'Belum ada grup catatan. Tekan tombol + di atas untuk membuat kategori!',
       sectionKeys: _sectionKeys,
       groupedItems: _groupedNotes,
 
-      // ==========================================
-      // INTEGRASI PROPERTI GROUPED SECTION LAYOUT
-      // ==========================================
       isSelectMode: false,
       selectedItemsCount: 0,
       onClearSelection: () {},
       enableSearch: true,
       enableMultiSelect: false,
-      // ==========================================
 
-      // Floating Action Button untuk menambah kategori atau catatan baru
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          _showActionMsg('Tambah catatan baru ditekan');
-        },
-        backgroundColor: _themeColor,
-        child: const Icon(Icons.add, color: Colors.white),
-      ),
+      // Menghubungkan fungsi ke tombol Add (+) di AppBar bawaan layout
+      onAddPressed: _showAddGroupDialog,
 
-      // Menangkap parameter isLayoutEditMode dari internal layout
       sectionHeaderBuilder: (context, index, sectionName, isLayoutEditMode) {
         return InteractiveSectionHeader(
           sectionName: sectionName,
@@ -71,14 +103,20 @@ class _NotesScreenState extends State<NotesScreen> {
             });
           },
           onEditName: () => _showActionMsg('Edit nama kategori: $sectionName'),
-          onDelete: () => _showActionMsg('Hapus kategori: $sectionName'),
+          onDelete: () {
+            // Logika hapus grup sementara di UI
+            setState(() {
+              _sectionKeys.remove(sectionName);
+              _groupedNotes.remove(sectionName);
+            });
+            _showActionMsg('Kategori $sectionName dihapus');
+          },
           onAddItem: () => _showActionMsg('Tambah item di: $sectionName'),
           onMoveUp: () => _showActionMsg('Pindah ke atas'),
           onMoveDown: () => _showActionMsg('Pindah ke bawah'),
         );
       },
 
-      // Menangkap parameter isLayoutEditMode dari internal layout
       gridItemBuilder: (context, note, index, sectionItems, isLayoutEditMode) {
         return InteractiveGridCard(
           themeColor: _themeColor,
@@ -86,7 +124,6 @@ class _NotesScreenState extends State<NotesScreen> {
           isFirst: index == 0,
           isLast: index == sectionItems.length - 1,
           onTap: () {
-            // Membuka detail catatan spesifik
             _showActionMsg('Membuka catatan: ${note.title}');
           },
           onLongPress: () {
@@ -97,7 +134,6 @@ class _NotesScreenState extends State<NotesScreen> {
           onMoveLeft: () => _showActionMsg('Geser kiri: ${note.title}'),
           onMoveRight: () => _showActionMsg('Geser kanan: ${note.title}'),
 
-          // Menu pop-up di mode edit
           popupMenuItems: const [
             PopupMenuItem(value: 'edit', child: Text('Edit Catatan')),
             PopupMenuItem(value: 'move', child: Text('Pindah Kategori')),
@@ -110,7 +146,6 @@ class _NotesScreenState extends State<NotesScreen> {
             _showActionMsg('Pilih pop-up [$value] pada: ${note.title}');
           },
 
-          // Konten visual dalam kartu pratinjau catatan
           content: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -141,7 +176,6 @@ class _NotesScreenState extends State<NotesScreen> {
     );
   }
 
-  // Fungsi pembantu untuk menampilkan info aksi sementara
   void _showActionMsg(String message) {
     ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
