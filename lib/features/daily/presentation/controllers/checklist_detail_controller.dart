@@ -15,6 +15,9 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
   bool isSectionEditMode = false;
   late ChecklistGroup currentGroup;
 
+  // State untuk menyimpan teks pencarian item
+  String searchQuery = '';
+
   // Konstanta untuk menandai nama seksi unik/default
   static const String defaultSectionName = "Checklist Standar";
 
@@ -22,6 +25,13 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
   void initState() {
     super.initState();
     currentGroup = widget.group; // Mengambil data hub dari layar sebelumnya
+  }
+
+  // Fungsi memperbarui query pencarian dari UI
+  void updateSearchQuery(String query) {
+    setState(() {
+      searchQuery = query.toLowerCase();
+    });
   }
 
   // Fungsi menyimpan khusus ke file JSON milik Hub ini saja
@@ -83,7 +93,7 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
                   // Tambahkan seksi baru pilihan pengguna
                   currentGroup.allList.add(
                     ChecklistSection(
-                      sectionName: sectionController.text,
+                      sectionName: sectionController.text.trim(),
                       items: [],
                     ),
                   );
@@ -117,7 +127,12 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
               currentGroup.allList.add(newSection);
             } else {
               // Jika seksi target ada, langsung masukkan ke seksi tersebut
-              targetSection?.items.add(newSubject);
+              if (targetSection != null) {
+                targetSection.items.add(newSubject);
+              } else if (currentGroup.allList.isNotEmpty) {
+                // Fallback ke seksi pertama jika targetSection bernilai null
+                currentGroup.allList.first.items.add(newSubject);
+              }
             }
           });
           saveGroupData();
@@ -130,7 +145,6 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
     List<DailySubject> subjectsList,
     DailySubject subject,
   ) async {
-    // 1. Tampilkan dialog konfirmasi sebelum menghapus
     final bool confirm =
         await showDialog<bool>(
           context: context,
@@ -154,7 +168,6 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
         ) ??
         false;
 
-    // 2. Jika dikonfirmasi, hapus dari list, simpan ke JSON, dan perbarui UI
     if (confirm) {
       setState(() {
         subjectsList.remove(subject);
