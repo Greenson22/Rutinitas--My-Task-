@@ -271,4 +271,12 @@ class StorageService {
   String formatJsonPretty(dynamic jsonObject) {
     return const JsonEncoder.withIndent('  ').convert(jsonObject);
   }
+
+  Future<Directory> getNotesDir(String baseDirSetting) async {
+    final Directory notesDir = Directory('$baseDirSetting/notes');
+    if (!await notesDir.exists()) {
+      await notesDir.create(recursive: true);
+    }
+    return notesDir;
+  }
 }

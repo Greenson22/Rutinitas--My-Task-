@@ -69,6 +69,100 @@ class _NotesScreenState extends State<NotesScreen> {
     );
   }
 
+  // ==========================================
+  // FITUR: UBAH NAMA GROUP / KATEGORI
+  // ==========================================
+  void _showEditGroupDialog(String oldGroupName) {
+    final TextEditingController groupController = TextEditingController(
+      text: oldGroupName,
+    );
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Ubah Nama Kategori'),
+        content: TextField(
+          controller: groupController,
+          decoration: const InputDecoration(hintText: 'Nama Kategori Baru...'),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final newGroupName = groupController.text.trim();
+              if (newGroupName.isNotEmpty && newGroupName != oldGroupName) {
+                setState(() {
+                  // Mencegah duplikasi nama kategori
+                  if (!_sectionKeys.contains(newGroupName)) {
+                    final index = _sectionKeys.indexOf(oldGroupName);
+                    if (index != -1) {
+                      _sectionKeys[index] = newGroupName;
+                      // Pindahkan data notes ke key (kategori) yang baru
+                      _groupedNotes[newGroupName] = _groupedNotes.remove(
+                        oldGroupName,
+                      )!;
+
+                      // TODO: Update field 'category' pada masing-masing NoteModel jika diperlukan
+                      // TODO: Panggil fungsi StorageService di sini untuk menyimpan perubahan secara permanen
+                    }
+                    Navigator.pop(context);
+                    _showActionMsg('Kategori diubah menjadi "$newGroupName"');
+                  } else {
+                    _showActionMsg('Kategori "$newGroupName" sudah ada!');
+                  }
+                });
+              } else {
+                Navigator.pop(
+                  context,
+                ); // Tutup jika kosong atau nama tidak berubah
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: _themeColor),
+            child: const Text('Simpan', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================
+  // FITUR: HAPUS GROUP / KATEGORI
+  // ==========================================
+  void _showDeleteGroupDialog(String groupName) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Hapus Kategori?'),
+        content: Text(
+          'Apakah Anda yakin ingin menghapus kategori "$groupName" beserta seluruh isinya? Tindakan ini tidak dapat dibatalkan.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                _sectionKeys.remove(groupName);
+                _groupedNotes.remove(groupName);
+
+                // TODO: Panggil fungsi StorageService di sini untuk menyimpan perubahan hapus secara permanen
+              });
+              Navigator.pop(context);
+              _showActionMsg('Kategori "$groupName" berhasil dihapus');
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Hapus', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return GroupedSectionLayout<NoteModel>(
@@ -102,15 +196,8 @@ class _NotesScreenState extends State<NotesScreen> {
               _isSectionEditMode = !_isSectionEditMode;
             });
           },
-          onEditName: () => _showActionMsg('Edit nama kategori: $sectionName'),
-          onDelete: () {
-            // Logika hapus grup sementara di UI
-            setState(() {
-              _sectionKeys.remove(sectionName);
-              _groupedNotes.remove(sectionName);
-            });
-            _showActionMsg('Kategori $sectionName dihapus');
-          },
+          onEditName: () => _showEditGroupDialog(sectionName),
+          onDelete: () => _showDeleteGroupDialog(sectionName),
           onAddItem: () => _showActionMsg('Tambah item di: $sectionName'),
           onMoveUp: () => _showActionMsg('Pindah ke atas'),
           onMoveDown: () => _showActionMsg('Pindah ke bawah'),
