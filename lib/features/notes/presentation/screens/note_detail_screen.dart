@@ -1,8 +1,9 @@
-// lib/features/notes/presentation/screens/category_notes_screen.dart
+// lib/features/notes/presentation/screens/note_detail_screen.dart
 import 'package:flutter/material.dart';
 import 'package:rutinitasku/core/services/storage_service.dart';
 import '../../models/note_model.dart';
 import '../../../../core/presentation/widgets/base_detail_list_screen.dart';
+import '../../../../core/presentation/widgets/base_popup_dialog.dart'; // Tambahkan import ini
 
 class NoteDetailScreen extends StatefulWidget {
   final NoteGroup noteGroup;
@@ -53,76 +54,135 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(existingNote == null ? 'Catatan Baru' : 'Edit Catatan'),
-        content: SingleChildScrollView(
+      builder: (context) => BasePopupDialog(
+        title: Text(
+          existingNote == null ? 'Catatan Baru' : 'Edit Catatan',
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        themeColor: Colors.orange[700] ?? Colors.orange,
+        titleColor: Colors.white,
+
+        // --- PERUBAHAN UTAMA DI BAGIAN CONTENT ---
+        // Memberikan batasan tinggi (60% dari layar) agar fitur expands: true dapat bekerja
+        // dengan baik tanpa menyebabkan error unbound height.
+        content: Container(
+          height: MediaQuery.of(context).size.height * 0.6,
+          color: Colors.white,
+          padding: const EdgeInsets.all(16.0),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
             children: [
+              // 1. Input Judul Borderless
               TextField(
                 controller: titleController,
-                decoration: const InputDecoration(
-                  labelText: 'Judul',
-                  border: OutlineInputBorder(),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+                decoration: InputDecoration(
+                  hintText: 'Judul Catatan...',
+                  hintStyle: TextStyle(color: Colors.grey[400]),
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: EdgeInsets.zero,
                 ),
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: contentController,
-                maxLines: 5,
-                decoration: const InputDecoration(
-                  labelText: 'Isi Catatan',
-                  border: OutlineInputBorder(),
+              const Divider(height: 24),
+              // 2. Input Konten Borderless (Memenuhi sisa ruang kosong)
+              Expanded(
+                child: TextField(
+                  controller: contentController,
+                  maxLines: null,
+                  expands: true, // Membuat TextField memanjang secara otomatis
+                  textAlignVertical: TextAlignVertical.top,
+                  decoration: InputDecoration(
+                    hintText: 'Tulis catatan Anda di sini...',
+                    hintStyle: TextStyle(color: Colors.grey[400]),
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.zero,
+                  ),
                 ),
               ),
             ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (titleController.text.trim().isEmpty) return;
 
-              setState(() {
-                if (existingNote == null) {
-                  _currentGroup.notes.add(
-                    NoteModel(
-                      id: DateTime.now().millisecondsSinceEpoch.toString(),
-                      title: titleController.text.trim(),
-                      content: contentController.text.trim(),
-                      createdAt: DateTime.now(),
-                      updatedAt: DateTime.now(),
-                    ),
-                  );
-                } else {
-                  final index = _currentGroup.notes.indexWhere(
-                    (n) => n.id == existingNote.id,
-                  );
-                  if (index != -1) {
-                    _currentGroup.notes[index] = NoteModel(
-                      id: existingNote.id,
-                      title: titleController.text.trim(),
-                      content: contentController.text.trim(),
-                      createdAt: existingNote.createdAt,
-                      updatedAt: DateTime.now(),
-                    );
-                  }
-                }
-              });
+        // --- PERUBAHAN UTAMA DI BAGIAN FOOTER ---
+        footer: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment
+                .spaceBetween, // Mendorong elemen ke ujung kiri dan kanan
+            children: [
+              // Tombol Reset di sebelah kiri
+              TextButton.icon(
+                onPressed: () {
+                  titleController.clear();
+                  contentController.clear();
+                },
+                icon: const Icon(
+                  Icons.refresh,
+                  color: Colors.redAccent,
+                  size: 18,
+                ),
+                label: const Text(
+                  'Reset',
+                  style: TextStyle(
+                    color: Colors.redAccent,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              // Tombol Simpan di sebelah kanan
+              ElevatedButton(
+                onPressed: () async {
+                  if (titleController.text.trim().isEmpty) return;
 
-              await _saveCurrentGroup();
-              if (mounted) Navigator.pop(context);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange[700],
-            ),
-            child: const Text('Simpan', style: TextStyle(color: Colors.white)),
+                  setState(() {
+                    if (existingNote == null) {
+                      _currentGroup.notes.add(
+                        NoteModel(
+                          id: DateTime.now().millisecondsSinceEpoch.toString(),
+                          title: titleController.text.trim(),
+                          content: contentController.text.trim(),
+                          createdAt: DateTime.now(),
+                          updatedAt: DateTime.now(),
+                        ),
+                      );
+                    } else {
+                      final index = _currentGroup.notes.indexWhere(
+                        (n) => n.id == existingNote.id,
+                      );
+                      if (index != -1) {
+                        _currentGroup.notes[index] = NoteModel(
+                          id: existingNote.id,
+                          title: titleController.text.trim(),
+                          content: contentController.text.trim(),
+                          createdAt: existingNote.createdAt,
+                          updatedAt: DateTime.now(),
+                        );
+                      }
+                    }
+                  });
+
+                  await _saveCurrentGroup();
+                  if (mounted) Navigator.pop(context);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange[700],
+                ),
+                child: const Text(
+                  'Simpan',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
