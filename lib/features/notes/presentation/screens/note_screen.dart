@@ -5,7 +5,7 @@ import 'package:rutinitasku/core/presentation/widgets/drawer_menu.dart';
 import 'package:rutinitasku/core/services/storage_service.dart';
 import '../../models/note_model.dart';
 import '../../../../core/presentation/widgets/widgets.dart';
-import 'category_notes_screen.dart';
+import 'note_detail_screen.dart';
 
 class NotesScreen extends StatefulWidget {
   const NotesScreen({super.key});
@@ -195,7 +195,7 @@ class _NotesScreenState extends State<NotesScreen> {
                   context,
                   MaterialPageRoute(
                     builder: (context) =>
-                        CategoryNotesScreen(noteGroup: noteGroup),
+                        NoteDetailScreen(noteGroup: noteGroup),
                   ),
                 ).then((_) => _loadNotesData());
               },

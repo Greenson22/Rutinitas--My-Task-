@@ -9,7 +9,7 @@ import '../../../features/task_master/presentation/widgets/settings_dialog.dart'
 import '../../services/storage_service.dart';
 import '../../../features/data_center/presentation/screens/data_center_screen.dart';
 import '../../../features/prompt/presentation/screens/prompt_screen.dart';
-import '../../../features/notes/presentation/screens/notes_screen.dart';
+import '../../../features/notes/presentation/screens/note_screen.dart';
 
 class DrawerMenu extends StatefulWidget {
   final bool isDailyActive;

@@ -4,16 +4,16 @@ import 'package:rutinitasku/core/services/storage_service.dart';
 import '../../models/note_model.dart';
 import '../../../../core/presentation/widgets/base_detail_list_screen.dart';
 
-class CategoryNotesScreen extends StatefulWidget {
+class NoteDetailScreen extends StatefulWidget {
   final NoteGroup noteGroup;
 
-  const CategoryNotesScreen({super.key, required this.noteGroup});
+  const NoteDetailScreen({super.key, required this.noteGroup});
 
   @override
-  State<CategoryNotesScreen> createState() => _CategoryNotesScreenState();
+  State<NoteDetailScreen> createState() => _NoteDetailScreenState();
 }
 
-class _CategoryNotesScreenState extends State<CategoryNotesScreen> {
+class _NoteDetailScreenState extends State<NoteDetailScreen> {
   final StorageService _storageService = StorageService();
   late NoteGroup _currentGroup;
 
