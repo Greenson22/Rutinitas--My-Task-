@@ -37,6 +37,7 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
   bool _isEditingTitle = false;
   bool _hasChanges = false;
   bool _isSaving = false;
+  bool _isViewMode = false; // BARU: State untuk mengontrol mode view/edit
 
   int? _sortColumnIndex;
   bool _isAscending = true;
@@ -49,6 +50,9 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
         ? _editableNote!.title
         : 'Catatan Baru';
     _currentType = _editableNote?.type ?? 'text';
+
+    // BARU: Aktifkan view mode jika membuka catatan yang sudah ada
+    _isViewMode = _editableNote != null;
 
     _titleController = TextEditingController(text: _originalTitle);
     _contentController = TextEditingController(
@@ -187,67 +191,86 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
                     ),
             ),
             const SizedBox(width: 8),
-            if (_hasChanges) ...[
-              _isSaving
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+
+            // BARU: Logika Tampilan Tombol berdasarkan View Mode
+            if (_isViewMode) ...[
+              IconButton(
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                icon: const Icon(Icons.edit, color: Colors.white, size: 20),
+                tooltip: 'Edit Catatan',
+                onPressed: () {
+                  setState(() {
+                    _isViewMode = false;
+                  });
+                },
+              ),
+            ] else ...[
+              if (_hasChanges) ...[
+                _isSaving
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
+                        ),
+                      )
+                    : IconButton(
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        icon: const Icon(
+                          Icons.save,
+                          color: Colors.amberAccent,
+                          size: 20,
+                        ),
+                        tooltip: 'Simpan Catatan',
+                        onPressed: _executeSaveAction,
                       ),
-                    )
-                  : IconButton(
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      icon: const Icon(
-                        Icons.save,
-                        color: Colors.amberAccent,
-                        size: 20,
-                      ),
-                      tooltip: 'Simpan Catatan',
-                      onPressed: _executeSaveAction,
-                    ),
+                const SizedBox(width: 10),
+              ],
+              IconButton(
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                icon: Icon(
+                  _currentType == 'text' ? Icons.list_alt : Icons.table_chart,
+                  color: Colors.tealAccent,
+                  size: 20,
+                ),
+                tooltip: _currentType == 'text'
+                    ? 'Ubah ke Catatan Berfield (Tabel)'
+                    : 'Ubah ke Catatan Teks',
+                onPressed: () {
+                  setState(() {
+                    _currentType = _currentType == 'text' ? 'table' : 'text';
+                    _hasChanges = true;
+                  });
+                },
+              ),
               const SizedBox(width: 10),
+              IconButton(
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                icon: Icon(
+                  _isEditingTitle ? Icons.check : Icons.edit,
+                  color: Colors.white,
+                  size: 18,
+                ),
+                tooltip: _isEditingTitle ? 'Selesai' : 'Ubah Judul',
+                onPressed: () {
+                  setState(() {
+                    if (_isEditingTitle &&
+                        _titleController.text.trim().isEmpty) {
+                      _titleController.text =
+                          _editableNote?.title ?? 'Catatan Baru';
+                    }
+                    _isEditingTitle = !_isEditingTitle;
+                  });
+                },
+              ),
             ],
-            IconButton(
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-              icon: Icon(
-                _currentType == 'text' ? Icons.list_alt : Icons.table_chart,
-                color: Colors.tealAccent,
-                size: 20,
-              ),
-              tooltip: _currentType == 'text'
-                  ? 'Ubah ke Catatan Berfield (Tabel)'
-                  : 'Ubah ke Catatan Teks',
-              onPressed: () {
-                setState(() {
-                  _currentType = _currentType == 'text' ? 'table' : 'text';
-                  _hasChanges = true;
-                });
-              },
-            ),
-            const SizedBox(width: 10),
-            IconButton(
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-              icon: Icon(
-                _isEditingTitle ? Icons.check : Icons.edit,
-                color: Colors.white,
-                size: 18,
-              ),
-              tooltip: _isEditingTitle ? 'Selesai' : 'Ubah Judul',
-              onPressed: () {
-                setState(() {
-                  if (_isEditingTitle && _titleController.text.trim().isEmpty) {
-                    _titleController.text =
-                        _editableNote?.title ?? 'Catatan Baru';
-                  }
-                  _isEditingTitle = !_isEditingTitle;
-                });
-              },
-            ),
           ],
         ),
         themeColor: Colors.indigo,
@@ -261,15 +284,41 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
                   padding: const EdgeInsets.all(16.0),
                   child: TextField(
                     controller: _contentController,
+                    readOnly:
+                        _isViewMode, // BARU: Mencegah ketik jika mode view
                     maxLines: null,
                     expands: true,
                     textAlignVertical: TextAlignVertical.top,
                     decoration: InputDecoration(
-                      hintText: 'Tulis catatan Anda di sini...',
+                      hintText: _isViewMode
+                          ? 'Catatan kosong.'
+                          : 'Tulis catatan Anda di sini...',
                       hintStyle: TextStyle(color: Colors.grey[400]),
                       border: InputBorder.none,
                       contentPadding: EdgeInsets.zero,
                     ),
+                  ),
+                )
+              // BARU: Menangani tampilan tabel berdasarkan view mode
+              : _isViewMode
+              ? Container(
+                  color: Colors.white,
+                  child: NoteTableDataView(
+                    controller: widget.controller,
+                    currentFieldKeys: _currentFieldKeys,
+                    currentFieldTypes: _currentFieldTypes,
+                    tableRows: _tableRows,
+                    formControllers: _formControllers,
+                    sortColumnIndex: _sortColumnIndex,
+                    isAscending: _isAscending,
+                    onChanged: _triggerChange,
+                    isViewMode: true, // Kirim status view mode ke tabel
+                    onSortChanged: (index, ascending) {
+                      setState(() {
+                        _sortColumnIndex = index;
+                        _isAscending = ascending;
+                      });
+                    },
                   ),
                 )
               : DefaultTabController(
@@ -306,6 +355,7 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
                               sortColumnIndex: _sortColumnIndex,
                               isAscending: _isAscending,
                               onChanged: _triggerChange,
+                              isViewMode: false,
                               onSortChanged: (index, ascending) {
                                 setState(() {
                                   _sortColumnIndex = index;
