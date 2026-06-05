@@ -193,8 +193,7 @@ class NoteDetailController {
     });
   }
 
-  Future<void> performSave({
-    required BuildContext dialogCtx,
+  Future<NoteModel> performSave({
     required NoteModel? existingNote,
     required String originalTitle,
     required String currentType,
@@ -239,14 +238,10 @@ class NoteDetailController {
       if (index != -1) currentGroup.notes[index] = newNote;
     }
 
-    onStateChanged(); // Memicu UI utama untuk merender ulang daftar
+    onStateChanged();
     await saveCurrentGroup();
 
-    // PERBAIKAN: Pastikan context dialog masih terpasang (mounted) sebelum melakukan penutupan (pop).
-    // Ini mengantisipasi jika pengguna menutup dialog secara manual tepat saat proses penulisan file asinkron berjalan.
-    if (dialogCtx.mounted) {
-      Navigator.pop(dialogCtx);
-    }
+    return newNote; // Mengembalikan data note baru agar sinkronisasi ID di dialog tetap terjaga
   }
 
   void deleteNote(NoteModel note) async {

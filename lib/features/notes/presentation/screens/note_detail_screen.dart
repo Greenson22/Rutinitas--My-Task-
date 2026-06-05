@@ -66,7 +66,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     String currentType = originalType;
     bool hasChanges = false;
     bool isFormVisible = false;
-    bool isSaving = false; // Flag untuk mencegah double save / spam Ctrl+S
+    bool isSaving = false;
 
     int? sortColumnIndex;
     bool isAscending = true;
@@ -161,6 +161,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
             }
           }
         },
+        onTapOutside: (_) => FocusScope.of(ctx).unfocus(),
         onChanged: (_) => triggerChange(),
       );
     }
@@ -261,7 +262,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       context: context,
       builder: (dialogContext) => _DialogLifecycleWrapper(
         onDispose: () {
-          // Dispose dipanggil dengan aman setelah dialog selesai melakukan animasi pop keluar screen
           titleController.dispose();
           contentController.dispose();
           for (var row in tableRows) {
@@ -273,6 +273,42 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           builder: (context, setDialogState) {
             dialogStateSetter = setDialogState;
 
+            // Fungsi lokal agar logika ScaffoldMessenger penanda berhasil simpan sinkron dengan dialog state
+            void executeSaveAction() async {
+              setDialogState(() => isSaving = true);
+
+              // Simpan data tanpa menutup dialog
+              final NoteModel savedNote = await _controller.performSave(
+                existingNote: existingNote,
+                originalTitle: originalTitle,
+                currentType: currentType,
+                titleController: titleController,
+                contentController: contentController,
+                currentFieldKeys: currentFieldKeys,
+                currentFieldTypes: currentFieldTypes,
+                tableRows: tableRows,
+              );
+
+              // Perbarui referensi objek note agar penyimpanan berikutnya menimpa ID yang sama (bukan buat baru terus)
+              existingNote = savedNote;
+
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).clearSnackBars();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('"${savedNote.title}" berhasil disimpan!'),
+                    duration: const Duration(seconds: 1),
+                    backgroundColor: Colors.teal,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+                setDialogState(() {
+                  hasChanges = false;
+                  isSaving = false;
+                });
+              }
+            }
+
             return Focus(
               onKeyEvent: (node, event) {
                 final isControlPressed =
@@ -282,19 +318,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                     event.logicalKey == LogicalKeyboardKey.keyS &&
                     isControlPressed) {
                   if (hasChanges && !isSaving) {
-                    isSaving =
-                        true; // Kunci proses agar tidak tereksekusi ganda
-                    _controller.performSave(
-                      dialogCtx: dialogContext,
-                      existingNote: existingNote,
-                      originalTitle: originalTitle,
-                      currentType: currentType,
-                      titleController: titleController,
-                      contentController: contentController,
-                      currentFieldKeys: currentFieldKeys,
-                      currentFieldTypes: currentFieldTypes,
-                      tableRows: tableRows,
-                    );
+                    executeSaveAction();
                   }
                   return KeyEventResult.handled;
                 }
@@ -334,32 +358,28 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                     ),
                     const SizedBox(width: 8),
                     if (hasChanges) ...[
-                      IconButton(
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        icon: const Icon(
-                          Icons.save,
-                          color: Colors.amberAccent,
-                          size: 20,
-                        ),
-                        tooltip: 'Simpan Catatan',
-                        onPressed: () {
-                          if (!isSaving) {
-                            isSaving = true;
-                            _controller.performSave(
-                              dialogCtx: dialogContext,
-                              existingNote: existingNote,
-                              originalTitle: originalTitle,
-                              currentType: currentType,
-                              titleController: titleController,
-                              contentController: contentController,
-                              currentFieldKeys: currentFieldKeys,
-                              currentFieldTypes: currentFieldTypes,
-                              tableRows: tableRows,
-                            );
-                          }
-                        },
-                      ),
+                      isSaving
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
+                              ),
+                            )
+                          : IconButton(
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              icon: const Icon(
+                                Icons.save,
+                                color: Colors.amberAccent,
+                                size: 20,
+                              ),
+                              tooltip: 'Simpan Catatan',
+                              onPressed: executeSaveAction,
+                            ),
                       const SizedBox(width: 10),
                     ],
                     IconButton(
@@ -1038,9 +1058,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   }
 }
 
-/// Widget helper khusus untuk membungkus State Dialog.
-/// Menjamin pelepasan memori (dispose) controller baru terjadi ketika widget dialog benar-benar
-/// dihancurkan dan lepas dari visual screen (setelah efek animasi pop transisi fade-out selesai).
 class _DialogLifecycleWrapper extends StatefulWidget {
   final Widget child;
   final VoidCallback onDispose;
