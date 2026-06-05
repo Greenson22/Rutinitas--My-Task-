@@ -82,6 +82,11 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     String currentType = originalType;
     bool hasChanges = false;
     bool isFormVisible = false; // State untuk Toggle Form Input
+
+    // State Pengurutan (Sorting)
+    int? sortColumnIndex;
+    bool isAscending = true;
+
     StateSetter? dialogStateSetter;
 
     // Pemantauan Perubahan
@@ -168,10 +173,8 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           // Bersihkan form input setelah disubmit
           formControllers[key]?.clear();
         }
-        tableRows.insert(
-          0,
-          newRow,
-        ); // Masukkan data baru di posisi paling atas daftar
+        // Masukkan data baru di posisi paling bawah
+        tableRows.add(newRow);
         isFormVisible = false; // Sembunyikan form kembali
         hasChanges = true;
       });
@@ -182,6 +185,27 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         final removedRow = tableRows.removeAt(index);
         removedRow.values.forEach((controller) => controller.dispose());
         hasChanges = true;
+      });
+    }
+
+    // Fungsi Pengurutan Data (Sorting)
+    void _sort(StateSetter setDialogState, String key, int columnIndex) {
+      setDialogState(() {
+        if (sortColumnIndex == columnIndex) {
+          isAscending =
+              !isAscending; // Balikkan arah urutan jika kolom yang sama ditekan
+        } else {
+          sortColumnIndex = columnIndex;
+          isAscending = true; // Set ascending default untuk kolom baru
+        }
+
+        tableRows.sort((a, b) {
+          final valA = a[key]?.text.trim().toLowerCase() ?? '';
+          final valB = b[key]?.text.trim().toLowerCase() ?? '';
+          return isAscending ? valA.compareTo(valB) : valB.compareTo(valA);
+        });
+        hasChanges =
+            true; // Tandai perubahan jika disortir (agar bisa disimpan dalam urutan baru)
       });
     }
 
@@ -608,7 +632,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                                           ),
                                           const SizedBox(height: 6),
 
-                                          // Daftar Baris Data yang Ada
+                                          // Daftar Baris Data yang Ada (Diubah Menjadi DataTable)
                                           Expanded(
                                             child: tableRows.isEmpty
                                                 ? const Center(
@@ -619,148 +643,178 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                                                       ),
                                                     ),
                                                   )
-                                                : ListView.builder(
-                                                    itemCount: tableRows.length,
-                                                    itemBuilder: (context, index) {
-                                                      final row =
-                                                          tableRows[index];
-                                                      return Card(
-                                                        margin:
-                                                            const EdgeInsets.only(
-                                                              bottom: 10,
-                                                            ),
-                                                        shape: RoundedRectangleBorder(
-                                                          borderRadius:
-                                                              BorderRadius.circular(
-                                                                8,
-                                                              ),
-                                                          side: BorderSide(
-                                                            color: Colors
-                                                                .grey
-                                                                .shade300,
+                                                : Container(
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.white,
+                                                      border: Border.all(
+                                                        color: Colors
+                                                            .grey
+                                                            .shade300,
+                                                      ),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            8,
                                                           ),
-                                                        ),
-                                                        elevation: 0,
-                                                        color: Colors.white,
-                                                        child: Padding(
-                                                          padding:
-                                                              const EdgeInsets.all(
-                                                                12.0,
+                                                    ),
+                                                    // Widget Tabel dengan Scroll Horizontal dan Vertikal
+                                                    child: SingleChildScrollView(
+                                                      scrollDirection:
+                                                          Axis.vertical,
+                                                      child: SingleChildScrollView(
+                                                        scrollDirection:
+                                                            Axis.horizontal,
+                                                        child: DataTable(
+                                                          sortColumnIndex:
+                                                              sortColumnIndex,
+                                                          sortAscending:
+                                                              isAscending,
+                                                          headingRowColor:
+                                                              MaterialStateProperty.resolveWith(
+                                                                (
+                                                                  states,
+                                                                ) => Colors
+                                                                    .indigo
+                                                                    .shade50,
                                                               ),
-                                                          child: Column(
-                                                            crossAxisAlignment:
-                                                                CrossAxisAlignment
-                                                                    .start,
-                                                            children: [
-                                                              Row(
-                                                                mainAxisAlignment:
-                                                                    MainAxisAlignment
-                                                                        .spaceBetween,
-                                                                children: [
-                                                                  Text(
-                                                                    'Baris #${tableRows.length - index}',
-                                                                    style: const TextStyle(
-                                                                      fontWeight:
-                                                                          FontWeight
-                                                                              .bold,
-                                                                      color: Colors
-                                                                          .indigo,
-                                                                      fontSize:
-                                                                          12,
-                                                                    ),
+                                                          dataRowMinHeight: 50,
+                                                          dataRowMaxHeight: 60,
+                                                          columns: [
+                                                            ...currentFieldKeys.asMap().entries.map((
+                                                              entry,
+                                                            ) {
+                                                              int idx =
+                                                                  entry.key;
+                                                              String key =
+                                                                  entry.value;
+                                                              return DataColumn(
+                                                                label: Text(
+                                                                  key,
+                                                                  style: const TextStyle(
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .bold,
+                                                                    color: Colors
+                                                                        .indigo,
                                                                   ),
+                                                                ),
+                                                                onSort:
+                                                                    (
+                                                                      columnIndex,
+                                                                      ascending,
+                                                                    ) => _sort(
+                                                                      setDialogState,
+                                                                      key,
+                                                                      columnIndex,
+                                                                    ),
+                                                              );
+                                                            }).toList(),
+                                                            const DataColumn(
+                                                              label: Text(
+                                                                'Aksi',
+                                                                style: TextStyle(
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .bold,
+                                                                  color: Colors
+                                                                      .indigo,
+                                                                ),
+                                                              ),
+                                                            ),
+                                                          ],
+                                                          rows: tableRows.asMap().entries.map((
+                                                            entry,
+                                                          ) {
+                                                            int index =
+                                                                entry.key;
+                                                            var row =
+                                                                entry.value;
+                                                            return DataRow(
+                                                              cells: [
+                                                                ...currentFieldKeys.map((
+                                                                  key,
+                                                                ) {
+                                                                  return DataCell(
+                                                                    Container(
+                                                                      width:
+                                                                          150, // Lebar fixed agar textfield tidak error layout
+                                                                      padding: const EdgeInsets.symmetric(
+                                                                        vertical:
+                                                                            4,
+                                                                      ),
+                                                                      child: TextField(
+                                                                        controller:
+                                                                            row[key],
+                                                                        decoration: InputDecoration(
+                                                                          isDense:
+                                                                              true,
+                                                                          contentPadding: const EdgeInsets.symmetric(
+                                                                            vertical:
+                                                                                8,
+                                                                            horizontal:
+                                                                                10,
+                                                                          ),
+                                                                          border: OutlineInputBorder(
+                                                                            borderRadius: BorderRadius.circular(
+                                                                              6,
+                                                                            ),
+                                                                            borderSide: BorderSide(
+                                                                              color: Colors.grey.shade300,
+                                                                            ),
+                                                                          ),
+                                                                          enabledBorder: OutlineInputBorder(
+                                                                            borderRadius: BorderRadius.circular(
+                                                                              6,
+                                                                            ),
+                                                                            borderSide: BorderSide(
+                                                                              color: Colors.grey.shade300,
+                                                                            ),
+                                                                          ),
+                                                                          focusedBorder: OutlineInputBorder(
+                                                                            borderRadius: BorderRadius.circular(
+                                                                              6,
+                                                                            ),
+                                                                            borderSide: const BorderSide(
+                                                                              color: Colors.indigo,
+                                                                            ),
+                                                                          ),
+                                                                        ),
+                                                                        style: const TextStyle(
+                                                                          fontSize:
+                                                                              13,
+                                                                        ),
+                                                                        onChanged:
+                                                                            (
+                                                                              _,
+                                                                            ) =>
+                                                                                triggerChange(),
+                                                                      ),
+                                                                    ),
+                                                                  );
+                                                                }).toList(),
+                                                                DataCell(
                                                                   IconButton(
                                                                     icon: const Icon(
                                                                       Icons
                                                                           .delete_outline,
                                                                       color: Colors
                                                                           .redAccent,
-                                                                      size: 18,
+                                                                      size: 20,
                                                                     ),
                                                                     onPressed: () =>
                                                                         _removeRow(
                                                                           setDialogState,
                                                                           index,
                                                                         ),
-                                                                    padding:
-                                                                        EdgeInsets
-                                                                            .zero,
-                                                                    constraints:
-                                                                        const BoxConstraints(),
+                                                                    tooltip:
+                                                                        'Hapus Baris',
                                                                   ),
-                                                                ],
-                                                              ),
-                                                              const Divider(
-                                                                height: 12,
-                                                              ),
-                                                              ...currentFieldKeys.map((
-                                                                key,
-                                                              ) {
-                                                                return Padding(
-                                                                  padding:
-                                                                      const EdgeInsets.only(
-                                                                        bottom:
-                                                                            6.0,
-                                                                      ),
-                                                                  child: Row(
-                                                                    crossAxisAlignment:
-                                                                        CrossAxisAlignment
-                                                                            .center,
-                                                                    children: [
-                                                                      SizedBox(
-                                                                        width:
-                                                                            90,
-                                                                        child: Text(
-                                                                          key,
-                                                                          style: const TextStyle(
-                                                                            fontSize:
-                                                                                12,
-                                                                            color:
-                                                                                Colors.black87,
-                                                                          ),
-                                                                          maxLines:
-                                                                              2,
-                                                                          overflow:
-                                                                              TextOverflow.ellipsis,
-                                                                        ),
-                                                                      ),
-                                                                      Expanded(
-                                                                        child: TextField(
-                                                                          controller:
-                                                                              row[key],
-                                                                          decoration: InputDecoration(
-                                                                            isDense:
-                                                                                true,
-                                                                            contentPadding: const EdgeInsets.symmetric(
-                                                                              vertical: 6,
-                                                                              horizontal: 10,
-                                                                            ),
-                                                                            border: OutlineInputBorder(
-                                                                              borderRadius: BorderRadius.circular(
-                                                                                6,
-                                                                              ),
-                                                                              borderSide: BorderSide(
-                                                                                color: Colors.grey.shade300,
-                                                                              ),
-                                                                            ),
-                                                                          ),
-                                                                          style: const TextStyle(
-                                                                            fontSize:
-                                                                                13,
-                                                                          ),
-                                                                          onChanged: (_) =>
-                                                                              triggerChange(), // Memicu tombol save utama muncul
-                                                                        ),
-                                                                      ),
-                                                                    ],
-                                                                  ),
-                                                                );
-                                                              }).toList(),
-                                                            ],
-                                                          ),
+                                                                ),
+                                                              ],
+                                                            );
+                                                          }).toList(),
                                                         ),
-                                                      );
-                                                    },
+                                                      ),
+                                                    ),
                                                   ),
                                           ),
                                         ],
