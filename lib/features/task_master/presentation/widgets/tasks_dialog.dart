@@ -591,24 +591,86 @@ class TasksDialog extends StatelessWidget {
                                             task,
                                           );
                                           if (isDeleted) setDialogState(() {});
-                                        } else if (value.startsWith(
-                                          'move_to_',
-                                        )) {
-                                          String targetCategoryName = value
-                                              .replaceFirst('move_to_', '');
-                                          final targetCategory = allCategories
-                                              .firstWhere(
-                                                (cat) =>
-                                                    cat.name ==
-                                                    targetCategoryName,
+                                        } else if (value ==
+                                            'trigger_move_menu') {
+                                          // === PERBAIKAN: Gunakan overlay secara langsung untuk menghindari error RenderSliverList cast ===
+                                          final NavigatorState navigator =
+                                              Navigator.of(context);
+                                          final RenderBox overlay =
+                                              navigator.overlay!.context
+                                                      .findRenderObject()
+                                                  as RenderBox;
+
+                                          final RelativeRect position =
+                                              RelativeRect.fromRect(
+                                                Rect.fromPoints(
+                                                  overlay.localToGlobal(
+                                                    Offset.zero,
+                                                  ),
+                                                  overlay.localToGlobal(
+                                                    overlay.size.bottomRight(
+                                                      Offset.zero,
+                                                    ),
+                                                  ),
+                                                ),
+                                                Offset.zero & overlay.size,
                                               );
 
-                                          onMoveTaskCategory(
-                                            task,
-                                            category,
-                                            targetCategory,
+                                          if (!context.mounted) return;
+
+                                          // Tampilkan menu sekunder berisi daftar kategori target
+                                          final String?
+                                          selectedTarget = await showMenu<String>(
+                                            context: context,
+                                            position: position,
+                                            items: allCategories
+                                                .where(
+                                                  (cat) =>
+                                                      cat.name != category.name,
+                                                )
+                                                .map((cat) {
+                                                  return PopupMenuItem<String>(
+                                                    value: cat.name,
+                                                    child: Row(
+                                                      children: [
+                                                        Text(
+                                                          cat.icon,
+                                                          style:
+                                                              const TextStyle(
+                                                                fontSize: 14,
+                                                              ),
+                                                        ),
+                                                        const SizedBox(
+                                                          width: 8,
+                                                        ),
+                                                        Text(
+                                                          cat.name,
+                                                          style:
+                                                              const TextStyle(
+                                                                fontSize: 13,
+                                                              ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  );
+                                                })
+                                                .toList(),
                                           );
-                                          setDialogState(() {});
+
+                                          if (selectedTarget != null) {
+                                            final targetCategory = allCategories
+                                                .firstWhere(
+                                                  (cat) =>
+                                                      cat.name ==
+                                                      selectedTarget,
+                                                );
+                                            onMoveTaskCategory(
+                                              task,
+                                              category,
+                                              targetCategory,
+                                            );
+                                            setDialogState(() {});
+                                          }
                                         }
                                       },
                                       itemBuilder: (BuildContext context) => [
@@ -624,60 +686,27 @@ class TasksDialog extends StatelessWidget {
                                             dense: true,
                                           ),
                                         ),
-                                        // PINDAH KATEGORI HANYA MUNCUL DI MENU SAAT MODE EDIT AKTIF
-                                        if (isSelectionMode &&
-                                            allCategories.length > 1) ...[
-                                          PopupMenuItem<String>(
-                                            enabled: false,
-                                            child: Text(
-                                              'Pindahkan Kategori:',
-                                              style: TextStyle(
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.indigo[700],
+                                        // IMPLEMENTASI BARU: Opsi tunggal bertingkat dengan indikator panah kanan
+                                        if (allCategories.length > 1) ...[
+                                          const PopupMenuDivider(),
+                                          const PopupMenuItem<String>(
+                                            value: 'trigger_move_menu',
+                                            child: ListTile(
+                                              leading: Icon(
+                                                Icons.drive_file_move_outlined,
+                                                size: 20,
+                                                color: Colors.indigo,
                                               ),
+                                              title: Text('Pindahkan Kategori'),
+                                              trailing: Icon(
+                                                Icons.chevron_right,
+                                                size: 16,
+                                                color: Colors.grey,
+                                              ),
+                                              contentPadding: EdgeInsets.zero,
+                                              dense: true,
                                             ),
                                           ),
-                                          ...allCategories
-                                              .where(
-                                                (cat) =>
-                                                    cat.name != category.name,
-                                              )
-                                              .map((cat) {
-                                                return PopupMenuItem<String>(
-                                                  value: 'move_to_${cat.name}',
-                                                  child: Padding(
-                                                    padding:
-                                                        const EdgeInsets.only(
-                                                          left: 8.0,
-                                                        ),
-                                                    child: Row(
-                                                      children: [
-                                                        Text(
-                                                          cat.icon,
-                                                          style:
-                                                              const TextStyle(
-                                                                fontSize: 14,
-                                                              ),
-                                                        ),
-                                                        const SizedBox(
-                                                          width: 8,
-                                                        ),
-                                                        Expanded(
-                                                          child: Text(
-                                                            cat.name,
-                                                            style:
-                                                                const TextStyle(
-                                                                  fontSize: 13,
-                                                                ),
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                );
-                                              })
-                                              .toList(),
                                         ],
                                         const PopupMenuDivider(),
                                         const PopupMenuItem<String>(
