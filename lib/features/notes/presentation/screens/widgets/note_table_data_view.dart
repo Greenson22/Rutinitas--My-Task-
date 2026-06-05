@@ -33,6 +33,10 @@ class NoteTableDataView extends StatefulWidget {
 class _NoteTableDataViewState extends State<NoteTableDataView> {
   bool _isFormVisible = false;
 
+  // BARU: State untuk menyimpan posisi sisipan baris data
+  String _insertPosition = 'Paling Bawah';
+  int _targetRowIndex = 0;
+
   void _submitFormRow() {
     setState(() {
       Map<String, TextEditingController> newRow = {};
@@ -40,10 +44,28 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
         newRow[key] = TextEditingController(
           text: widget.formControllers[key]?.text.trim() ?? '',
         );
+        // Reset form
         widget.formControllers[key]?.text =
             widget.currentFieldTypes[key] == 'Boolean' ? 'Tidak' : '';
       }
-      widget.tableRows.add(newRow);
+
+      // BARU: Logika penempatan baris berdasarkan pilihan posisi
+      if (_insertPosition == 'Paling Atas') {
+        widget.tableRows.insert(0, newRow);
+      } else if (_insertPosition == 'Setelah Baris Tertentu' &&
+          widget.tableRows.isNotEmpty) {
+        // Mencegah error index out of bounds
+        int insertIndex = _targetRowIndex + 1;
+        if (insertIndex >= widget.tableRows.length) {
+          widget.tableRows.add(newRow);
+        } else {
+          widget.tableRows.insert(insertIndex, newRow);
+        }
+      } else {
+        // Default ke Paling Bawah
+        widget.tableRows.add(newRow);
+      }
+
       _isFormVisible = false;
     });
     widget.onChanged();
@@ -232,7 +254,108 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                                 ),
                               );
                             }).toList(),
+
+                            // BARU: UI Pilihan Posisi Sisipan Baris
                             const SizedBox(height: 8),
+                            const Text(
+                              'Posisi Sisip Data:',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Expanded(
+                                  flex: 2,
+                                  child: DropdownButtonFormField<String>(
+                                    value: _insertPosition,
+                                    decoration: InputDecoration(
+                                      isDense: true,
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 8,
+                                          ),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                    ),
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.black,
+                                    ),
+                                    items: const [
+                                      DropdownMenuItem(
+                                        value: 'Paling Bawah',
+                                        child: Text('Paling Bawah'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'Paling Atas',
+                                        child: Text('Paling Atas'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'Setelah Baris Tertentu',
+                                        child: Text('Setelah Baris...'),
+                                      ),
+                                    ],
+                                    onChanged: (val) {
+                                      if (val != null)
+                                        setState(() => _insertPosition = val);
+                                    },
+                                  ),
+                                ),
+                                if (_insertPosition ==
+                                        'Setelah Baris Tertentu' &&
+                                    widget.tableRows.isNotEmpty) ...[
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    flex: 2,
+                                    child: DropdownButtonFormField<int>(
+                                      value:
+                                          _targetRowIndex <
+                                              widget.tableRows.length
+                                          ? _targetRowIndex
+                                          : 0,
+                                      decoration: InputDecoration(
+                                        isDense: true,
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 8,
+                                            ),
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            6,
+                                          ),
+                                        ),
+                                      ),
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.black,
+                                      ),
+                                      items: List.generate(
+                                        widget.tableRows.length,
+                                        (i) {
+                                          return DropdownMenuItem(
+                                            value: i,
+                                            child: Text('Baris ${i + 1}'),
+                                          );
+                                        },
+                                      ),
+                                      onChanged: (val) {
+                                        if (val != null)
+                                          setState(() => _targetRowIndex = val);
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+
                             SizedBox(
                               width: double.infinity,
                               child: ElevatedButton.icon(
@@ -285,7 +408,10 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                         child: SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
                           child: DataTable(
-                            sortColumnIndex: widget.sortColumnIndex,
+                            sortColumnIndex: widget.sortColumnIndex != null
+                                ? widget.sortColumnIndex! +
+                                      1 // +1 karena kolom pertama sekarang adalah "No."
+                                : null,
                             sortAscending: widget.isAscending,
                             headingRowColor: MaterialStateProperty.resolveWith(
                               (states) => Colors.indigo.shade50,
@@ -293,6 +419,16 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                             dataRowMinHeight: 50,
                             dataRowMaxHeight: 60,
                             columns: [
+                              // BARU: Tambahan DataColumn untuk Nomor Urut Otomatis
+                              const DataColumn(
+                                label: Text(
+                                  'No.',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.indigo,
+                                  ),
+                                ),
+                              ),
                               ...widget.currentFieldKeys.asMap().entries.map((
                                 entry,
                               ) {
@@ -313,7 +449,8 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                                             widget.currentFieldTypes,
                                         triggerChange: widget.onChanged,
                                         key: key,
-                                        columnIndex: columnIndex,
+                                        // -1 karena kita mengabaikan kolom "No." dalam perhitungan sort custom
+                                        columnIndex: columnIndex - 1,
                                         currentSortColumnIndex:
                                             widget.sortColumnIndex,
                                         currentIsAscending: widget.isAscending,
@@ -336,6 +473,15 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                               var row = entry.value;
                               return DataRow(
                                 cells: [
+                                  // BARU: Tambahan DataCell untuk merender angka Nomor Urut
+                                  DataCell(
+                                    Text(
+                                      '${index + 1}',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
                                   ...widget.currentFieldKeys.map((key) {
                                     return DataCell(
                                       Container(
