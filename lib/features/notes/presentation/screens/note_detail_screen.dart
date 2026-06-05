@@ -57,6 +57,9 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
     // Variabel state untuk Mode Tabel / Berfield
     List<String> currentFieldKeys = List.from(existingNote?.fieldKeys ?? []);
+    Map<String, String> currentFieldTypes = Map.from(
+      existingNote?.fieldTypes ?? {},
+    );
     List<Map<String, TextEditingController>> tableRows = [];
 
     // Controller khusus untuk form input penambah data baru (Satu Kotak)
@@ -64,7 +67,10 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
     // Inisialisasi controller form input penambah data
     for (var key in currentFieldKeys) {
-      formControllers[key] = TextEditingController();
+      String type = currentFieldTypes[key] ?? 'String';
+      formControllers[key] = TextEditingController(
+        text: type == 'Boolean' ? 'Tidak' : '',
+      );
     }
 
     // Inisialisasi controller baris dari data yang sudah ada
@@ -140,16 +146,104 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           false;
     }
 
+    // Fungsi pembangun kolom input dinamis sesuai Tipe Data
+    Widget _buildInputField(
+      String key,
+      TextEditingController controller,
+      BuildContext ctx,
+      StateSetter setDialogState,
+    ) {
+      String type = currentFieldTypes[key] ?? 'String';
+
+      InputDecoration inputDecoration = InputDecoration(
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+        suffixIcon: type == 'Date'
+            ? const Icon(Icons.calendar_today, size: 16, color: Colors.indigo)
+            : type == 'Time'
+            ? const Icon(Icons.access_time, size: 16, color: Colors.indigo)
+            : null,
+      );
+
+      // Render Dropdown khusus untuk Tipe Boolean
+      if (type == 'Boolean') {
+        if (controller.text != 'Ya' && controller.text != 'Tidak') {
+          controller.text = 'Tidak';
+        }
+        return DropdownButtonFormField<String>(
+          value: controller.text,
+          decoration: inputDecoration,
+          style: const TextStyle(fontSize: 13, color: Colors.black),
+          items: const [
+            DropdownMenuItem(value: 'Ya', child: Text('Ya')),
+            DropdownMenuItem(value: 'Tidak', child: Text('Tidak')),
+          ],
+          onChanged: (val) {
+            if (val != null) {
+              setDialogState(() {
+                controller.text = val;
+                triggerChange();
+              });
+            }
+          },
+        );
+      }
+
+      // Render TextField adaptif untuk String, Numerik, Date, dan Time
+      return TextField(
+        controller: controller,
+        keyboardType: type == 'Numerik'
+            ? TextInputType.number
+            : TextInputType.text,
+        readOnly: type == 'Date' || type == 'Time',
+        decoration: inputDecoration,
+        style: const TextStyle(fontSize: 13),
+        onTap: () async {
+          if (type == 'Date') {
+            DateTime? picked = await showDatePicker(
+              context: ctx,
+              initialDate: DateTime.now(),
+              firstDate: DateTime(2000),
+              lastDate: DateTime(2100),
+            );
+            if (picked != null) {
+              setDialogState(() {
+                controller.text =
+                    "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
+                triggerChange();
+              });
+            }
+          } else if (type == 'Time') {
+            TimeOfDay? picked = await showTimePicker(
+              context: ctx,
+              initialTime: TimeOfDay.now(),
+            );
+            if (picked != null) {
+              setDialogState(() {
+                controller.text =
+                    "${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}";
+                triggerChange();
+              });
+            }
+          }
+        },
+        onChanged: (_) => triggerChange(),
+      );
+    }
+
     // Fungsi Pengelolaan Struktur Field (Kolom)
-    void _addFieldKey(StateSetter setDialogState, String key) {
+    void _addFieldKey(StateSetter setDialogState, String key, String type) {
       if (!currentFieldKeys.contains(key)) {
         setDialogState(() {
           currentFieldKeys.add(key);
-          formControllers[key] =
-              TextEditingController(); // Tambah ke form input
+          currentFieldTypes[key] = type;
+
+          String defaultVal = type == 'Boolean' ? 'Tidak' : '';
+          formControllers[key] = TextEditingController(text: defaultVal);
+
           for (var row in tableRows) {
-            row[key] =
-                TextEditingController(); // Tambahkan kolom kosong di setiap baris yang sudah ada
+            row[key] = TextEditingController(text: defaultVal);
           }
           hasChanges = true;
         });
@@ -166,6 +260,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
       setDialogState(() {
         currentFieldKeys.remove(key);
+        currentFieldTypes.remove(key);
         formControllers[key]?.dispose();
         formControllers.remove(key);
         for (var row in tableRows) {
@@ -178,33 +273,65 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
     void _showAddFieldDialog(StateSetter setDialogState) {
       final keyController = TextEditingController();
+      String selectedType = 'String';
+      final List<String> availableTypes = [
+        'String',
+        'Numerik',
+        'Date',
+        'Time',
+        'Boolean',
+      ];
+
       showDialog(
         context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Tambah Kolom Baru'),
-          content: TextField(
-            controller: keyController,
-            decoration: const InputDecoration(
-              hintText: 'Nama Kolom (misal: No, Nama, Tanggal)',
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctxModal, setModalState) => AlertDialog(
+            title: const Text('Tambah Kolom Baru'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: keyController,
+                  decoration: const InputDecoration(
+                    hintText: 'Nama Kolom (misal: No, Nama, Tanggal)',
+                  ),
+                  autofocus: true,
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: selectedType,
+                  decoration: const InputDecoration(
+                    labelText: 'Tipe Data Kolom',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: availableTypes
+                      .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                      .toList(),
+                  onChanged: (val) {
+                    if (val != null) {
+                      setModalState(() => selectedType = val);
+                    }
+                  },
+                ),
+              ],
             ),
-            autofocus: true,
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Batal'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  final key = keyController.text.trim();
+                  if (key.isNotEmpty) {
+                    _addFieldKey(setDialogState, key, selectedType);
+                    Navigator.pop(ctx);
+                  }
+                },
+                child: const Text('Tambah'),
+              ),
+            ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Batal'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final key = keyController.text.trim();
-                if (key.isNotEmpty) {
-                  _addFieldKey(setDialogState, key);
-                  Navigator.pop(ctx);
-                }
-              },
-              child: const Text('Tambah'),
-            ),
-          ],
         ),
       );
     }
@@ -214,14 +341,14 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       setDialogState(() {
         Map<String, TextEditingController> newRow = {};
         for (var key in currentFieldKeys) {
-          // Pindahkan teks dari form input ke baris baru
           newRow[key] = TextEditingController(
             text: formControllers[key]?.text.trim() ?? '',
           );
-          // Bersihkan form input setelah disubmit
-          formControllers[key]?.clear();
+          // Bersihkan form input setelah disubmit, kembalikan ke default bawaan tipe datanya
+          formControllers[key]?.text = currentFieldTypes[key] == 'Boolean'
+              ? 'Tidak'
+              : '';
         }
-        // Masukkan data baru di posisi paling bawah
         tableRows.add(newRow);
         isFormVisible = false; // Sembunyikan form kembali
         hasChanges = true;
@@ -247,20 +374,29 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     void _sort(StateSetter setDialogState, String key, int columnIndex) {
       setDialogState(() {
         if (sortColumnIndex == columnIndex) {
-          isAscending =
-              !isAscending; // Balikkan arah urutan jika kolom yang sama ditekan
+          isAscending = !isAscending;
         } else {
           sortColumnIndex = columnIndex;
-          isAscending = true; // Set ascending default untuk kolom baru
+          isAscending = true;
         }
 
+        String type = currentFieldTypes[key] ?? 'String';
+
         tableRows.sort((a, b) {
-          final valA = a[key]?.text.trim().toLowerCase() ?? '';
-          final valB = b[key]?.text.trim().toLowerCase() ?? '';
-          return isAscending ? valA.compareTo(valB) : valB.compareTo(valA);
+          final valA = a[key]?.text.trim() ?? '';
+          final valB = b[key]?.text.trim() ?? '';
+
+          if (type == 'Numerik') {
+            final numA = double.tryParse(valA) ?? 0.0;
+            final numB = double.tryParse(valB) ?? 0.0;
+            return isAscending ? numA.compareTo(numB) : numB.compareTo(numA);
+          }
+
+          return isAscending
+              ? valA.toLowerCase().compareTo(valB.toLowerCase())
+              : valB.toLowerCase().compareTo(valA.toLowerCase());
         });
-        hasChanges =
-            true; // Tandai perubahan jika disortir (agar bisa disimpan dalam urutan baru)
+        hasChanges = true;
       });
     }
 
@@ -291,6 +427,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           updatedAt: DateTime.now(),
           type: currentType,
           fieldKeys: currentType == 'table' ? currentFieldKeys : [],
+          fieldTypes: currentType == 'table' ? currentFieldTypes : {},
           tableData: currentType == 'table' ? finalTableData : [],
         );
 
@@ -408,9 +545,10 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                     onPressed: () {
                       setDialogState(() {
                         if (isEditingTitle &&
-                            titleController.text.trim().isEmpty)
+                            titleController.text.trim().isEmpty) {
                           titleController.text =
                               existingNote?.title ?? 'Catatan Baru';
+                        }
                         isEditingTitle = !isEditingTitle;
                       });
                     },
@@ -450,7 +588,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                                 unselectedLabelColor: Colors.grey,
                                 indicatorColor: Colors.indigo,
                                 tabs: [
-                                  // Tab Data diputar menjadi yang pertama
                                   Tab(
                                     text: 'Data Tabel',
                                     icon: Icon(
@@ -599,41 +736,28 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                                                               child: Row(
                                                                 children: [
                                                                   SizedBox(
-                                                                    width: 90,
+                                                                    width: 100,
                                                                     child: Text(
-                                                                      key,
+                                                                      "$key (${currentFieldTypes[key] ?? 'String'})",
                                                                       style: const TextStyle(
                                                                         fontSize:
-                                                                            13,
+                                                                            12,
                                                                         fontWeight:
                                                                             FontWeight.w500,
                                                                       ),
+                                                                      maxLines:
+                                                                          1,
+                                                                      overflow:
+                                                                          TextOverflow
+                                                                              .ellipsis,
                                                                     ),
                                                                   ),
                                                                   Expanded(
-                                                                    child: TextField(
-                                                                      controller:
-                                                                          formControllers[key],
-                                                                      decoration: InputDecoration(
-                                                                        isDense:
-                                                                            true,
-                                                                        contentPadding: const EdgeInsets.symmetric(
-                                                                          vertical:
-                                                                              8,
-                                                                          horizontal:
-                                                                              10,
-                                                                        ),
-                                                                        border: OutlineInputBorder(
-                                                                          borderRadius:
-                                                                              BorderRadius.circular(
-                                                                                6,
-                                                                              ),
-                                                                        ),
-                                                                      ),
-                                                                      style: const TextStyle(
-                                                                        fontSize:
-                                                                            13,
-                                                                      ),
+                                                                    child: _buildInputField(
+                                                                      key,
+                                                                      formControllers[key]!,
+                                                                      context,
+                                                                      setDialogState,
                                                                     ),
                                                                   ),
                                                                 ],
@@ -687,7 +811,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                                           ),
                                           const SizedBox(height: 6),
 
-                                          // Daftar Baris Data yang Ada (Diubah Menjadi DataTable)
+                                          // Daftar Baris Data yang Ada (DataTable Adaptif)
                                           Expanded(
                                             child: tableRows.isEmpty
                                                 ? const Center(
@@ -711,7 +835,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                                                             8,
                                                           ),
                                                     ),
-                                                    // Widget Tabel dengan Scroll Horizontal dan Vertikal
                                                     child: SingleChildScrollView(
                                                       scrollDirection:
                                                           Axis.vertical,
@@ -743,7 +866,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                                                                   entry.value;
                                                               return DataColumn(
                                                                 label: Text(
-                                                                  key,
+                                                                  "$key (${currentFieldTypes[key] ?? 'String'})",
                                                                   style: const TextStyle(
                                                                     fontWeight:
                                                                         FontWeight
@@ -791,57 +914,16 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                                                                   return DataCell(
                                                                     Container(
                                                                       width:
-                                                                          150, // Lebar fixed agar textfield tidak error layout
+                                                                          160,
                                                                       padding: const EdgeInsets.symmetric(
                                                                         vertical:
                                                                             4,
                                                                       ),
-                                                                      child: TextField(
-                                                                        controller:
-                                                                            row[key],
-                                                                        decoration: InputDecoration(
-                                                                          isDense:
-                                                                              true,
-                                                                          contentPadding: const EdgeInsets.symmetric(
-                                                                            vertical:
-                                                                                8,
-                                                                            horizontal:
-                                                                                10,
-                                                                          ),
-                                                                          border: OutlineInputBorder(
-                                                                            borderRadius: BorderRadius.circular(
-                                                                              6,
-                                                                            ),
-                                                                            borderSide: BorderSide(
-                                                                              color: Colors.grey.shade300,
-                                                                            ),
-                                                                          ),
-                                                                          enabledBorder: OutlineInputBorder(
-                                                                            borderRadius: BorderRadius.circular(
-                                                                              6,
-                                                                            ),
-                                                                            borderSide: BorderSide(
-                                                                              color: Colors.grey.shade300,
-                                                                            ),
-                                                                          ),
-                                                                          focusedBorder: OutlineInputBorder(
-                                                                            borderRadius: BorderRadius.circular(
-                                                                              6,
-                                                                            ),
-                                                                            borderSide: const BorderSide(
-                                                                              color: Colors.indigo,
-                                                                            ),
-                                                                          ),
-                                                                        ),
-                                                                        style: const TextStyle(
-                                                                          fontSize:
-                                                                              13,
-                                                                        ),
-                                                                        onChanged:
-                                                                            (
-                                                                              _,
-                                                                            ) =>
-                                                                                triggerChange(),
+                                                                      child: _buildInputField(
+                                                                        key,
+                                                                        row[key]!,
+                                                                        dialogContext,
+                                                                        setDialogState,
                                                                       ),
                                                                     ),
                                                                   );
@@ -908,6 +990,9 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                                                   itemBuilder: (ctx, idx) {
                                                     final key =
                                                         currentFieldKeys[idx];
+                                                    final type =
+                                                        currentFieldTypes[key] ??
+                                                        'String';
                                                     return Card(
                                                       margin:
                                                           const EdgeInsets.only(
@@ -929,6 +1014,13 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                                                                     FontWeight
                                                                         .w600,
                                                               ),
+                                                        ),
+                                                        subtitle: Text(
+                                                          "Tipe Data: $type",
+                                                          style: TextStyle(
+                                                            color: Colors
+                                                                .grey[600],
+                                                          ),
                                                         ),
                                                         trailing: IconButton(
                                                           icon: const Icon(

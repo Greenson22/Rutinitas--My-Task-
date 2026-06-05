@@ -44,6 +44,7 @@ class NoteModel {
   final DateTime updatedAt;
   final String type; // 'text' atau 'table'
   final List<String> fieldKeys; // Menyimpan struktur kolom
+  final Map<String, String> fieldTypes; // BARU: Menyimpan tipe data per kolom
   final List<Map<String, String>> tableData; // Menyimpan baris-baris data
 
   NoteModel({
@@ -54,6 +55,7 @@ class NoteModel {
     required this.updatedAt,
     this.type = 'text',
     this.fieldKeys = const [],
+    this.fieldTypes = const {}, // BARU
     this.tableData = const [],
   });
 
@@ -65,14 +67,20 @@ class NoteModel {
     'updatedAt': updatedAt.toIso8601String(),
     'type': type,
     'fieldKeys': fieldKeys,
+    'fieldTypes': fieldTypes, // BARU
     'tableData': tableData,
   };
 
   factory NoteModel.fromJson(Map<String, dynamic> json) {
-    // Migrasi data agar aman jika terdapat tipe data lama
     List<String> parsedKeys = [];
     if (json['fieldKeys'] != null) {
       parsedKeys = List<String>.from(json['fieldKeys']);
+    }
+
+    // BARU: Parsing fieldTypes
+    Map<String, String> parsedTypes = {};
+    if (json['fieldTypes'] != null) {
+      parsedTypes = Map<String, String>.from(json['fieldTypes']);
     }
 
     List<Map<String, String>> parsedData = [];
@@ -89,6 +97,7 @@ class NoteModel {
       updatedAt: DateTime.parse(json['updatedAt']),
       type: json['type'] ?? 'text',
       fieldKeys: parsedKeys,
+      fieldTypes: parsedTypes, // BARU
       tableData: parsedData,
     );
   }
