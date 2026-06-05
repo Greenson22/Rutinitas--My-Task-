@@ -42,8 +42,9 @@ class NoteModel {
   final String content;
   final DateTime createdAt;
   final DateTime updatedAt;
-  final String type; // 'text' atau 'field'
-  final Map<String, String> fields; // Penyimpan key-value dinamis
+  final String type; // 'text' atau 'table'
+  final List<String> fieldKeys; // Menyimpan struktur kolom
+  final List<Map<String, String>> tableData; // Menyimpan baris-baris data
 
   NoteModel({
     required this.id,
@@ -52,7 +53,8 @@ class NoteModel {
     required this.createdAt,
     required this.updatedAt,
     this.type = 'text',
-    this.fields = const {},
+    this.fieldKeys = const [],
+    this.tableData = const [],
   });
 
   Map<String, dynamic> toJson() => {
@@ -62,16 +64,32 @@ class NoteModel {
     'createdAt': createdAt.toIso8601String(),
     'updatedAt': updatedAt.toIso8601String(),
     'type': type,
-    'fields': fields,
+    'fieldKeys': fieldKeys,
+    'tableData': tableData,
   };
 
-  factory NoteModel.fromJson(Map<String, dynamic> json) => NoteModel(
-    id: json['id'],
-    title: json['title'],
-    content: json['content'],
-    createdAt: DateTime.parse(json['createdAt']),
-    updatedAt: DateTime.parse(json['updatedAt']),
-    type: json['type'] ?? 'text',
-    fields: Map<String, String>.from(json['fields'] ?? {}),
-  );
+  factory NoteModel.fromJson(Map<String, dynamic> json) {
+    // Migrasi data agar aman jika terdapat tipe data lama
+    List<String> parsedKeys = [];
+    if (json['fieldKeys'] != null) {
+      parsedKeys = List<String>.from(json['fieldKeys']);
+    }
+
+    List<Map<String, String>> parsedData = [];
+    if (json['tableData'] != null) {
+      var list = json['tableData'] as List;
+      parsedData = list.map((e) => Map<String, String>.from(e)).toList();
+    }
+
+    return NoteModel(
+      id: json['id'],
+      title: json['title'],
+      content: json['content'],
+      createdAt: DateTime.parse(json['createdAt']),
+      updatedAt: DateTime.parse(json['updatedAt']),
+      type: json['type'] ?? 'text',
+      fieldKeys: parsedKeys,
+      tableData: parsedData,
+    );
+  }
 }
