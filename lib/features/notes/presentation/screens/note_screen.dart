@@ -22,6 +22,9 @@ class _NotesScreenState extends State<NotesScreen> {
   bool _isSectionEditMode = false;
   bool _isCardEditMode = false;
 
+  // Variabel untuk menyimpan query pencarian
+  String _searchQuery = '';
+
   final List<String> _sectionKeys = ['Catatan Utama'];
   final Map<String, List<NoteGroup>> _groupedCategories = {'Catatan Utama': []};
 
@@ -73,6 +76,21 @@ class _NotesScreenState extends State<NotesScreen> {
     } catch (e) {
       debugPrint("Gagal menghapus grup: $e");
     }
+  }
+
+  // Fungsi untuk memfilter list kategori berdasarkan query pencarian
+  Map<String, List<NoteGroup>> _getFilteredCategories() {
+    if (_searchQuery.isEmpty) return _groupedCategories;
+
+    Map<String, List<NoteGroup>> filtered = {};
+    for (var key in _sectionKeys) {
+      filtered[key] = (_groupedCategories[key] ?? []).where((group) {
+        return group.groupName.toLowerCase().contains(
+          _searchQuery.toLowerCase(),
+        );
+      }).toList();
+    }
+    return filtered;
   }
 
   void _showAddGroupDialog(String sectionName) {
@@ -153,19 +171,35 @@ class _NotesScreenState extends State<NotesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Ambil data yang sudah difilter
+    final filteredCategories = _getFilteredCategories();
+
     return GroupedSectionLayout<NoteGroup>(
       title: 'Note Groups',
       drawer: const DrawerMenu(isNotesActive: true),
       isLoading: _isLoading,
+      // Cek isEmpty dari list keseluruhan supaya ketika hasil search kosong
+      // tidak berubah jadi halaman error 'Belum ada grup catatan.'
       isEmpty: _groupedCategories['Catatan Utama']!.isEmpty,
       emptyMessage: 'Belum ada grup catatan. Buat folder catatan pertama Anda!',
       sectionKeys: _sectionKeys,
-      groupedItems: _groupedCategories,
+
+      // Gunakan categories yang sudah difilter
+      groupedItems: filteredCategories,
+
       isSelectMode: false,
       selectedItemsCount: 0,
       onClearSelection: () {},
       enableSearch: true,
       enableMultiSelect: false,
+
+      // Implementasi onSearchChanged untuk memperbarui state pencarian
+      onSearchChanged: (query) {
+        setState(() {
+          _searchQuery = query;
+        });
+      },
+
       onAddPressed: () => _showAddGroupDialog(_sectionKeys.first),
       sectionHeaderBuilder: (context, index, sectionName, isLayoutEditMode) {
         return InteractiveSectionHeader(
