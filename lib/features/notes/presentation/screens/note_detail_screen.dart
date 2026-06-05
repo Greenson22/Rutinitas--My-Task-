@@ -1,8 +1,8 @@
 // lib/features/notes/presentation/screens/note_detail_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:rutinitasku/core/services/storage_service.dart';
 import '../../models/note_model.dart';
+import '../controllers/note_detail_controller.dart';
 import '../../../../core/presentation/widgets/base_detail_list_screen.dart';
 import '../../../../core/presentation/widgets/base_popup_dialog.dart';
 
@@ -16,33 +16,16 @@ class NoteDetailScreen extends StatefulWidget {
 }
 
 class _NoteDetailScreenState extends State<NoteDetailScreen> {
-  final StorageService _storageService = StorageService();
-  late NoteGroup _currentGroup;
+  late NoteDetailController _controller;
 
   @override
   void initState() {
     super.initState();
-    _currentGroup = widget.noteGroup;
-  }
-
-  Future<void> _saveCurrentGroup() async {
-    try {
-      final baseDir = await _storageService.getBaseDirSetting();
-      final jsonString = _storageService.formatJsonPretty(
-        _currentGroup.toJson(),
-      );
-      await _storageService.saveNoteGroup(
-        baseDir,
-        _currentGroup.id,
-        jsonString,
-      );
-    } catch (e) {
-      debugPrint("Gagal menyimpan pembaruan grup: $e");
-    }
-  }
-
-  String _formatDate(DateTime date) {
-    return "${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}";
+    _controller = NoteDetailController(
+      noteGroup: widget.noteGroup,
+      context: context,
+      onStateChanged: () => setState(() {}),
+    );
   }
 
   void _showNoteDialog({NoteModel? existingNote}) {
@@ -55,17 +38,13 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     final titleController = TextEditingController(text: originalTitle);
     final contentController = TextEditingController(text: originalContent);
 
-    // Variabel state untuk Mode Tabel / Berfield
     List<String> currentFieldKeys = List.from(existingNote?.fieldKeys ?? []);
     Map<String, String> currentFieldTypes = Map.from(
       existingNote?.fieldTypes ?? {},
     );
     List<Map<String, TextEditingController>> tableRows = [];
-
-    // Controller khusus untuk form input penambah data baru (Satu Kotak)
     Map<String, TextEditingController> formControllers = {};
 
-    // Inisialisasi controller form input penambah data
     for (var key in currentFieldKeys) {
       String type = currentFieldTypes[key] ?? 'String';
       formControllers[key] = TextEditingController(
@@ -73,7 +52,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       );
     }
 
-    // Inisialisasi controller baris dari data yang sudah ada
     if (existingNote != null && existingNote.tableData.isNotEmpty) {
       for (var row in existingNote.tableData) {
         Map<String, TextEditingController> rowControllers = {};
@@ -87,15 +65,13 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     bool isEditingTitle = existingNote == null;
     String currentType = originalType;
     bool hasChanges = false;
-    bool isFormVisible = false; // State untuk Toggle Form Input
+    bool isFormVisible = false;
 
-    // State Pengurutan (Sorting)
     int? sortColumnIndex;
     bool isAscending = true;
 
     StateSetter? dialogStateSetter;
 
-    // Pemantauan Perubahan
     void triggerChange() {
       if (!hasChanges && dialogStateSetter != null) {
         dialogStateSetter!(() => hasChanges = true);
@@ -105,48 +81,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     titleController.addListener(triggerChange);
     contentController.addListener(triggerChange);
 
-    // Fungsi Pembantu Dialog Konfirmasi Umum
-    Future<bool> _showConfirmDialog({
-      required String title,
-      required String content,
-    }) async {
-      return await showDialog<bool>(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              title: Row(
-                children: const [
-                  Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
-                  SizedBox(width: 8),
-                  Text('Konfirmasi Hapus'),
-                ],
-              ),
-              content: Text(content),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text(
-                    'Batal',
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: () => Navigator.pop(ctx, true),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                  child: const Text(
-                    'Hapus',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
-              ],
-            ),
-          ) ??
-          false;
-    }
-
-    // Fungsi pembangun kolom input dinamis sesuai Tipe Data
     Widget _buildInputField(
       String key,
       TextEditingController controller,
@@ -166,7 +100,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
             : null,
       );
 
-      // Render Dropdown khusus untuk Tipe Boolean
       if (type == 'Boolean') {
         if (controller.text != 'Ya' && controller.text != 'Tidak') {
           controller.text = 'Tidak';
@@ -190,7 +123,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         );
       }
 
-      // Render TextField adaptif untuk String, Numerik, Date, dan Time
       return TextField(
         controller: controller,
         keyboardType: type == 'Numerik'
@@ -230,45 +162,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         },
         onChanged: (_) => triggerChange(),
       );
-    }
-
-    // Fungsi Pengelolaan Struktur Field (Kolom)
-    void _addFieldKey(StateSetter setDialogState, String key, String type) {
-      if (!currentFieldKeys.contains(key)) {
-        setDialogState(() {
-          currentFieldKeys.add(key);
-          currentFieldTypes[key] = type;
-
-          String defaultVal = type == 'Boolean' ? 'Tidak' : '';
-          formControllers[key] = TextEditingController(text: defaultVal);
-
-          for (var row in tableRows) {
-            row[key] = TextEditingController(text: defaultVal);
-          }
-          hasChanges = true;
-        });
-      }
-    }
-
-    void _removeFieldKey(StateSetter setDialogState, String key) async {
-      final bool confirm = await _showConfirmDialog(
-        title: 'Hapus Kolom Baru',
-        content:
-            'Apakah Anda yakin ingin menghapus kolom "$key"? Seluruh data pada kolom ini di semua baris akan ikut terhapus permanen.',
-      );
-      if (!confirm) return;
-
-      setDialogState(() {
-        currentFieldKeys.remove(key);
-        currentFieldTypes.remove(key);
-        formControllers[key]?.dispose();
-        formControllers.remove(key);
-        for (var row in tableRows) {
-          row[key]?.dispose();
-          row.remove(key);
-        }
-        hasChanges = true;
-      });
     }
 
     void _showAddFieldDialog(StateSetter setDialogState) {
@@ -324,7 +217,17 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                 onPressed: () {
                   final key = keyController.text.trim();
                   if (key.isNotEmpty) {
-                    _addFieldKey(setDialogState, key, selectedType);
+                    _controller.addFieldKey(
+                      setDialogState: setDialogState,
+                      currentFieldKeys: currentFieldKeys,
+                      currentFieldTypes: currentFieldTypes,
+                      formControllers: formControllers,
+                      tableRows: tableRows,
+                      triggerChange: () =>
+                          setDialogState(() => hasChanges = true),
+                      key: key,
+                      type: selectedType,
+                    );
                     Navigator.pop(ctx);
                   }
                 },
@@ -336,7 +239,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       );
     }
 
-    // Fungsi Pengelolaan Data Baris
     void _submitFormRow(StateSetter setDialogState) {
       setDialogState(() {
         Map<String, TextEditingController> newRow = {};
@@ -344,105 +246,14 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           newRow[key] = TextEditingController(
             text: formControllers[key]?.text.trim() ?? '',
           );
-          // Bersihkan form input setelah disubmit, kembalikan ke default bawaan tipe datanya
           formControllers[key]?.text = currentFieldTypes[key] == 'Boolean'
               ? 'Tidak'
               : '';
         }
         tableRows.add(newRow);
-        isFormVisible = false; // Sembunyikan form kembali
+        isFormVisible = false;
         hasChanges = true;
       });
-    }
-
-    void _removeRow(StateSetter setDialogState, int index) async {
-      final bool confirm = await _showConfirmDialog(
-        title: 'Hapus Baris Data',
-        content:
-            'Apakah Anda yakin ingin menghapus baris data ke-${index + 1} ini secara permanen?',
-      );
-      if (!confirm) return;
-
-      setDialogState(() {
-        final removedRow = tableRows.removeAt(index);
-        removedRow.values.forEach((controller) => controller.dispose());
-        hasChanges = true;
-      });
-    }
-
-    // Fungsi Pengurutan Data (Sorting)
-    void _sort(StateSetter setDialogState, String key, int columnIndex) {
-      setDialogState(() {
-        if (sortColumnIndex == columnIndex) {
-          isAscending = !isAscending;
-        } else {
-          sortColumnIndex = columnIndex;
-          isAscending = true;
-        }
-
-        String type = currentFieldTypes[key] ?? 'String';
-
-        tableRows.sort((a, b) {
-          final valA = a[key]?.text.trim() ?? '';
-          final valB = b[key]?.text.trim() ?? '';
-
-          if (type == 'Numerik') {
-            final numA = double.tryParse(valA) ?? 0.0;
-            final numB = double.tryParse(valB) ?? 0.0;
-            return isAscending ? numA.compareTo(numB) : numB.compareTo(numA);
-          }
-
-          return isAscending
-              ? valA.toLowerCase().compareTo(valB.toLowerCase())
-              : valB.toLowerCase().compareTo(valA.toLowerCase());
-        });
-        hasChanges = true;
-      });
-    }
-
-    // Proses Penyimpanan
-    Future<void> performSave(BuildContext dialogCtx) async {
-      String finalTitle = titleController.text.trim();
-      if (finalTitle.isEmpty) finalTitle = originalTitle;
-
-      List<Map<String, String>> finalTableData = [];
-      if (currentType == 'table') {
-        for (var rowControllers in tableRows) {
-          Map<String, String> rowData = {};
-          rowControllers.forEach((key, controller) {
-            rowData[key] = controller.text.trim();
-          });
-          finalTableData.add(rowData);
-        }
-      }
-
-      setState(() {
-        final newNote = NoteModel(
-          id:
-              existingNote?.id ??
-              DateTime.now().millisecondsSinceEpoch.toString(),
-          title: finalTitle,
-          content: currentType == 'text' ? contentController.text.trim() : '',
-          createdAt: existingNote?.createdAt ?? DateTime.now(),
-          updatedAt: DateTime.now(),
-          type: currentType,
-          fieldKeys: currentType == 'table' ? currentFieldKeys : [],
-          fieldTypes: currentType == 'table' ? currentFieldTypes : {},
-          tableData: currentType == 'table' ? finalTableData : [],
-        );
-
-        if (existingNote == null) {
-          _currentGroup.notes.add(newNote);
-        } else {
-          final index = _currentGroup.notes.indexWhere(
-            (n) => n.id == existingNote.id,
-          );
-          if (index != -1) _currentGroup.notes[index] = newNote;
-        }
-      });
-
-      await _saveCurrentGroup();
-      if (mounted) Navigator.pop(dialogCtx);
     }
 
     showDialog(
@@ -459,7 +270,19 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
               if (event is KeyDownEvent &&
                   event.logicalKey == LogicalKeyboardKey.keyS &&
                   isControlPressed) {
-                if (hasChanges) performSave(dialogContext);
+                if (hasChanges) {
+                  _controller.performSave(
+                    dialogCtx: dialogContext,
+                    existingNote: existingNote,
+                    originalTitle: originalTitle,
+                    currentType: currentType,
+                    titleController: titleController,
+                    contentController: contentController,
+                    currentFieldKeys: currentFieldKeys,
+                    currentFieldTypes: currentFieldTypes,
+                    tableRows: tableRows,
+                  );
+                }
                 return KeyEventResult.handled;
               }
               return KeyEventResult.ignored;
@@ -507,11 +330,20 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                         size: 20,
                       ),
                       tooltip: 'Simpan Catatan',
-                      onPressed: () => performSave(dialogContext),
+                      onPressed: () => _controller.performSave(
+                        dialogCtx: dialogContext,
+                        existingNote: existingNote,
+                        originalTitle: originalTitle,
+                        currentType: currentType,
+                        titleController: titleController,
+                        contentController: contentController,
+                        currentFieldKeys: currentFieldKeys,
+                        currentFieldTypes: currentFieldTypes,
+                        tableRows: tableRows,
+                      ),
                     ),
                     const SizedBox(width: 10),
                   ],
-                  // Tombol Tipe Mode
                   IconButton(
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
@@ -608,7 +440,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                             Expanded(
                               child: TabBarView(
                                 children: [
-                                  // TAB 1: DATA TABEL (Daftar Data & Form Input)
                                   Padding(
                                     padding: const EdgeInsets.all(12.0),
                                     child: Column(
@@ -627,7 +458,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                                             ),
                                           )
                                         else ...[
-                                          // Toggle Button untuk menampilkan/menyembunyikan Form
                                           InkWell(
                                             onTap: () => setDialogState(
                                               () => isFormVisible =
@@ -682,8 +512,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                                               ),
                                             ),
                                           ),
-
-                                          // Area Form Input (Animasi Expand/Collapse)
                                           AnimatedSize(
                                             duration: const Duration(
                                               milliseconds: 300,
@@ -799,7 +627,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                                                     ),
                                                   ),
                                           ),
-
                                           const SizedBox(height: 8),
                                           const Text(
                                             'Daftar Data Tersimpan:',
@@ -810,8 +637,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                                             ),
                                           ),
                                           const SizedBox(height: 6),
-
-                                          // Daftar Baris Data yang Ada (DataTable Adaptif)
                                           Expanded(
                                             child: tableRows.isEmpty
                                                 ? const Center(
@@ -879,10 +704,34 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                                                                     (
                                                                       columnIndex,
                                                                       ascending,
-                                                                    ) => _sort(
-                                                                      setDialogState,
-                                                                      key,
-                                                                      columnIndex,
+                                                                    ) => _controller.sortTable(
+                                                                      setDialogState:
+                                                                          setDialogState,
+                                                                      tableRows:
+                                                                          tableRows,
+                                                                      currentFieldTypes:
+                                                                          currentFieldTypes,
+                                                                      triggerChange: () => setDialogState(
+                                                                        () => hasChanges =
+                                                                            true,
+                                                                      ),
+                                                                      key: key,
+                                                                      columnIndex:
+                                                                          columnIndex,
+                                                                      currentSortColumnIndex:
+                                                                          sortColumnIndex,
+                                                                      currentIsAscending:
+                                                                          isAscending,
+                                                                      onSortUpdated:
+                                                                          (
+                                                                            colIdx,
+                                                                            asc,
+                                                                          ) {
+                                                                            sortColumnIndex =
+                                                                                colIdx;
+                                                                            isAscending =
+                                                                                asc;
+                                                                          },
                                                                     ),
                                                               );
                                                             }).toList(),
@@ -937,11 +786,18 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                                                                           .redAccent,
                                                                       size: 20,
                                                                     ),
-                                                                    onPressed: () =>
-                                                                        _removeRow(
+                                                                    onPressed: () => _controller.removeRow(
+                                                                      setDialogState:
                                                                           setDialogState,
+                                                                      tableRows:
+                                                                          tableRows,
+                                                                      triggerChange: () => setDialogState(
+                                                                        () => hasChanges =
+                                                                            true,
+                                                                      ),
+                                                                      index:
                                                                           index,
-                                                                        ),
+                                                                    ),
                                                                     tooltip:
                                                                         'Hapus Baris',
                                                                   ),
@@ -958,8 +814,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                                       ],
                                     ),
                                   ),
-
-                                  // TAB 2: PENGATURAN KOLOM
                                   Padding(
                                     padding: const EdgeInsets.all(16.0),
                                     child: Column(
@@ -1030,11 +884,25 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                                                                 .redAccent,
                                                             size: 20,
                                                           ),
-                                                          onPressed: () =>
-                                                              _removeFieldKey(
+                                                          onPressed: () => _controller.removeFieldKey(
+                                                            setDialogState:
                                                                 setDialogState,
-                                                                key,
-                                                              ),
+                                                            currentFieldKeys:
+                                                                currentFieldKeys,
+                                                            currentFieldTypes:
+                                                                currentFieldTypes,
+                                                            formControllers:
+                                                                formControllers,
+                                                            tableRows:
+                                                                tableRows,
+                                                            triggerChange: () =>
+                                                                setDialogState(
+                                                                  () =>
+                                                                      hasChanges =
+                                                                          true,
+                                                                ),
+                                                            key: key,
+                                                          ),
                                                         ),
                                                       ),
                                                     );
@@ -1113,16 +981,16 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return BaseDetailListScreen<NoteModel>(
-      pageTitle: _currentGroup.groupName,
-      items: _currentGroup.notes,
+      pageTitle: _controller.currentGroup.groupName,
+      items: _controller.currentGroup.notes,
       enableSearch: true,
       enableMultiSelect: true,
       enableAddButton: true,
       enableFavoriteSort: false,
       itemTitle: (note) => note.title,
       itemSubtitle: (note) {
-        String created = _formatDate(note.createdAt);
-        String updated = _formatDate(note.updatedAt);
+        String created = _controller.formatDate(note.createdAt);
+        String updated = _controller.formatDate(note.updatedAt);
         String typeInfo = note.type == 'table'
             ? '\nTipe: Tabel (${note.tableData.length} Baris)'
             : '';
@@ -1138,23 +1006,15 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           child: Text('Hapus', style: TextStyle(color: Colors.red)),
         ),
       ],
-      onItemMenuSelected: (value, note) async {
+      onItemMenuSelected: (value, note) {
         if (value == 'edit') {
           _showNoteDialog(existingNote: note);
         } else if (value == 'delete') {
-          setState(
-            () => _currentGroup.notes.removeWhere((n) => n.id == note.id),
-          );
-          await _saveCurrentGroup();
+          _controller.deleteNote(note);
         }
       },
-      onDeleteMassive: (selectedItems) async {
-        setState(() {
-          _currentGroup.notes.removeWhere(
-            (note) => selectedItems.contains(note),
-          );
-        });
-        await _saveCurrentGroup();
+      onDeleteMassive: (selectedItems) {
+        _controller.deleteMassiveNotes(selectedItems);
       },
       onMoveMassive: (selectedItems) {},
     );
