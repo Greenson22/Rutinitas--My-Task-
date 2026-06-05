@@ -265,7 +265,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return BaseDetailListScreen<NoteModel>(
-      pageTitle: 'Kategori: ${_currentGroup.groupName}',
+      pageTitle: _currentGroup.groupName,
       items: _currentGroup.notes,
       enableSearch: true,
       enableMultiSelect: true,
