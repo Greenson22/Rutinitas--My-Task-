@@ -66,6 +66,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     String currentType = originalType;
     bool hasChanges = false;
     bool isFormVisible = false;
+    bool isSaving = false; // Flag untuk mencegah double save / spam Ctrl+S
 
     int? sortColumnIndex;
     bool isAscending = true;
@@ -258,441 +259,508 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
     showDialog(
       context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          dialogStateSetter = setDialogState;
+      builder: (dialogContext) => _DialogLifecycleWrapper(
+        onDispose: () {
+          // Dispose dipanggil dengan aman setelah dialog selesai melakukan animasi pop keluar screen
+          titleController.dispose();
+          contentController.dispose();
+          for (var row in tableRows) {
+            row.values.forEach((controller) => controller.dispose());
+          }
+          formControllers.values.forEach((controller) => controller.dispose());
+        },
+        child: StatefulBuilder(
+          builder: (context, setDialogState) {
+            dialogStateSetter = setDialogState;
 
-          return Focus(
-            onKeyEvent: (node, event) {
-              final isControlPressed =
-                  HardwareKeyboard.instance.isControlPressed ||
-                  HardwareKeyboard.instance.isMetaPressed;
-              if (event is KeyDownEvent &&
-                  event.logicalKey == LogicalKeyboardKey.keyS &&
-                  isControlPressed) {
-                if (hasChanges) {
-                  _controller.performSave(
-                    dialogCtx: dialogContext,
-                    existingNote: existingNote,
-                    originalTitle: originalTitle,
-                    currentType: currentType,
-                    titleController: titleController,
-                    contentController: contentController,
-                    currentFieldKeys: currentFieldKeys,
-                    currentFieldTypes: currentFieldTypes,
-                    tableRows: tableRows,
-                  );
+            return Focus(
+              onKeyEvent: (node, event) {
+                final isControlPressed =
+                    HardwareKeyboard.instance.isControlPressed ||
+                    HardwareKeyboard.instance.isMetaPressed;
+                if (event is KeyDownEvent &&
+                    event.logicalKey == LogicalKeyboardKey.keyS &&
+                    isControlPressed) {
+                  if (hasChanges && !isSaving) {
+                    isSaving =
+                        true; // Kunci proses agar tidak tereksekusi ganda
+                    _controller.performSave(
+                      dialogCtx: dialogContext,
+                      existingNote: existingNote,
+                      originalTitle: originalTitle,
+                      currentType: currentType,
+                      titleController: titleController,
+                      contentController: contentController,
+                      currentFieldKeys: currentFieldKeys,
+                      currentFieldTypes: currentFieldTypes,
+                      tableRows: tableRows,
+                    );
+                  }
+                  return KeyEventResult.handled;
                 }
-                return KeyEventResult.handled;
-              }
-              return KeyEventResult.ignored;
-            },
-            child: BasePopupDialog(
-              title: Row(
-                children: [
-                  Expanded(
-                    child: isEditingTitle
-                        ? TextField(
-                            controller: titleController,
-                            autofocus: true,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
+                return KeyEventResult.ignored;
+              },
+              child: BasePopupDialog(
+                title: Row(
+                  children: [
+                    Expanded(
+                      child: isEditingTitle
+                          ? TextField(
+                              controller: titleController,
+                              autofocus: true,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              decoration: const InputDecoration(
+                                hintText: 'Judul Catatan...',
+                                hintStyle: TextStyle(color: Colors.white60),
+                                border: InputBorder.none,
+                                isDense: true,
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                            )
+                          : Text(
+                              titleController.text,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                            decoration: const InputDecoration(
-                              hintText: 'Judul Catatan...',
-                              hintStyle: TextStyle(color: Colors.white60),
-                              border: InputBorder.none,
-                              isDense: true,
-                              contentPadding: EdgeInsets.zero,
-                            ),
-                          )
-                        : Text(
-                            titleController.text,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                  ),
-                  const SizedBox(width: 8),
-                  if (hasChanges) ...[
+                    ),
+                    const SizedBox(width: 8),
+                    if (hasChanges) ...[
+                      IconButton(
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        icon: const Icon(
+                          Icons.save,
+                          color: Colors.amberAccent,
+                          size: 20,
+                        ),
+                        tooltip: 'Simpan Catatan',
+                        onPressed: () {
+                          if (!isSaving) {
+                            isSaving = true;
+                            _controller.performSave(
+                              dialogCtx: dialogContext,
+                              existingNote: existingNote,
+                              originalTitle: originalTitle,
+                              currentType: currentType,
+                              titleController: titleController,
+                              contentController: contentController,
+                              currentFieldKeys: currentFieldKeys,
+                              currentFieldTypes: currentFieldTypes,
+                              tableRows: tableRows,
+                            );
+                          }
+                        },
+                      ),
+                      const SizedBox(width: 10),
+                    ],
                     IconButton(
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
-                      icon: const Icon(
-                        Icons.save,
-                        color: Colors.amberAccent,
+                      icon: Icon(
+                        currentType == 'text'
+                            ? Icons.list_alt
+                            : Icons.table_chart,
+                        color: Colors.tealAccent,
                         size: 20,
                       ),
-                      tooltip: 'Simpan Catatan',
-                      onPressed: () => _controller.performSave(
-                        dialogCtx: dialogContext,
-                        existingNote: existingNote,
-                        originalTitle: originalTitle,
-                        currentType: currentType,
-                        titleController: titleController,
-                        contentController: contentController,
-                        currentFieldKeys: currentFieldKeys,
-                        currentFieldTypes: currentFieldTypes,
-                        tableRows: tableRows,
-                      ),
+                      tooltip: currentType == 'text'
+                          ? 'Ubah ke Catatan Berfield (Tabel)'
+                          : 'Ubah ke Catatan Teks',
+                      onPressed: () {
+                        setDialogState(() {
+                          currentType = currentType == 'text'
+                              ? 'table'
+                              : 'text';
+                          hasChanges = true;
+                        });
+                      },
                     ),
                     const SizedBox(width: 10),
-                  ],
-                  IconButton(
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    icon: Icon(
-                      currentType == 'text'
-                          ? Icons.list_alt
-                          : Icons.table_chart,
-                      color: Colors.tealAccent,
-                      size: 20,
-                    ),
-                    tooltip: currentType == 'text'
-                        ? 'Ubah ke Catatan Berfield (Tabel)'
-                        : 'Ubah ke Catatan Teks',
-                    onPressed: () {
-                      setDialogState(() {
-                        currentType = currentType == 'text' ? 'table' : 'text';
-                        hasChanges = true;
-                      });
-                    },
-                  ),
-                  const SizedBox(width: 10),
-                  IconButton(
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    icon: Icon(
-                      isEditingTitle ? Icons.check : Icons.edit,
-                      color: Colors.white,
-                      size: 18,
-                    ),
-                    tooltip: isEditingTitle ? 'Selesai' : 'Ubah Judul',
-                    onPressed: () {
-                      setDialogState(() {
-                        if (isEditingTitle &&
-                            titleController.text.trim().isEmpty) {
-                          titleController.text =
-                              existingNote?.title ?? 'Catatan Baru';
-                        }
-                        isEditingTitle = !isEditingTitle;
-                      });
-                    },
-                  ),
-                ],
-              ),
-              themeColor: Colors.indigo,
-              titleColor: Colors.white,
-              content: Container(
-                height: MediaQuery.of(context).size.height * 0.65,
-                color: Colors.grey[100],
-                child: currentType == 'text'
-                    ? Container(
+                    IconButton(
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      icon: Icon(
+                        isEditingTitle ? Icons.check : Icons.edit,
                         color: Colors.white,
-                        padding: const EdgeInsets.all(16.0),
-                        child: TextField(
-                          controller: contentController,
-                          maxLines: null,
-                          expands: true,
-                          textAlignVertical: TextAlignVertical.top,
-                          decoration: InputDecoration(
-                            hintText: 'Tulis catatan Anda di sini...',
-                            hintStyle: TextStyle(color: Colors.grey[400]),
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                        ),
-                      )
-                    : DefaultTabController(
-                        length: 2,
-                        child: Column(
-                          children: [
-                            Container(
-                              color: Colors.white,
-                              child: const TabBar(
-                                labelColor: Colors.indigo,
-                                unselectedLabelColor: Colors.grey,
-                                indicatorColor: Colors.indigo,
-                                tabs: [
-                                  Tab(
-                                    text: 'Data Tabel',
-                                    icon: Icon(
-                                      Icons.dataset_outlined,
-                                      size: 18,
-                                    ),
-                                  ),
-                                  Tab(
-                                    text: 'Pengaturan Kolom',
-                                    icon: Icon(
-                                      Icons.view_column_outlined,
-                                      size: 18,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                        size: 18,
+                      ),
+                      tooltip: isEditingTitle ? 'Selesai' : 'Ubah Judul',
+                      onPressed: () {
+                        setDialogState(() {
+                          if (isEditingTitle &&
+                              titleController.text.trim().isEmpty) {
+                            titleController.text =
+                                existingNote?.title ?? 'Catatan Baru';
+                          }
+                          isEditingTitle = !isEditingTitle;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+                themeColor: Colors.indigo,
+                titleColor: Colors.white,
+                content: Container(
+                  height: MediaQuery.of(context).size.height * 0.65,
+                  color: Colors.grey[100],
+                  child: currentType == 'text'
+                      ? Container(
+                          color: Colors.white,
+                          padding: const EdgeInsets.all(16.0),
+                          child: TextField(
+                            controller: contentController,
+                            maxLines: null,
+                            expands: true,
+                            textAlignVertical: TextAlignVertical.top,
+                            decoration: InputDecoration(
+                              hintText: 'Tulis catatan Anda di sini...',
+                              hintStyle: TextStyle(color: Colors.grey[400]),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.zero,
                             ),
-                            Expanded(
-                              child: TabBarView(
-                                children: [
-                                  Padding(
-                                    padding: const EdgeInsets.all(12.0),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        if (currentFieldKeys.isEmpty)
-                                          const Expanded(
-                                            child: Center(
-                                              child: Text(
-                                                'Buat kolom di tab Pengaturan Kolom terlebih dahulu.',
-                                                style: TextStyle(
-                                                  color: Colors.grey,
+                          ),
+                        )
+                      : DefaultTabController(
+                          length: 2,
+                          child: Column(
+                            children: [
+                              Container(
+                                color: Colors.white,
+                                child: const TabBar(
+                                  labelColor: Colors.indigo,
+                                  unselectedLabelColor: Colors.grey,
+                                  indicatorColor: Colors.indigo,
+                                  tabs: [
+                                    Tab(
+                                      text: 'Data Tabel',
+                                      icon: Icon(
+                                        Icons.dataset_outlined,
+                                        size: 18,
+                                      ),
+                                    ),
+                                    Tab(
+                                      text: 'Pengaturan Kolom',
+                                      icon: Icon(
+                                        Icons.view_column_outlined,
+                                        size: 18,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Expanded(
+                                child: TabBarView(
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.all(12.0),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          if (currentFieldKeys.isEmpty)
+                                            const Expanded(
+                                              child: Center(
+                                                child: Text(
+                                                  'Buat kolom di tab Pengaturan Kolom terlebih dahulu.',
+                                                  style: TextStyle(
+                                                    color: Colors.grey,
+                                                  ),
                                                 ),
                                               ),
-                                            ),
-                                          )
-                                        else ...[
-                                          InkWell(
-                                            onTap: () => setDialogState(
-                                              () => isFormVisible =
-                                                  !isFormVisible,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                            child: Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    vertical: 10,
-                                                    horizontal: 12,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color: isFormVisible
-                                                    ? Colors.indigo.withOpacity(
-                                                        0.1,
-                                                      )
-                                                    : Colors.white,
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                                border: Border.all(
-                                                  color: Colors.indigo.shade200,
-                                                ),
+                                            )
+                                          else ...[
+                                            InkWell(
+                                              onTap: () => setDialogState(
+                                                () => isFormVisible =
+                                                    !isFormVisible,
                                               ),
-                                              child: Row(
-                                                mainAxisAlignment:
-                                                    MainAxisAlignment.center,
-                                                children: [
-                                                  Icon(
-                                                    isFormVisible
-                                                        ? Icons
-                                                              .keyboard_arrow_up
-                                                        : Icons
-                                                              .add_circle_outline,
-                                                    color: Colors.indigo,
-                                                    size: 20,
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              child: Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      vertical: 10,
+                                                      horizontal: 12,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: isFormVisible
+                                                      ? Colors.indigo
+                                                            .withOpacity(0.1)
+                                                      : Colors.white,
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                  border: Border.all(
+                                                    color:
+                                                        Colors.indigo.shade200,
                                                   ),
-                                                  const SizedBox(width: 8),
-                                                  Text(
-                                                    isFormVisible
-                                                        ? 'Sembunyikan Form'
-                                                        : 'Tambah Data Baru',
-                                                    style: const TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.bold,
+                                                ),
+                                                child: Row(
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment.center,
+                                                  children: [
+                                                    Icon(
+                                                      isFormVisible
+                                                          ? Icons
+                                                                .keyboard_arrow_up
+                                                          : Icons
+                                                                .add_circle_outline,
                                                       color: Colors.indigo,
+                                                      size: 20,
                                                     ),
-                                                  ),
-                                                ],
+                                                    const SizedBox(width: 8),
+                                                    Text(
+                                                      isFormVisible
+                                                          ? 'Sembunyikan Form'
+                                                          : 'Tambah Data Baru',
+                                                      style: const TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        color: Colors.indigo,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
                                               ),
                                             ),
-                                          ),
-                                          AnimatedSize(
-                                            duration: const Duration(
-                                              milliseconds: 300,
-                                            ),
-                                            curve: Curves.easeInOut,
-                                            child: !isFormVisible
-                                                ? const SizedBox.shrink()
-                                                : Card(
-                                                    margin:
-                                                        const EdgeInsets.only(
-                                                          top: 12,
-                                                          bottom: 8,
-                                                        ),
-                                                    elevation: 2,
-                                                    shape: RoundedRectangleBorder(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            10,
+                                            AnimatedSize(
+                                              duration: const Duration(
+                                                milliseconds: 300,
+                                              ),
+                                              curve: Curves.easeInOut,
+                                              child: !isFormVisible
+                                                  ? const SizedBox.shrink()
+                                                  : Card(
+                                                      margin:
+                                                          const EdgeInsets.only(
+                                                            top: 12,
+                                                            bottom: 8,
                                                           ),
-                                                    ),
-                                                    child: Padding(
-                                                      padding:
-                                                          const EdgeInsets.all(
-                                                            12.0,
-                                                          ),
-                                                      child: Column(
-                                                        crossAxisAlignment:
-                                                            CrossAxisAlignment
-                                                                .start,
-                                                        children: [
-                                                          const Text(
-                                                            'Input Data Baru',
-                                                            style: TextStyle(
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .bold,
-                                                              color:
-                                                                  Colors.teal,
+                                                      elevation: 2,
+                                                      shape: RoundedRectangleBorder(
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              10,
                                                             ),
-                                                          ),
-                                                          const Divider(),
-                                                          ...currentFieldKeys.map((
-                                                            key,
-                                                          ) {
-                                                            return Padding(
-                                                              padding:
-                                                                  const EdgeInsets.only(
-                                                                    bottom: 8.0,
-                                                                  ),
-                                                              child: Row(
-                                                                children: [
-                                                                  SizedBox(
-                                                                    width: 100,
-                                                                    child: Text(
-                                                                      "$key (${currentFieldTypes[key] ?? 'String'})",
-                                                                      style: const TextStyle(
-                                                                        fontSize:
-                                                                            12,
-                                                                        fontWeight:
-                                                                            FontWeight.w500,
-                                                                      ),
-                                                                      maxLines:
-                                                                          1,
-                                                                      overflow:
-                                                                          TextOverflow
-                                                                              .ellipsis,
-                                                                    ),
-                                                                  ),
-                                                                  Expanded(
-                                                                    child: _buildInputField(
-                                                                      key,
-                                                                      formControllers[key]!,
-                                                                      context,
-                                                                      setDialogState,
-                                                                    ),
-                                                                  ),
-                                                                ],
-                                                              ),
-                                                            );
-                                                          }).toList(),
-                                                          const SizedBox(
-                                                            height: 8,
-                                                          ),
-                                                          SizedBox(
-                                                            width:
-                                                                double.infinity,
-                                                            child: ElevatedButton.icon(
-                                                              onPressed: () =>
-                                                                  _submitFormRow(
-                                                                    setDialogState,
-                                                                  ),
-                                                              icon: const Icon(
-                                                                Icons.check,
-                                                                color: Colors
-                                                                    .white,
-                                                                size: 18,
-                                                              ),
-                                                              label: const Text(
-                                                                'Simpan ke Tabel',
-                                                                style: TextStyle(
-                                                                  color: Colors
-                                                                      .white,
-                                                                ),
-                                                              ),
-                                                              style: ElevatedButton.styleFrom(
-                                                                backgroundColor:
+                                                      ),
+                                                      child: Padding(
+                                                        padding:
+                                                            const EdgeInsets.all(
+                                                              12.0,
+                                                            ),
+                                                        child: Column(
+                                                          crossAxisAlignment:
+                                                              CrossAxisAlignment
+                                                                  .start,
+                                                          children: [
+                                                            const Text(
+                                                              'Input Data Baru',
+                                                              style: TextStyle(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                                color:
                                                                     Colors.teal,
                                                               ),
                                                             ),
-                                                          ),
-                                                        ],
+                                                            const Divider(),
+                                                            ...currentFieldKeys.map((
+                                                              key,
+                                                            ) {
+                                                              return Padding(
+                                                                padding:
+                                                                    const EdgeInsets.only(
+                                                                      bottom:
+                                                                          8.0,
+                                                                    ),
+                                                                child: Row(
+                                                                  children: [
+                                                                    SizedBox(
+                                                                      width:
+                                                                          100,
+                                                                      child: Text(
+                                                                        "$key (${currentFieldTypes[key] ?? 'String'})",
+                                                                        style: const TextStyle(
+                                                                          fontSize:
+                                                                              12,
+                                                                          fontWeight:
+                                                                              FontWeight.w500,
+                                                                        ),
+                                                                        maxLines:
+                                                                            1,
+                                                                        overflow:
+                                                                            TextOverflow.ellipsis,
+                                                                      ),
+                                                                    ),
+                                                                    Expanded(
+                                                                      child: _buildInputField(
+                                                                        key,
+                                                                        formControllers[key]!,
+                                                                        context,
+                                                                        setDialogState,
+                                                                      ),
+                                                                    ),
+                                                                  ],
+                                                                ),
+                                                              );
+                                                            }).toList(),
+                                                            const SizedBox(
+                                                              height: 8,
+                                                            ),
+                                                            SizedBox(
+                                                              width: double
+                                                                  .infinity,
+                                                              child: ElevatedButton.icon(
+                                                                onPressed: () =>
+                                                                    _submitFormRow(
+                                                                      setDialogState,
+                                                                    ),
+                                                                icon: const Icon(
+                                                                  Icons.check,
+                                                                  color: Colors
+                                                                      .white,
+                                                                  size: 18,
+                                                                ),
+                                                                label: const Text(
+                                                                  'Simpan ke Tabel',
+                                                                  style: TextStyle(
+                                                                    color: Colors
+                                                                        .white,
+                                                                  ),
+                                                                ),
+                                                                style: ElevatedButton.styleFrom(
+                                                                  backgroundColor:
+                                                                      Colors
+                                                                          .teal,
+                                                                ),
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
                                                       ),
                                                     ),
-                                                  ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          const Text(
-                                            'Daftar Data Tersimpan:',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 13,
-                                              color: Colors.black54,
                                             ),
-                                          ),
-                                          const SizedBox(height: 6),
-                                          Expanded(
-                                            child: tableRows.isEmpty
-                                                ? const Center(
-                                                    child: Text(
-                                                      'Tabel masih kosong.',
-                                                      style: TextStyle(
-                                                        color: Colors.grey,
+                                            const SizedBox(height: 8),
+                                            const Text(
+                                              'Daftar Data Tersimpan:',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 13,
+                                                color: Colors.black54,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 6),
+                                            Expanded(
+                                              child: tableRows.isEmpty
+                                                  ? const Center(
+                                                      child: Text(
+                                                        'Tabel masih kosong.',
+                                                        style: TextStyle(
+                                                          color: Colors.grey,
+                                                        ),
                                                       ),
-                                                    ),
-                                                  )
-                                                : Container(
-                                                    decoration: BoxDecoration(
-                                                      color: Colors.white,
-                                                      border: Border.all(
-                                                        color: Colors
-                                                            .grey
-                                                            .shade300,
+                                                    )
+                                                  : Container(
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.white,
+                                                        border: Border.all(
+                                                          color: Colors
+                                                              .grey
+                                                              .shade300,
+                                                        ),
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              8,
+                                                            ),
                                                       ),
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            8,
-                                                          ),
-                                                    ),
-                                                    child: SingleChildScrollView(
-                                                      scrollDirection:
-                                                          Axis.vertical,
                                                       child: SingleChildScrollView(
                                                         scrollDirection:
-                                                            Axis.horizontal,
-                                                        child: DataTable(
-                                                          sortColumnIndex:
-                                                              sortColumnIndex,
-                                                          sortAscending:
-                                                              isAscending,
-                                                          headingRowColor:
-                                                              MaterialStateProperty.resolveWith(
-                                                                (
-                                                                  states,
-                                                                ) => Colors
-                                                                    .indigo
-                                                                    .shade50,
-                                                              ),
-                                                          dataRowMinHeight: 50,
-                                                          dataRowMaxHeight: 60,
-                                                          columns: [
-                                                            ...currentFieldKeys.asMap().entries.map((
-                                                              entry,
-                                                            ) {
-                                                              int idx =
-                                                                  entry.key;
-                                                              String key =
-                                                                  entry.value;
-                                                              return DataColumn(
+                                                            Axis.vertical,
+                                                        child: SingleChildScrollView(
+                                                          scrollDirection:
+                                                              Axis.horizontal,
+                                                          child: DataTable(
+                                                            sortColumnIndex:
+                                                                sortColumnIndex,
+                                                            sortAscending:
+                                                                isAscending,
+                                                            headingRowColor:
+                                                                MaterialStateProperty.resolveWith(
+                                                                  (
+                                                                    states,
+                                                                  ) => Colors
+                                                                      .indigo
+                                                                      .shade50,
+                                                                ),
+                                                            dataRowMinHeight:
+                                                                50,
+                                                            dataRowMaxHeight:
+                                                                60,
+                                                            columns: [
+                                                              ...currentFieldKeys.asMap().entries.map((
+                                                                entry,
+                                                              ) {
+                                                                int idx =
+                                                                    entry.key;
+                                                                String key =
+                                                                    entry.value;
+                                                                return DataColumn(
+                                                                  label: Text(
+                                                                    "$key (${currentFieldTypes[key] ?? 'String'})",
+                                                                    style: const TextStyle(
+                                                                      fontWeight:
+                                                                          FontWeight
+                                                                              .bold,
+                                                                      color: Colors
+                                                                          .indigo,
+                                                                    ),
+                                                                  ),
+                                                                  onSort:
+                                                                      (
+                                                                        columnIndex,
+                                                                        ascending,
+                                                                      ) => _controller.sortTable(
+                                                                        setDialogState:
+                                                                            setDialogState,
+                                                                        tableRows:
+                                                                            tableRows,
+                                                                        currentFieldTypes:
+                                                                            currentFieldTypes,
+                                                                        triggerChange: () => setDialogState(
+                                                                          () => hasChanges =
+                                                                              true,
+                                                                        ),
+                                                                        key:
+                                                                            key,
+                                                                        columnIndex:
+                                                                            columnIndex,
+                                                                        currentSortColumnIndex:
+                                                                            sortColumnIndex,
+                                                                        currentIsAscending:
+                                                                            isAscending,
+                                                                        onSortUpdated:
+                                                                            (
+                                                                              colIdx,
+                                                                              asc,
+                                                                            ) {
+                                                                              sortColumnIndex = colIdx;
+                                                                              isAscending = asc;
+                                                                            },
+                                                                      ),
+                                                                );
+                                                              }).toList(),
+                                                              const DataColumn(
                                                                 label: Text(
-                                                                  "$key (${currentFieldTypes[key] ?? 'String'})",
-                                                                  style: const TextStyle(
+                                                                  'Aksi',
+                                                                  style: TextStyle(
                                                                     fontWeight:
                                                                         FontWeight
                                                                             .bold,
@@ -700,282 +768,231 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                                                                         .indigo,
                                                                   ),
                                                                 ),
-                                                                onSort:
-                                                                    (
-                                                                      columnIndex,
-                                                                      ascending,
-                                                                    ) => _controller.sortTable(
-                                                                      setDialogState:
+                                                              ),
+                                                            ],
+                                                            rows: tableRows.asMap().entries.map((
+                                                              entry,
+                                                            ) {
+                                                              int index =
+                                                                  entry.key;
+                                                              var row =
+                                                                  entry.value;
+                                                              return DataRow(
+                                                                cells: [
+                                                                  ...currentFieldKeys.map((
+                                                                    key,
+                                                                  ) {
+                                                                    return DataCell(
+                                                                      Container(
+                                                                        width:
+                                                                            160,
+                                                                        padding: const EdgeInsets.symmetric(
+                                                                          vertical:
+                                                                              4,
+                                                                        ),
+                                                                        child: _buildInputField(
+                                                                          key,
+                                                                          row[key]!,
+                                                                          dialogContext,
                                                                           setDialogState,
-                                                                      tableRows:
-                                                                          tableRows,
-                                                                      currentFieldTypes:
-                                                                          currentFieldTypes,
-                                                                      triggerChange: () => setDialogState(
-                                                                        () => hasChanges =
-                                                                            true,
+                                                                        ),
                                                                       ),
-                                                                      key: key,
-                                                                      columnIndex:
-                                                                          columnIndex,
-                                                                      currentSortColumnIndex:
-                                                                          sortColumnIndex,
-                                                                      currentIsAscending:
-                                                                          isAscending,
-                                                                      onSortUpdated:
-                                                                          (
-                                                                            colIdx,
-                                                                            asc,
-                                                                          ) {
-                                                                            sortColumnIndex =
-                                                                                colIdx;
-                                                                            isAscending =
-                                                                                asc;
-                                                                          },
+                                                                    );
+                                                                  }).toList(),
+                                                                  DataCell(
+                                                                    IconButton(
+                                                                      icon: const Icon(
+                                                                        Icons
+                                                                            .delete_outline,
+                                                                        color: Colors
+                                                                            .redAccent,
+                                                                        size:
+                                                                            20,
+                                                                      ),
+                                                                      onPressed: () => _controller.removeRow(
+                                                                        setDialogState:
+                                                                            setDialogState,
+                                                                        tableRows:
+                                                                            tableRows,
+                                                                        triggerChange: () => setDialogState(
+                                                                          () => hasChanges =
+                                                                              true,
+                                                                        ),
+                                                                        index:
+                                                                            index,
+                                                                      ),
+                                                                      tooltip:
+                                                                          'Hapus Baris',
                                                                     ),
+                                                                  ),
+                                                                ],
                                                               );
                                                             }).toList(),
-                                                            const DataColumn(
-                                                              label: Text(
-                                                                'Aksi',
-                                                                style: TextStyle(
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.all(16.0),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          const Text(
+                                            'Definisikan Struktur Kolom Tabel:',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.indigo,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Expanded(
+                                            child: currentFieldKeys.isEmpty
+                                                ? const Center(
+                                                    child: Text(
+                                                      'Belum ada kolom dibuat.',
+                                                      style: TextStyle(
+                                                        color: Colors.grey,
+                                                      ),
+                                                    ),
+                                                  )
+                                                : ListView.builder(
+                                                    itemCount:
+                                                        currentFieldKeys.length,
+                                                    itemBuilder: (ctx, idx) {
+                                                      final key =
+                                                          currentFieldKeys[idx];
+                                                      final type =
+                                                          currentFieldTypes[key] ??
+                                                          'String';
+                                                      return Card(
+                                                        margin:
+                                                            const EdgeInsets.only(
+                                                              bottom: 8,
+                                                            ),
+                                                        shape: RoundedRectangleBorder(
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                8,
+                                                              ),
+                                                        ),
+                                                        child: ListTile(
+                                                          dense: true,
+                                                          title: Text(
+                                                            key,
+                                                            style:
+                                                                const TextStyle(
                                                                   fontWeight:
                                                                       FontWeight
-                                                                          .bold,
-                                                                  color: Colors
-                                                                      .indigo,
+                                                                          .w600,
                                                                 ),
-                                                              ),
+                                                          ),
+                                                          subtitle: Text(
+                                                            "Tipe Data: $type",
+                                                            style: TextStyle(
+                                                              color: Colors
+                                                                  .grey[600],
                                                             ),
-                                                          ],
-                                                          rows: tableRows.asMap().entries.map((
-                                                            entry,
-                                                          ) {
-                                                            int index =
-                                                                entry.key;
-                                                            var row =
-                                                                entry.value;
-                                                            return DataRow(
-                                                              cells: [
-                                                                ...currentFieldKeys.map((
-                                                                  key,
-                                                                ) {
-                                                                  return DataCell(
-                                                                    Container(
-                                                                      width:
-                                                                          160,
-                                                                      padding: const EdgeInsets.symmetric(
-                                                                        vertical:
-                                                                            4,
-                                                                      ),
-                                                                      child: _buildInputField(
-                                                                        key,
-                                                                        row[key]!,
-                                                                        dialogContext,
-                                                                        setDialogState,
-                                                                      ),
-                                                                    ),
-                                                                  );
-                                                                }).toList(),
-                                                                DataCell(
-                                                                  IconButton(
-                                                                    icon: const Icon(
-                                                                      Icons
-                                                                          .delete_outline,
-                                                                      color: Colors
-                                                                          .redAccent,
-                                                                      size: 20,
-                                                                    ),
-                                                                    onPressed: () => _controller.removeRow(
-                                                                      setDialogState:
-                                                                          setDialogState,
-                                                                      tableRows:
-                                                                          tableRows,
-                                                                      triggerChange: () => setDialogState(
-                                                                        () => hasChanges =
+                                                          ),
+                                                          trailing: IconButton(
+                                                            icon: const Icon(
+                                                              Icons
+                                                                  .delete_outline,
+                                                              color: Colors
+                                                                  .redAccent,
+                                                              size: 20,
+                                                            ),
+                                                            onPressed: () => _controller.removeFieldKey(
+                                                              setDialogState:
+                                                                  setDialogState,
+                                                              currentFieldKeys:
+                                                                  currentFieldKeys,
+                                                              currentFieldTypes:
+                                                                  currentFieldTypes,
+                                                              formControllers:
+                                                                  formControllers,
+                                                              tableRows:
+                                                                  tableRows,
+                                                              triggerChange: () =>
+                                                                  setDialogState(
+                                                                    () =>
+                                                                        hasChanges =
                                                                             true,
-                                                                      ),
-                                                                      index:
-                                                                          index,
-                                                                    ),
-                                                                    tooltip:
-                                                                        'Hapus Baris',
                                                                   ),
-                                                                ),
-                                                              ],
-                                                            );
-                                                          }).toList(),
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ),
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                  Padding(
-                                    padding: const EdgeInsets.all(16.0),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        const Text(
-                                          'Definisikan Struktur Kolom Tabel:',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.indigo,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Expanded(
-                                          child: currentFieldKeys.isEmpty
-                                              ? const Center(
-                                                  child: Text(
-                                                    'Belum ada kolom dibuat.',
-                                                    style: TextStyle(
-                                                      color: Colors.grey,
-                                                    ),
-                                                  ),
-                                                )
-                                              : ListView.builder(
-                                                  itemCount:
-                                                      currentFieldKeys.length,
-                                                  itemBuilder: (ctx, idx) {
-                                                    final key =
-                                                        currentFieldKeys[idx];
-                                                    final type =
-                                                        currentFieldTypes[key] ??
-                                                        'String';
-                                                    return Card(
-                                                      margin:
-                                                          const EdgeInsets.only(
-                                                            bottom: 8,
-                                                          ),
-                                                      shape: RoundedRectangleBorder(
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              8,
+                                                              key: key,
                                                             ),
-                                                      ),
-                                                      child: ListTile(
-                                                        dense: true,
-                                                        title: Text(
-                                                          key,
-                                                          style:
-                                                              const TextStyle(
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .w600,
-                                                              ),
-                                                        ),
-                                                        subtitle: Text(
-                                                          "Tipe Data: $type",
-                                                          style: TextStyle(
-                                                            color: Colors
-                                                                .grey[600],
                                                           ),
                                                         ),
-                                                        trailing: IconButton(
-                                                          icon: const Icon(
-                                                            Icons
-                                                                .delete_outline,
-                                                            color: Colors
-                                                                .redAccent,
-                                                            size: 20,
-                                                          ),
-                                                          onPressed: () => _controller.removeFieldKey(
-                                                            setDialogState:
-                                                                setDialogState,
-                                                            currentFieldKeys:
-                                                                currentFieldKeys,
-                                                            currentFieldTypes:
-                                                                currentFieldTypes,
-                                                            formControllers:
-                                                                formControllers,
-                                                            tableRows:
-                                                                tableRows,
-                                                            triggerChange: () =>
-                                                                setDialogState(
-                                                                  () =>
-                                                                      hasChanges =
-                                                                          true,
-                                                                ),
-                                                            key: key,
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    );
-                                                  },
-                                                ),
-                                        ),
-                                        const SizedBox(height: 12),
-                                        SizedBox(
-                                          width: double.infinity,
-                                          child: ElevatedButton.icon(
-                                            onPressed: () =>
-                                                _showAddFieldDialog(
-                                                  setDialogState,
-                                                ),
-                                            icon: const Icon(
-                                              Icons.add,
-                                              color: Colors.white,
-                                              size: 18,
-                                            ),
-                                            label: const Text(
-                                              'Tambah Kolom Baru',
-                                              style: TextStyle(
+                                                      );
+                                                    },
+                                                  ),
+                                          ),
+                                          const SizedBox(height: 12),
+                                          SizedBox(
+                                            width: double.infinity,
+                                            child: ElevatedButton.icon(
+                                              onPressed: () =>
+                                                  _showAddFieldDialog(
+                                                    setDialogState,
+                                                  ),
+                                              icon: const Icon(
+                                                Icons.add,
                                                 color: Colors.white,
+                                                size: 18,
+                                              ),
+                                              label: const Text(
+                                                'Tambah Kolom Baru',
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: Colors.indigo,
                                               ),
                                             ),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: Colors.indigo,
-                                            ),
                                           ),
-                                        ),
-                                      ],
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
+                        ),
+                ),
+                footer: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 12.0,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(dialogContext),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.grey[400],
+                        ),
+                        child: const Text(
+                          'Tutup',
+                          style: TextStyle(color: Colors.white),
                         ),
                       ),
-              ),
-              footer: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16.0,
-                  vertical: 12.0,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    ElevatedButton(
-                      onPressed: () => Navigator.pop(dialogContext),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.grey[400],
-                      ),
-                      child: const Text(
-                        'Tutup',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
-    ).then((_) {
-      titleController.dispose();
-      contentController.dispose();
-      for (var row in tableRows) {
-        row.values.forEach((controller) => controller.dispose());
-      }
-      formControllers.values.forEach((controller) => controller.dispose());
-    });
+    );
   }
 
   @override
@@ -1019,4 +1036,29 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       onMoveMassive: (selectedItems) {},
     );
   }
+}
+
+/// Widget helper khusus untuk membungkus State Dialog.
+/// Menjamin pelepasan memori (dispose) controller baru terjadi ketika widget dialog benar-benar
+/// dihancurkan dan lepas dari visual screen (setelah efek animasi pop transisi fade-out selesai).
+class _DialogLifecycleWrapper extends StatefulWidget {
+  final Widget child;
+  final VoidCallback onDispose;
+
+  const _DialogLifecycleWrapper({required this.child, required this.onDispose});
+
+  @override
+  State<_DialogLifecycleWrapper> createState() =>
+      _DialogLifecycleWrapperState();
+}
+
+class _DialogLifecycleWrapperState extends State<_DialogLifecycleWrapper> {
+  @override
+  void dispose() {
+    widget.onDispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

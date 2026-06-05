@@ -241,7 +241,12 @@ class NoteDetailController {
 
     onStateChanged(); // Memicu UI utama untuk merender ulang daftar
     await saveCurrentGroup();
-    Navigator.pop(dialogCtx);
+
+    // PERBAIKAN: Pastikan context dialog masih terpasang (mounted) sebelum melakukan penutupan (pop).
+    // Ini mengantisipasi jika pengguna menutup dialog secara manual tepat saat proses penulisan file asinkron berjalan.
+    if (dialogCtx.mounted) {
+      Navigator.pop(dialogCtx);
+    }
   }
 
   void deleteNote(NoteModel note) async {
