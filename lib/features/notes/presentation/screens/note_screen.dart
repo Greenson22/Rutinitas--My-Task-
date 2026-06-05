@@ -16,7 +16,7 @@ class NotesScreen extends StatefulWidget {
 
 class _NotesScreenState extends State<NotesScreen> {
   final StorageService _storageService = StorageService();
-  final Color _themeColor = Colors.indigo!;
+  final Color _themeColor = Colors.indigo;
 
   bool _isLoading = true;
   bool _isSectionEditMode = false;
@@ -95,16 +95,30 @@ class _NotesScreenState extends State<NotesScreen> {
 
   void _showAddGroupDialog(String sectionName) {
     final TextEditingController groupController = TextEditingController();
+    final TextEditingController iconController = TextEditingController(
+      text: '📁',
+    );
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Buat Grup Catatan Baru'),
-        content: TextField(
-          controller: groupController,
-          decoration: const InputDecoration(
-            hintText: 'Misal: Ide Bisnis, Jurnal...',
-          ),
-          autofocus: true,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: groupController,
+              decoration: const InputDecoration(
+                labelText: 'Nama Grup Catatan',
+                hintText: 'Misal: Ide Bisnis, Jurnal...',
+              ),
+              autofocus: true,
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: iconController,
+              decoration: const InputDecoration(labelText: 'Ikon Emoji'),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -114,11 +128,12 @@ class _NotesScreenState extends State<NotesScreen> {
           ElevatedButton(
             onPressed: () async {
               final newName = groupController.text.trim();
+              final newIcon = iconController.text.trim();
               if (newName.isNotEmpty) {
                 final newGroup = NoteGroup(
                   id: DateTime.now().millisecondsSinceEpoch.toString(),
                   groupName: newName,
-                  icon: '📁',
+                  icon: newIcon.isEmpty ? '📁' : newIcon,
                   notes: [],
                 );
 
@@ -135,18 +150,32 @@ class _NotesScreenState extends State<NotesScreen> {
     );
   }
 
+  // PERUBAHAN: Mengubah dialog edit agar mendukung perubahan nama sekaligus ikon emoji
   void _showEditGroupDialog(NoteGroup group) {
     final TextEditingController nameController = TextEditingController(
       text: group.groupName,
     );
+    final TextEditingController iconController = TextEditingController(
+      text: group.icon,
+    );
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Edit Nama Grup'),
-        content: TextField(
-          controller: nameController,
-          decoration: const InputDecoration(labelText: 'Nama Grup Baru'),
-          autofocus: true,
+        title: const Text('Ubah Nama & Ikon Grup'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(labelText: 'Nama Grup Baru'),
+              autofocus: true,
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: iconController,
+              decoration: const InputDecoration(labelText: 'Ikon Emoji Baru'),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -155,8 +184,13 @@ class _NotesScreenState extends State<NotesScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              if (nameController.text.trim().isNotEmpty) {
-                setState(() => group.groupName = nameController.text.trim());
+              final updatedName = nameController.text.trim();
+              final updatedIcon = iconController.text.trim();
+              if (updatedName.isNotEmpty) {
+                setState(() {
+                  group.groupName = updatedName;
+                  group.icon = updatedIcon.isEmpty ? '📁' : updatedIcon;
+                });
                 await _saveGroupData(group);
                 if (mounted) Navigator.pop(context);
               }
@@ -178,28 +212,20 @@ class _NotesScreenState extends State<NotesScreen> {
       title: 'Note Groups',
       drawer: const DrawerMenu(isNotesActive: true),
       isLoading: _isLoading,
-      // Cek isEmpty dari list keseluruhan supaya ketika hasil search kosong
-      // tidak berubah jadi halaman error 'Belum ada grup catatan.'
       isEmpty: _groupedCategories['Catatan Utama']!.isEmpty,
       emptyMessage: 'Belum ada grup catatan. Buat folder catatan pertama Anda!',
       sectionKeys: _sectionKeys,
-
-      // Gunakan categories yang sudah difilter
       groupedItems: filteredCategories,
-
       isSelectMode: false,
       selectedItemsCount: 0,
       onClearSelection: () {},
       enableSearch: true,
       enableMultiSelect: false,
-
-      // Implementasi onSearchChanged untuk memperbarui state pencarian
       onSearchChanged: (query) {
         setState(() {
           _searchQuery = query;
         });
       },
-
       onAddPressed: () => _showAddGroupDialog(_sectionKeys.first),
       sectionHeaderBuilder: (context, index, sectionName, isLayoutEditMode) {
         return InteractiveSectionHeader(
@@ -237,13 +263,26 @@ class _NotesScreenState extends State<NotesScreen> {
                   setState(() => _isCardEditMode = !_isCardEditMode),
               onMoveLeft: () {},
               onMoveRight: () {},
+              // PERUBAHAN: Menyesuaikan teks menu agar informatif bagi pengguna
               popupMenuItems: const [
-                PopupMenuItem(value: 'edit', child: Text('Edit Nama Grup')),
+                PopupMenuItem(
+                  value: 'edit',
+                  child: Row(
+                    children: [
+                      Icon(Icons.edit, size: 18, color: Colors.teal),
+                      SizedBox(width: 10),
+                      Text('Ubah Nama & Ikon'),
+                    ],
+                  ),
+                ),
                 PopupMenuItem(
                   value: 'delete',
-                  child: Text(
-                    'Hapus Grup',
-                    style: TextStyle(color: Colors.red),
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                      SizedBox(width: 10),
+                      Text('Hapus Grup', style: TextStyle(color: Colors.red)),
+                    ],
                   ),
                 ),
               ],
