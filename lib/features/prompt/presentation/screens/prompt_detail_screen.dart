@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:rutinitasku/core/presentation/widgets/base_popup_dialog.dart';
-import '../../../../core/presentation/widgets/base_detail_list_screen.dart'; // Sesuaikan dengan path file BaseDetailListScreen Anda
+import '../../../../core/presentation/widgets/base_detail_list_screen.dart';
 import '../../data/models/prompt_model.dart';
 import '../controllers/prompt_controller.dart';
 import '../widgets/prompt_detail_screen/add_prompt_item_dialog.dart';
@@ -25,7 +25,6 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
     super.initState();
     _currentGroup = widget.promptGroup;
 
-    // Muat semua grup ke controller agar fitur pindah/salin bisa mengambil daftar grup lain
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _controller.loadAllPrompts(context);
     });
@@ -62,11 +61,196 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
     );
   }
 
+  // =========================================================================
+  // FITUR BARU: DIALOG MANAJEMEN VERSI PROMPT
+  // =========================================================================
+
+  /// Menampilkan dialog untuk memilih versi aktif atau menavigasi ke pembuatan versi baru
+  void _openVersionSelectorDialog(PromptItem item) {
+    showDialog(
+      context: context,
+      builder: (ctx) => BasePopupDialog(
+        themeColor: Colors.indigo,
+        titleColor: Colors.white,
+        title: Row(
+          children: const [
+            Icon(Icons.history, color: Colors.white, size: 24),
+            SizedBox(width: 8),
+            Text(
+              'Pilih Versi Prompt',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: item.versions.length,
+                itemBuilder: (context, idx) {
+                  final version = item.versions[idx];
+                  final isScalarActive = version.id == item.activeVersionId;
+
+                  return ListTile(
+                    dense: true,
+                    title: Text(
+                      version.versionName,
+                      style: TextStyle(
+                        fontWeight: isScalarActive
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                        color: isScalarActive ? Colors.indigo : Colors.black87,
+                      ),
+                    ),
+                    subtitle: Text(
+                      version.content,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    trailing: isScalarActive
+                        ? const Icon(
+                            Icons.check_circle_rounded,
+                            color: Colors.indigo,
+                            size: 20,
+                          )
+                        : null,
+                    onTap: () async {
+                      Navigator.pop(ctx);
+                      await _controller.switchPromptVersion(
+                        group: _currentGroup,
+                        itemId: item.id,
+                        versionId: version.id,
+                        context: context,
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              dense: true,
+              leading: const Icon(Icons.add_rounded, color: Colors.teal),
+              title: const Text(
+                'Buat Versi Baru...',
+                style: TextStyle(
+                  color: Colors.teal,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(ctx);
+                _openCreateVersionDialog(item);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Menampilkan dialog input nama untuk membuat salinan instruksi versi baru
+  void _openCreateVersionDialog(PromptItem item) {
+    final versionNameController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => BasePopupDialog(
+        themeColor: Colors.teal,
+        titleColor: Colors.white,
+        title: Row(
+          children: const [
+            Icon(
+              Icons.create_new_folder_rounded,
+              color: Colors.white,
+              size: 24,
+            ),
+            SizedBox(width: 8),
+            Text(
+              'Buat Versi Baru',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        content: Form(
+          key: formKey,
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: TextFormField(
+              controller: versionNameController,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Nama Versi',
+                hintText: 'Misal: v2.0 - Optimasi GPT4',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              validator: (v) =>
+                  v!.trim().isEmpty ? 'Nama versi tidak boleh kosong' : null,
+            ),
+          ),
+        ),
+        footer: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text(
+                  'Batal',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+                onPressed: () async {
+                  if (formKey.currentState!.validate()) {
+                    Navigator.pop(ctx);
+                    await _controller.createNewPromptVersion(
+                      group: _currentGroup,
+                      itemId: item.id,
+                      versionName: versionNameController.text,
+                      context: context,
+                    );
+                  }
+                },
+                child: const Text(
+                  'Buat',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   // ========= FITUR EDIT, HAPUS, MOVE/COPY DIALOG =========
   void _openEditPromptDialog(PromptItem item) {
     final actAsController = TextEditingController(text: item.actAs);
     final descController = TextEditingController(text: item.description ?? '');
-    final contentController = TextEditingController(text: item.content);
+    // MODIFIKASI: Memuat data teks dari versi yang sedang AKTIF saat ini
+    final contentController = TextEditingController(
+      text: item.activeVersion.content,
+    );
     final formKey = GlobalKey<FormState>();
 
     showDialog(
@@ -121,10 +305,10 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                   controller: contentController,
                   maxLines: 5,
                   minLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: 'Isi Prompt template',
+                  decoration: InputDecoration(
+                    labelText: 'Isi Prompt (${item.activeVersion.versionName})',
                     hintText: 'Masukkan instruksi detail AI...',
-                    border: OutlineInputBorder(),
+                    border: const OutlineInputBorder(),
                     alignLabelWithHint: true,
                   ),
                   validator: (v) => v!.trim().isEmpty
@@ -162,6 +346,7 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                 onPressed: () async {
                   if (formKey.currentState!.validate()) {
                     Navigator.pop(ctx);
+                    // MODIFIKASI: Menyimpan perubahan konten teks ke versi aktif
                     final res = await _controller.editPromptItem(
                       group: _currentGroup,
                       itemId: item.id,
@@ -243,7 +428,6 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
             onPressed: () async {
               Navigator.pop(ctx);
 
-              // Sinkronisasi state selected IDs ke controller sebelum melakukan mass delete
               _controller.clearSelectedPrompts();
               for (var item in selectedItems) {
                 _controller.toggleSelectPromptItem(item.id);
@@ -468,7 +652,6 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                         onPressed: () async {
                           Navigator.pop(ctx);
 
-                          // Sinkronisasi state selected IDs ke controller sebelum melakukan mass move
                           _controller.clearSelectedPrompts();
                           for (var item in selectedItems) {
                             _controller.toggleSelectPromptItem(item.id);
@@ -506,7 +689,6 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
     return ListenableBuilder(
       listenable: _controller,
       builder: (context, _) {
-        // Melakukan sinkronisasi data terbaru dari controller global jika ada pembaruan
         final PromptGroup updatedGroup = _controller.promptGroups.firstWhere(
           (g) => g.id == _currentGroup.id,
           orElse: () => _currentGroup,
@@ -521,10 +703,9 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
           enableAddButton: true,
           enableFavoriteSort: true,
 
-          // Pemetaan fungsi data Model ke String / Bool komponen Base
           itemTitle: (item) => item.actAs,
 
-          // Mengembalikan Layout Widget Custom dengan warna yang berbeda
+          // MODIFIKASI: Menampilkan nama versi yang sedang aktif di Subtitle Kartu
           itemSubtitle: (item) {
             final hasDesc =
                 item.description != null && item.description!.trim().isNotEmpty;
@@ -540,42 +721,75 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                     fontStyle: hasDesc ? FontStyle.normal : FontStyle.italic,
                   ),
                 ),
-                const SizedBox(height: 2),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.indigo.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Text(
-                    'Tipe: Template AI',
-                    style: TextStyle(
-                      color: Colors.indigo,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.indigo.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        'Versi Aktif: ${item.activeVersion.versionName}',
+                        style: const TextStyle(
+                          color: Colors.indigo,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.blueGrey.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        'Total: ${item.versions.length} Versi',
+                        style: const TextStyle(
+                          color: Colors.blueGrey,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             );
           },
 
-          // Menyediakan data String murni untuk pencarian text
           itemSearchString: (item) =>
               (item.description != null) ? item.description! : '',
           itemIsFavorite: (item) => item.isFavorite,
 
-          // Callback Aksi Utama
           onAddPressed: _openAddPromptDialog,
-          onItemTap: (item) => _copyToClipboard(item.content),
+          // MODIFIKASI: Mengambil isi teks berdasarkan versi teraktif saat item diklik (salin)
+          onItemTap: (item) => _copyToClipboard(item.activeVersion.content),
           onDeleteMassive: _showDeleteMassiveDialog,
           onMoveMassive: _showMoveMassiveDialog,
 
           // Pembuat Menu Aksi Individual di Mode Seleksi Tunggal
           itemMenuBuilder: (item) => [
+            // MODIFIKASI: Menambahkan tombol opsi pengelolaan versi ke pop-up item menu
+            const PopupMenuItem(
+              value: 'manage_versions',
+              child: Row(
+                children: [
+                  Icon(Icons.history, size: 20, color: Colors.indigo),
+                  SizedBox(width: 10),
+                  Text('Pilih / Tambah Versi', style: TextStyle(fontSize: 13)),
+                ],
+              ),
+            ),
             const PopupMenuItem(
               value: 'edit',
               child: Row(
@@ -612,7 +826,7 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                   Icon(
                     Icons.drive_file_move_outlined,
                     size: 20,
-                    color: Colors.indigo,
+                    color: Colors.blueGrey,
                   ),
                   SizedBox(width: 10),
                   Text('Pindah / Salin', style: TextStyle(fontSize: 13)),
@@ -640,7 +854,9 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
           ],
 
           onItemMenuSelected: (value, item) async {
-            if (value == 'edit') {
+            if (value == 'manage_versions') {
+              _openVersionSelectorDialog(item);
+            } else if (value == 'edit') {
               _openEditPromptDialog(item);
             } else if (value == 'toggle_favorite') {
               final res = await _controller.toggleFavoritePromptItem(

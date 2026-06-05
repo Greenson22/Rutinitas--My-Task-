@@ -55,7 +55,10 @@ class PromptController extends ChangeNotifier {
             return prompt.actAs.toLowerCase().contains(_searchQuery) ||
                 (prompt.description?.toLowerCase().contains(_searchQuery) ??
                     false) ||
-                prompt.content.toLowerCase().contains(_searchQuery);
+                // MODIFIKASI: Pencarian diarahkan ke konten versi yang sedang aktif
+                prompt.activeVersion.content.toLowerCase().contains(
+                  _searchQuery,
+                );
           }).toList();
 
           // Jika judul grup cocok atau ada item di dalamnya yang cocok, kembalikan grup tersebut
@@ -522,13 +525,23 @@ class PromptController extends ChangeNotifier {
     try {
       final baseDir = await _storageService.getBaseDirSetting();
       final String newItemId = 'item_${DateTime.now().millisecondsSinceEpoch}';
+      final String initialVersionId =
+          'v_${DateTime.now().millisecondsSinceEpoch}';
 
+      // MODIFIKASI: Penyesuaian skema inisialisasi versi awal (v1.0)
       final newPromptItem = PromptItem(
         id: newItemId,
         actAs: title.trim(),
-        content: content.trim(),
         description: description.trim().isEmpty ? null : description.trim(),
         isFavorite: false,
+        activeVersionId: initialVersionId,
+        versions: [
+          PromptVersion(
+            id: initialVersionId,
+            versionName: 'v1.0',
+            content: content.trim(),
+          ),
+        ],
       );
 
       group.prompts.add(newPromptItem);
@@ -572,7 +585,7 @@ class PromptController extends ChangeNotifier {
 
   // =============== FITUR EDIT, HAPUS, PINDAH, SALIN PROMPT ===============
 
-  // Mengedit item prompt
+  // MODIFIKASI: Mengubah isi teks (content) pada versi yang sedang AKTIF saja
   Future<PromptGroup?> editPromptItem({
     required PromptGroup group,
     required String itemId,
@@ -589,14 +602,28 @@ class PromptController extends ChangeNotifier {
 
       if (index != -1) {
         final oldItem = group.prompts[index];
+
+        // Memperbarui teks konten di dalam objek list versions yang memiliki activeVersionId
+        final updatedVersions = oldItem.versions.map((v) {
+          if (v.id == oldItem.activeVersionId) {
+            return PromptVersion(
+              id: v.id,
+              versionName: v.versionName,
+              content: newContent.trim(),
+            );
+          }
+          return v;
+        }).toList();
+
         group.prompts[index] = PromptItem(
           id: oldItem.id,
           actAs: newActAs.trim(),
-          content: newContent.trim(),
           description: newDescription.trim().isEmpty
               ? null
               : newDescription.trim(),
           isFavorite: oldItem.isFavorite,
+          activeVersionId: oldItem.activeVersionId,
+          versions: updatedVersions,
         );
 
         final String jsonString = _storageService.formatJsonPretty(
@@ -670,7 +697,7 @@ class PromptController extends ChangeNotifier {
     }
   }
 
-  // Memindah atau Menyalin item prompt
+  // Memindah atau Menyalin item prompt beserta silsilah versinya
   Future<PromptGroup?> moveOrCopyPromptItem({
     required PromptGroup sourceGroup,
     required PromptGroup targetGroup,
@@ -684,12 +711,14 @@ class PromptController extends ChangeNotifier {
       final baseDir = await _storageService.getBaseDirSetting();
       final String newItemId = 'item_${DateTime.now().millisecondsSinceEpoch}';
 
+      // MODIFIKASI: Menyalin item menyertakan riwayat array `versions` dan `activeVersionId` lengkap
       final newItem = PromptItem(
         id: newItemId,
         actAs: item.actAs,
-        content: item.content,
         description: item.description,
         isFavorite: item.isFavorite,
+        activeVersionId: item.activeVersionId,
+        versions: item.versions,
       );
 
       if (sourceGroup.id == targetGroup.id) {
@@ -835,14 +864,15 @@ class PromptController extends ChangeNotifier {
         // Jika grup target sama dengan grup asal, cukup bersihkan seleksi
         _selectedPromptIds.clear();
       } else {
-        // 2. Buat duplikat item dengan ID baru agar unik di group target
+        // 2. MODIFIKASI: Duplikat item beserta riwayat versinya secara utuh ke target
         final List<PromptItem> preparedItems = itemsToMove.map((item) {
           return PromptItem(
             id: 'item_${DateTime.now().millisecondsSinceEpoch}_${item.id}',
             actAs: item.actAs,
-            content: item.content,
             description: item.description,
             isFavorite: item.isFavorite,
+            activeVersionId: item.activeVersionId,
+            versions: item.versions,
           );
         }).toList();
 
@@ -902,7 +932,7 @@ class PromptController extends ChangeNotifier {
     }
   }
 
-  // =============== FITUR BARU: TOGGLE FAVORITE PROMPT ITEM ===============
+  // =============== FITUR: TOGGLE FAVORITE PROMPT ITEM ===============
   Future<PromptGroup?> toggleFavoritePromptItem({
     required PromptGroup group,
     required String itemId,
@@ -920,9 +950,10 @@ class PromptController extends ChangeNotifier {
         group.prompts[index] = PromptItem(
           id: oldItem.id,
           actAs: oldItem.actAs,
-          content: oldItem.content,
           description: oldItem.description,
           isFavorite: !oldItem.isFavorite,
+          activeVersionId: oldItem.activeVersionId,
+          versions: oldItem.versions,
         );
 
         final String jsonString = _storageService.formatJsonPretty(
@@ -955,6 +986,105 @@ class PromptController extends ChangeNotifier {
         );
       }
       return null;
+    }
+  }
+
+  // =========================================================================
+  // SISTEM MANAJEMEN VERSI (VERSION CONTROL MANAGEMENT)
+  // =========================================================================
+
+  /// Mengganti versi prompt yang sedang AKTIF saat dipilih dari opsi dropdown/popup menu UI.
+  Future<void> switchPromptVersion({
+    required PromptGroup group,
+    required String itemId,
+    required String versionId,
+    required BuildContext context,
+  }) async {
+    try {
+      final baseDir = await _storageService.getBaseDirSetting();
+      final groupIdx = _promptGroups.indexWhere((g) => g.id == group.id);
+      if (groupIdx == -1) return;
+
+      final promptIdx = _promptGroups[groupIdx].prompts.indexWhere(
+        (p) => p.id == itemId,
+      );
+      if (promptIdx == -1) return;
+
+      _promptGroups[groupIdx].prompts[promptIdx].activeVersionId = versionId;
+
+      final String jsonString = _storageService.formatJsonPretty(
+        _promptGroups[groupIdx].toJson(),
+      );
+      await _storageService.savePromptGroup(baseDir, group.id, jsonString);
+      notifyListeners();
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Gagal memindahkan versi: $e')));
+      }
+    }
+  }
+
+  /// Membuat versi prompt baru dengan menyalin teks (content) dari versi aktif saat ini.
+  Future<void> createNewPromptVersion({
+    required PromptGroup group,
+    required String itemId,
+    required String versionName,
+    required BuildContext context,
+  }) async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      final baseDir = await _storageService.getBaseDirSetting();
+      final groupIdx = _promptGroups.indexWhere((g) => g.id == group.id);
+      if (groupIdx == -1) return;
+
+      final promptIdx = _promptGroups[groupIdx].prompts.indexWhere(
+        (p) => p.id == itemId,
+      );
+      if (promptIdx == -1) return;
+
+      final currentPrompt = _promptGroups[groupIdx].prompts[promptIdx];
+      final currentActiveContent = currentPrompt.activeVersion.content;
+      final String newVersionId = 'v_${DateTime.now().millisecondsSinceEpoch}';
+
+      // Membuat objek versi baru berbasis teks versi aktif
+      final newVersion = PromptVersion(
+        id: newVersionId,
+        versionName: versionName.trim().isEmpty
+            ? 'v${currentPrompt.versions.length + 1}.0'
+            : versionName.trim(),
+        content: currentActiveContent,
+      );
+
+      currentPrompt.versions.add(newVersion);
+      currentPrompt.activeVersionId =
+          newVersionId; // Otomatis mengaktifkan versi baru
+
+      final String jsonString = _storageService.formatJsonPretty(
+        _promptGroups[groupIdx].toJson(),
+      );
+      await _storageService.savePromptGroup(baseDir, group.id, jsonString);
+
+      if (context.mounted) {
+        await loadAllPrompts(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Versi baru "${newVersion.versionName}" berhasil ditambahkan!',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      _isLoading = false;
+      notifyListeners();
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Gagal membuat versi baru: $e')));
+      }
     }
   }
 }
