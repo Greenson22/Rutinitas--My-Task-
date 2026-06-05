@@ -124,6 +124,14 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                     itemBuilder: (ctx, idx) {
                       final key = widget.currentFieldKeys[idx];
                       final type = widget.currentFieldTypes[key] ?? 'String';
+                      final List<String> availableTypes = [
+                        'String',
+                        'Numerik',
+                        'Date',
+                        'Time',
+                        'Boolean',
+                      ];
+
                       return Card(
                         margin: const EdgeInsets.only(bottom: 8),
                         shape: RoundedRectangleBorder(
@@ -135,9 +143,45 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                             key,
                             style: const TextStyle(fontWeight: FontWeight.w600),
                           ),
-                          subtitle: Text(
-                            "Tipe Data: $type",
-                            style: TextStyle(color: Colors.grey[600]),
+                          subtitle: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                "Tipe Data: ",
+                                style: TextStyle(color: Colors.grey[600]),
+                              ),
+                              DropdownButton<String>(
+                                value: type,
+                                isDense: true,
+                                underline: const SizedBox(),
+                                style: const TextStyle(
+                                  color: Colors.indigo,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                items: availableTypes
+                                    .map(
+                                      (t) => DropdownMenuItem(
+                                        value: t,
+                                        child: Text(t),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (String? newType) {
+                                  if (newType != null && newType != type) {
+                                    widget.controller.updateFieldType(
+                                      setDialogState: setState,
+                                      currentFieldTypes:
+                                          widget.currentFieldTypes,
+                                      tableRows: widget.tableRows,
+                                      triggerChange: widget.onChanged,
+                                      key: key,
+                                      newType: newType,
+                                    );
+                                  }
+                                },
+                              ),
+                            ],
                           ),
                           trailing: IconButton(
                             icon: const Icon(

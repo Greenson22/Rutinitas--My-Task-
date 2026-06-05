@@ -129,6 +129,37 @@ class NoteDetailController {
     });
   }
 
+  // BARU: Fungsi untuk mengubah tipe data kolom dan memvalidasi nilai yang sudah ada
+  void updateFieldType({
+    required StateSetter setDialogState,
+    required Map<String, String> currentFieldTypes,
+    required List<Map<String, TextEditingController>> tableRows,
+    required Function() triggerChange,
+    required String key,
+    required String newType,
+  }) {
+    setDialogState(() {
+      currentFieldTypes[key] = newType;
+
+      for (var row in tableRows) {
+        if (row[key] != null) {
+          String currentText = row[key]!.text.trim();
+
+          if (newType == 'Boolean') {
+            if (currentText != 'Ya' && currentText != 'Tidak') {
+              row[key]!.text = 'Tidak';
+            }
+          } else if (newType == 'Numerik') {
+            if (double.tryParse(currentText) == null) {
+              row[key]!.text = '0';
+            }
+          }
+        }
+      }
+      triggerChange();
+    });
+  }
+
   void sortTable({
     required StateSetter setDialogState,
     required List<Map<String, TextEditingController>> tableRows,
@@ -241,7 +272,7 @@ class NoteDetailController {
     onStateChanged();
     await saveCurrentGroup();
 
-    return newNote; // Mengembalikan data note baru agar sinkronisasi ID di dialog tetap terjaga
+    return newNote;
   }
 
   void deleteNote(NoteModel note) async {
