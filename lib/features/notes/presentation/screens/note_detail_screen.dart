@@ -50,18 +50,46 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         ? existingNote.title
         : 'Catatan Baru';
     final originalContent = existingNote?.content ?? '';
+    final originalType = existingNote?.type ?? 'text';
+    final originalFields = existingNote?.fields ?? {};
 
     final titleController = TextEditingController(text: originalTitle);
     final contentController = TextEditingController(text: originalContent);
 
+    // Inisialisasi map controller untuk menampung data field dinamis
+    Map<String, TextEditingController> fieldControllers = {};
+    if (existingNote != null && existingNote.fields.isNotEmpty) {
+      existingNote.fields.forEach((key, value) {
+        fieldControllers[key] = TextEditingController(text: value);
+      });
+    }
+
     bool isEditingTitle = existingNote == null;
+    String currentType = originalType;
     bool hasChanges = false;
     StateSetter? dialogStateSetter;
 
+    // Pengecekan apakah ada perubahan data (untuk memicu tombol simpan)
     void checkChanges() {
+      bool fieldsChanged = false;
+      if (currentType == 'field') {
+        if (fieldControllers.length != originalFields.length) {
+          fieldsChanged = true;
+        } else {
+          fieldControllers.forEach((key, controller) {
+            if (originalFields[key] != controller.text) {
+              fieldsChanged = true;
+            }
+          });
+        }
+      }
+
       final changed =
           titleController.text != originalTitle ||
-          contentController.text != originalContent;
+          currentType != originalType ||
+          (currentType == 'text' &&
+              contentController.text != originalContent) ||
+          (currentType == 'field' && fieldsChanged);
 
       if (hasChanges != changed) {
         if (dialogStateSetter != null) {
@@ -75,10 +103,55 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     titleController.addListener(checkChanges);
     contentController.addListener(checkChanges);
 
+    // Dialog untuk menambah nama field baru
+    void showAddFieldDialog(StateSetter setDialogState) {
+      final keyController = TextEditingController();
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Tambah Field Baru'),
+          content: TextField(
+            controller: keyController,
+            decoration: const InputDecoration(
+              hintText: 'Nama Field (misal: No, Nama, Alamat)',
+            ),
+            autofocus: true,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final key = keyController.text.trim();
+                if (key.isNotEmpty && !fieldControllers.containsKey(key)) {
+                  setDialogState(() {
+                    fieldControllers[key] = TextEditingController();
+                    hasChanges = true;
+                  });
+                  Navigator.pop(ctx);
+                }
+              },
+              child: const Text('Tambah'),
+            ),
+          ],
+        ),
+      );
+    }
+
     Future<void> performSave(BuildContext dialogCtx) async {
       String finalTitle = titleController.text.trim();
       if (finalTitle.isEmpty) {
         finalTitle = originalTitle;
+      }
+
+      // Ekstrak nilai dari textfield dinamis ke bentuk Map<String, String>
+      Map<String, String> finalFields = {};
+      if (currentType == 'field') {
+        fieldControllers.forEach((key, controller) {
+          finalFields[key] = controller.text.trim();
+        });
       }
 
       setState(() {
@@ -87,9 +160,13 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
             NoteModel(
               id: DateTime.now().millisecondsSinceEpoch.toString(),
               title: finalTitle,
-              content: contentController.text.trim(),
+              content: currentType == 'text'
+                  ? contentController.text.trim()
+                  : '',
               createdAt: DateTime.now(),
               updatedAt: DateTime.now(),
+              type: currentType,
+              fields: finalFields,
             ),
           );
         } else {
@@ -100,9 +177,13 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
             _currentGroup.notes[index] = NoteModel(
               id: existingNote.id,
               title: finalTitle,
-              content: contentController.text.trim(),
+              content: currentType == 'text'
+                  ? contentController.text.trim()
+                  : '',
               createdAt: existingNote.createdAt,
               updatedAt: DateTime.now(),
+              type: currentType,
+              fields: finalFields,
             );
           }
         }
@@ -167,13 +248,13 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                           ),
                   ),
                   const SizedBox(width: 8),
-                  // Tombol Simpan diletakkan di sini (Kanan Atas, Sebelah Kiri Ganti Judul)
+                  // Tombol Simpan
                   if (hasChanges) ...[
                     IconButton(
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                       icon: const Icon(
-                        Icons.save, // Menggunakan ikon memori / floppy disk
+                        Icons.save,
                         color: Colors.amberAccent,
                         size: 20,
                       ),
@@ -182,6 +263,26 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                     ),
                     const SizedBox(width: 10),
                   ],
+                  // Tombol Pilih Tipe Catatan (Sebelah tombol ubah judul)
+                  IconButton(
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    icon: Icon(
+                      currentType == 'text' ? Icons.list_alt : Icons.notes,
+                      color: Colors.tealAccent,
+                      size: 20,
+                    ),
+                    tooltip: currentType == 'text'
+                        ? 'Ubah ke Catatan Berfield'
+                        : 'Ubah ke Catatan Teks',
+                    onPressed: () {
+                      setDialogState(() {
+                        currentType = currentType == 'text' ? 'field' : 'text';
+                        checkChanges();
+                      });
+                    },
+                  ),
+                  const SizedBox(width: 10),
                   // Tombol Ubah / Selesai Judul
                   IconButton(
                     padding: EdgeInsets.zero,
@@ -212,24 +313,103 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                 height: MediaQuery.of(context).size.height * 0.6,
                 color: Colors.white,
                 padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: contentController,
-                        maxLines: null,
-                        expands: true,
-                        textAlignVertical: TextAlignVertical.top,
-                        decoration: InputDecoration(
-                          hintText: 'Tulis catatan Anda di sini...',
-                          hintStyle: TextStyle(color: Colors.grey[400]),
-                          border: InputBorder.none,
-                          contentPadding: EdgeInsets.zero,
-                        ),
+                child: currentType == 'text'
+                    ? Column(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: contentController,
+                              maxLines: null,
+                              expands: true,
+                              textAlignVertical: TextAlignVertical.top,
+                              decoration: InputDecoration(
+                                hintText: 'Tulis catatan Anda di sini...',
+                                hintStyle: TextStyle(color: Colors.grey[400]),
+                                border: InputBorder.none,
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: ListView(
+                              children: fieldControllers.entries.map((entry) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 12.0),
+                                  child: Row(
+                                    children: [
+                                      SizedBox(
+                                        width: 90,
+                                        child: Text(
+                                          entry.key,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                            color: Colors.black87,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: TextField(
+                                          controller: entry.value,
+                                          decoration: const InputDecoration(
+                                            isDense: true,
+                                            border: UnderlineInputBorder(),
+                                            contentPadding:
+                                                EdgeInsets.symmetric(
+                                                  vertical: 4,
+                                                ),
+                                          ),
+                                          onChanged: (_) => checkChanges(),
+                                        ),
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(
+                                          Icons.remove_circle_outline,
+                                          color: Colors.redAccent,
+                                          size: 20,
+                                        ),
+                                        onPressed: () {
+                                          setDialogState(() {
+                                            fieldControllers.remove(entry.key);
+                                            checkChanges();
+                                          });
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          ElevatedButton.icon(
+                            onPressed: () => showAddFieldDialog(setDialogState),
+                            icon: const Icon(
+                              Icons.add,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                            label: const Text(
+                              'Tambah Field',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.indigo,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
-                ),
               ),
               footer: Padding(
                 padding: const EdgeInsets.symmetric(
@@ -259,6 +439,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     ).then((_) {
       titleController.dispose();
       contentController.dispose();
+      fieldControllers.forEach((_, controller) => controller.dispose());
     });
   }
 

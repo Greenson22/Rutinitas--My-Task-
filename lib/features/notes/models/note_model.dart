@@ -5,12 +5,16 @@ class NoteGroup {
   String groupName;
   String icon;
   List<NoteModel> notes;
+  final String type; // 'text' atau 'field'
+  final Map<String, String> fields;
 
   NoteGroup({
     required this.id,
     required this.groupName,
     required this.icon,
     required this.notes,
+    this.type = 'text',
+    this.fields = const {},
   });
 
   Map<String, dynamic> toJson() => {
@@ -18,6 +22,8 @@ class NoteGroup {
     'groupName': groupName,
     'icon': icon,
     'notes': notes.map((note) => note.toJson()).toList(),
+    'type': type,
+    'fields': fields,
   };
 
   factory NoteGroup.fromJson(Map<String, dynamic> json) => NoteGroup(
@@ -36,6 +42,8 @@ class NoteModel {
   final String content;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final String type; // 'text' atau 'field'
+  final Map<String, String> fields; // Penyimpan key-value dinamis
 
   NoteModel({
     required this.id,
@@ -43,6 +51,8 @@ class NoteModel {
     required this.content,
     required this.createdAt,
     required this.updatedAt,
+    this.type = 'text',
+    this.fields = const {},
   });
 
   Map<String, dynamic> toJson() => {
@@ -51,6 +61,8 @@ class NoteModel {
     'content': content,
     'createdAt': createdAt.toIso8601String(),
     'updatedAt': updatedAt.toIso8601String(),
+    'type': type,
+    'fields': fields,
   };
 
   factory NoteModel.fromJson(Map<String, dynamic> json) => NoteModel(
@@ -59,5 +71,7 @@ class NoteModel {
     content: json['content'],
     createdAt: DateTime.parse(json['createdAt']),
     updatedAt: DateTime.parse(json['updatedAt']),
+    type: json['type'] ?? 'text',
+    fields: Map<String, String>.from(json['fields'] ?? {}),
   );
 }
