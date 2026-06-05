@@ -45,13 +45,45 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       enableAddButton: true,
       enableFavoriteSort: false,
       itemTitle: (note) => note.title,
+      // 1. Mengembalikan Layout Widget Custom dengan Warna Berbeda
       itemSubtitle: (note) {
         String created = _controller.formatDate(note.createdAt);
         String updated = _controller.formatDate(note.updatedAt);
-        String typeInfo = note.type == 'table'
-            ? '\nTipe: Tabel (${note.tableData.length} Baris)'
-            : '';
-        return 'Dibuat: $created\nDiperbarui: $updated$typeInfo';
+        bool isTable = note.type == 'table';
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Dibuat: $created',
+              style: TextStyle(color: Colors.blueGrey[600], fontSize: 12),
+            ),
+            const SizedBox(height: 1),
+            Text(
+              'Diperbarui: $updated',
+              style: const TextStyle(color: Colors.orange, fontSize: 12),
+            ),
+            if (isTable) ...[
+              const SizedBox(height: 2),
+              Text(
+                'Tipe: Tabel (${note.tableData.length} Baris)',
+                style: const TextStyle(
+                  color: Colors.teal,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ],
+        );
+      },
+      // 2. Mengembalikan data String murni agar sistem search bawaan tetap berfungsi
+      itemSearchString: (note) {
+        String created = _controller.formatDate(note.createdAt);
+        String updated = _controller.formatDate(note.updatedAt);
+        String typeInfo = note.type == 'table' ? 'tabel table' : 'text teks';
+        return '$created $updated $typeInfo';
       },
       itemIsFavorite: (note) => false,
       onAddPressed: () => _showNoteDialog(),

@@ -12,7 +12,9 @@ class BaseDetailListScreen<T> extends StatefulWidget {
   final bool enableFavoriteSort;
 
   final String Function(T item) itemTitle;
-  final String Function(T item) itemSubtitle;
+  final Widget Function(T item) itemSubtitle; // Ganti String menjadi Widget
+  final String Function(T item)?
+  itemSearchString; // Tambahkan untuk backup filter search
   final bool Function(T item) itemIsFavorite;
 
   final VoidCallback? onAddPressed;
@@ -33,6 +35,7 @@ class BaseDetailListScreen<T> extends StatefulWidget {
     this.enableFavoriteSort = true,
     required this.itemTitle,
     required this.itemSubtitle,
+    this.itemSearchString, // Inisialisasi parameter baru
     required this.itemIsFavorite,
     this.onAddPressed,
     this.onItemTap,
@@ -103,7 +106,12 @@ class _BaseDetailListScreenState<T> extends State<BaseDetailListScreen<T>> {
     List<T> filteredItems = widget.items.where((item) {
       if (_searchQuery.isEmpty) return true;
       final title = widget.itemTitle(item).toLowerCase();
-      final subtitle = widget.itemSubtitle(item).toLowerCase();
+
+      // Jika itemSearchString disediakan, gunakan teks tersebut untuk mencari data
+      final subtitle = widget.itemSearchString != null
+          ? widget.itemSearchString!(item).toLowerCase()
+          : '';
+
       return title.contains(_searchQuery) || subtitle.contains(_searchQuery);
     }).toList();
 
@@ -120,7 +128,6 @@ class _BaseDetailListScreenState<T> extends State<BaseDetailListScreen<T>> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6FA),
-      // Menggunakan BaseDetailAppBar langsung secara natural
       appBar: BaseDetailAppBar(
         pageTitle: widget.pageTitle,
         isSelectMode: _isSelectMode,
@@ -178,7 +185,6 @@ class _BaseDetailListScreenState<T> extends State<BaseDetailListScreen<T>> {
       ),
       body: Column(
         children: [
-          // LIST VIEW UTAMA
           Expanded(
             child: filteredItems.isEmpty
                 ? const Center(
@@ -286,13 +292,8 @@ class _BaseDetailListScreenState<T> extends State<BaseDetailListScreen<T>> {
                                         ],
                                       ),
                                       const SizedBox(height: 4),
-                                      Text(
-                                        widget.itemSubtitle(item),
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          color: Colors.grey[600],
-                                        ),
-                                      ),
+                                      // Bagian teks subtitle diganti dengan pemanggilan langsung widget eksternal
+                                      widget.itemSubtitle(item),
                                     ],
                                   ),
                                 ),

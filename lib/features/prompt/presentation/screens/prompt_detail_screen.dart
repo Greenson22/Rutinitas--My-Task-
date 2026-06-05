@@ -523,10 +523,49 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
 
           // Pemetaan fungsi data Model ke String / Bool komponen Base
           itemTitle: (item) => item.actAs,
-          itemSubtitle: (item) =>
-              (item.description != null && item.description!.trim().isNotEmpty)
-              ? item.description!
-              : 'Tidak ada deskripsi',
+
+          // Mengembalikan Layout Widget Custom dengan warna yang berbeda
+          itemSubtitle: (item) {
+            final hasDesc =
+                item.description != null && item.description!.trim().isNotEmpty;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  hasDesc ? item.description! : 'Tidak ada deskripsi',
+                  style: TextStyle(
+                    color: hasDesc ? Colors.blueGrey[700] : Colors.grey[400],
+                    fontSize: 13,
+                    fontStyle: hasDesc ? FontStyle.normal : FontStyle.italic,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.indigo.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Text(
+                    'Tipe: Template AI',
+                    style: TextStyle(
+                      color: Colors.indigo,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+
+          // Menyediakan data String murni untuk pencarian text
+          itemSearchString: (item) =>
+              (item.description != null) ? item.description! : '',
           itemIsFavorite: (item) => item.isFavorite,
 
           // Callback Aksi Utama
