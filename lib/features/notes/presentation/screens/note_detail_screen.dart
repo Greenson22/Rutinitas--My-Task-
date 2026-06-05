@@ -99,6 +99,47 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     titleController.addListener(triggerChange);
     contentController.addListener(triggerChange);
 
+    // Fungsi Pembantu Dialog Konfirmasi Umum
+    Future<bool> _showConfirmDialog({
+      required String title,
+      required String content,
+    }) async {
+      return await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: Row(
+                children: const [
+                  Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
+                  SizedBox(width: 8),
+                  Text('Konfirmasi Hapus'),
+                ],
+              ),
+              content: Text(content),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text(
+                    'Batal',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                  child: const Text(
+                    'Hapus',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+    }
+
     // Fungsi Pengelolaan Struktur Field (Kolom)
     void _addFieldKey(StateSetter setDialogState, String key) {
       if (!currentFieldKeys.contains(key)) {
@@ -115,7 +156,14 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       }
     }
 
-    void _removeFieldKey(StateSetter setDialogState, String key) {
+    void _removeFieldKey(StateSetter setDialogState, String key) async {
+      final bool confirm = await _showConfirmDialog(
+        title: 'Hapus Kolom Baru',
+        content:
+            'Apakah Anda yakin ingin menghapus kolom "$key"? Seluruh data pada kolom ini di semua baris akan ikut terhapus permanen.',
+      );
+      if (!confirm) return;
+
       setDialogState(() {
         currentFieldKeys.remove(key);
         formControllers[key]?.dispose();
@@ -180,7 +228,14 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       });
     }
 
-    void _removeRow(StateSetter setDialogState, int index) {
+    void _removeRow(StateSetter setDialogState, int index) async {
+      final bool confirm = await _showConfirmDialog(
+        title: 'Hapus Baris Data',
+        content:
+            'Apakah Anda yakin ingin menghapus baris data ke-${index + 1} ini secara permanen?',
+      );
+      if (!confirm) return;
+
       setDialogState(() {
         final removedRow = tableRows.removeAt(index);
         removedRow.values.forEach((controller) => controller.dispose());
