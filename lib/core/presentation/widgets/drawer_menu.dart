@@ -3,13 +3,13 @@
 import 'package:flutter/material.dart';
 import '../../../features/task_master/presentation/screens/home_screen.dart';
 import '../../../features/daily/presentation/screens/daily_screen.dart';
+import '../../../features/notes/presentation/screens/note_screen.dart'; // Pindah ke atas sesuai urutan
 import '../../../features/jurnal_aktivitas/presentation/screens/jurnal_aktivitas_screen.dart';
+import '../../../features/prompt/presentation/screens/prompt_screen.dart';
+import '../../../features/data_center/presentation/screens/data_center_screen.dart';
 import '../../../features/about/presentation/pages/about_page.dart';
 import '../../../features/task_master/presentation/widgets/settings_dialog.dart';
 import '../../services/storage_service.dart';
-import '../../../features/data_center/presentation/screens/data_center_screen.dart';
-import '../../../features/prompt/presentation/screens/prompt_screen.dart';
-import '../../../features/notes/presentation/screens/note_screen.dart';
 
 class DrawerMenu extends StatefulWidget {
   final bool isDailyActive;
@@ -65,7 +65,9 @@ class _DrawerMenuState extends State<DrawerMenu> {
                     : widget.isDataCenterActive
                     ? const DataCenterScreen()
                     : widget.isPromptActive
-                    ? const PromptScreen() // Navigasi refresh ke halaman prompt jika aktif
+                    ? const PromptScreen()
+                    : widget.isNotesActive
+                    ? const NotesScreen() // Ditambahkan agar Notes bisa refresh saat ganti baseDir
                     : const HomeScreen(),
               ),
             );
@@ -122,7 +124,7 @@ class _DrawerMenuState extends State<DrawerMenu> {
             ),
           ),
 
-          // 1. Menu Task Master
+          // 1. Menu Task Master (Utama)
           _buildMenuTile(
             icon: Icons.format_list_bulleted,
             title: 'Task Master',
@@ -131,7 +133,7 @@ class _DrawerMenuState extends State<DrawerMenu> {
                 !widget.isJurnalActive &&
                 !widget.isDataCenterActive &&
                 !widget.isPromptActive &&
-                !widget.isNotesActive, // Update kondisi active
+                !widget.isNotesActive,
             onTap: () {
               Navigator.pop(context);
               Navigator.pushReplacement(
@@ -157,7 +159,23 @@ class _DrawerMenuState extends State<DrawerMenu> {
             },
           ),
 
-          // 3. Menu Jurnal Aktivitas
+          // 3. Menu Catatan
+          _buildMenuTile(
+            icon: Icons.note_alt_outlined,
+            title: 'Catatan',
+            isActive: widget.isNotesActive,
+            onTap: () {
+              Navigator.pop(context);
+              if (!widget.isNotesActive) {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => const NotesScreen()),
+                );
+              }
+            },
+          ),
+
+          // 4. Menu Jurnal Aktivitas
           _buildMenuTile(
             icon: Icons.menu_book,
             title: 'Jurnal Aktivitas',
@@ -175,7 +193,23 @@ class _DrawerMenuState extends State<DrawerMenu> {
             },
           ),
 
-          // 4. Menu Data Center
+          // 5. Menu Prompt
+          _buildMenuTile(
+            icon: Icons.psychology_alt,
+            title: 'Prompt',
+            isActive: widget.isPromptActive,
+            onTap: () {
+              Navigator.pop(context);
+              if (!widget.isPromptActive) {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => const PromptScreen()),
+                );
+              }
+            },
+          ),
+
+          // 6. Menu Data Center (Utilitas Penyimpanan)
           _buildMenuTile(
             icon: Icons.storage,
             title: 'Data Center',
@@ -193,40 +227,9 @@ class _DrawerMenuState extends State<DrawerMenu> {
             },
           ),
 
-          // TAMBAHKAN: 5. Menu Prompt Baru
-          _buildMenuTile(
-            icon: Icons
-                .psychology_alt, // Menggunakan ikon bernuansa prompt/AI/pikiran
-            title: 'Prompt',
-            isActive: widget.isPromptActive,
-            onTap: () {
-              Navigator.pop(context);
-              if (!widget.isPromptActive) {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => const PromptScreen()),
-                );
-              }
-            },
-          ),
-
-          // TAMBAHKAN: 6. Menu Catatan Baru
-          _buildMenuTile(
-            icon: Icons
-                .note_alt_outlined, // Menggunakan ikon bernuansa prompt/AI/pikiran
-            title: 'Catatan',
-            isActive: widget.isNotesActive,
-            onTap: () {
-              Navigator.pop(context);
-              if (!widget.isNotesActive) {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => const NotesScreen()),
-                );
-              }
-            },
-          ),
           const Divider(),
+
+          // 7. Settings
           ListTile(
             leading: Icon(Icons.settings_outlined, color: Colors.blueGrey[700]),
             title: const Text(
@@ -242,7 +245,10 @@ class _DrawerMenuState extends State<DrawerMenu> {
               _showSettingsDialog();
             },
           ),
+
           const Divider(),
+
+          // 8. About
           ListTile(
             leading: const Icon(Icons.info_outline, color: Colors.orangeAccent),
             title: const Text(
