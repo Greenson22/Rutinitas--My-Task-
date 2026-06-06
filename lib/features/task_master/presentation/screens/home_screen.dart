@@ -13,9 +13,6 @@ import '../widgets/tasks_dialog.dart';
 import '../widgets/add_category_dialog.dart';
 import 'package:intl/intl.dart';
 
-// === TAMBAHAN: Import widget BaseDetailAppBar dari Core Presentation Anda ===
-// import '../../../../core/presentation/widgets/base_detail_app_bar.dart';
-
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -34,12 +31,13 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isPageEditMode = false;
   bool _showHiddenSection = false;
 
-  // =========================================================================
-  // STATE BARU: Diperlukan untuk Manajemen Kontrol BaseDetailAppBar
-  // =========================================================================
+  // STATE: Manajemen Kontrol BaseDetailAppBar
   bool _internalSearchMode = false;
   late TextEditingController _searchController;
   String _searchQuery = '';
+
+  // STATE BARU: Menyimpan total durasi riil dari jurnal aktivitas hari ini
+  String _totalJurnalDurationString = "0j";
 
   @override
   void initState() {
@@ -57,6 +55,55 @@ class _HomeScreenState extends State<HomeScreen> {
   String _getTodayDateString() {
     final now = DateTime.now();
     return "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+  }
+
+  // METHOD BARU: Membaca berkas jurnal dan menghitung total durasi hari ini
+  Future<void> _kalkulasiTotalJurnalHariIni() async {
+    try {
+      File fileJurnal = await _storageService.getJurnalJsonFile(
+        _selectedBaseDir,
+      );
+
+      if (await fileJurnal.exists()) {
+        String jsonString = await fileJurnal.readAsString();
+        if (jsonString.trim().isNotEmpty) {
+          List<dynamic> decodedJson = jsonDecode(jsonString);
+          List<TimeLogEntry> logs = decodedJson
+              .map((e) => TimeLogEntry.fromJson(e))
+              .toList();
+
+          String todayStr = _getTodayDateString();
+          final int todayLogIndex = logs.indexWhere(
+            (entry) => entry.tanggal == todayStr,
+          );
+
+          if (todayLogIndex != -1) {
+            final List<TimeLogTask> todayTasks = logs[todayLogIndex].tasks;
+
+            // Agregasi seluruh properti durasiMenit pada hari ini
+            int totalMenit = todayTasks.fold(
+              0,
+              (sum, task) => sum + task.durasiMenit,
+            );
+
+            int jam = totalMenit ~/ 60;
+            int menit = totalMenit % 60;
+
+            setState(() {
+              _totalJurnalDurationString = menit > 0
+                  ? '${jam}j ${menit}m'
+                  : '${jam}j';
+            });
+            return;
+          }
+        }
+      }
+      setState(() {
+        _totalJurnalDurationString = "0j";
+      });
+    } catch (e) {
+      debugPrint("Gagal mengkalkulasi total jurnal hari ini: $e");
+    }
   }
 
   Future<void> _initStorageAndLoadData() async {
@@ -85,6 +132,9 @@ class _HomeScreenState extends State<HomeScreen> {
       if (isDataChanged) {
         await _saveAllCategoriesToFile(shouldRefresh: false);
       }
+
+      // Ambil data dari jurnal aktivitas setelah struktur kategori siap
+      await _kalkulasiTotalJurnalHariIni();
       _processCategoriesDisplay();
     } catch (e) {
       setState(() => _isLoading = false);
@@ -92,11 +142,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // =========================================================================
-  // MODIFIKASI: Ditambahkan logika filter pencarian berbasis _searchQuery
-  // =========================================================================
   void _processCategoriesDisplay() {
-    // Saring data raw jika user sedang mengetik di search bar
     final filteredCategories = _allCategoriesRaw.where((cat) {
       if (_searchQuery.isEmpty) return true;
       return cat.name.toLowerCase().contains(_searchQuery);
@@ -246,6 +292,10 @@ class _HomeScreenState extends State<HomeScreen> {
             loadedLogs.map((e) => e.toJson()).toList(),
           );
           await _storageService.saveJsonData(jurnalFile, updatedJsonContent);
+
+          // REFRESH DATA JAM DI HEADER SETELAH JURNAL UPDATE
+          await _kalkulasiTotalJurnalHariIni();
+
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -639,15 +689,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[200],
-
-      // =========================================================================
-      // IMPLEMENTASI STRUKTUR APPBAR BARU SESUAI PERMINTAAN USER
-      // =========================================================================
       appBar: BaseDetailAppBar(
         pageTitle: 'Task Master',
-        isSelectMode: false, // Diikat ke mode edit layout halaman Anda
-        selectedItemsCount:
-            _visibleCategories.length, // Placeholder jumlah item aktif
+        isSelectMode: false,
+        selectedItemsCount: _visibleCategories.length,
         isSearchMode: _internalSearchMode,
         onClearSelection: () {
           setState(() {
@@ -668,12 +713,8 @@ class _HomeScreenState extends State<HomeScreen> {
         },
         enableSearch: true,
         enableMultiSelect: false,
-        onMoveMassive: () {
-          // Tambahkan logika perpindahan massal jika diperlukan
-        },
-        onDeleteMassive: () {
-          // Tambahkan logika penghapusan massal jika diperlukan
-        },
+        onMoveMassive: () {},
+        onDeleteMassive: () {},
         searchBarContent: Row(
           children: [
             Expanded(
@@ -770,12 +811,12 @@ class _HomeScreenState extends State<HomeScreen> {
     int totalTasks = 0;
     int completedTasksToday = 0;
     int tasksWithTargetToday = 0;
-    int todayMinutes = 0;
+
+    // Perhitungan tugas tetap dipertahankan dari struktur kategori bawaan Anda
     for (var category in _allCategoriesRaw) {
       for (var task in category.tasks) {
         if (task.isActive) {
           totalTasks++;
-          todayMinutes += (task.countToday * 30);
           if (task.targetCountToday > 0) {
             tasksWithTargetToday++;
             if (task.countToday >= task.targetCountToday) {
@@ -785,11 +826,7 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       }
     }
-    int hours = todayMinutes ~/ 60;
-    int minutes = todayMinutes % 60;
-    String todayDurationString = minutes > 0
-        ? '${hours}j ${minutes}m'
-        : '${hours}j';
+
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 16, 12, 4),
       padding: const EdgeInsets.all(16),
@@ -903,14 +940,17 @@ class _HomeScreenState extends State<HomeScreen> {
                 Colors.green[900]!,
                 Colors.green[800]!,
               );
+
+              // MODIFIKASI: Card Jam Hari Ini mengikat variabel _totalJurnalDurationString
               final cardJam = buildCard(
                 'Jam Hari Ini',
-                todayDurationString,
+                _totalJurnalDurationString,
                 'Durasi pengerjaan',
                 Colors.teal[50]!,
                 Colors.teal[900]!,
                 Colors.teal[800]!,
               );
+
               if (isMobile) {
                 return Column(
                   children: [
