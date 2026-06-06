@@ -282,6 +282,15 @@ class NoteDetailController {
   }
 
   void deleteMassiveNotes(List<NoteModel> selectedItems) async {
+    if (selectedItems.isEmpty) return;
+
+    final bool confirm = await showConfirmDialog(
+      title: 'Hapus Masal Item Notes',
+      content:
+          'Apakah Anda yakin ingin menghapus ${selectedItems.length} item notes yang dipilih secara masal? Tindakan ini tidak dapat dibatalkan.',
+    );
+    if (!confirm) return;
+
     currentGroup.notes.removeWhere((note) => selectedItems.contains(note));
     onStateChanged();
     await saveCurrentGroup();
