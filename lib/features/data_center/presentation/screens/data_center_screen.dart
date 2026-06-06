@@ -1309,14 +1309,22 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
   // Mengubah fungsi agar menerima parameter file yang dipilih dari list
   void _importAllFromZip(File zipFile) async {
     try {
-      // Membaca bytes dari file ZIP target yang di-klik pengguna
       List<int> bytes = await zipFile.readAsBytes();
-
-      // Dekode/Ekstrak file ZIP
       Archive archive = ZipDecoder().decodeBytes(bytes);
       int checkListCount = 0;
 
-      // Iterasi ekstraksi isi ZIP ke folder aplikasi masing-masing
+      // 1. Dapatkan path folder my_checklist lokal dan lakukan WIPE (Hapus Total)
+      String folderChecklist = await _storageService.getChecklistDirPath(
+        _baseDir,
+      );
+      Directory checklistDir = Directory(folderChecklist);
+
+      if (checklistDir.existsSync()) {
+        checklistDir.deleteSync(recursive: true);
+      }
+      checklistDir.createSync(recursive: true); // Buat ulang folder kosong
+
+      // 2. Iterasi ekstraksi isi ZIP (Replace)
       for (ArchiveFile file in archive) {
         if (file.isFile) {
           if (file.name == 'my_tasks.json') {
@@ -1328,8 +1336,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
           } else if (file.name.startsWith('my_checklist/')) {
             String namaFileHub = file.name.split('/').last;
             if (namaFileHub.isNotEmpty) {
-              String folderChecklist = await _storageService
-                  .getChecklistDirPath(_baseDir);
+              // Folder sudah dipastikan bersih, langsung tulis file baru
               File target = File('$folderChecklist/$namaFileHub');
               await target.writeAsBytes(file.content);
               checkListCount++;
@@ -1345,7 +1352,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Restore Berhasil! Data dari "${zipFile.path.split('/').last}" dipulihkan.',
+            'Restore Berhasil! Data diganti total dari "${zipFile.path.split('/').last}".',
           ),
           backgroundColor: Colors.teal,
         ),
