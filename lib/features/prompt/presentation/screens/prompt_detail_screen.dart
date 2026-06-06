@@ -62,10 +62,10 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
   }
 
   // =========================================================================
-  // FITUR BARU: DIALOG MANAJEMEN VERSI PROMPT
+  // MANAJEMEN VERSI PROMPT (PILIH, TAMBAH, EDIT, HAPUS)
   // =========================================================================
 
-  /// Menampilkan dialog untuk memilih versi aktif atau menavigasi ke pembuatan versi baru
+  /// Menampilkan dialog untuk memilih versi aktif atau menavigasi ke pembuatan/perubahan versi
   void _openVersionSelectorDialog(PromptItem item) {
     showDialog(
       context: context,
@@ -114,13 +114,47 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 12),
                     ),
-                    trailing: isScalarActive
-                        ? const Icon(
-                            Icons.check_circle_rounded,
-                            color: Colors.indigo,
-                            size: 20,
-                          )
-                        : null,
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (isScalarActive)
+                          const Padding(
+                            padding: EdgeInsets.only(right: 8.0),
+                            child: Icon(
+                              Icons.check_circle_rounded,
+                              color: Colors.indigo,
+                              size: 20,
+                            ),
+                          ),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.edit,
+                            size: 18,
+                            color: Colors.teal,
+                          ),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            _openEditVersionDialog(item, version);
+                          },
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.delete,
+                            size: 18,
+                            color: Colors.redAccent,
+                          ),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            _showDeleteVersionDialog(item, version);
+                          },
+                        ),
+                      ],
+                    ),
                     onTap: () async {
                       Navigator.pop(ctx);
                       await _controller.switchPromptVersion(
@@ -208,7 +242,10 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               TextButton(
-                onPressed: () => Navigator.pop(ctx),
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _openVersionSelectorDialog(item);
+                },
                 child: const Text(
                   'Batal',
                   style: TextStyle(color: Colors.grey),
@@ -243,11 +280,143 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
     );
   }
 
+  /// Menampilkan dialog untuk mengubah nama versi prompt
+  void _openEditVersionDialog(PromptItem item, PromptVersion version) {
+    final versionNameController = TextEditingController(
+      text: version.versionName,
+    );
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => BasePopupDialog(
+        themeColor: Colors.teal,
+        titleColor: Colors.white,
+        title: Row(
+          children: const [
+            Icon(Icons.edit_rounded, color: Colors.white, size: 24),
+            SizedBox(width: 8),
+            Text(
+              'Edit Nama Versi',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        content: Form(
+          key: formKey,
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: TextFormField(
+              controller: versionNameController,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Nama Versi',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              validator: (v) =>
+                  v!.trim().isEmpty ? 'Nama versi tidak boleh kosong' : null,
+            ),
+          ),
+        ),
+        footer: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _openVersionSelectorDialog(item);
+                },
+                child: const Text(
+                  'Batal',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+                onPressed: () async {
+                  if (formKey.currentState!.validate()) {
+                    Navigator.pop(ctx);
+                    await _controller.editPromptVersionName(
+                      group: _currentGroup,
+                      itemId: item.id,
+                      versionId: version.id,
+                      newVersionName: versionNameController.text,
+                      context: context,
+                    );
+                  }
+                },
+                child: const Text(
+                  'Simpan',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Menampilkan dialog konfirmasi penghapusan versi prompt
+  void _showDeleteVersionDialog(PromptItem item, PromptVersion version) {
+    if (item.versions.length <= 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Anda tidak bisa menghapus satu-satunya versi!'),
+        ),
+      );
+      _openVersionSelectorDialog(item);
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Hapus Versi?'),
+        content: Text(
+          'Apakah Anda yakin ingin menghapus versi "${version.versionName}"? Tindakan ini permanen.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _openVersionSelectorDialog(item);
+            },
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await _controller.deletePromptVersion(
+                group: _currentGroup,
+                itemId: item.id,
+                versionId: version.id,
+                context: context,
+              );
+            },
+            child: const Text('Hapus', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ========= FITUR EDIT, HAPUS, MOVE/COPY DIALOG =========
   void _openEditPromptDialog(PromptItem item) {
     final actAsController = TextEditingController(text: item.actAs);
     final descController = TextEditingController(text: item.description ?? '');
-    // MODIFIKASI: Memuat data teks dari versi yang sedang AKTIF saat ini
     final contentController = TextEditingController(
       text: item.activeVersion.content,
     );
@@ -346,7 +515,6 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                 onPressed: () async {
                   if (formKey.currentState!.validate()) {
                     Navigator.pop(ctx);
-                    // MODIFIKASI: Menyimpan perubahan konten teks ke versi aktif
                     final res = await _controller.editPromptItem(
                       group: _currentGroup,
                       itemId: item.id,
@@ -705,7 +873,6 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
 
           itemTitle: (item) => item.actAs,
 
-          // MODIFIKASI: Menampilkan nama versi yang sedang aktif di Subtitle Kartu
           itemSubtitle: (item) {
             final hasDesc =
                 item.description != null && item.description!.trim().isNotEmpty;
@@ -772,14 +939,11 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
           itemIsFavorite: (item) => item.isFavorite,
 
           onAddPressed: _openAddPromptDialog,
-          // MODIFIKASI: Mengambil isi teks berdasarkan versi teraktif saat item diklik (salin)
           onItemTap: (item) => _copyToClipboard(item.activeVersion.content),
           onDeleteMassive: _showDeleteMassiveDialog,
           onMoveMassive: _showMoveMassiveDialog,
 
-          // Pembuat Menu Aksi Individual di Mode Seleksi Tunggal
           itemMenuBuilder: (item) => [
-            // MODIFIKASI: Menambahkan tombol opsi pengelolaan versi ke pop-up item menu
             const PopupMenuItem(
               value: 'manage_versions',
               child: Row(
