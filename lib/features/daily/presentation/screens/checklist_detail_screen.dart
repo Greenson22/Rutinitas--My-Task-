@@ -120,172 +120,190 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
         );
       },
 
-      gridItemBuilder:
-          (context, subject, index, sectionItems, isLayoutEditMode) {
-            int totalSub = subject.subMateri.length;
-            int selesaiSub = subject.subMateri
-                .where((sm) => sm.progress == 'selesai')
-                .length;
-            bool isAllDone = totalSub > 0 && totalSub == selesaiSub;
+      gridItemBuilder: (context, subject, index, sectionItems, isLayoutEditMode) {
+        int totalSub = subject.subMateri.length;
+        int selesaiSub = subject.subMateri
+            .where((sm) => sm.progress == 'selesai')
+            .length;
+        bool isAllDone = totalSub > 0 && totalSub == selesaiSub;
 
-            String topListText = "Tidak ada list";
-            if (subject.subMateri.isNotEmpty) {
-              final firstUnfinishedItem = subject.subMateri.firstWhere(
-                (sm) => sm.progress != 'selesai',
-                orElse: () =>
-                    SubSubjectItem(subjectName: '', progress: 'selesai'),
-              );
-              if (firstUnfinishedItem.subjectName.isNotEmpty) {
-                topListText = firstUnfinishedItem.subjectName;
-              } else {
-                topListText = "Semua Selesai!";
-              }
-            }
+        String topListText = "Tidak ada list";
+        if (subject.subMateri.isNotEmpty) {
+          final firstUnfinishedItem = subject.subMateri.firstWhere(
+            (sm) => sm.progress != 'selesai',
+            orElse: () => SubSubjectItem(subjectName: '', progress: 'selesai'),
+          );
+          if (firstUnfinishedItem.subjectName.isNotEmpty) {
+            topListText = firstUnfinishedItem.subjectName;
+          } else {
+            topListText = "Semua Selesai!";
+          }
+        }
 
-            Widget cardContent = Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Text(
-                  subject.subjectName,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+        Widget cardContent = Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Text(
+              subject.subjectName,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            if (subject.isDateActive && subject.date != null) ...[
+              const SizedBox(height: 2),
+              Text.rich(
+                TextSpan(
+                  children: DailySubject.buildColoredDateSpans(
+                    subject,
+                    inHeader: false,
                   ),
-                  textAlign: TextAlign.center,
                 ),
-                if (subject.isDateActive && subject.date != null) ...[
-                  const SizedBox(height: 2),
-                  Text.rich(
-                    TextSpan(
-                      children: DailySubject.buildColoredDateSpans(
-                        subject,
-                        inHeader: false,
+                style: const TextStyle(fontSize: 10),
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+              decoration: BoxDecoration(
+                color: Color(subject.backgroundColor).withOpacity(0.12),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Flexible(
+                    child: Text(
+                      isAllDone ? '🎉 Semua Selesai!' : '📌 $topListText',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Color(subject.backgroundColor),
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    style: const TextStyle(fontSize: 10),
-                    textAlign: TextAlign.center,
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
-                const SizedBox(height: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 3,
-                  ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            LayoutBuilder(
+              builder: (context, barConstraints) {
+                double progressPercent = totalSub > 0
+                    ? selesaiSub / totalSub
+                    : 0.0;
+                Color solidProgressBarColor = progressPercent <= 0.33
+                    ? Colors.red[700]!
+                    : (progressPercent <= 0.75
+                          ? Colors.orange[700]!
+                          : Colors.green[700]!);
+
+                return Container(
+                  width: double.infinity,
+                  height: 22,
                   decoration: BoxDecoration(
-                    color: Color(subject.backgroundColor).withOpacity(0.12),
+                    color: Colors.grey[200],
                     borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: Color(subject.backgroundColor),
+                      width: 1.2,
+                    ),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          isAllDone ? '🎉 Semua Selesai!' : '📌 $topListText',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Color(subject.backgroundColor),
-                          ),
-                          overflow: TextOverflow.ellipsis,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(5),
+                    child: Stack(
+                      children: [
+                        Container(
+                          width: barConstraints.maxWidth * progressPercent,
+                          height: double.infinity,
+                          color: solidProgressBarColor,
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 6),
-                LayoutBuilder(
-                  builder: (context, barConstraints) {
-                    double progressPercent = totalSub > 0
-                        ? selesaiSub / totalSub
-                        : 0.0;
-                    Color solidProgressBarColor = progressPercent <= 0.33
-                        ? Colors.red[700]!
-                        : (progressPercent <= 0.75
-                              ? Colors.orange[700]!
-                              : Colors.green[700]!);
-
-                    return Container(
-                      width: double.infinity,
-                      height: 22,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[200],
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: Color(subject.backgroundColor),
-                          width: 1.2,
-                        ),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(5),
-                        child: Stack(
-                          children: [
-                            Container(
-                              width: barConstraints.maxWidth * progressPercent,
-                              height: double.infinity,
-                              color: solidProgressBarColor,
-                            ),
-                            Center(
-                              child: Text(
-                                isAllDone
-                                    ? 'Selesai Semua'
-                                    : '$selesaiSub / $totalSub List',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.bold,
-                                  shadows: [
-                                    Shadow(
-                                      offset: Offset(0.5, 0.5),
-                                      blurRadius: 1.0,
-                                      color: Colors.black87,
-                                    ),
-                                  ],
+                        Center(
+                          child: Text(
+                            isAllDone
+                                ? 'Selesai Semua'
+                                : '$selesaiSub / $totalSub List',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                              shadows: [
+                                Shadow(
+                                  offset: Offset(0.5, 0.5),
+                                  blurRadius: 1.0,
+                                  color: Colors.black87,
                                 ),
-                              ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
-                      ),
-                    );
-                  },
-                ),
-              ],
-            );
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
+        );
 
-            return InteractiveGridCard(
-              themeColor: Color(subject.backgroundColor),
-              content: cardContent,
-              isEditMode: isLayoutEditMode ? true : isPageEditMode,
-              isFirst: index == 0,
-              isLast: index == sectionItems.length - 1,
-              onTap: () => openMateriChecklist(subject),
-              onLongPress: () {
-                setState(() {
-                  isPageEditMode = !isPageEditMode;
-                });
-              },
-              onMoveLeft: () {
-                setState(() {
-                  final temp = sectionItems[index];
-                  sectionItems[index] = sectionItems[index - 1];
-                  sectionItems[index - 1] = temp;
-                });
-                saveGroupData();
-              },
-              onMoveRight: () {
-                setState(() {
-                  final temp = sectionItems[index];
-                  sectionItems[index] = sectionItems[index + 1];
-                  sectionItems[index + 1] = temp;
-                });
-                saveGroupData();
-              },
-              popupMenuItems: [
-                ...currentGroup.allList.map(
+        return InteractiveGridCard(
+          themeColor: Color(subject.backgroundColor),
+          content: cardContent,
+          isEditMode: isLayoutEditMode ? true : isPageEditMode,
+          isFirst: index == 0,
+          isLast: index == sectionItems.length - 1,
+          onTap: () => openMateriChecklist(subject),
+          onLongPress: () {
+            setState(() {
+              isPageEditMode = !isPageEditMode;
+            });
+          },
+          onMoveLeft: () {
+            setState(() {
+              // Temukan seksi aslinya
+              final originalSection = currentGroup.allList.firstWhere(
+                (sec) => sec.items.contains(subject),
+              );
+              int origIndex = originalSection.items.indexOf(subject);
+
+              // Geser ke kiri berdasarkan index list asli
+              if (origIndex > 0) {
+                final temp = originalSection.items[origIndex];
+                originalSection.items[origIndex] =
+                    originalSection.items[origIndex - 1];
+                originalSection.items[origIndex - 1] = temp;
+              }
+            });
+            saveGroupData();
+          },
+          onMoveRight: () {
+            setState(() {
+              // Temukan seksi aslinya
+              final originalSection = currentGroup.allList.firstWhere(
+                (sec) => sec.items.contains(subject),
+              );
+              int origIndex = originalSection.items.indexOf(subject);
+
+              // Geser ke kanan berdasarkan index list asli
+              if (origIndex < originalSection.items.length - 1) {
+                final temp = originalSection.items[origIndex];
+                originalSection.items[origIndex] =
+                    originalSection.items[origIndex + 1];
+                originalSection.items[origIndex + 1] = temp;
+              }
+            });
+            saveGroupData();
+          },
+          popupMenuItems: [
+            // Filter: Hanya tampilkan opsi pindah ke seksi LAIN (jangan tampilkan seksi saat ini)
+            ...currentGroup.allList
+                .where((sec) => !sec.items.contains(subject))
+                .map(
                   (sec) => PopupMenuItem<String>(
                     value: sec.sectionName,
                     child: Text(
@@ -294,31 +312,40 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                     ),
                   ),
                 ),
-                const PopupMenuDivider(),
-                const PopupMenuItem<String>(
-                  value: 'DELETE_ACTION',
-                  child: Text(
-                    'Hapus Item',
-                    style: TextStyle(fontSize: 12, color: Colors.red),
-                  ),
-                ),
-              ],
-              onPopupSelected: (value) {
-                if (value == 'DELETE_ACTION') {
-                  deleteItemFromSection(sectionItems, subject);
-                } else {
-                  setState(() {
-                    final itemToMove = sectionItems.removeAt(index);
-                    currentGroup.allList
-                        .firstWhere((sec) => sec.sectionName == value)
-                        .items
-                        .add(itemToMove);
-                  });
-                  saveGroupData();
-                }
-              },
+            if (currentGroup.allList.length > 1) const PopupMenuDivider(),
+            const PopupMenuItem<String>(
+              value: 'DELETE_ACTION',
+              child: Text(
+                'Hapus Item',
+                style: TextStyle(fontSize: 12, color: Colors.red),
+              ),
+            ),
+          ],
+          onPopupSelected: (value) {
+            // Temukan seksi asli tempat subjek ini berada
+            final originalSection = currentGroup.allList.firstWhere(
+              (sec) => sec.items.contains(subject),
             );
+
+            if (value == 'DELETE_ACTION') {
+              // Lempar List ASLI ke controller agar bisa dihapus dari data utama
+              deleteItemFromSection(originalSection.items, subject);
+            } else {
+              setState(() {
+                // Hapus dari seksi asli
+                originalSection.items.remove(subject);
+
+                // Tambahkan ke seksi tujuan
+                currentGroup.allList
+                    .firstWhere((sec) => sec.sectionName == value)
+                    .items
+                    .add(subject);
+              });
+              saveGroupData();
+            }
           },
+        );
+      },
     );
   }
 }
