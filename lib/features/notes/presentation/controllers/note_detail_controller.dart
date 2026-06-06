@@ -281,7 +281,7 @@ class NoteDetailController {
     await saveCurrentGroup();
   }
 
-  void deleteMassiveNotes(List<NoteModel> selectedItems) async {
+  Future<void> deleteMassiveNotes(List<NoteModel> selectedItems) async {
     if (selectedItems.isEmpty) return;
 
     final bool confirm = await showConfirmDialog(
@@ -291,7 +291,12 @@ class NoteDetailController {
     );
     if (!confirm) return;
 
-    currentGroup.notes.removeWhere((note) => selectedItems.contains(note));
+    // PERBAIKAN: Gunakan pembandingan ID agar dipastikan item dengan ID yang sama terhapus
+    // Kita buat daftar ID dari item yang dipilih terlebih dahulu agar proses filter lebih cepat
+    final selectedIds = selectedItems.map((e) => e.id).toSet();
+
+    currentGroup.notes.removeWhere((note) => selectedIds.contains(note.id));
+
     onStateChanged();
     await saveCurrentGroup();
   }

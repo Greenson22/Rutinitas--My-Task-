@@ -102,8 +102,8 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           _controller.deleteNote(note);
         }
       },
-      onDeleteMassive: (selectedItems) {
-        _controller.deleteMassiveNotes(selectedItems);
+      onDeleteMassive: (selectedItems) async {
+        await _controller.deleteMassiveNotes(selectedItems);
       },
       onMoveMassive: (selectedItems) {},
     );

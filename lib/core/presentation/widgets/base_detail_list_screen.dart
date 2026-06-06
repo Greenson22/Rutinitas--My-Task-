@@ -138,12 +138,24 @@ class _BaseDetailListScreenState<T> extends State<BaseDetailListScreen<T>> {
         onClearSelection: _clearSelection,
         onToggleSearchMode: _handleToggleSearch,
         onMoveMassive: widget.onMoveMassive != null
-            ? () => widget.onMoveMassive!(_selectedItems)
+            ? () {
+                // Berikan copy list datanya
+                widget.onMoveMassive!(List.from(_selectedItems));
+                _clearSelection();
+              }
             : null,
         onDeleteMassive: widget.onDeleteMassive != null
-            ? () {
-                widget.onDeleteMassive!(_selectedItems);
-                _clearSelection();
+            ? () async {
+                // PERBAIKAN: 1. Buat salinan (copy) list agar datanya tidak hilang dari referensi memori
+                final selectedCopy = List<T>.from(_selectedItems);
+
+                // PERBAIKAN: 2. Gunakan 'await' untuk menunggu proses hapus (termasuk dialog) benar-benar selesai
+                await widget.onDeleteMassive!(selectedCopy);
+
+                // PERBAIKAN: 3. Setelah selesai atau batal, barulah kita hilangkan pilihan (warna kuning)
+                if (mounted) {
+                  _clearSelection();
+                }
               }
             : null,
         searchBarContent: Row(
