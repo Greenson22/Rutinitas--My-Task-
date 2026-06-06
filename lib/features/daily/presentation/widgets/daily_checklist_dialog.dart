@@ -25,6 +25,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
   late TextEditingController _noteController;
   bool _isEditMode = false;
   bool _showControlPanel = false; // Default: tersembunyi (collapsed)
+  bool _hideFinishedItems = false; // Filter untuk menyembunyikan item selesai
   final List<SubSubjectItem> _selectedItems = [];
   final List<List<SubSubjectItem>> _undoStack = [];
   final List<List<SubSubjectItem>> _redoStack = [];
@@ -93,6 +94,34 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
 
       _updateSubjectOverallProgress();
     });
+    widget.onDataChanged();
+  }
+
+  // Mengubah seluruh status item sub-materi menjadi selesai secara rekursif
+  void _markAllSubMateriAsDone() {
+    if (widget.subject.subMateri.isEmpty) return;
+
+    _saveToHistory();
+
+    final now = DateTime.now();
+    final String formattedDate =
+        "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+
+    void markDoneRecursive(List<SubSubjectItem> list) {
+      for (var item in list) {
+        item.progress = 'selesai';
+        item.finishedDate = formattedDate;
+        if (item.subMateri.isNotEmpty) {
+          markDoneRecursive(item.subMateri);
+        }
+      }
+    }
+
+    setState(() {
+      markDoneRecursive(widget.subject.subMateri);
+    });
+
+    _updateSubjectOverallProgress();
     widget.onDataChanged();
   }
 
@@ -366,16 +395,14 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     }
   }
 
-  // === TAMBAHKAN FUNGSI BARU INI DI DALAM _DailyChecklistDialogState ===
   void _saveManualNote() {
     setState(() {
       widget.subject.noteContent = _noteController.text;
-      _isNoteModified = false; // Reset status karena sudah berhasil disimpan
+      _isNoteModified = false;
     });
-    widget.onDataChanged(); // Trigger menyimpan data ke JSON lokal
+    widget.onDataChanged();
 
-    // Opsional: Memberi feedback visual singkat bahwa data tersimpan
-    FocusScope.of(context).unfocus(); // Menutup keyboard
+    FocusScope.of(context).unfocus();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('📝 Catatan berhasil disimpan!'),
@@ -401,7 +428,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     }
   }
 
-  // WIDGET REKURSIF UNTUK RENDERING NESTED ITEMS (DENGAN HIGHLIGHT)
   Widget _buildTreeRow(
     SubSubjectItem item,
     int depth,
@@ -411,26 +437,18 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
   }) {
     bool isChecked = item.progress == 'selesai';
     bool isCurrentlySelected = _selectedItems.contains(item);
-
-    // Cek apakah item ini yang sedang mendapatkan efek highlight pemindahan
     bool isHighlighted = _highlightedItem == item;
-
-    // Membatasi tingkat indentasi agar teks yang sangat bersarang tidak meluber ke luar screen
     double paddingLeft = (depth * 14.0).clamp(0.0, 48.0);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        // MENGGANTI PADDING MENJADI ANIMATEDCONTAINER UNTUK EFEK HIGHLIGHT
         AnimatedContainer(
-          duration: const Duration(
-            milliseconds: 400,
-          ), // Durasi transisi warna halus
+          duration: const Duration(milliseconds: 400),
           curve: Curves.easeInOut,
           margin: const EdgeInsets.symmetric(vertical: 1),
           decoration: BoxDecoration(
-            // Jika sedang dihighlight, beri warna latar belakang (misal: kuning/amber transparan)
             color: isHighlighted
                 ? Colors.amber.withOpacity(0.35)
                 : Colors.transparent,
@@ -464,7 +482,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                     });
                   },
                 ),
-                // TOMBOL URUTAN KE ATAS
                 IconButton(
                   icon: const Icon(Icons.arrow_upward, size: 16),
                   color: isFirst ? Colors.grey[300] : Colors.indigo,
@@ -473,7 +490,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                   padding: const EdgeInsets.all(2),
                   tooltip: 'Naikkan Posisi',
                 ),
-                // TOMBOL URUTAN KE BAWAH
                 IconButton(
                   icon: const Icon(Icons.arrow_downward, size: 16),
                   color: isLast ? Colors.grey[300] : Colors.indigo,
@@ -484,13 +500,10 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                 ),
                 const SizedBox(width: 4),
               ],
-
-              // Konten Utama Baris
               Expanded(
                 child: _isEditMode
                     ? InkWell(
                         onTap: () => _showEditNameDialog(item),
-                        // TAMBAHAN: Menahan item saat di mode edit juga akan mengembalikan/mematikan mode edit
                         onLongPress: () {
                           setState(() {
                             _isEditMode = false;
@@ -536,7 +549,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                             value: isChecked,
                             activeColor: Colors.teal,
                             onChanged: (bool? checked) {
-                              // PANGGIL DI SINI SEBELUM PERUBAHAN DATA
                               _saveToHistory();
 
                               setState(() {
@@ -570,12 +582,9 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                               widget.onDataChanged();
                             },
                           ),
-
-                          // 2. Bagian InkWell teks pendamping klik checklist biasa
                           Expanded(
                             child: InkWell(
                               onTap: () {
-                                // PANGGIL DI SINI SEBELUM PERUBAHAN DATA
                                 _saveToHistory();
 
                                 if (item.progress != 'selesai') {
@@ -589,7 +598,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                                 _updateSubjectOverallProgress();
                                 widget.onDataChanged();
                               },
-                              // PERUBAHAN DI SINI: Menahan teks item saat mode biasa akan mengaktifkan Mode Edit
                               onLongPress: () {
                                 setState(() {
                                   _isEditMode = true;
@@ -619,7 +627,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                         ],
                       ),
               ),
-
               if (_isEditMode) ...[
                 IconButton(
                   icon: const Icon(
@@ -646,8 +653,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
             ],
           ),
         ),
-
-        // Render anak-anak dari item ini secara rekursif
         if (item.subMateri.isNotEmpty)
           Column(
             children: List.generate(item.subMateri.length, (index) {
@@ -677,11 +682,9 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     return BasePopupDialog(
       themeColor: Color(widget.subject.backgroundColor),
       titleColor: Color(widget.subject.textColor),
-      // --- 1. HEADER (Disuntikkan ke parameter title) ---
       title: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // JUDUL MATERI DI SEBELAH KIRI
           Expanded(
             child: Text.rich(
               TextSpan(
@@ -705,7 +708,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
             ),
           ),
           const SizedBox(width: 12),
-          // DERETAN TOMBOL-TOMBOL AKSI DI SEBELAH KANAN
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -799,12 +801,9 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
           ),
         ],
       ),
-
-      // --- 2. KONTEN (Disuntikkan ke parameter content) ---
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // PANEL KONTROL
           AnimatedSize(
             duration: const Duration(milliseconds: 250),
             curve: Curves.easeInOut,
@@ -814,7 +813,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // 1. PANEL INPUT UTAMA
                         Padding(
                           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                           child: Row(
@@ -929,7 +927,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                             ],
                           ),
                         ),
-                        // 2. KONTROL TANGGAL & EDIT MASAL
                         Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 16.0,
@@ -1103,6 +1100,71 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                                     ],
                                   ),
                                 ),
+                              // === KONTROL FITUR BARU: BATCH FINISH & VISIBILITY TOGGLE ===
+                              const Divider(height: 12),
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  top: 4.0,
+                                  bottom: 8.0,
+                                ),
+                                child: Row(
+                                  children: [
+                                    ElevatedButton.icon(
+                                      onPressed:
+                                          widget.subject.subMateri.isEmpty
+                                          ? null
+                                          : _markAllSubMateriAsDone,
+                                      icon: const Icon(
+                                        Icons.done_all,
+                                        size: 16,
+                                      ),
+                                      label: const Text(
+                                        'Tandai Semua Selesai',
+                                        style: TextStyle(fontSize: 11),
+                                      ),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.teal[700],
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 8,
+                                        ),
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    OutlinedButton.icon(
+                                      onPressed: () {
+                                        setState(() {
+                                          _hideFinishedItems =
+                                              !_hideFinishedItems;
+                                        });
+                                      },
+                                      icon: Icon(
+                                        _hideFinishedItems
+                                            ? Icons.visibility_off
+                                            : Icons.visibility,
+                                        size: 16,
+                                      ),
+                                      label: Text(
+                                        _hideFinishedItems
+                                            ? 'Tampilkan Selesai'
+                                            : 'Sembunyikan Selesai',
+                                        style: const TextStyle(fontSize: 11),
+                                      ),
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: Colors.blueGrey[700],
+                                        side: BorderSide(
+                                          color: Colors.blueGrey.shade200,
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 8,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -1112,8 +1174,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                   )
                 : const SizedBox.shrink(),
           ),
-
-          // KONTEN LIST / NOTE
           Flexible(
             child: widget.subject.type == 'note'
                 ? Container(
@@ -1167,9 +1227,11 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                                     widget.subject.subMateri.length - 1,
                               );
                             }),
-                            if (widget.subject.subMateri.any(
-                              (item) => item.progress == 'selesai',
-                            )) ...[
+                            // Render seksi pembatas jika filter "Sembunyikan Selesai" tidak aktif
+                            if (!_hideFinishedItems &&
+                                widget.subject.subMateri.any(
+                                  (item) => item.progress == 'selesai',
+                                )) ...[
                               Padding(
                                 padding: const EdgeInsets.symmetric(
                                   vertical: 12.0,
@@ -1206,29 +1268,30 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                                 ),
                               ),
                             ],
-                            ...List.generate(widget.subject.subMateri.length, (
-                              index,
-                            ) {
-                              final item = widget.subject.subMateri[index];
-                              if (item.progress != 'selesai')
-                                return const SizedBox.shrink();
-                              return _buildTreeRow(
-                                item,
-                                0,
-                                index,
-                                isFirst: index == 0,
-                                isLast:
-                                    index ==
-                                    widget.subject.subMateri.length - 1,
-                              );
-                            }),
+                            // Render item selesai hanya jika filter "Sembunyikan Selesai" tidak aktif
+                            if (!_hideFinishedItems)
+                              ...List.generate(
+                                widget.subject.subMateri.length,
+                                (index) {
+                                  final item = widget.subject.subMateri[index];
+                                  if (item.progress != 'selesai')
+                                    return const SizedBox.shrink();
+                                  return _buildTreeRow(
+                                    item,
+                                    0,
+                                    index,
+                                    isFirst: index == 0,
+                                    isLast:
+                                        index ==
+                                        widget.subject.subMateri.length - 1,
+                                  );
+                                },
+                              ),
                           ],
                         )),
           ),
         ],
       ),
-
-      // --- 3. FOOTER CUSTOM (Disuntikkan ke parameter footer) ---
       footer: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: Row(
