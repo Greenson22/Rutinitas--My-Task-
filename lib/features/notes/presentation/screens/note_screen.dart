@@ -78,6 +78,47 @@ class _NotesScreenState extends State<NotesScreen> {
     }
   }
 
+  // BARU: Fungsi helper untuk memicu konfirmasi dialog hapus grup
+  Future<bool> _showConfirmDeleteDialog(NoteGroup group) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Row(
+              children: const [
+                Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
+                SizedBox(width: 8),
+                Text('Konfirmasi Hapus'),
+              ],
+            ),
+            content: Text(
+              'Apakah Anda yakin ingin menghapus grup "${group.groupName}"? '
+              'Semua data catatan di dalam grup ini akan terhapus secara permanen.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text(
+                  'Batal',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                child: const Text(
+                  'Hapus',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
   // Fungsi untuk memfilter list kategori berdasarkan query pencarian
   Map<String, List<NoteGroup>> _getFilteredCategories() {
     if (_searchQuery.isEmpty) return _groupedCategories;
@@ -243,94 +284,94 @@ class _NotesScreenState extends State<NotesScreen> {
           onMoveDown: () {},
         );
       },
-      gridItemBuilder:
-          (context, noteGroup, index, sectionItems, isLayoutEditMode) {
-            return InteractiveGridCard(
-              themeColor: _themeColor,
-              isEditMode: isLayoutEditMode ? true : _isCardEditMode,
-              isFirst: index == 0,
-              isLast: index == sectionItems.length - 1,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        NoteDetailScreen(noteGroup: noteGroup),
-                  ),
-                ).then((_) => _loadNotesData());
-              },
-              onLongPress: () =>
-                  setState(() => _isCardEditMode = !_isCardEditMode),
-              onMoveLeft: () {},
-              onMoveRight: () {},
-              // PERUBAHAN: Menyesuaikan teks menu agar informatif bagi pengguna
-              popupMenuItems: const [
-                PopupMenuItem(
-                  value: 'edit',
-                  child: Row(
-                    children: [
-                      Icon(Icons.edit, size: 18, color: Colors.teal),
-                      SizedBox(width: 10),
-                      Text('Ubah Nama & Ikon'),
-                    ],
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 'delete',
-                  child: Row(
-                    children: [
-                      Icon(Icons.delete_outline, size: 18, color: Colors.red),
-                      SizedBox(width: 10),
-                      Text('Hapus Grup', style: TextStyle(color: Colors.red)),
-                    ],
-                  ),
-                ),
-              ],
-              onPopupSelected: (value) {
-                if (value == 'edit') {
-                  _showEditGroupDialog(noteGroup);
-                } else if (value == 'delete') {
-                  _deleteGroupData(noteGroup);
-                }
-              },
-              content: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+      gridItemBuilder: (context, noteGroup, index, sectionItems, isLayoutEditMode) {
+        return InteractiveGridCard(
+          themeColor: _themeColor,
+          isEditMode: isLayoutEditMode ? true : _isCardEditMode,
+          isFirst: index == 0,
+          isLast: index == sectionItems.length - 1,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => NoteDetailScreen(noteGroup: noteGroup),
+              ),
+            ).then((_) => _loadNotesData());
+          },
+          onLongPress: () => setState(() => _isCardEditMode = !_isCardEditMode),
+          onMoveLeft: () {},
+          onMoveRight: () {},
+          // PERUBAHAN: Menyesuaikan teks menu agar informatif bagi pengguna
+          popupMenuItems: const [
+            PopupMenuItem(
+              value: 'edit',
+              child: Row(
                 children: [
-                  Text(noteGroup.icon, style: const TextStyle(fontSize: 32)),
-                  const SizedBox(height: 8),
-                  Text(
-                    noteGroup.groupName,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _themeColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      '${noteGroup.notes.length} Catatan',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: _themeColor,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
+                  Icon(Icons.edit, size: 18, color: Colors.teal),
+                  SizedBox(width: 10),
+                  Text('Ubah Nama & Ikon'),
                 ],
               ),
-            );
+            ),
+            PopupMenuItem(
+              value: 'delete',
+              child: Row(
+                children: [
+                  Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                  SizedBox(width: 10),
+                  Text('Hapus Grup', style: TextStyle(color: Colors.red)),
+                ],
+              ),
+            ),
+          ],
+          // PERUBAHAN: Menambahkan intersep async-await untuk validasi dialog konfirmasi
+          onPopupSelected: (value) async {
+            if (value == 'edit') {
+              _showEditGroupDialog(noteGroup);
+            } else if (value == 'delete') {
+              final bool isConfirmed = await _showConfirmDeleteDialog(
+                noteGroup,
+              );
+              if (isConfirmed) {
+                _deleteGroupData(noteGroup);
+              }
+            }
           },
+          content: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(noteGroup.icon, style: const TextStyle(fontSize: 32)),
+              const SizedBox(height: 8),
+              Text(
+                noteGroup.groupName,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _themeColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  '${noteGroup.notes.length} Catatan',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: _themeColor,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
