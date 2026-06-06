@@ -25,7 +25,8 @@ class _NotesScreenState extends State<NotesScreen> {
   // Variabel untuk menyimpan query pencarian
   String _searchQuery = '';
 
-  final List<String> _sectionKeys = ['Catatan Utama'];
+  // PERUBAHAN: Dibuat agar dinamis tanpa keyword 'final'
+  List<String> _sectionKeys = ['Catatan Utama'];
   final Map<String, List<NoteGroup>> _groupedCategories = {'Catatan Utama': []};
 
   @override
@@ -71,7 +72,10 @@ class _NotesScreenState extends State<NotesScreen> {
       final baseDir = await _storageService.getBaseDirSetting();
       await _storageService.deleteNoteGroup(baseDir, group.id);
       setState(() {
-        _groupedCategories['Catatan Utama']?.remove(group);
+        // PERUBAHAN: Mencari dan menghapus dari seksi mana saja grup tersebut berada
+        for (var key in _sectionKeys) {
+          _groupedCategories[key]?.remove(group);
+        }
       });
     } catch (e) {
       debugPrint("Gagal menghapus grup: $e");
@@ -132,6 +136,46 @@ class _NotesScreenState extends State<NotesScreen> {
       }).toList();
     }
     return filtered;
+  }
+
+  // BARU: Dialog khusus untuk menambah Seksi Baru (Menggantikan fungsi penambah grup di sebelah search)
+  void _showAddSectionDialog() {
+    final TextEditingController sectionController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Buat Seksi Baru'),
+        content: TextField(
+          controller: sectionController,
+          decoration: const InputDecoration(
+            labelText: 'Nama Seksi',
+            hintText: 'Misal: Kerja, Kuliah, Arsip...',
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final newSectionName = sectionController.text.trim();
+              if (newSectionName.isNotEmpty &&
+                  !_sectionKeys.contains(newSectionName)) {
+                setState(() {
+                  _sectionKeys.add(newSectionName);
+                  _groupedCategories[newSectionName] = [];
+                });
+                Navigator.pop(context);
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: _themeColor),
+            child: const Text('Tambah', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showAddGroupDialog(String sectionName) {
@@ -267,7 +311,8 @@ class _NotesScreenState extends State<NotesScreen> {
           _searchQuery = query;
         });
       },
-      onAddPressed: () => _showAddGroupDialog(_sectionKeys.first),
+      // PERUBAHAN: Tombol tambah utama sekarang membuka dialog seksi baru, bukan grup lagi.
+      onAddPressed: _showAddSectionDialog,
       sectionHeaderBuilder: (context, index, sectionName, isLayoutEditMode) {
         return InteractiveSectionHeader(
           sectionName: sectionName,
@@ -279,6 +324,7 @@ class _NotesScreenState extends State<NotesScreen> {
               setState(() => _isSectionEditMode = !_isSectionEditMode),
           onEditName: () {},
           onDelete: () {},
+          // CATATAN: Tombol tambah di header sub-seksi tetap berfungsi membuat grup baru di dalam seksi bersangkutan.
           onAddItem: () => _showAddGroupDialog(sectionName),
           onMoveUp: () {},
           onMoveDown: () {},
