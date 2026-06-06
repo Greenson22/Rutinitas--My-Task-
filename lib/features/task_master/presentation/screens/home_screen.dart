@@ -89,18 +89,22 @@ class _HomeScreenState extends State<HomeScreen> {
             int jam = totalMenit ~/ 60;
             int menit = totalMenit % 60;
 
-            setState(() {
-              _totalJurnalDurationString = menit > 0
-                  ? '${jam}j ${menit}m'
-                  : '${jam}j';
-            });
+            if (mounted) {
+              setState(() {
+                _totalJurnalDurationString = menit > 0
+                    ? '${jam}j ${menit}m'
+                    : '${jam}j';
+              });
+            }
             return;
           }
         }
       }
-      setState(() {
-        _totalJurnalDurationString = "0j";
-      });
+      if (mounted) {
+        setState(() {
+          _totalJurnalDurationString = "0j";
+        });
+      }
     } catch (e) {
       debugPrint("Gagal mengkalkulasi total jurnal hari ini: $e");
     }
@@ -137,7 +141,9 @@ class _HomeScreenState extends State<HomeScreen> {
       await _kalkulasiTotalJurnalHariIni();
       _processCategoriesDisplay();
     } catch (e) {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
       debugPrint("Error loading data: $e");
     }
   }
@@ -154,11 +160,13 @@ class _HomeScreenState extends State<HomeScreen> {
     List<TaskCategory> hidden = filteredCategories
         .where((cat) => cat.isHidden)
         .toList();
-    setState(() {
-      _visibleCategories = visible;
-      _hiddenCategories = hidden;
-      _isLoading = false;
-    });
+    if (mounted) {
+      setState(() {
+        _visibleCategories = visible;
+        _hiddenCategories = hidden;
+        _isLoading = false;
+      });
+    }
   }
 
   void _updateSearchQuery(String query) {
@@ -231,6 +239,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // PEMBARUAN: Modifikasi agar asinkron aman, status context divalidasi, dan memberi feedback jika tugas tidak terikat jurnal
   Future<bool> _incrementTaskCount(TaskItem task) async {
     setState(() {
       task.count += 1;
@@ -238,11 +247,27 @@ class _HomeScreenState extends State<HomeScreen> {
       task.date = _getTodayDateString();
     });
     await _saveAllCategoriesToFile(shouldRefresh: false);
-    await _add30MinutesToJurnal(task.id);
+
+    // Simpan status keterhubungan jurnal
+    bool isLinked = await _add30MinutesToJurnal(task.id);
+
+    // Jika tidak ada task jurnal yang terikat, berikan umpan balik yang informatif
+    if (!isLinked && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Progress bertambah! (Tugas tidak terhubung ke jurnal)',
+          ),
+          duration: Duration(seconds: 2),
+          backgroundColor: Colors.blueGrey,
+        ),
+      );
+    }
     return true;
   }
 
-  Future<void> _add30MinutesToJurnal(String myTaskId) async {
+  // PEMBARUAN: Mengubah return type menjadi Future<bool> dan membungkus jsonDecode dengan try-catch sekunder secara defensif
+  Future<bool> _add30MinutesToJurnal(String myTaskId) async {
     try {
       final File jurnalFile = await _storageService.getJurnalJsonFile(
         _selectedBaseDir,
@@ -250,7 +275,19 @@ class _HomeScreenState extends State<HomeScreen> {
       String jsonString = await _storageService.loadOrInitializeJurnalJson(
         jurnalFile,
       );
-      List<dynamic> decodedJson = jsonDecode(jsonString);
+
+      // Mengantisipasi format data rusak/parsial pada file json eksternal agar tidak crash
+      List<dynamic> decodedJson = [];
+      if (jsonString.trim().isNotEmpty) {
+        try {
+          decodedJson = jsonDecode(jsonString);
+        } catch (e) {
+          debugPrint(
+            "Format berkas JSON jurnal tidak valid, menggunakan array kosong: $e",
+          );
+        }
+      }
+
       List<TimeLogEntry> loadedLogs = decodedJson
           .map((e) => TimeLogEntry.fromJson(e))
           .toList();
@@ -307,10 +344,13 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             );
           }
+          return true; // Berhasil mendeteksi relasi dan memperbarui jurnal
         }
       }
+      return false; // Tidak ada logTask jurnal yang menyimpan ID Tugas Master ini
     } catch (e) {
       debugPrint("Error updating linked jurnal data: $e");
+      return false;
     }
   }
 
@@ -354,8 +394,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  title: Row(
-                    children: const [
+                  title: const Row(
+                    children: [
                       Icon(Icons.warning_amber_rounded, color: Colors.red),
                       SizedBox(width: 8),
                       Text('Hapus Tugas?'),
@@ -641,12 +681,13 @@ class _HomeScreenState extends State<HomeScreen> {
     BoxConstraints constraints,
   ) {
     int crossAxisCount = 2;
-    if (constraints.maxWidth >= 1200)
+    if (constraints.maxWidth >= 1200) {
       crossAxisCount = 5;
-    else if (constraints.maxWidth >= 900)
+    } else if (constraints.maxWidth >= 900) {
       crossAxisCount = 4;
-    else if (constraints.maxWidth >= 600)
+    } else if (constraints.maxWidth >= 600) {
       crossAxisCount = 3;
+    }
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -812,7 +853,6 @@ class _HomeScreenState extends State<HomeScreen> {
     int completedTasksToday = 0;
     int tasksWithTargetToday = 0;
 
-    // Perhitungan tugas tetap dipertahankan dari struktur kategori bawaan Anda
     for (var category in _allCategoriesRaw) {
       for (var task in category.tasks) {
         if (task.isActive) {
@@ -941,7 +981,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 Colors.green[800]!,
               );
 
-              // MODIFIKASI: Card Jam Hari Ini mengikat variabel _totalJurnalDurationString
               final cardJam = buildCard(
                 'Jam Hari Ini',
                 _totalJurnalDurationString,

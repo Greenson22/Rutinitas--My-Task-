@@ -13,7 +13,7 @@ class TasksDialog extends StatelessWidget {
   onEditTaskDetail;
   final Future<bool> Function(TaskItem) onDeleteTask;
   final Function(List<String>, String) onBulkAction;
-  final VoidCallback onAddTask; // <--- CALLBACK BARU UNTUK TAMBAH TUGAS
+  final VoidCallback onAddTask; // CALLBACK BARU UNTUK TAMBAH TUGAS
   final Function(TaskItem task, TaskCategory source, TaskCategory target)
   onMoveTaskCategory;
   final Function() onReorderTasks;
@@ -132,7 +132,6 @@ class TasksDialog extends StatelessWidget {
               required newIsActive,
               required newType,
             }) {
-              // SEKARANG SUDAH AMAN: Parameter ke-9 sudah didefinisikan di konstruktor atas
               onEditTaskDetail(
                 task,
                 newName,
@@ -150,7 +149,6 @@ class TasksDialog extends StatelessWidget {
     );
   }
 
-  // DIALOG KONFIRMASI UNTUK INCREMENT COUNT TUGAS SATUAN
   Future<void> _showConfirmIncrementDialog(
     BuildContext context,
     TaskItem task,
@@ -319,7 +317,6 @@ class TasksDialog extends StatelessWidget {
                     : ListView.builder(
                         shrinkWrap: true,
                         itemCount: category.tasks.length,
-                        // Bagian fungsi itemBuilder utuh di dalam TasksDialog
                         itemBuilder: (context, index) {
                           final task = category.tasks[index];
                           String? todayText;
@@ -341,7 +338,6 @@ class TasksDialog extends StatelessWidget {
                                 : Colors.grey;
                           }
 
-                          // Mengatur visual teks total progress
                           String totalText = '';
                           if (task.type == 1) {
                             totalText = (todayText == null)
@@ -353,14 +349,14 @@ class TasksDialog extends StatelessWidget {
                                 : ' | Total: ${task.count}';
                           }
 
-                          // Menghitung persentase murni tanpa batasan clamp
+                          // Menghitung persentase progres murni tanpa batas maks
                           double progressPercentage = 0.0;
                           if (task.type == 1 && task.targetCount > 0) {
                             progressPercentage =
                                 (task.count / task.targetCount);
                           }
 
-                          // LOGIKA DINAMIS WARNA PROGRESS YANG MULUS
+                          // POIN 2: LOGIKA DINAMIS WARNA PROGRESS YANG MULUS (TERMASUK OVERHEAT)
                           Color dynamicProgressColor = Colors.grey;
                           if (task.isActive) {
                             if (progressPercentage <= 0.5) {
@@ -377,18 +373,21 @@ class TasksDialog extends StatelessWidget {
                                 Colors.green,
                                 t,
                               )!;
-                            } else {
-                              double t = ((progressPercentage - 1.0) / 1.0)
+                            } else if (progressPercentage <= 1.5) {
+                              // Tahap Overheat Awal (101% - 150%): Transisi Hijau menuju Ungu Ultraviolet
+                              double t = ((progressPercentage - 1.0) / 0.5)
                                   .clamp(0.0, 1.0);
                               dynamicProgressColor = Color.lerp(
                                 Colors.green,
-                                Colors.teal,
+                                Colors.deepPurpleAccent,
                                 t,
                               )!;
+                            } else {
+                              // Tahap Overheat Ekstrem (> 150%): Ungu Tua Pekat
+                              dynamicProgressColor = Colors.purple[900]!;
                             }
                           }
 
-                          // ITEM BUILDER LIST TUGAS (Berkas: lib/features/task_master/presentation/widgets/tasks_dialog.dart)
                           return Padding(
                             padding: const EdgeInsets.symmetric(vertical: 4.0),
                             child: Column(
@@ -398,12 +397,10 @@ class TasksDialog extends StatelessWidget {
                                   onLongPress: () {
                                     setDialogState(() {
                                       if (!isSelectionMode) {
-                                        // Jika belum masuk mode seleksi, aktifkan dan pilih tugas ini
                                         isSelectionMode = true;
                                         selectedTaskIds.clear();
                                         selectedTaskIds.add(task.id);
                                       } else {
-                                        // Jika sudah dalam mode seleksi dan ditahan lagi, keluar dari mode seleksi
                                         isSelectionMode = false;
                                         selectedTaskIds.clear();
                                       }
@@ -429,7 +426,6 @@ class TasksDialog extends StatelessWidget {
                                                       selectedTaskIds.remove(
                                                         task.id,
                                                       );
-                                                      // Opsional: Jika semua centangan kosong, matikan mode pilihan banyak
                                                       if (selectedTaskIds
                                                           .isEmpty) {
                                                         isSelectionMode = false;
@@ -438,7 +434,6 @@ class TasksDialog extends StatelessWidget {
                                                   });
                                                 },
                                               ),
-                                              // KONTROL URUTAN AKTIF SAAT MODE EDIT: Tombol Naik Posisi
                                               IconButton(
                                                 icon: Icon(
                                                   Icons.arrow_upward,
@@ -467,7 +462,6 @@ class TasksDialog extends StatelessWidget {
                                                       }
                                                     : null,
                                               ),
-                                              // KONTROL URUTAN AKTIF SAAT MODE EDIT: Tombol Turun Posisi
                                               IconButton(
                                                 icon: Icon(
                                                   Icons.arrow_downward,
@@ -523,8 +517,11 @@ class TasksDialog extends StatelessWidget {
                                                           await onIncrementTask(
                                                             task,
                                                           );
-                                                      if (isUpdated)
+                                                      // POIN 3: Ditambahkan pemeriksaan context.mounted pasca operasi asinkron
+                                                      if (context.mounted &&
+                                                          isUpdated) {
                                                         setDialogState(() {});
+                                                      }
                                                     },
                                                   )
                                                 : null,
@@ -590,10 +587,12 @@ class TasksDialog extends StatelessWidget {
                                           bool isDeleted = await onDeleteTask(
                                             task,
                                           );
-                                          if (isDeleted) setDialogState(() {});
+                                          // POIN 3: Ditambahkan pemeriksaan context.mounted pasca operasi asinkron
+                                          if (context.mounted && isDeleted) {
+                                            setDialogState(() {});
+                                          }
                                         } else if (value ==
                                             'trigger_move_menu') {
-                                          // === PERBAIKAN: Gunakan overlay secara langsung untuk menghindari error RenderSliverList cast ===
                                           final NavigatorState navigator =
                                               Navigator.of(context);
                                           final RenderBox overlay =
@@ -618,7 +617,6 @@ class TasksDialog extends StatelessWidget {
 
                                           if (!context.mounted) return;
 
-                                          // Tampilkan menu sekunder berisi daftar kategori target
                                           final String?
                                           selectedTarget = await showMenu<String>(
                                             context: context,
@@ -657,7 +655,9 @@ class TasksDialog extends StatelessWidget {
                                                 .toList(),
                                           );
 
-                                          if (selectedTarget != null) {
+                                          // POIN 3: Memeriksa asinkronisasi menu seleksi kategori
+                                          if (selectedTarget != null &&
+                                              context.mounted) {
                                             final targetCategory = allCategories
                                                 .firstWhere(
                                                   (cat) =>
@@ -686,7 +686,6 @@ class TasksDialog extends StatelessWidget {
                                             dense: true,
                                           ),
                                         ),
-                                        // IMPLEMENTASI BARU: Opsi tunggal bertingkat dengan indikator panah kanan
                                         if (allCategories.length > 1) ...[
                                           const PopupMenuDivider(),
                                           const PopupMenuItem<String>(
@@ -734,7 +733,6 @@ class TasksDialog extends StatelessWidget {
 
                                 if (task.type == 1)
                                   Padding(
-                                    // Penyesuaian padding kiri secara dinamis agar progress bar tetap rapi saat mode edit aktif
                                     padding: EdgeInsets.only(
                                       left: isSelectionMode ? 120.0 : 64.0,
                                       right: 24.0,
@@ -749,6 +747,7 @@ class TasksDialog extends StatelessWidget {
                                               4,
                                             ),
                                             child: LinearProgressIndicator(
+                                              // Bar tetap dibatasi di angka 1.0 maksimal agar UI tidak overflow meluap
                                               value: progressPercentage.clamp(
                                                 0.0,
                                                 1.0,
@@ -886,10 +885,8 @@ class TasksDialog extends StatelessWidget {
                           ),
                           TextButton(
                             onPressed: () {
-                              Navigator.pop(
-                                context,
-                              ); // Tutup dialog list tugas terlebih dahulu
-                              onAddTask(); // Panggil fungsi tambah tugas
+                              Navigator.pop(context);
+                              onAddTask();
                             },
                             child: const Text('Tambah Tugas'),
                           ),
