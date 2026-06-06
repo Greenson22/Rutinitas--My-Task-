@@ -13,8 +13,6 @@ import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_web_socket/shelf_web_socket.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
-// Import library tambahan seperti share_plus atau file_picker sesuai kebutuhan backup Anda
-
 class DataCenterScreen extends StatefulWidget {
   const DataCenterScreen({super.key});
 
@@ -31,7 +29,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
   List<File> _serverBackupFiles = [];
   bool _isLoading = false;
 
-  // === 2. TAMBAHKAN INIT STATE UNTUK MEMBACA SETTING DIRECTORY ===
   @override
   void initState() {
     super.initState();
@@ -90,6 +87,10 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                 String clientTasks = dateReceived['task_master'];
                 String clientJurnal = dateReceived['jurnal_aktivitas'];
                 String clientZipBase64 = dateReceived['checklist_zip'];
+                // === TAMBAHAN: Menerima data Notes & Prompts dari Client via Network ===
+                String clientNotesZipBase64 = dateReceived['notes_zip'] ?? "";
+                String clientPromptsZipBase64 =
+                    dateReceived['prompts_zip'] ?? "";
 
                 final Archive clientArchive = Archive();
                 List<int> tasksBytes = utf8.encode(clientTasks);
@@ -110,6 +111,42 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                       clientArchive.addFile(
                         ArchiveFile(
                           'my_checklist/${file.name}',
+                          file.content.length,
+                          file.content,
+                        ),
+                      );
+                    }
+                  }
+                }
+
+                // Ekstraksi data Notes dari client ke arsip server
+                if (clientNotesZipBase64.isNotEmpty) {
+                  List<int> notesBytes = base64Decode(clientNotesZipBase64);
+                  Archive notesArchive = ZipDecoder().decodeBytes(notesBytes);
+                  for (ArchiveFile file in notesArchive) {
+                    if (file.isFile) {
+                      clientArchive.addFile(
+                        ArchiveFile(
+                          'notes/${file.name}',
+                          file.content.length,
+                          file.content,
+                        ),
+                      );
+                    }
+                  }
+                }
+
+                // Ekstraksi data Prompts dari client ke arsip server
+                if (clientPromptsZipBase64.isNotEmpty) {
+                  List<int> promptsBytes = base64Decode(clientPromptsZipBase64);
+                  Archive promptsArchive = ZipDecoder().decodeBytes(
+                    promptsBytes,
+                  );
+                  for (ArchiveFile file in promptsArchive) {
+                    if (file.isFile) {
+                      clientArchive.addFile(
+                        ArchiveFile(
+                          'prompts/${file.name}',
                           file.content.length,
                           file.content,
                         ),
@@ -226,11 +263,43 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
             ? base64Encode(zipBytes)
             : "";
 
+        // === TAMBAHKAN: Package data Notes untuk pengiriman server ===
+        List<File> noteFiles = await _storageService.getAllNoteGroups(
+          currentDir,
+        );
+        final Archive notesArchive = Archive();
+        for (var file in noteFiles) {
+          final String namaFile = file.path.split('/').last;
+          final List<int> bytes = await file.readAsBytes();
+          notesArchive.addFile(ArchiveFile(namaFile, bytes.length, bytes));
+        }
+        final List<int>? notesZipBytes = ZipEncoder().encode(notesArchive);
+        String notesBase64Content = notesZipBytes != null
+            ? base64Encode(notesZipBytes)
+            : "";
+
+        // === TAMBAHKAN: Package data Prompts untuk pengiriman server ===
+        List<File> promptFiles = await _storageService.getAllPromptGroups(
+          currentDir,
+        );
+        final Archive promptsArchive = Archive();
+        for (var file in promptFiles) {
+          final String namaFile = file.path.split('/').last;
+          final List<int> bytes = await file.readAsBytes();
+          promptsArchive.addFile(ArchiveFile(namaFile, bytes.length, bytes));
+        }
+        final List<int>? promptsZipBytes = ZipEncoder().encode(promptsArchive);
+        String promptsBase64Content = promptsZipBytes != null
+            ? base64Encode(promptsZipBytes)
+            : "";
+
         Map<String, dynamic> sendBigPackage = {
           'tipe_pesan': 'data_transfer',
           'task_master': tasksContent,
           'jurnal_aktivitas': JournalContent,
           'checklist_zip': zipBase64Content,
+          'notes_zip': notesBase64Content,
+          'prompts_zip': promptsBase64Content,
         };
 
         for (var socket in clientActiveList) {
@@ -310,7 +379,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  // WARNA DI CONTAINER INI SUDAH DIPERBAIKI DAN AMAN DARI ERROR
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(
@@ -442,10 +510,8 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
   }
 
   void _showConnectToServerDialog() async {
-    // Ambil data riwayat IP dari SharedPreferences
     List<String> ipHistory = await _storageService.getIpHistory();
 
-    // Otomatis isi text field dengan IP terakhir jika ada riwayat
     final ipController = TextEditingController(
       text: ipHistory.isNotEmpty ? ipHistory.first : '',
     );
@@ -455,7 +521,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        // Menggunakan StatefulBuilder agar list IP bisa update saat dihapus
         builder: (context, setDialogState) {
           return AlertDialog(
             title: const Text('Hubungkan ke Server'),
@@ -471,8 +536,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                   ),
                   keyboardType: TextInputType.text,
                 ),
-
-                // Tampilkan section riwayat jika list tidak kosong
                 if (ipHistory.isNotEmpty) ...[
                   const SizedBox(height: 16),
                   const Text(
@@ -484,8 +547,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                     ),
                   ),
                   const SizedBox(height: 6),
-
-                  // Bungkus dengan kontainer agar tidak meluber jika list panjang
                   SizedBox(
                     height: 120,
                     width: double.maxFinite,
@@ -506,11 +567,9 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                               size: 18,
                             ),
                             onPressed: () async {
-                              // Hapus dari penyimpanan lokal
                               await _storageService.deleteIpFromHistory(
                                 savedIp,
                               );
-                              // Perbarui state di dalam dialog
                               setDialogState(() {
                                 ipHistory.remove(savedIp);
                                 if (ipController.text == savedIp) {
@@ -520,7 +579,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                             },
                           ),
                           onTap: () {
-                            // Jika IP di-tap, otomatis masukkan ke TextField
                             setDialogState(() {
                               ipController.text = savedIp;
                             });
@@ -541,13 +599,11 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                 onPressed: () async {
                   String targetIp = ipController.text.trim();
                   if (targetIp.isNotEmpty) {
-                    // Simpan IP yang sukses dimasukkan ke dalam riwayat
                     await _storageService.saveIpToHistory(targetIp);
 
                     if (!mounted) return;
                     Navigator.pop(ctx);
 
-                    // Jalankan fungsi bawaan Anda untuk mengambil data
                     _receiveDateFromServerProcess(targetIp);
                   }
                 },
@@ -599,11 +655,43 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
         final List<int>? zipBytes = ZipEncoder().encode(archive);
         String kontenZipBase64 = zipBytes != null ? base64Encode(zipBytes) : "";
 
+        // === TAMBAHKAN: Ekspor berkas Notes milik Client untuk dikirim ke Server ===
+        List<File> noteFiles = await _storageService.getAllNoteGroups(
+          currentDir,
+        );
+        final Archive notesArchive = Archive();
+        for (var file in noteFiles) {
+          final String namaFile = file.path.split('/').last;
+          final List<int> bytes = await file.readAsBytes();
+          notesArchive.addFile(ArchiveFile(namaFile, bytes.length, bytes));
+        }
+        final List<int>? notesZipBytes = ZipEncoder().encode(notesArchive);
+        String kontenNotesBase64 = notesZipBytes != null
+            ? base64Encode(notesZipBytes)
+            : "";
+
+        // === TAMBAHKAN: Ekspor berkas Prompts milik Client untuk dikirim ke Server ===
+        List<File> promptFiles = await _storageService.getAllPromptGroups(
+          currentDir,
+        );
+        final Archive promptsArchive = Archive();
+        for (var file in promptFiles) {
+          final String namaFile = file.path.split('/').last;
+          final List<int> bytes = await file.readAsBytes();
+          promptsArchive.addFile(ArchiveFile(namaFile, bytes.length, bytes));
+        }
+        final List<int>? promptsZipBytes = ZipEncoder().encode(promptsArchive);
+        String kontenPromptsBase64 = promptsZipBytes != null
+            ? base64Encode(promptsZipBytes)
+            : "";
+
         Map<String, dynamic> paketBesarClient = {
           'tipe_pesan': 'data_transfer',
           'task_master': kontenTasks,
           'jurnal_aktivitas': kontenJurnal,
           'checklist_zip': kontenZipBase64,
+          'notes_zip': kontenNotesBase64,
+          'prompts_zip': kontenPromptsBase64,
         };
 
         channel.sink.add(jsonEncode(paketBesarClient));
@@ -655,6 +743,10 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                   String serverTasks = dataDiterima['task_master'];
                   String serverJurnal = dataDiterima['jurnal_aktivitas'];
                   String serverZipBase64 = dataDiterima['checklist_zip'];
+                  // === TAMBAHKAN: Menangkap data paket Notes & Prompts dari Server ===
+                  String serverNotesZipBase64 = dataDiterima['notes_zip'] ?? "";
+                  String serverPromptsZipBase64 =
+                      dataDiterima['prompts_zip'] ?? "";
 
                   final Archive backupArchive = Archive();
                   List<int> tasksBytes = utf8.encode(serverTasks);
@@ -681,6 +773,48 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                         backupArchive.addFile(
                           ArchiveFile(
                             'my_checklist/${file.name}',
+                            file.content.length,
+                            file.content,
+                          ),
+                        );
+                      }
+                    }
+                  }
+
+                  // Ekstraksi paket Notes dari server ke dalam ZIP Server lokal
+                  if (serverNotesZipBase64.isNotEmpty) {
+                    List<int> notesZipBytes = base64Decode(
+                      serverNotesZipBase64,
+                    );
+                    Archive notesArchive = ZipDecoder().decodeBytes(
+                      notesZipBytes,
+                    );
+                    for (ArchiveFile file in notesArchive) {
+                      if (file.isFile) {
+                        backupArchive.addFile(
+                          ArchiveFile(
+                            'notes/${file.name}',
+                            file.content.length,
+                            file.content,
+                          ),
+                        );
+                      }
+                    }
+                  }
+
+                  // Ekstraksi paket Prompts dari server ke dalam ZIP Server lokal
+                  if (serverPromptsZipBase64.isNotEmpty) {
+                    List<int> promptsZipBytes = base64Decode(
+                      serverPromptsZipBase64,
+                    );
+                    Archive promptsArchive = ZipDecoder().decodeBytes(
+                      promptsZipBytes,
+                    );
+                    for (ArchiveFile file in promptsArchive) {
+                      if (file.isFile) {
+                        backupArchive.addFile(
+                          ArchiveFile(
+                            'prompts/${file.name}',
                             file.content.length,
                             file.content,
                           ),
@@ -898,27 +1032,22 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
       setState(() {
         _baseDir = dir;
       });
-      // Ambil daftar file backup lokal dan juga dari server
       _loadLocalBackups();
-      _loadServerBackups(); // <-- TAMBAHKAN BARIS INI
+      _loadServerBackups();
     }
   }
 
   Future<void> _loadLocalBackups() async {
     List<File> files = await _storageService.getAllLocalBackupFiles(_baseDir);
-
-    // Melakukan pengurutan eksplisit berdasarkan waktu modifikasi terbaru di atas
     files.sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
-
     setState(() {
       _localBackupFiles = files;
     });
   }
 
-  // C. Tambahkan fungsi untuk melakukan Backup Semua Fitur (Menghasilkan berkas ZIP)
+  // === PERBAIKAN: Fungsi Backup Utama Sekarang Memaketkan Notes & Prompts Lokal ===
   void _backupAllFeature() async {
     try {
-      // 1. Membaca semua konten data yang ada saat ini
       File fileTasks = await _storageService.getTargetJsonFile(_baseDir);
       String kontenTasks = await fileTasks.exists()
           ? await fileTasks.readAsString()
@@ -933,22 +1062,30 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
         _baseDir,
       );
 
-      // 2. Satukan semua berkas ke dalam satu objek Archive ZIP
+      // Ambil berkas Notes & Prompts dari penyimpanan lokal
+      List<File> noteFiles = await _storageService.getAllNoteGroups(_baseDir);
+      List<File> promptFiles = await _storageService.getAllPromptGroups(
+        _baseDir,
+      );
+
       final Archive backupArchive = Archive();
 
-      // Masukkan Task Master
-      List<int> tasksBytes = utf8.encode(kontenTasks);
       backupArchive.addFile(
-        ArchiveFile('my_tasks.json', tasksBytes.length, tasksBytes),
+        ArchiveFile(
+          'my_tasks.json',
+          utf8.encode(kontenTasks).length,
+          utf8.encode(kontenTasks),
+        ),
       );
 
-      // Masukkan Jurnal Aktivitas
-      List<int> jurnalBytes = utf8.encode(kontenJurnal);
       backupArchive.addFile(
-        ArchiveFile('time_log.json', jurnalBytes.length, jurnalBytes),
+        ArchiveFile(
+          'time_log.json',
+          utf8.encode(kontenJurnal).length,
+          utf8.encode(kontenJurnal),
+        ),
       );
 
-      // Masukkan semua Hub Checklist ke folder my_checklist di dalam ZIP
       for (var file in hubFiles) {
         final String namaFile = file.path.split('/').last;
         final List<int> bytes = await file.readAsBytes();
@@ -957,21 +1094,35 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
         );
       }
 
-      // 3. Kompres menjadi format ZIP bytes
+      // Masukkan semua item berkas Notes ke sub-folder di dalam berkas ZIP
+      for (var file in noteFiles) {
+        final String namaFile = file.path.split('/').last;
+        final List<int> bytes = await file.readAsBytes();
+        backupArchive.addFile(
+          ArchiveFile('notes/$namaFile', bytes.length, bytes),
+        );
+      }
+
+      // Masukkan semua item berkas Prompts ke sub-folder di dalam berkas ZIP
+      for (var file in promptFiles) {
+        final String namaFile = file.path.split('/').last;
+        final List<int> bytes = await file.readAsBytes();
+        backupArchive.addFile(
+          ArchiveFile('prompts/$namaFile', bytes.length, bytes),
+        );
+      }
+
       final List<int>? finalZipBytes = ZipEncoder().encode(backupArchive);
       if (finalZipBytes == null) return;
 
-      // 4. Berikan penamaan file yang sama seperti format di server_backup (menggunakan _getFormattedFileName)
       String namaZipDinamis = _getFormattedFileName('local_backup', 'zip');
 
-      // 5. Simpan file ZIP ke folder storage/backup
       File fileZipTarget = await _storageService.getLocalBackupZipFile(
         _baseDir,
         namaZipDinamis,
       );
       await fileZipTarget.writeAsBytes(finalZipBytes);
 
-      // 6. Refresh UI dan tampilkan notifikasi sukses
       _loadLocalBackups();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -986,13 +1137,11 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
     }
   }
 
-  // === TAMBAHKAN FUNGSI UTUH INI DI DALAM _DataCenterScreenState ===
   void _exportBackupToCustomFolder(File fileBackup) async {
     try {
       final String namaFile = fileBackup.path.split('/').last;
 
       if (Platform.isLinux) {
-        // --- LOGIKA LINUX: Langsung memunculkan dialog Save As ---
         String? lokasiSimpan = await FilePicker.saveFile(
           dialogTitle: 'Simpan Berkas Cadangan',
           fileName: namaFile,
@@ -1011,7 +1160,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
           );
         }
       } else {
-        // --- LOGIKA ANDROID / OS LAIN: Pilih Direktori Target ---
         String? direktoriPilihan = await FilePicker.getDirectoryPath(
           dialogTitle: 'Pilih Folder Tujuan Penyimpanan',
         );
@@ -1031,27 +1179,19 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
       }
     } catch (e) {
       debugPrint("Gagal mengekspor berkas backup ke folder kustom: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Terjadi kesalahan saat menyalin berkas backup.'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
     }
   }
 
   // =========================================================================
-  // 1. LOGIKA UTAMA UNTUK TASK MASTER DATA
+  // LOGIKA INDIVIDUAL BERKAS (TASK MASTER, JURNAL, CHECKLIST)
   // =========================================================================
   void _exportTaskMaster() async {
     try {
-      // Ambil path direktori saat ini dan file datanya
       String currentDir = await _storageService.getBaseDirSetting();
       File fileAsli = await _storageService.getTargetJsonFile(currentDir);
 
       if (await fileAsli.exists()) {
         if (Platform.isLinux) {
-          // --- LOGIKA KHUSUS LINUX (Save As) ---
           String? lokasiSimpan = await FilePicker.saveFile(
             dialogTitle: 'Simpan Backup Task Master',
             fileName: _getFormattedFileName('my_tasks_backup', 'json'),
@@ -1068,7 +1208,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
             );
           }
         } else {
-          // --- LOGIKA KHUSUS ANDROID / OS LAIN (Share Pop-up) ---
           String namaDinamis = _getFormattedFileName('my_tasks_backup', 'json');
           final tempFile = await fileAsli.copy(
             '${Directory.systemTemp.path}/$namaDinamis',
@@ -1083,7 +1222,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
     }
   }
 
-  // Jalur File: lib/features/data_center/presentation/screens/data_center_screen.dart
   void _importTaskMaster() async {
     try {
       FilePickerResult? result = await FilePicker.pickFiles(
@@ -1098,7 +1236,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
         File targetFile = await _storageService.getTargetJsonFile(_baseDir);
         await _storageService.saveJsonData(targetFile, fileContent);
 
-        // KETERANGAN UBAH: Segarkan state lokal screen data center agar me-sync ulang path direktori dasar
         setState(() {
           _loadBaseDirectory();
         });
@@ -1112,9 +1249,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
     }
   }
 
-  // =========================================================================
-  // 2. LOGIKA UTAMA UNTUK JURNAL AKTIVITAS DATA
-  // =========================================================================
   void _exportJurnal() async {
     try {
       String currentDir = await _storageService.getBaseDirSetting();
@@ -1122,7 +1256,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
 
       if (await fileAsli.exists()) {
         if (Platform.isLinux) {
-          // --- LINUX: Save As ---
           String? lokasiSimpan = await FilePicker.saveFile(
             dialogTitle: 'Simpan Backup Jurnal Aktivitas',
             fileName: _getFormattedFileName('time_log_backup', 'json'),
@@ -1139,7 +1272,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
             );
           }
         } else {
-          // --- ANDROID: Share Pop-up ---
           String namaDinamis = _getFormattedFileName('time_log_backup', 'json');
           final tempFile = await fileAsli.copy(
             '${Directory.systemTemp.path}/$namaDinamis',
@@ -1156,7 +1288,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
 
   void _importJurnal() async {
     try {
-      // Universal untuk Android & Linux
       FilePickerResult? result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['json'],
@@ -1181,9 +1312,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
     }
   }
 
-  // =========================================================================
-  // 3. LOGIKA UTAMA UNTUK MY CHECKLIST DATA (Khusus karena folder berisi banyak file)
-  // =========================================================================
   void _exportChecklist() async {
     try {
       String currentDir = await _storageService.getBaseDirSetting();
@@ -1200,32 +1328,22 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
         return;
       }
 
-      // --- KETERANGAN UBAH DI SINI: Proses Membuat File ZIP ---
-      // 1. Buat encoder / penampung data berkas ZIP
       final Archive archive = Archive();
-
-      // 2. Masukkan semua file JSON checklist ke dalam data archive ZIP
       for (var file in hubFiles) {
         final String namaFile = file.path.split('/').last;
         final List<int> bytes = await file.readAsBytes();
         archive.addFile(ArchiveFile(namaFile, bytes.length, bytes));
       }
 
-      // 3. Kompres data menjadi berkas berkode ZIP (.zip)
       final List<int>? zipBytes = ZipEncoder().encode(archive);
       if (zipBytes == null) return;
 
-      // 4. Simpan file ZIP sementara di direktori temporary sistem
-      // Ubah pembuatan file ZIP sementara
       String namaZipDinamis = _getFormattedFileName('checklist_backup', 'zip');
       final String tempPath = '${Directory.systemTemp.path}/$namaZipDinamis';
       final File zipFile = File(tempPath);
       await zipFile.writeAsBytes(zipBytes);
-      // --------------------------------------------------------
 
-      // Proses Pengiriman Berkas ZIP berdasarkan Platform OS
       if (Platform.isLinux) {
-        // --- LINUX: Pilih lokasi simpan berkas ZIP langsung ---
         String? lokasiSimpan = await FilePicker.saveFile(
           dialogTitle: 'Simpan Backup Checklist (ZIP)',
           fileName: namaZipDinamis,
@@ -1240,7 +1358,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
           );
         }
       } else {
-        // --- ANDROID: Share Pop-up satu file ZIP ---
         await Share.shareXFiles([
           XFile(zipFile.path),
         ], text: 'Backup Semua Hub Checklist Data (ZIP)');
@@ -1268,23 +1385,18 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
         for (var pickedFile in result.files) {
           if (pickedFile.path != null) {
             String isiFile = await File(pickedFile.path!).readAsString();
-
-            // --- KETERANGAN UBAH DI SINI: Logika Cek Nama Unik ---
             String namaFileBaru = pickedFile.name;
             File fileBaru = File('$targetFolder/$namaFileBaru');
 
-            // Jika file sudah ada di folder tujuan, buat nama baru yang unik
             if (await fileBaru.exists()) {
               final String timestamp = DateTime.now().millisecondsSinceEpoch
                   .toString();
-              // Mengubah "hub_data.json" menjadi "hub_data_1716942... .json"
               namaFileBaru = namaFileBaru.replaceAll(
                 '.json',
                 '_$timestamp.json',
               );
               fileBaru = File('$targetFolder/$namaFileBaru');
             }
-            // -----------------------------------------------------
 
             await _storageService.saveJsonData(fileBaru, isiFile);
             hitungSukses++;
@@ -1304,27 +1416,170 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
     }
   }
 
-  // Letakkan fungsi ini di dalam class _DataCenterScreenState
+  // =========================================================================
+  // LOGIKA BARU INDIVIDUAL UNTUK NOTES & PROMPTS (Sesuai Permintaan)
+  // =========================================================================
+  void _exportNotesIndividual() async {
+    try {
+      List<File> noteFiles = await _storageService.getAllNoteGroups(_baseDir);
+      if (noteFiles.isEmpty) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Tidak ada data Notes.')));
+        return;
+      }
+      final Archive archive = Archive();
+      for (var f in noteFiles) {
+        archive.addFile(
+          ArchiveFile(
+            f.path.split('/').last,
+            f.lengthSync(),
+            await f.readAsBytes(),
+          ),
+        );
+      }
+      final List<int>? zip = ZipEncoder().encode(archive);
+      if (zip == null) return;
 
-  // Mengubah fungsi agar menerima parameter file yang dipilih dari list
+      String name = _getFormattedFileName('notes_individual_backup', 'zip');
+      File tmp = File('${Directory.systemTemp.path}/$name')
+        ..writeAsBytesSync(zip);
+
+      if (Platform.isLinux) {
+        String? path = await FilePicker.saveFile(
+          dialogTitle: 'Simpan Notes (ZIP)',
+          fileName: name,
+          type: FileType.custom,
+          allowedExtensions: ['zip'],
+        );
+        if (path != null) await tmp.copy(path);
+      } else {
+        await Share.shareXFiles([XFile(tmp.path)], text: 'Backup Notes (ZIP)');
+      }
+    } catch (e) {
+      debugPrint("Gagal ekspor Notes: $e");
+    }
+  }
+
+  void _importNotesIndividual() async {
+    try {
+      FilePickerResult? res = await FilePicker.pickFiles(
+        allowMultiple: true,
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+      if (res != null && res.files.isNotEmpty) {
+        Directory dir = await _storageService.getNotesDir(_baseDir);
+        for (var pf in res.files) {
+          if (pf.path != null) {
+            File(pf.path!).copySync('${dir.path}/${pf.name}');
+          }
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Notes berhasil di-import!')),
+        );
+      }
+    } catch (e) {
+      debugPrint("Gagal import Notes: $e");
+    }
+  }
+
+  void _exportPromptsIndividual() async {
+    try {
+      List<File> promptFiles = await _storageService.getAllPromptGroups(
+        _baseDir,
+      );
+      if (promptFiles.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Tidak ada data Prompts.')),
+        );
+        return;
+      }
+      final Archive archive = Archive();
+      for (var f in promptFiles) {
+        archive.addFile(
+          ArchiveFile(
+            f.path.split('/').last,
+            f.lengthSync(),
+            await f.readAsBytes(),
+          ),
+        );
+      }
+      final List<int>? zip = ZipEncoder().encode(archive);
+      if (zip == null) return;
+
+      String name = _getFormattedFileName('prompts_individual_backup', 'zip');
+      File tmp = File('${Directory.systemTemp.path}/$name')
+        ..writeAsBytesSync(zip);
+
+      if (Platform.isLinux) {
+        String? path = await FilePicker.saveFile(
+          dialogTitle: 'Simpan Prompts (ZIP)',
+          fileName: name,
+          type: FileType.custom,
+          allowedExtensions: ['zip'],
+        );
+        if (path != null) await tmp.copy(path);
+      } else {
+        await Share.shareXFiles([
+          XFile(tmp.path),
+        ], text: 'Backup Prompts (ZIP)');
+      }
+    } catch (e) {
+      debugPrint("Gagal ekspor Prompts: $e");
+    }
+  }
+
+  void _importPromptsIndividual() async {
+    try {
+      FilePickerResult? res = await FilePicker.pickFiles(
+        allowMultiple: true,
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+      if (res != null && res.files.isNotEmpty) {
+        Directory dir = await _storageService.getPromptDir(_baseDir);
+        for (var pf in res.files) {
+          if (pf.path != null) {
+            File(pf.path!).copySync('${dir.path}/${pf.name}');
+          }
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Prompts berhasil di-import!')),
+        );
+      }
+    } catch (e) {
+      debugPrint("Gagal import Prompts: $e");
+    }
+  }
+
+  // =========================================================================
+  // === PERBAIKAN: Fungsi Mengimpor dan Melakukan OVERWRITE Total Seluruh ZIP ===
+  // =========================================================================
   void _importAllFromZip(File zipFile) async {
     try {
       List<int> bytes = await zipFile.readAsBytes();
       Archive archive = ZipDecoder().decodeBytes(bytes);
-      int checkListCount = 0;
 
-      // 1. Dapatkan path folder my_checklist lokal dan lakukan WIPE (Hapus Total)
+      // 1. WIPE TOTAL folder my_checklist
       String folderChecklist = await _storageService.getChecklistDirPath(
         _baseDir,
       );
       Directory checklistDir = Directory(folderChecklist);
+      if (checklistDir.existsSync()) checklistDir.deleteSync(recursive: true);
+      checklistDir.createSync(recursive: true);
 
-      if (checklistDir.existsSync()) {
-        checklistDir.deleteSync(recursive: true);
-      }
-      checklistDir.createSync(recursive: true); // Buat ulang folder kosong
+      // 2. WIPE TOTAL folder notes
+      Directory notesDir = await _storageService.getNotesDir(_baseDir);
+      if (notesDir.existsSync()) notesDir.deleteSync(recursive: true);
+      notesDir.createSync(recursive: true);
 
-      // 2. Iterasi ekstraksi isi ZIP (Replace)
+      // 3. WIPE TOTAL folder prompts
+      Directory promptsDir = await _storageService.getPromptDir(_baseDir);
+      if (promptsDir.existsSync()) promptsDir.deleteSync(recursive: true);
+      promptsDir.createSync(recursive: true);
+
+      // 4. Ekstraksi dan Distribusi seluruh isi berkas ZIP secara bersih
       for (ArchiveFile file in archive) {
         if (file.isFile) {
           if (file.name == 'my_tasks.json') {
@@ -1336,72 +1591,72 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
           } else if (file.name.startsWith('my_checklist/')) {
             String namaFileHub = file.name.split('/').last;
             if (namaFileHub.isNotEmpty) {
-              // Folder sudah dipastikan bersih, langsung tulis file baru
-              File target = File('$folderChecklist/$namaFileHub');
-              await target.writeAsBytes(file.content);
-              checkListCount++;
+              await File(
+                '$folderChecklist/$namaFileHub',
+              ).writeAsBytes(file.content);
+            }
+          } else if (file.name.startsWith('notes/')) {
+            String namaFileNote = file.name.split('/').last;
+            if (namaFileNote.isNotEmpty) {
+              await File(
+                '${notesDir.path}/$namaFileNote',
+              ).writeAsBytes(file.content);
+            }
+          } else if (file.name.startsWith('prompts/')) {
+            String namaFilePrompt = file.name.split('/').last;
+            if (namaFilePrompt.isNotEmpty) {
+              await File(
+                '${promptsDir.path}/$namaFilePrompt',
+              ).writeAsBytes(file.content);
             }
           }
         }
       }
 
       setState(() {
-        _loadBaseDirectory(); // Segarkan data UI
+        _loadBaseDirectory();
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Restore Berhasil! Data diganti total dari "${zipFile.path.split('/').last}".',
+            'Restore Berhasil! Seluruh data disinkronkan dari "${zipFile.path.split('/').last}".',
           ),
           backgroundColor: Colors.teal,
         ),
       );
     } catch (e) {
-      debugPrint("Gagal mengimpor file ZIP: $e");
+      debugPrint("Gagal mengimpor file ZIP global: $e");
     }
   }
 
-  // TAMBAHKAN fungsi baru ini untuk memuat file dari server
   Future<void> _loadServerBackups() async {
     List<File> files = await _storageService.getAllServerBackupFiles(_baseDir);
-
-    // Melakukan pengurutan eksplisit berdasarkan waktu modifikasi terbaru di atas
     files.sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
-
     setState(() {
       _serverBackupFiles = files;
     });
   }
 
-  // Fungsi utuh untuk mendeteksi alamat IP lokal (WiFi/LAN) perangkat pengirim
   Future<String> _getLocalIpAddress() async {
     try {
-      // Mencari seluruh daftar antarmuka jaringan yang aktif pada perangkat
       List<NetworkInterface> interfaces = await NetworkInterface.list(
-        includeLoopback: false, // Abaikan IP loopback lokal seperti 127.0.0.1
-        type: InternetAddressType.IPv4, // Hanya ambil format alamat IPv4
+        includeLoopback: false,
+        type: InternetAddressType.IPv4,
       );
-
       for (var interface in interfaces) {
         for (var address in interface.addresses) {
-          // Memastikan alamat IP tidak kosong dan merupakan IP jaringan lokal yang valid
-          if (address.address.isNotEmpty) {
-            return address
-                .address; // Kembalikan IP pertama yang ditemukan (misal: 192.168.1.5)
-          }
+          if (address.address.isNotEmpty) return address.address;
         }
       }
     } catch (e) {
       debugPrint("Gagal mendapatkan alamat IP: $e");
     }
-    return "Tidak Diketahui"; // Kembalikan string default jika gagal atau offline
+    return "Tidak Diketahui";
   }
 
-  // === TAMBAHKAN FUNGSI INI DI DALAM KELAS _DataCenterScreenState ===
   void _importZipLokal() async {
     try {
-      // 1. Izinkan pengguna memilih file berekstensi .zip dari memori perangkat
       FilePickerResult? result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['zip'],
@@ -1410,7 +1665,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
       if (result != null && result.files.single.path != null) {
         File selectedZipFile = File(result.files.single.path!);
 
-        // 2. Munculkan dialog konfirmasi overwrite data aktif sebelum melakukan pemulihan ekstrim
         if (!mounted) return;
         final bool confirm =
             await showDialog<bool>(
@@ -1430,7 +1684,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                   ],
                 ),
                 content: Text(
-                  'Apakah Anda yakin ingin memulihkan data dari berkas luar "${selectedZipFile.path.split('/').last}"?\n\n*Peringatan: Seluruh data aktif aplikasi saat ini akan dihapus dan ditimpa secara permanen.',
+                  'Apakah Anda yakin ingin memulihkan data dari berkas luar "${selectedZipFile.path.split('/').last}"?\n\n*Peringatan: Seluruh data aktif aplikasi (termasuk Notes & Prompts) saat ini akan dihapus dan ditimpa secara permanen.',
                 ),
                 actions: [
                   TextButton(
@@ -1455,7 +1709,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
             ) ??
             false;
 
-        // 3. Jika disetujui, panggil fungsi restore bawaan aplikasi Anda yang sudah ada
         if (confirm) {
           _importAllFromZip(selectedZipFile);
         }
@@ -1467,8 +1720,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
 
   String _getFormattedFileName(String prefix, String extension) {
     final now = DateTime.now();
-
-    // Array bantuan untuk penamaan hari dalam Bahasa Indonesia
     const daftarHari = [
       'Senin',
       'Selasa',
@@ -1479,16 +1730,10 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
       'Minggu',
     ];
     String namaHari = daftarHari[now.weekday - 1];
-
-    // Format tanggal: YYYY-MM-DD
     String tanggal =
         "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
-
-    // Format jam, menit, dan detik: HH-mm-ss
     String waktu =
         "${now.hour.toString().padLeft(2, '0')}-${now.minute.toString().padLeft(2, '0')}-${now.second.toString().padLeft(2, '0')}";
-
-    // Menghasilkan format: prefix_2026-05-28_Kamis_18-05-12.extension
     return "${prefix}_${tanggal}_${namaHari}_$waktu.$extension";
   }
 
@@ -1510,13 +1755,12 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
             ],
           ),
         ),
-        // ... kode AppBar tetap sama seperti bawaan Anda ...
         drawer: const DrawerMenu(isDataCenterActive: true),
         body: Stack(
           children: [
             TabBarView(
               children: [
-                // TAB 1: Backup
+                // TAB 1: Backup (Menghubungkan Parameter Callback baru)
                 BackupTab(
                   localBackupFiles: _localBackupFiles,
                   serverBackupFiles: _serverBackupFiles,
@@ -1540,6 +1784,12 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                   onRestoreChecklist: () => _importChecklist(),
                   onBackupJurnal: () => _exportJurnal(),
                   onRestoreJurnal: () => _importJurnal(),
+                  // === PEMBAIKAN: Melempar fungsi Notes & Prompts ke dalam widget BackupTab ===
+                  onBackupNotes: () => _exportNotesIndividual(),
+                  onRestoreNotes: () => _importNotesIndividual(),
+                  onBackupPrompts: () => _exportPromptsIndividual(),
+                  onRestorePrompts: () => _importPromptsIndividual(),
+                  // =========================================================================
                   onImportZip: () => _importZipLokal(),
                   onExportToFolder: (file) => _exportBackupToCustomFolder(file),
                 ),
@@ -1589,8 +1839,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                 ),
               ],
             ),
-
-            // === VISUAL LAYER LOADING MELAYANG (Hanya aktif saat _isLoading bernilai true) ===
             if (_isLoading)
               Container(
                 color: Colors.black.withOpacity(0.4),

@@ -11,6 +11,12 @@ class BackupTab extends StatefulWidget {
   final VoidCallback onRestoreChecklist;
   final VoidCallback onBackupJurnal;
   final VoidCallback onRestoreJurnal;
+  // === TAMBAHAN: Callback untuk Notes & Prompts ===
+  final VoidCallback onBackupNotes;
+  final VoidCallback onRestoreNotes;
+  final VoidCallback onBackupPrompts;
+  final VoidCallback onRestorePrompts;
+  // ================================================
   final Function(File) onRestoreAllZip;
   final List<File> serverBackupFiles;
   final Function(File) onDeleteServerBackup;
@@ -28,6 +34,10 @@ class BackupTab extends StatefulWidget {
     required this.onRestoreChecklist,
     required this.onBackupJurnal,
     required this.onRestoreJurnal,
+    required this.onBackupNotes,
+    required this.onRestoreNotes,
+    required this.onBackupPrompts,
+    required this.onRestorePrompts,
     required this.onRestoreAllZip,
     required this.serverBackupFiles,
     required this.onDeleteServerBackup,
@@ -88,31 +98,50 @@ class _BackupTabState extends State<BackupTab> {
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: 16),
       children: [
-        // Baris Tombol Ringkas (Task Master, Checklist, Jurnal)
+        // Baris Tombol Ringkas (Task Master, Checklist, Jurnal, Notes, Prompts)
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _buildCompactButton(
-                'Task Master',
-                Icons.format_list_bulleted,
-                widget.onBackupTaskMaster,
-                widget.onRestoreTaskMaster,
-              ),
-              _buildCompactButton(
-                'Checklist',
-                Icons.checklist_rtl,
-                widget.onBackupChecklist,
-                widget.onRestoreChecklist,
-              ),
-              _buildCompactButton(
-                'Jurnal',
-                Icons.menu_book,
-                widget.onBackupJurnal,
-                widget.onRestoreJurnal,
-              ),
-            ],
+          // PERBAIKAN: Menggunakan SingleChildScrollView agar tidak overflow jika layar kecil
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _buildCompactButton(
+                  'Task Master',
+                  Icons.format_list_bulleted,
+                  widget.onBackupTaskMaster,
+                  widget.onRestoreTaskMaster,
+                ),
+                const SizedBox(width: 16),
+                _buildCompactButton(
+                  'Checklist',
+                  Icons.checklist_rtl,
+                  widget.onBackupChecklist,
+                  widget.onRestoreChecklist,
+                ),
+                const SizedBox(width: 16),
+                _buildCompactButton(
+                  'Jurnal',
+                  Icons.menu_book,
+                  widget.onBackupJurnal,
+                  widget.onRestoreJurnal,
+                ),
+                const SizedBox(width: 16),
+                _buildCompactButton(
+                  'Notes',
+                  Icons.note_alt,
+                  widget.onBackupNotes,
+                  widget.onRestoreNotes,
+                ),
+                const SizedBox(width: 16),
+                _buildCompactButton(
+                  'Prompts',
+                  Icons.smart_toy,
+                  widget.onBackupPrompts,
+                  widget.onRestorePrompts,
+                ),
+              ],
+            ),
           ),
         ),
         const Divider(thickness: 2),
@@ -371,7 +400,6 @@ class _BackupTabState extends State<BackupTab> {
                           )
                         : const Icon(Icons.folder_zip, color: Colors.amber),
                     title: Text(fileName),
-                    // === PERBAIKAN: MENGGUNAKAN POPUP MENU UNTUK AKSI YANG LEBIH PROFESIONAL ===
                     trailing: _isSelectionMode
                         ? null
                         : PopupMenuButton<String>(
@@ -444,6 +472,7 @@ class _BackupTabState extends State<BackupTab> {
     return Column(
       children: [
         CircleAvatar(child: Icon(icon, color: Colors.white)),
+        const SizedBox(height: 4),
         Text(
           label,
           style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
