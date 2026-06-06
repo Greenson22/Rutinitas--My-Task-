@@ -52,10 +52,18 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
   }
 
   void openMateriChecklist(DailySubject subject) {
+    // Kumpulkan semua kotak materi (DailySubject) dari seluruh seksi yang tersedia
+    List<DailySubject> allAvailableSubjects = [];
+    for (var section in currentGroup.allList) {
+      allAvailableSubjects.addAll(section.items);
+    }
+
     showDialog(
       context: context,
       builder: (context) => DailyChecklistDialog(
         subject: subject,
+        allAvailableSubjects:
+            allAvailableSubjects, // Pindah ke kotak checklist lainnya
         onDataChanged: () {
           saveGroupData();
           setState(() {});

@@ -9,11 +9,13 @@ import '../../../../core/presentation/widgets/base_popup_dialog.dart';
 class DailyChecklistDialog extends StatefulWidget {
   final DailySubject subject;
   final VoidCallback onDataChanged;
+  final List<DailySubject> allAvailableSubjects; // <-- Tambahkan parameter ini
 
   const DailyChecklistDialog({
     super.key,
     required this.subject,
     required this.onDataChanged,
+    required this.allAvailableSubjects, // <-- Tambahkan parameter ini
   });
 
   @override
@@ -111,7 +113,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     widget.onDataChanged();
   }
 
-  // --- FITUR BARU: Menampilkan Dialog Pilihan Target Pemindahan Item ---
+  // --- MODIFIKASI: Menampilkan Pilihan Target Pemindahan Sub-List & Kotak Checklist Lain ---
   void _showMoveSelectedItemsDialog(List<SubSubjectItem> allFlattened) {
     // Memastikan item tidak dipindahkan ke dirinya sendiri atau anak turunannya sendiri
     List<SubSubjectItem> validTargets = allFlattened.where((item) {
@@ -135,6 +137,11 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
       return !isChildOfSelected;
     }).toList();
 
+    // Dapatkan daftar kotak checklist (materi) lain selain yang sedang dibuka saat ini
+    List<DailySubject> otherSubjects = widget.allAvailableSubjects
+        .where((s) => s != widget.subject)
+        .toList();
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -144,6 +151,17 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
           child: ListView(
             shrinkWrap: true,
             children: [
+              // --- SEKSI 1: PINDAH DI DALAM MATERI INI ---
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
+                child: Text(
+                  'Ke Sub-List di Kotak Ini:',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.indigo,
+                  ),
+                ),
+              ),
               ListTile(
                 leading: const Icon(
                   Icons.label_important,
@@ -158,25 +176,52 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                   _moveSelectedItemsToTarget(null);
                 },
               ),
-              const Divider(),
-              if (validTargets.isEmpty)
+              if (validTargets.isNotEmpty)
+                ...validTargets.map(
+                  (target) => ListTile(
+                    leading: const Icon(
+                      Icons.subdirectory_arrow_right,
+                      color: Colors.teal,
+                    ),
+                    title: Text(target.subjectName),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _moveSelectedItemsToTarget(target);
+                    },
+                  ),
+                ),
+
+              const Divider(height: 24, thickness: 1.5),
+
+              // --- SEKSI 2: PINDAH KE KOTAK CHECKLIST LAIN ---
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
+                child: Text(
+                  'Ke Kotak Checklist Lain:',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.teal,
+                  ),
+                ),
+              ),
+              if (otherSubjects.isEmpty)
                 const Padding(
                   padding: EdgeInsets.all(8.0),
                   child: Text(
-                    'Tidak ada target sub-list yang valid.',
-                    style: TextStyle(color: Colors.grey),
+                    'Tidak ada kotak checklist lain tersedia.',
+                    style: TextStyle(color: Colors.grey, fontSize: 13),
                   ),
                 ),
-              ...validTargets.map(
-                (target) => ListTile(
-                  leading: const Icon(
-                    Icons.subdirectory_arrow_right,
-                    color: Colors.teal,
+              ...otherSubjects.map(
+                (targetSubject) => ListTile(
+                  leading: Text(
+                    targetSubject.icon.isNotEmpty ? targetSubject.icon : '📁',
+                    style: const TextStyle(fontSize: 18),
                   ),
-                  title: Text(target.subjectName),
+                  title: Text(targetSubject.subjectName),
                   onTap: () {
                     Navigator.pop(context);
-                    _moveSelectedItemsToTarget(target);
+                    _moveSelectedItemsToOtherSubject(targetSubject);
                   },
                 ),
               ),
@@ -193,6 +238,57 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
       if (_isDescendant(child, target)) return true;
     }
     return false;
+  }
+
+  // --- FITUR BARU: Eksekutor Pemindahan Item Lintas Kotak Checklist ---
+  void _moveSelectedItemsToOtherSubject(DailySubject targetSubject) {
+    _saveToHistory();
+    setState(() {
+      for (var item in _selectedItems) {
+        _deleteItemFromTree(widget.subject.subMateri, item);
+        targetSubject.subMateri.add(item);
+      }
+      _selectedItems.clear();
+      _isEditMode = false;
+    });
+
+    // Perbarui status hierarki kotak saat ini
+    for (var root in widget.subject.subMateri) {
+      root.updateStatusFromChildren();
+    }
+    _updateSubjectOverallProgress();
+
+    // Perbarui status hierarki kotak tujuan
+    for (var root in targetSubject.subMateri) {
+      root.updateStatusFromChildren();
+    }
+
+    // Hitung ulang progres total kotak tujuan
+    int totalTarget = targetSubject.subMateri.length;
+    int selesaiTarget = targetSubject.subMateri
+        .where((sm) => sm.progress == 'selesai')
+        .length;
+    if (totalTarget == 0) {
+      targetSubject.progress = 'belum';
+    } else if (selesaiTarget == totalTarget) {
+      targetSubject.progress = 'selesai';
+    } else if (selesaiTarget > 0) {
+      targetSubject.progress = 'sementara';
+    } else {
+      targetSubject.progress = 'belum';
+    }
+
+    widget.onDataChanged();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '📦 Item berhasil dipindahkan ke "${targetSubject.subjectName}"!',
+        ),
+        duration: const Duration(seconds: 2),
+        backgroundColor: Colors.teal[800],
+      ),
+    );
   }
 
   // --- FITUR BARU: Eksekutor Pemindahan Item List ---
@@ -771,7 +867,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
         allFlattened.isNotEmpty &&
         allFlattened.every((item) => _selectedItems.contains(item));
 
-    // --- FITUR BARU: Logika Deteksi Seleksi Item yang Berstatus Selesai ---
     List<SubSubjectItem> finishedItems = allFlattened
         .where((item) => item.progress == 'selesai')
         .toList();
@@ -1168,7 +1263,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                                   ),
                                 ),
 
-                              // --- UI BARU: Manajemen Seleksi Item Terbuka Modifikasi ---
                               if (_isEditMode && allFlattened.isNotEmpty)
                                 Padding(
                                   padding: const EdgeInsets.symmetric(
@@ -1203,7 +1297,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                                           ),
                                         ],
                                       ),
-                                      // --- FITUR BARU: Checkbox Pilih Semua Selesai ---
                                       Row(
                                         children: [
                                           Checkbox(
@@ -1441,7 +1534,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                   color: Colors.indigo,
                 ),
               ),
-              // --- ACTIONS BARU: Menampung Tombol Pindah Masal & Hapus Masal ---
               Row(
                 children: [
                   ElevatedButton.icon(
