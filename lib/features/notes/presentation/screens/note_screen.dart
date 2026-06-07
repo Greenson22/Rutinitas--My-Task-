@@ -476,98 +476,119 @@ class _NotesScreenState extends State<NotesScreen> {
           },
         );
       },
-      gridItemBuilder:
-          (context, noteGroup, index, sectionItems, isLayoutEditMode) {
-            return InteractiveGridCard(
-              themeColor: _themeColor,
-              isEditMode: isLayoutEditMode ? true : _isCardEditMode,
-              isFirst: index == 0,
-              isLast: index == sectionItems.length - 1,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        NoteDetailScreen(noteGroup: noteGroup),
-                  ),
-                ).then((_) => _loadNotesData());
-              },
-              onLongPress: () =>
-                  setState(() => _isCardEditMode = !_isCardEditMode),
-              onMoveLeft: () {},
-              onMoveRight: () {},
-              popupMenuItems: const [
-                PopupMenuItem(
-                  value: 'edit',
-                  child: Row(
-                    children: [
-                      Icon(Icons.edit, size: 18, color: Colors.teal),
-                      SizedBox(width: 10),
-                      Text('Ubah Nama & Ikon'),
-                    ],
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 'delete',
-                  child: Row(
-                    children: [
-                      Icon(Icons.delete_outline, size: 18, color: Colors.red),
-                      SizedBox(width: 10),
-                      Text('Hapus Grup', style: TextStyle(color: Colors.red)),
-                    ],
-                  ),
-                ),
-              ],
-              onPopupSelected: (value) async {
-                if (value == 'edit') {
-                  _showEditGroupDialog(noteGroup);
-                } else if (value == 'delete') {
-                  final bool isConfirmed = await _showConfirmDeleteDialog(
-                    noteGroup,
-                  );
-                  if (isConfirmed) {
-                    _deleteGroupData(noteGroup);
-                  }
-                }
-              },
-              content: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+      gridItemBuilder: (context, noteGroup, index, sectionItems, isLayoutEditMode) {
+        final sectionName = noteGroup.sectionName;
+        return InteractiveGridCard(
+          themeColor: _themeColor,
+          isEditMode: isLayoutEditMode ? true : _isCardEditMode,
+          isFirst: index == 0,
+          isLast: index == sectionItems.length - 1,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => NoteDetailScreen(noteGroup: noteGroup),
+              ),
+            ).then((_) => _loadNotesData());
+          },
+          onLongPress: () => setState(() => _isCardEditMode = !_isCardEditMode),
+          onMoveLeft: () async {
+            if (index > 0) {
+              setState(() {
+                // Tukar posisi item di dalam list seksi yang sama
+                final list = _groupedCategories[sectionName]!;
+                final temp = list[index];
+                list[index] = list[index - 1];
+                list[index - 1] = temp;
+              });
+              // Opsional: Simpan urutan baru ke penyimpanan lokal jika diperlukan
+              await _saveGroupData(_groupedCategories[sectionName]![index]);
+              await _saveGroupData(_groupedCategories[sectionName]![index - 1]);
+            }
+          },
+          onMoveRight: () async {
+            if (index < sectionItems.length - 1) {
+              setState(() {
+                // Tukar posisi item di dalam list seksi yang sama
+                final list = _groupedCategories[sectionName]!;
+                final temp = list[index];
+                list[index] = list[index + 1];
+                list[index + 1] = temp;
+              });
+              // Opsional: Simpan urutan baru ke penyimpanan lokal jika diperlukan
+              await _saveGroupData(_groupedCategories[sectionName]![index]);
+              await _saveGroupData(_groupedCategories[sectionName]![index + 1]);
+            }
+          },
+          popupMenuItems: const [
+            PopupMenuItem(
+              value: 'edit',
+              child: Row(
                 children: [
-                  Text(noteGroup.icon, style: const TextStyle(fontSize: 32)),
-                  const SizedBox(height: 8),
-                  Text(
-                    noteGroup.groupName,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _themeColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      '${noteGroup.notes.length} Catatan',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: _themeColor,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
+                  Icon(Icons.edit, size: 18, color: Colors.teal),
+                  SizedBox(width: 10),
+                  Text('Ubah Nama & Ikon'),
                 ],
               ),
-            );
+            ),
+            PopupMenuItem(
+              value: 'delete',
+              child: Row(
+                children: [
+                  Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                  SizedBox(width: 10),
+                  Text('Hapus Grup', style: TextStyle(color: Colors.red)),
+                ],
+              ),
+            ),
+          ],
+          onPopupSelected: (value) async {
+            if (value == 'edit') {
+              _showEditGroupDialog(noteGroup);
+            } else if (value == 'delete') {
+              final bool isConfirmed = await _showConfirmDeleteDialog(
+                noteGroup,
+              );
+              if (isConfirmed) {
+                _deleteGroupData(noteGroup);
+              }
+            }
           },
+          content: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(noteGroup.icon, style: const TextStyle(fontSize: 32)),
+              const SizedBox(height: 8),
+              Text(
+                noteGroup.groupName,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _themeColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  '${noteGroup.notes.length} Catatan',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: _themeColor,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
