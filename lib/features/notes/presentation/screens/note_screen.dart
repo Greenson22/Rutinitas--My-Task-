@@ -317,10 +317,8 @@ class _NotesScreenState extends State<NotesScreen> {
       isLoading: _isLoading,
       // PERUBAHAN: Validasi state kosong yang disesuaikan dengan inisialisasi dinamis map data
       isEmpty:
-          _groupedCategories.isEmpty ||
-          (_groupedCategories.containsKey('Catatan Utama') &&
-              _groupedCategories['Catatan Utama']!.isEmpty &&
-              _sectionKeys.length == 1),
+          _sectionKeys.isEmpty ||
+          _groupedCategories.values.every((list) => list.isEmpty),
       emptyMessage: 'Belum ada grup catatan. Buat folder catatan pertama Anda!',
       sectionKeys: _sectionKeys,
       groupedItems: filteredCategories,
