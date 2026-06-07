@@ -25,9 +25,9 @@ class _NotesScreenState extends State<NotesScreen> {
   // Variabel untuk menyimpan query pencarian
   String _searchQuery = '';
 
-  // PERUBAHAN: Dibuat agar dinamis tanpa keyword 'final'
-  List<String> _sectionKeys = ['Catatan Utama'];
-  final Map<String, List<NoteGroup>> _groupedCategories = {'Catatan Utama': []};
+  // PERUBAHAN: Mulai dengan list kosong agar inisialisasi seksi dilakukan secara dinamis dari storage
+  List<String> _sectionKeys = [];
+  final Map<String, List<NoteGroup>> _groupedCategories = {};
 
   @override
   void initState() {
@@ -35,6 +35,7 @@ class _NotesScreenState extends State<NotesScreen> {
     _loadNotesData();
   }
 
+  // PERUBAHAN: Memuat dan mengelompokkan grup note secara dinamis berdasarkan data seksi aslinya
   Future<void> _loadNotesData() async {
     setState(() => _isLoading = true);
     try {
@@ -47,8 +48,27 @@ class _NotesScreenState extends State<NotesScreen> {
         loadedGroups.add(NoteGroup.fromJson(jsonDecode(content)));
       }
 
+      // Bersihkan memory state lama sebelum memasukkan data hasil load
+      _sectionKeys.clear();
+      _groupedCategories.clear();
+
+      // Pastikan seksi default 'Catatan Utama' selalu diinisialisasi paling awal
+      _sectionKeys.add('Catatan Utama');
+      _groupedCategories['Catatan Utama'] = [];
+
+      // Distribusikan note groups ke dalam seksinya masing-masing
+      for (var group in loadedGroups) {
+        String secName =
+            group.sectionName; // Menggunakan properti baru dari model
+
+        if (!_sectionKeys.contains(secName)) {
+          _sectionKeys.add(secName);
+          _groupedCategories[secName] = [];
+        }
+        _groupedCategories[secName]!.add(group);
+      }
+
       setState(() {
-        _groupedCategories['Catatan Utama'] = loadedGroups;
         _isLoading = false;
       });
     } catch (e) {
@@ -72,7 +92,6 @@ class _NotesScreenState extends State<NotesScreen> {
       final baseDir = await _storageService.getBaseDirSetting();
       await _storageService.deleteNoteGroup(baseDir, group.id);
       setState(() {
-        // PERUBAHAN: Mencari dan menghapus dari seksi mana saja grup tersebut berada
         for (var key in _sectionKeys) {
           _groupedCategories[key]?.remove(group);
         }
@@ -82,7 +101,7 @@ class _NotesScreenState extends State<NotesScreen> {
     }
   }
 
-  // BARU: Fungsi helper untuk memicu konfirmasi dialog hapus grup
+  // Fungsi helper untuk memicu konfirmasi dialog hapus grup
   Future<bool> _showConfirmDeleteDialog(NoteGroup group) async {
     return await showDialog<bool>(
           context: context,
@@ -138,7 +157,7 @@ class _NotesScreenState extends State<NotesScreen> {
     return filtered;
   }
 
-  // BARU: Dialog khusus untuk menambah Seksi Baru (Menggantikan fungsi penambah grup di sebelah search)
+  // Dialog khusus untuk menambah Seksi Baru
   void _showAddSectionDialog() {
     final TextEditingController sectionController = TextEditingController();
     showDialog(
@@ -178,6 +197,7 @@ class _NotesScreenState extends State<NotesScreen> {
     );
   }
 
+  // PERUBAHAN: Memasukkan parameter `sectionName` ke dalam inisialisasi NoteGroup baru
   void _showAddGroupDialog(String sectionName) {
     final TextEditingController groupController = TextEditingController();
     final TextEditingController iconController = TextEditingController(
@@ -186,7 +206,7 @@ class _NotesScreenState extends State<NotesScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Buat Grup Catatan Baru'),
+        title: Text('Buat Grup Baru di $sectionName'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -220,6 +240,8 @@ class _NotesScreenState extends State<NotesScreen> {
                   groupName: newName,
                   icon: newIcon.isEmpty ? '📁' : newIcon,
                   notes: [],
+                  sectionName:
+                      sectionName, // Menyimpan relasi seksi tujuan ke local storage
                 );
 
                 setState(() => _groupedCategories[sectionName]!.add(newGroup));
@@ -235,7 +257,7 @@ class _NotesScreenState extends State<NotesScreen> {
     );
   }
 
-  // PERUBAHAN: Mengubah dialog edit agar mendukung perubahan nama sekaligus ikon emoji
+  // Mengubah dialog edit agar mendukung perubahan nama sekaligus ikon emoji
   void _showEditGroupDialog(NoteGroup group) {
     final TextEditingController nameController = TextEditingController(
       text: group.groupName,
@@ -297,7 +319,12 @@ class _NotesScreenState extends State<NotesScreen> {
       title: 'Note Groups',
       drawer: const DrawerMenu(isNotesActive: true),
       isLoading: _isLoading,
-      isEmpty: _groupedCategories['Catatan Utama']!.isEmpty,
+      // PERUBAHAN: Validasi state kosong yang disesuaikan dengan inisialisasi dinamis map data
+      isEmpty:
+          _groupedCategories.isEmpty ||
+          (_groupedCategories.containsKey('Catatan Utama') &&
+              _groupedCategories['Catatan Utama']!.isEmpty &&
+              _sectionKeys.length == 1),
       emptyMessage: 'Belum ada grup catatan. Buat folder catatan pertama Anda!',
       sectionKeys: _sectionKeys,
       groupedItems: filteredCategories,
@@ -311,7 +338,7 @@ class _NotesScreenState extends State<NotesScreen> {
           _searchQuery = query;
         });
       },
-      // PERUBAHAN: Tombol tambah utama sekarang membuka dialog seksi baru, bukan grup lagi.
+      // Tombol tambah utama membuka dialog seksi baru
       onAddPressed: _showAddSectionDialog,
       sectionHeaderBuilder: (context, index, sectionName, isLayoutEditMode) {
         return InteractiveSectionHeader(
@@ -324,100 +351,104 @@ class _NotesScreenState extends State<NotesScreen> {
               setState(() => _isSectionEditMode = !_isSectionEditMode),
           onEditName: () {},
           onDelete: () {},
-          // CATATAN: Tombol tambah di header sub-seksi tetap berfungsi membuat grup baru di dalam seksi bersangkutan.
+          // Tombol tambah di header sub-seksi membuat grup baru di dalam seksi bersangkutan
           onAddItem: () => _showAddGroupDialog(sectionName),
           onMoveUp: () {},
           onMoveDown: () {},
         );
       },
-      gridItemBuilder: (context, noteGroup, index, sectionItems, isLayoutEditMode) {
-        return InteractiveGridCard(
-          themeColor: _themeColor,
-          isEditMode: isLayoutEditMode ? true : _isCardEditMode,
-          isFirst: index == 0,
-          isLast: index == sectionItems.length - 1,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => NoteDetailScreen(noteGroup: noteGroup),
-              ),
-            ).then((_) => _loadNotesData());
-          },
-          onLongPress: () => setState(() => _isCardEditMode = !_isCardEditMode),
-          onMoveLeft: () {},
-          onMoveRight: () {},
-          // PERUBAHAN: Menyesuaikan teks menu agar informatif bagi pengguna
-          popupMenuItems: const [
-            PopupMenuItem(
-              value: 'edit',
-              child: Row(
-                children: [
-                  Icon(Icons.edit, size: 18, color: Colors.teal),
-                  SizedBox(width: 10),
-                  Text('Ubah Nama & Ikon'),
-                ],
-              ),
-            ),
-            PopupMenuItem(
-              value: 'delete',
-              child: Row(
-                children: [
-                  Icon(Icons.delete_outline, size: 18, color: Colors.red),
-                  SizedBox(width: 10),
-                  Text('Hapus Grup', style: TextStyle(color: Colors.red)),
-                ],
-              ),
-            ),
-          ],
-          // PERUBAHAN: Menambahkan intersep async-await untuk validasi dialog konfirmasi
-          onPopupSelected: (value) async {
-            if (value == 'edit') {
-              _showEditGroupDialog(noteGroup);
-            } else if (value == 'delete') {
-              final bool isConfirmed = await _showConfirmDeleteDialog(
-                noteGroup,
-              );
-              if (isConfirmed) {
-                _deleteGroupData(noteGroup);
-              }
-            }
-          },
-          content: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(noteGroup.icon, style: const TextStyle(fontSize: 32)),
-              const SizedBox(height: 8),
-              Text(
-                noteGroup.groupName,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _themeColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  '${noteGroup.notes.length} Catatan',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: _themeColor,
-                    fontWeight: FontWeight.bold,
+      gridItemBuilder:
+          (context, noteGroup, index, sectionItems, isLayoutEditMode) {
+            return InteractiveGridCard(
+              themeColor: _themeColor,
+              isEditMode: isLayoutEditMode ? true : _isCardEditMode,
+              isFirst: index == 0,
+              isLast: index == sectionItems.length - 1,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        NoteDetailScreen(noteGroup: noteGroup),
+                  ),
+                ).then((_) => _loadNotesData());
+              },
+              onLongPress: () =>
+                  setState(() => _isCardEditMode = !_isCardEditMode),
+              onMoveLeft: () {},
+              onMoveRight: () {},
+              popupMenuItems: const [
+                PopupMenuItem(
+                  value: 'edit',
+                  child: Row(
+                    children: [
+                      Icon(Icons.edit, size: 18, color: Colors.teal),
+                      SizedBox(width: 10),
+                      Text('Ubah Nama & Ikon'),
+                    ],
                   ),
                 ),
+                PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                      SizedBox(width: 10),
+                      Text('Hapus Grup', style: TextStyle(color: Colors.red)),
+                    ],
+                  ),
+                ),
+              ],
+              onPopupSelected: (value) async {
+                if (value == 'edit') {
+                  _showEditGroupDialog(noteGroup);
+                } else if (value == 'delete') {
+                  final bool isConfirmed = await _showConfirmDeleteDialog(
+                    noteGroup,
+                  );
+                  if (isConfirmed) {
+                    _deleteGroupData(noteGroup);
+                  }
+                }
+              },
+              content: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(noteGroup.icon, style: const TextStyle(fontSize: 32)),
+                  const SizedBox(height: 8),
+                  Text(
+                    noteGroup.groupName,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _themeColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '${noteGroup.notes.length} Catatan',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: _themeColor,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        );
-      },
+            );
+          },
     );
   }
 }

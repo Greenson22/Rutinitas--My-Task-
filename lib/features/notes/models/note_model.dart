@@ -7,6 +7,7 @@ class NoteGroup {
   List<NoteModel> notes;
   final String type; // 'text' atau 'field'
   final Map<String, String> fields;
+  String sectionName; // BARU: Menyimpan informasi seksi tempat grup ini berada
 
   NoteGroup({
     required this.id,
@@ -15,6 +16,7 @@ class NoteGroup {
     required this.notes,
     this.type = 'text',
     this.fields = const {},
+    this.sectionName = 'Catatan Utama', // BARU: Default seksi awal
   });
 
   Map<String, dynamic> toJson() => {
@@ -24,6 +26,7 @@ class NoteGroup {
     'notes': notes.map((note) => note.toJson()).toList(),
     'type': type,
     'fields': fields,
+    'sectionName': sectionName, // BARU
   };
 
   factory NoteGroup.fromJson(Map<String, dynamic> json) => NoteGroup(
@@ -33,6 +36,8 @@ class NoteGroup {
     notes: (json['notes'] as List)
         .map((noteJson) => NoteModel.fromJson(noteJson))
         .toList(),
+    // BARU: Jika data lama belum punya seksi, otomatis arahkan ke 'Catatan Utama'
+    sectionName: json['sectionName'] ?? 'Catatan Utama',
   );
 }
 
@@ -77,7 +82,6 @@ class NoteModel {
       parsedKeys = List<String>.from(json['fieldKeys']);
     }
 
-    // BARU: Parsing fieldTypes
     Map<String, String> parsedTypes = {};
     if (json['fieldTypes'] != null) {
       parsedTypes = Map<String, String>.from(json['fieldTypes']);
