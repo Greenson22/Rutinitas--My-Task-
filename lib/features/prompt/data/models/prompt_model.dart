@@ -1,9 +1,12 @@
+// lib/features/prompt/data/models/prompt_model.dart
+
 class PromptGroup {
   final String id;
   final String title;
   final String sectionName;
   final String icon;
   final String lastUpdated;
+  final int orderIndex; // PROPERTI BARU UNTUK MENYIMPAN URUTAN POSISI
   final List<PromptItem> prompts;
 
   PromptGroup({
@@ -12,6 +15,7 @@ class PromptGroup {
     required this.sectionName,
     required this.icon,
     required this.lastUpdated,
+    this.orderIndex = 0, // DEFAULT VALUE
     required this.prompts,
   });
 
@@ -27,6 +31,7 @@ class PromptGroup {
       sectionName: json['section_name'] ?? '',
       icon: json['icon'] ?? '📝',
       lastUpdated: json['last_updated'] ?? '',
+      orderIndex: json['order_index'] ?? 0, // AMBIL DATA URUTAN DARI JSON
       prompts: promptList,
     );
   }
@@ -38,6 +43,7 @@ class PromptGroup {
       'section_name': sectionName,
       'icon': icon,
       'last_updated': lastUpdated,
+      'order_index': orderIndex, // SIMPAN KE JSON
       'prompts': prompts.map((e) => e.toJson()).toList(),
     };
   }

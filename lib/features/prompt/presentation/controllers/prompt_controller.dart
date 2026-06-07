@@ -64,6 +64,7 @@ class PromptController extends ChangeNotifier {
               sectionName: group.sectionName,
               icon: group.icon,
               lastUpdated: group.lastUpdated,
+              orderIndex: group.orderIndex,
               prompts: matchesGroupTitle ? group.prompts : matchedPrompts,
             );
           }
@@ -115,9 +116,10 @@ class PromptController extends ChangeNotifier {
         loadedGroups.add(PromptGroup.fromJson(jsonMap));
       }
       _promptGroups = loadedGroups;
-      _promptGroups.sort(
-        (a, b) => a.title.compareTo(b.title),
-      ); // Atau kriteria urutan lainnya
+
+      // PERBAIKAN: Mengurutkan berdasarkan orderIndex, bukan abjad
+      _promptGroups.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+
       _isLoading = false;
       notifyListeners();
     } catch (e) {
@@ -208,13 +210,30 @@ class PromptController extends ChangeNotifier {
       ),
     );
 
+    // PERBAIKAN: Menulis ulang orderIndex setiap kali seksi digeser
     try {
       final baseDir = await _storageService.getBaseDirSetting();
-      for (var group in _promptGroups) {
-        final String jsonString = _storageService.formatJsonPretty(
-          group.toJson(),
+      for (int i = 0; i < _promptGroups.length; i++) {
+        final group = _promptGroups[i];
+        final updatedGroup = PromptGroup(
+          id: group.id,
+          title: group.title,
+          sectionName: group.sectionName,
+          icon: group.icon,
+          lastUpdated: group.lastUpdated,
+          orderIndex: i, // Memberi urutan index baru sesuai posisinya
+          prompts: group.prompts,
         );
-        await _storageService.savePromptGroup(baseDir, group.id, jsonString);
+
+        final String jsonString = _storageService.formatJsonPretty(
+          updatedGroup.toJson(),
+        );
+        await _storageService.savePromptGroup(
+          baseDir,
+          updatedGroup.id,
+          jsonString,
+        );
+        _promptGroups[i] = updatedGroup;
       }
     } catch (e) {
       debugPrint("Gagal mengamankan urutan seksi: $e");
@@ -261,6 +280,7 @@ class PromptController extends ChangeNotifier {
           sectionName: cleanNewName,
           icon: group.icon,
           lastUpdated: DateTime.now().toIso8601String(),
+          orderIndex: group.orderIndex,
           prompts: group.prompts,
         );
         final String jsonString = _storageService.formatJsonPretty(
@@ -282,6 +302,7 @@ class PromptController extends ChangeNotifier {
               sectionName: cleanNewName,
               icon: group.icon,
               lastUpdated: DateTime.now().toIso8601String(),
+              orderIndex: group.orderIndex,
               prompts: group.prompts,
             );
           }
@@ -348,6 +369,7 @@ class PromptController extends ChangeNotifier {
         sectionName: targetSection,
         icon: icon.trim().isEmpty ? '📝' : icon.trim(),
         lastUpdated: DateTime.now().toIso8601String(),
+        orderIndex: _promptGroups.length, // Letakkan urutan paling akhir
         prompts: [],
       );
 
@@ -398,23 +420,32 @@ class PromptController extends ChangeNotifier {
     _promptGroups = updatedGlobal;
     notifyListeners();
 
+    // PERBAIKAN: Menyimpan ulang indeks seluruh kotak agar tetap persisten di storage
     try {
       final baseDir = await _storageService.getBaseDirSetting();
-      // Berikan delay sedikit atau update properti internal agar OS memperbarui metadata file
-      final updatedItem = PromptGroup(
-        id: item.id,
-        title: item.title,
-        sectionName: item.sectionName,
-        icon: item.icon,
-        lastUpdated: DateTime.now()
-            .toIso8601String(), // Beri penanda waktu baru
-        prompts: item.prompts,
-      );
+      for (int i = 0; i < _promptGroups.length; i++) {
+        final currentGroup = _promptGroups[i];
+        final updatedGroup = PromptGroup(
+          id: currentGroup.id,
+          title: currentGroup.title,
+          sectionName: currentGroup.sectionName,
+          icon: currentGroup.icon,
+          lastUpdated: currentGroup.lastUpdated,
+          orderIndex: i, // Memperbarui urutan kotak
+          prompts: currentGroup.prompts,
+        );
 
-      final String jsonString = _storageService.formatJsonPretty(
-        updatedItem.toJson(),
-      );
-      await _storageService.savePromptGroup(baseDir, item.id, jsonString);
+        final String jsonString = _storageService.formatJsonPretty(
+          updatedGroup.toJson(),
+        );
+        await _storageService.savePromptGroup(
+          baseDir,
+          updatedGroup.id,
+          jsonString,
+        );
+
+        _promptGroups[i] = updatedGroup; // Update global state
+      }
     } catch (e) {
       debugPrint("Gagal mengamankan urutan group: $e");
     }
@@ -436,6 +467,7 @@ class PromptController extends ChangeNotifier {
         sectionName: group.sectionName,
         icon: newIcon.trim().isEmpty ? '📝' : newIcon.trim(),
         lastUpdated: DateTime.now().toIso8601String(),
+        orderIndex: group.orderIndex,
         prompts: group.prompts,
       );
 
@@ -470,6 +502,7 @@ class PromptController extends ChangeNotifier {
         sectionName: targetSection,
         icon: group.icon,
         lastUpdated: DateTime.now().toIso8601String(),
+        orderIndex: group.orderIndex,
         prompts: group.prompts,
       );
 
