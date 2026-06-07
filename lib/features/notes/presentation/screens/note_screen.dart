@@ -306,6 +306,115 @@ class _NotesScreenState extends State<NotesScreen> {
     );
   }
 
+  // Fungsi untuk Mengubah Nama Seksi
+  void _showRenameSectionDialog(String oldSectionName) {
+    final TextEditingController renameController = TextEditingController(
+      text: oldSectionName,
+    );
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Ubah Nama Seksi'),
+        content: TextField(
+          controller: renameController,
+          decoration: const InputDecoration(labelText: 'Nama Seksi Baru'),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final newSectionName = renameController.text.trim();
+              if (newSectionName.isNotEmpty &&
+                  newSectionName != oldSectionName) {
+                setState(() {
+                  // 1. Update list seksi
+                  int index = _sectionKeys.indexOf(oldSectionName);
+                  if (index != -1) {
+                    _sectionKeys[index] = newSectionName;
+                  }
+
+                  // 2. Pindahkan data map kategori ke key baru
+                  final items = _groupedCategories.remove(oldSectionName) ?? [];
+                  _groupedCategories[newSectionName] = items;
+
+                  // 3. Update sectionName di setiap NoteGroup objeknya agar sinkron saat di-save
+                  for (var group in items) {
+                    group.sectionName = newSectionName;
+                    _saveGroupData(
+                      group,
+                    ); // Save perubahan seksi ke local storage
+                  }
+                });
+                Navigator.pop(context);
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: _themeColor),
+            child: const Text('Simpan', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Fungsi untuk Menghapus Seksi beserta seluruh isinya
+  void _confirmDeleteSection(String sectionName) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: const [
+            Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
+            SizedBox(width: 8),
+            Text('Hapus Seksi?'),
+          ],
+        ),
+        content: Text(
+          'Apakah Anda yakin ingin menghapus seksi "$sectionName"? '
+          'Semua grup dan catatan di dalam seksi ini akan dihapus permanen dari penyimpanan.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final groupsToDelete = _groupedCategories[sectionName] ?? [];
+
+              // 1. Hapus semua file group yang ada di seksi ini dari storage
+              for (var group in groupsToDelete) {
+                try {
+                  final baseDir = await _storageService.getBaseDirSetting();
+                  await _storageService.deleteNoteGroup(baseDir, group.id);
+                } catch (e) {
+                  debugPrint("Gagal menghapus grup disk: $e");
+                }
+              }
+
+              // 2. Hapus dari state memory widget
+              setState(() {
+                _sectionKeys.remove(sectionName);
+                _groupedCategories.remove(sectionName);
+              });
+
+              if (mounted) Navigator.pop(ctx);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text(
+              'Hapus Semua',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Ambil data yang sudah difilter
@@ -343,12 +452,28 @@ class _NotesScreenState extends State<NotesScreen> {
           isLast: index == _sectionKeys.length - 1,
           onToggleEdit: () =>
               setState(() => _isSectionEditMode = !_isSectionEditMode),
-          onEditName: () {},
-          onDelete: () {},
+          onEditName: () => _showRenameSectionDialog(sectionName),
+          onDelete: () => _confirmDeleteSection(sectionName),
           // Tombol tambah di header sub-seksi membuat grup baru di dalam seksi bersangkutan
           onAddItem: () => _showAddGroupDialog(sectionName),
-          onMoveUp: () {},
-          onMoveDown: () {},
+          onMoveUp: () {
+            if (index > 0) {
+              setState(() {
+                final temp = _sectionKeys[index];
+                _sectionKeys[index] = _sectionKeys[index - 1];
+                _sectionKeys[index - 1] = temp;
+              });
+            }
+          },
+          onMoveDown: () {
+            if (index < _sectionKeys.length - 1) {
+              setState(() {
+                final temp = _sectionKeys[index];
+                _sectionKeys[index] = _sectionKeys[index + 1];
+                _sectionKeys[index + 1] = temp;
+              });
+            }
+          },
         );
       },
       gridItemBuilder:
