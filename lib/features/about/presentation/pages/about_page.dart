@@ -89,6 +89,18 @@ class _AboutPageState extends State<AboutPage>
             'Atur berbagai kategori rutinitas ke dalam multi-hub kustom. Dilengkapi struktur sub-materi bersarang (nested tree list) yang bisa dikelola secara tak terbatas.',
       },
       {
+        'icon': Icons.note_alt_outlined,
+        'title': 'Catatan Dinamis (Notes)',
+        'subtitle':
+            'Buat dan kelola catatan secara terstruktur dengan dukungan tampilan tabel (Table Data View) serta pengaturan kolom kustom yang fleksibel.',
+      },
+      {
+        'icon': Icons.smart_button,
+        'title': 'Manajemen Prompt',
+        'subtitle':
+            'Simpan, organisir, dan kelola template teks atau prompt AI Anda dengan rapi. Dilengkapi fitur manajemen detail item prompt yang komprehensif.',
+      },
+      {
         'icon': Icons.palette_outlined,
         'title': 'Kustomisasi Warna Adaptif',
         'subtitle':
@@ -122,7 +134,7 @@ class _AboutPageState extends State<AboutPage>
         'icon': Icons.folder_shared_outlined,
         'title': 'Penyimpanan Offline Lokal',
         'subtitle':
-            'Data disimpan sepenuhnya di memori lokal perangkat Anda (subfolder /mytask, /my_checklist, /jurnal_aktivitas) untuk menjamin privasi data 100% tanpa ketergantungan cloud.',
+            'Data disimpan sepenuhnya di memori lokal perangkat Anda (subfolder /mytask, /my_checklist, /jurnal_aktivitas, /notes, /prompt) untuk menjamin privasi data 100% tanpa ketergantungan cloud.',
       },
       {
         'icon': Icons.tune,
@@ -188,7 +200,7 @@ class _AboutPageState extends State<AboutPage>
           ),
           const SizedBox(height: 24),
           Text(
-            'Dibuat dengan semangat untuk menyediakan alat bantu produktivitas yang personal. Menggabungkan manajemen tugas, rutinitas harian, dan pelacakan waktu (jurnal) yang berjalan secara offline untuk menjaga privasi data Anda.',
+            'Dibuat dengan semangat untuk menyediakan alat bantu produktivitas yang personal. Menggabungkan manajemen tugas, rutinitas harian, catatan, pengelola prompt, dan pelacakan waktu (jurnal) yang berjalan secara offline untuk menjaga privasi data Anda.',
             textAlign: TextAlign.center,
             style: textTheme.bodyMedium,
           ),
