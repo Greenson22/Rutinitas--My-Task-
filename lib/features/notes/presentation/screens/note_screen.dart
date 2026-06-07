@@ -156,6 +156,7 @@ class _NotesScreenState extends State<NotesScreen> {
   // Dialog khusus untuk menambah Seksi Baru
   void _showAddSectionDialog() {
     final TextEditingController sectionController = TextEditingController();
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -183,6 +184,16 @@ class _NotesScreenState extends State<NotesScreen> {
                   _groupedCategories[newSectionName] = [];
                 });
                 Navigator.pop(context);
+
+                // Menampilkan notifikasi Snackbar setelah seksi ditambahkan
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Seksi "$newSectionName" berhasil dibuat! Tekan tombol + di kanannya untuk menambah grup.',
+                    ),
+                    backgroundColor: _themeColor,
+                  ),
+                );
               }
             },
             style: ElevatedButton.styleFrom(backgroundColor: _themeColor),
@@ -426,7 +437,7 @@ class _NotesScreenState extends State<NotesScreen> {
       isLoading: _isLoading,
       // PERUBAHAN: Validasi state kosong yang disesuaikan dengan inisialisasi dinamis map data
       isEmpty:
-          _sectionKeys.isEmpty ||
+          _sectionKeys.isEmpty &&
           _groupedCategories.values.every((list) => list.isEmpty),
       emptyMessage: 'Belum ada grup catatan. Buat folder catatan pertama Anda!',
       sectionKeys: _sectionKeys,
