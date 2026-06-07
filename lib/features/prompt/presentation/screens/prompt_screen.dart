@@ -404,7 +404,7 @@ class _PromptScreenState extends State<PromptScreen> {
                         builder: (context) =>
                             PromptDetailScreen(promptGroup: promptGroup),
                       ),
-                    ).then((_) => _controller.loadAllPrompts(context));
+                    );
                   },
                   onLongPress: () {
                     _controller.toggleCardEditMode();

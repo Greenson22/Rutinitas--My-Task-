@@ -115,6 +115,9 @@ class PromptController extends ChangeNotifier {
         loadedGroups.add(PromptGroup.fromJson(jsonMap));
       }
       _promptGroups = loadedGroups;
+      _promptGroups.sort(
+        (a, b) => a.title.compareTo(b.title),
+      ); // Atau kriteria urutan lainnya
       _isLoading = false;
       notifyListeners();
     } catch (e) {
@@ -377,6 +380,7 @@ class PromptController extends ChangeNotifier {
 
     final List<PromptGroup> updatedGlobal = [];
     final Set<String> processedSections = {};
+
     for (var g in _promptGroups) {
       final sec = g.sectionName.toUpperCase();
       if (!processedSections.contains(sec)) {
@@ -390,17 +394,27 @@ class PromptController extends ChangeNotifier {
         }
       }
     }
+
     _promptGroups = updatedGlobal;
     notifyListeners();
 
     try {
       final baseDir = await _storageService.getBaseDirSetting();
-      for (var group in _promptGroups) {
-        final String jsonString = _storageService.formatJsonPretty(
-          group.toJson(),
-        );
-        await _storageService.savePromptGroup(baseDir, group.id, jsonString);
-      }
+      // Berikan delay sedikit atau update properti internal agar OS memperbarui metadata file
+      final updatedItem = PromptGroup(
+        id: item.id,
+        title: item.title,
+        sectionName: item.sectionName,
+        icon: item.icon,
+        lastUpdated: DateTime.now()
+            .toIso8601String(), // Beri penanda waktu baru
+        prompts: item.prompts,
+      );
+
+      final String jsonString = _storageService.formatJsonPretty(
+        updatedItem.toJson(),
+      );
+      await _storageService.savePromptGroup(baseDir, item.id, jsonString);
     } catch (e) {
       debugPrint("Gagal mengamankan urutan group: $e");
     }
