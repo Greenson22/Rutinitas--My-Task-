@@ -52,10 +52,6 @@ class _NotesScreenState extends State<NotesScreen> {
       _sectionKeys.clear();
       _groupedCategories.clear();
 
-      // Pastikan seksi default 'Catatan Utama' selalu diinisialisasi paling awal
-      _sectionKeys.add('Catatan Utama');
-      _groupedCategories['Catatan Utama'] = [];
-
       // Distribusikan note groups ke dalam seksinya masing-masing
       for (var group in loadedGroups) {
         String secName =
