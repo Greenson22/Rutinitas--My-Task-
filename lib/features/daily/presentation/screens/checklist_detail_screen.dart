@@ -24,6 +24,32 @@ class ChecklistDetailScreen extends StatefulWidget {
 class _ChecklistDetailScreenState extends ChecklistDetailController {
   @override
   Widget build(BuildContext context) {
+    // Fungsi rekursif untuk menghitung TOTAL seluruh item (termasuk nested list)
+    int _countTotalItems(List<SubSubjectItem> items) {
+      int count = 0;
+      for (var item in items) {
+        count++;
+        if (item.subMateri.isNotEmpty) {
+          count += _countTotalItems(item.subMateri);
+        }
+      }
+      return count;
+    }
+
+    // Fungsi rekursif untuk menghitung seluruh item yang SELESAI (termasuk nested list)
+    int _countFinishedItems(List<SubSubjectItem> items) {
+      int count = 0;
+      for (var item in items) {
+        if (item.progress == 'selesai') {
+          count++;
+        }
+        if (item.subMateri.isNotEmpty) {
+          count += _countFinishedItems(item.subMateri);
+        }
+      }
+      return count;
+    }
+
     // 1. Tangani keadaan awal kosong dengan Scaffold bawaan agar tombol ElevatedButton tetap di tengah
     if (currentGroup.allList.isEmpty) {
       return Scaffold(
@@ -121,10 +147,9 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
       },
 
       gridItemBuilder: (context, subject, index, sectionItems, isLayoutEditMode) {
-        int totalSub = subject.subMateri.length;
-        int selesaiSub = subject.subMateri
-            .where((sm) => sm.progress == 'selesai')
-            .length;
+        // Menggunakan fungsi rekursif agar nested list terhitung secara akurat
+        int totalSub = _countTotalItems(subject.subMateri);
+        int selesaiSub = _countFinishedItems(subject.subMateri);
         bool isAllDone = totalSub > 0 && totalSub == selesaiSub;
 
         String topListText = "Tidak ada list";
@@ -203,6 +228,11 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                           ? Colors.orange[700]!
                           : Colors.green[700]!);
 
+                // Hitung persentase dengan format 1 angka di belakang koma
+                String percentageText = (progressPercent * 100).toStringAsFixed(
+                  1,
+                );
+
                 return Container(
                   width: double.infinity,
                   height: 22,
@@ -227,7 +257,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                           child: Text(
                             isAllDone
                                 ? 'Selesai Semua'
-                                : '$selesaiSub / $totalSub List',
+                                : '$selesaiSub / $totalSub List ($percentageText%)',
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 9,
