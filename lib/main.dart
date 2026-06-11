@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'features/task_master/presentation/screens/home_screen.dart';
+import 'features/task_master/presentation/screens/task_master_screen.dart';
 import 'package:window_manager/window_manager.dart';
 
 void main() {
