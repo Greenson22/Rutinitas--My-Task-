@@ -732,6 +732,7 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: Colors.grey[200],
       appBar: BaseDetailAppBar(
         pageTitle: 'Task Master',
+        forceShowMenu: true,
         isSelectMode: false,
         selectedItemsCount: _visibleCategories.length,
         isSearchMode: _internalSearchMode,

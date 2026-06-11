@@ -20,8 +20,11 @@ class BaseDetailAppBar extends StatelessWidget implements PreferredSizeWidget {
   // Konten isi kolom pencarian yang disuntikkan dari parent screen
   final Widget? searchBarContent;
 
-  // TAMBAHAN BARU: Widget aksi tambahan di sisi kanan title atau menu (opsional)
+  // Widget aksi tambahan di sisi kanan title atau menu (opsional)
   final Widget? additionalAction;
+
+  // TAMBAHAN BARU: Kunci agar selalu memunculkan tombol menu/drawer (garis tiga)
+  final bool forceShowMenu;
 
   const BaseDetailAppBar({
     super.key,
@@ -36,23 +39,21 @@ class BaseDetailAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.onMoveMassive,
     this.onDeleteMassive,
     this.searchBarContent,
-    this.additionalAction, // <--- Daftarkan di konstruktor
+    this.additionalAction,
+    this.forceShowMenu =
+        false, // Beri nilai default false agar tidak merusak halaman lain
   });
 
   @override
   Widget build(BuildContext context) {
+    // Cek apakah rute saat ini bisa melakukan pop dan tidak dipaksa menampilkan menu
+    final bool canPop = Navigator.canPop(context) && !forceShowMenu;
+
     return AppBar(
       backgroundColor: isSelectMode
           ? Colors.yellow[900]
           : const Color(0xFF3F51B5),
-      elevation: 0,
-      title: Text(
-        isSelectMode ? '$selectedItemsCount Terpilih' : pageTitle,
-        style: const TextStyle(
-          fontWeight: FontWeight.w600,
-          color: Colors.white,
-        ),
-      ),
+      elevation: 2,
       leading: isSelectMode
           ? IconButton(
               icon: const Icon(Icons.close, color: Colors.white),
@@ -60,29 +61,43 @@ class BaseDetailAppBar extends StatelessWidget implements PreferredSizeWidget {
             )
           : IconButton(
               icon: Icon(
-                Navigator.canPop(context) ? Icons.arrow_back : Icons.menu,
+                canPop ? Icons.arrow_back : Icons.menu,
                 color: Colors.white,
               ),
               onPressed: () {
-                if (Navigator.canPop(context)) {
+                if (canPop) {
                   Navigator.pop(context);
                 } else {
                   Scaffold.of(context).openDrawer();
                 }
               },
             ),
-      flexibleSpace: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onLongPress: () {
-            if (enableSearch && !isSelectMode) {
-              onToggleSearchMode();
-            }
-          },
-          child: const SizedBox.expand(),
-        ),
-      ),
+      title: isSelectMode
+          ? Text(
+              '$selectedItemsCount Terpilih',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            )
+          : Text(
+              pageTitle,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
       actions: [
+        if (enableSearch && !isSelectMode)
+          IconButton(
+            icon: Icon(
+              isSearchMode ? Icons.close : Icons.search,
+              color: Colors.white,
+            ),
+            onPressed: onToggleSearchMode,
+          ),
         if (isSelectMode) ...[
           if (onMoveMassive != null)
             IconButton(
@@ -95,9 +110,7 @@ class BaseDetailAppBar extends StatelessWidget implements PreferredSizeWidget {
               onPressed: onDeleteMassive,
             ),
         ] else ...[
-          // TAMBAHAN BARU: Munculkan tombol aksi kustom jika dikirim dari parent
           if (additionalAction != null) additionalAction!,
-
           if (isSearchMode)
             IconButton(
               icon: const Icon(Icons.search_off_rounded, color: Colors.white),
