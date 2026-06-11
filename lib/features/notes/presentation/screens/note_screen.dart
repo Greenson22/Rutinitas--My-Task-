@@ -1,4 +1,5 @@
 // lib/features/notes/presentation/screens/notes_screen.dart
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:rutinitasku/core/presentation/widgets/drawer_menu.dart';
@@ -17,7 +18,6 @@ class NotesScreen extends StatefulWidget {
 class _NotesScreenState extends State<NotesScreen> {
   final StorageService _storageService = StorageService();
   final Color _themeColor = Colors.indigo;
-
   bool _isLoading = true;
   bool _isSectionEditMode = false;
   bool _isCardEditMode = false;
@@ -47,7 +47,6 @@ class _NotesScreenState extends State<NotesScreen> {
     try {
       final baseDir = await _storageService.getBaseDirSetting();
       final files = await _storageService.getAllNoteGroups(baseDir);
-
       List<NoteGroup> loadedGroups = [];
       for (var file in files) {
         final content = await file.readAsString();
@@ -67,7 +66,6 @@ class _NotesScreenState extends State<NotesScreen> {
       for (var group in loadedGroups) {
         String secName =
             group.sectionName; // Menggunakan properti baru dari model
-
         if (group.isHidden) {
           if (!_hiddenGroupedCategories.containsKey(secName)) {
             _hiddenGroupedCategories[secName] = [];
@@ -81,7 +79,6 @@ class _NotesScreenState extends State<NotesScreen> {
           _groupedCategories[secName]!.add(group);
         }
       }
-
       setState(() {
         _isLoading = false;
       });
@@ -180,7 +177,6 @@ class _NotesScreenState extends State<NotesScreen> {
     if (!availableSections.contains("Catatan Utama")) {
       availableSections.add("Catatan Utama");
     }
-
     showDialog(
       context: context,
       builder: (context) {
@@ -247,7 +243,6 @@ class _NotesScreenState extends State<NotesScreen> {
     List<String> keys,
   ) {
     if (_searchQuery.isEmpty) return sourceMap;
-
     Map<String, List<NoteGroup>> filtered = {};
     for (var key in keys) {
       filtered[key] = (sourceMap[key] ?? []).where((group) {
@@ -262,7 +257,6 @@ class _NotesScreenState extends State<NotesScreen> {
   // Dialog khusus untuk menambah Seksi Baru
   void _showAddSectionDialog() {
     final TextEditingController sectionController = TextEditingController();
-
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -290,7 +284,6 @@ class _NotesScreenState extends State<NotesScreen> {
                   _groupedCategories[newSectionName] = [];
                 });
                 Navigator.pop(context);
-
                 // Menampilkan notifikasi Snackbar setelah seksi ditambahkan
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
@@ -314,7 +307,7 @@ class _NotesScreenState extends State<NotesScreen> {
   void _showAddGroupDialog(String sectionName) {
     final TextEditingController groupController = TextEditingController();
     final TextEditingController iconController = TextEditingController(
-      text: '📝',
+      text: '📁',
     );
     showDialog(
       context: context,
@@ -351,11 +344,10 @@ class _NotesScreenState extends State<NotesScreen> {
                 // Ambil panjang list saat ini di seksi terkait untuk dijadikan indeks urutan akhir
                 final currentSectionLength =
                     _groupedCategories[sectionName]?.length ?? 0;
-
                 final newGroup = NoteGroup(
                   id: DateTime.now().millisecondsSinceEpoch.toString(),
                   groupName: newName,
-                  icon: newIcon.isEmpty ? '📝' : newIcon,
+                  icon: newIcon.isEmpty ? '📁' : newIcon,
                   notes: [],
                   sectionName:
                       sectionName, // Menyimpan relasi seksi tujuan ke local storage
@@ -363,7 +355,6 @@ class _NotesScreenState extends State<NotesScreen> {
                   orderIndex:
                       currentSectionLength, // <--- SET DI URUTAN TERAKHIR
                 );
-
                 setState(() => _groupedCategories[sectionName]!.add(newGroup));
                 await _saveGroupData(newGroup);
                 if (mounted) Navigator.pop(context);
@@ -416,7 +407,7 @@ class _NotesScreenState extends State<NotesScreen> {
               if (updatedName.isNotEmpty) {
                 setState(() {
                   group.groupName = updatedName;
-                  group.icon = updatedIcon.isEmpty ? '📝' : updatedIcon;
+                  group.icon = updatedIcon.isEmpty ? '📁' : updatedIcon;
                 });
                 await _saveGroupData(group);
                 if (mounted) Navigator.pop(context);
@@ -460,11 +451,9 @@ class _NotesScreenState extends State<NotesScreen> {
                   if (index != -1) {
                     _sectionKeys[index] = newSectionName;
                   }
-
                   // 2. Pindahkan data map kategori ke key baru
                   final items = _groupedCategories.remove(oldSectionName) ?? [];
                   _groupedCategories[newSectionName] = items;
-
                   // 3. Update sectionName di setiap NoteGroup objeknya agar sinkron saat di-save
                   for (var group in items) {
                     group.sectionName = newSectionName;
@@ -509,7 +498,6 @@ class _NotesScreenState extends State<NotesScreen> {
           ElevatedButton(
             onPressed: () async {
               final groupsToDelete = _groupedCategories[sectionName] ?? [];
-
               // 1. Hapus semua file group yang ada di seksi ini dari storage
               for (var group in groupsToDelete) {
                 try {
@@ -519,13 +507,11 @@ class _NotesScreenState extends State<NotesScreen> {
                   debugPrint("Gagal menghapus grup disk: $e");
                 }
               }
-
               // 2. Hapus dari state memory widget
               setState(() {
                 _sectionKeys.remove(sectionName);
                 _groupedCategories.remove(sectionName);
               });
-
               if (mounted) Navigator.pop(ctx);
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
@@ -554,7 +540,6 @@ class _NotesScreenState extends State<NotesScreen> {
         if (groupsList.isNotEmpty) {
           String hiddenKey = '${sectionKey}_hidden_key';
           allRenderedKeys.add(hiddenKey);
-
           if (_searchQuery.isEmpty) {
             allRenderedItems[hiddenKey] = groupsList;
           } else {
@@ -590,7 +575,6 @@ class _NotesScreenState extends State<NotesScreen> {
       },
       // Tombol tambah utama membuka dialog seksi baru
       onAddPressed: _showAddSectionDialog,
-
       // ====================================================================
       // TAMBAHAN BARU: Tombol Muncul di AppBar Utama saat Tahan Lama Aktif
       // Menyediakan tombol toggle kustom untuk menampilkan seksi hidden group
@@ -609,7 +593,6 @@ class _NotesScreenState extends State<NotesScreen> {
           });
         },
       ),
-
       sectionHeaderBuilder: (context, index, sectionName, isLayoutEditMode) {
         // Render Header Pembatas Khusus untuk Seksi Kategori yang Tersembunyi
         if (index >= visibleKeysCount) {
@@ -639,7 +622,6 @@ class _NotesScreenState extends State<NotesScreen> {
             ],
           );
         }
-
         return InteractiveSectionHeader(
           sectionName: sectionName,
           themeColor: _themeColor,
@@ -700,7 +682,6 @@ class _NotesScreenState extends State<NotesScreen> {
                   list[index - 1] = temp;
                 }
               });
-
               // PERBAIKAN: Berikan nomor index urutan baru lalu save ke lokal agar posisinya permanen
               final currentList =
                   _groupedCategories[noteGroup.sectionName] ?? [];
@@ -721,7 +702,6 @@ class _NotesScreenState extends State<NotesScreen> {
                   list[index + 1] = temp;
                 }
               });
-
               // PERBAIKAN: Berikan nomor index urutan baru lalu save ke lokal agar posisinya permanen
               final currentList =
                   _groupedCategories[noteGroup.sectionName] ?? [];
@@ -738,7 +718,7 @@ class _NotesScreenState extends State<NotesScreen> {
                 children: [
                   Icon(Icons.edit, size: 18, color: Colors.teal),
                   SizedBox(width: 10),
-                  Text('Ubah Nama & Ikon'),
+                  Text('Ubah Nama & Ikon', style: TextStyle(fontSize: 13)),
                 ],
               ),
             ),
@@ -753,7 +733,7 @@ class _NotesScreenState extends State<NotesScreen> {
                     color: Colors.indigo,
                   ),
                   SizedBox(width: 10),
-                  Text('Pindahkan Seksi'),
+                  Text('Pindahkan Seksi', style: TextStyle(fontSize: 13)),
                 ],
               ),
             ),
@@ -772,6 +752,7 @@ class _NotesScreenState extends State<NotesScreen> {
                   const SizedBox(width: 10),
                   Text(
                     noteGroup.isHidden ? 'Tampilkan Grup' : 'Sembunyikan Grup',
+                    style: const TextStyle(fontSize: 13),
                   ),
                 ],
               ),
@@ -783,7 +764,10 @@ class _NotesScreenState extends State<NotesScreen> {
                 children: [
                   Icon(Icons.delete_outline, size: 18, color: Colors.red),
                   SizedBox(width: 10),
-                  Text('Hapus Grup', style: TextStyle(color: Colors.red)),
+                  Text(
+                    'Hapus Grup',
+                    style: TextStyle(color: Colors.red, fontSize: 13),
+                  ),
                 ],
               ),
             ),
