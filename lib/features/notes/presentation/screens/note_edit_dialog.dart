@@ -108,7 +108,8 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
     super.dispose();
   }
 
-  void _executeSaveAction() async {
+  // Mengubah return type menjadi Future<bool> untuk mengetahui apakah proses simpan berhasil
+  Future<bool> _executeSaveAction() async {
     setState(() => _isSaving = true);
 
     final NoteModel savedNote = await widget.controller.performSave(
@@ -138,262 +139,343 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
         _hasChanges = false;
         _isSaving = false;
       });
+      return true;
     }
+    return false;
+  }
+
+  // BARU: Fungsi untuk menampilkan Pop-up Konfirmasi Simpan/Buang Perubahan
+  Future<bool> _showExitConfirmationDialog() async {
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: const [
+            Icon(Icons.warning_amber_rounded, color: Colors.amber),
+            SizedBox(width: 8),
+            Text('Perubahan Belum Disimpan'),
+          ],
+        ),
+        content: const Text(
+          'Apakah Anda ingin menyimpan perubahan pada catatan ini sebelum menutup?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(ctx, 'cancel'), // Tetap di dialog edit
+            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(ctx, 'discard'), // Keluar tanpa simpan
+            child: const Text(
+              'Jangan Simpan',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, 'save'), // Simpan lalu keluar
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+            child: const Text('Simpan', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (result == 'save') {
+      return await _executeSaveAction(); // Keluar jika simpan berhasil
+    } else if (result == 'discard') {
+      return true; // Keluar tanpa menyimpan
+    }
+    return false; // Batalkan proses keluar
   }
 
   @override
   Widget build(BuildContext context) {
-    return Focus(
-      onKeyEvent: (node, event) {
-        final isControlPressed =
-            HardwareKeyboard.instance.isControlPressed ||
-            HardwareKeyboard.instance.isMetaPressed;
-        if (event is KeyDownEvent &&
-            event.logicalKey == LogicalKeyboardKey.keyS &&
-            isControlPressed) {
-          if (_hasChanges && !_isSaving) {
-            _executeSaveAction();
-          }
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
-      },
-      child: BasePopupDialog(
-        title: Row(
-          children: [
-            Expanded(
-              child: _isEditingTitle
-                  ? TextField(
-                      controller: _titleController,
-                      autofocus: true,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      decoration: const InputDecoration(
-                        hintText: 'Judul Catatan...',
-                        hintStyle: TextStyle(color: Colors.white60),
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    )
-                  : Text(
-                      _titleController.text,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-            ),
-            const SizedBox(width: 8),
+    // BARU: Membungkus seluruh hirarki dengan PopScope untuk memantau gesture close/back system
+    return PopScope(
+      canPop:
+          !_hasChanges ||
+          _isSaving, // Langsung pop jika tidak ada perubahan atau sedang loading save
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop)
+          return; // Jika sudah di-pop oleh sistem, tidak perlu intervensi
 
-            // BARU: Logika Tampilan Tombol berdasarkan View Mode
-            if (_isViewMode) ...[
-              IconButton(
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                icon: const Icon(Icons.edit, color: Colors.white, size: 20),
-                tooltip: 'Edit Catatan',
-                onPressed: () {
-                  setState(() {
-                    _isViewMode = false;
-                  });
-                },
-              ),
-            ] else ...[
-              if (_hasChanges) ...[
-                _isSaving
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            Colors.white,
-                          ),
+        // Tampilkan konfirmasi, jika user memilih simpan/buang (return true), tutup dialog secara manual
+        final shouldPop = await _showExitConfirmationDialog();
+        if (shouldPop && context.mounted) {
+          Navigator.pop(context);
+        }
+      },
+      child: Focus(
+        onKeyEvent: (node, event) {
+          final isControlPressed =
+              HardwareKeyboard.instance.isControlPressed ||
+              HardwareKeyboard.instance.isMetaPressed;
+          if (event is KeyDownEvent &&
+              event.logicalKey == LogicalKeyboardKey.keyS &&
+              isControlPressed) {
+            if (_hasChanges && !_isSaving) {
+              _executeSaveAction();
+            }
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: BasePopupDialog(
+          title: Row(
+            children: [
+              Expanded(
+                child: _isEditingTitle
+                    ? TextField(
+                        controller: _titleController,
+                        autofocus: true,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        decoration: const InputDecoration(
+                          hintText: 'Judul Catatan...',
+                          hintStyle: TextStyle(color: Colors.white60),
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: EdgeInsets.zero,
                         ),
                       )
-                    : IconButton(
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        icon: const Icon(
-                          Icons.save,
-                          color: Colors.amberAccent,
-                          size: 20,
+                    : Text(
+                        _titleController.text,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
                         ),
-                        tooltip: 'Simpan Catatan',
-                        onPressed: _executeSaveAction,
                       ),
+              ),
+              const SizedBox(width: 8),
+
+              // BARU: Logika Tampilan Tombol berdasarkan View Mode
+              if (_isViewMode) ...[
+                IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  icon: const Icon(Icons.edit, color: Colors.white, size: 20),
+                  tooltip: 'Edit Catatan',
+                  onPressed: () {
+                    setState(() {
+                      _isViewMode = false;
+                    });
+                  },
+                ),
+              ] else ...[
+                if (_hasChanges) ...[
+                  _isSaving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
+                          ),
+                        )
+                      : IconButton(
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          icon: const Icon(
+                            Icons.save,
+                            color: Colors.amberAccent,
+                            size: 20,
+                          ),
+                          tooltip: 'Simpan Catatan',
+                          onPressed: _executeSaveAction,
+                        ),
+                  const SizedBox(width: 10),
+                ],
+                IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  icon: Icon(
+                    _currentType == 'text' ? Icons.list_alt : Icons.table_chart,
+                    color: Colors.tealAccent,
+                    size: 20,
+                  ),
+                  tooltip: _currentType == 'text'
+                      ? 'Ubah ke Catatan Berfield (Tabel)'
+                      : 'Ubah ke Catatan Teks',
+                  onPressed: () {
+                    setState(() {
+                      _currentType = _currentType == 'text' ? 'table' : 'text';
+                      _hasChanges = true;
+                    });
+                  },
+                ),
                 const SizedBox(width: 10),
+                IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  icon: Icon(
+                    _isEditingTitle ? Icons.check : Icons.edit,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                  tooltip: _isEditingTitle ? 'Selesai' : 'Ubah Judul',
+                  onPressed: () {
+                    setState(() {
+                      if (_isEditingTitle &&
+                          _titleController.text.trim().isEmpty) {
+                        _titleController.text =
+                            _editableNote?.title ?? 'Catatan Baru';
+                      }
+                      _isEditingTitle = !_isEditingTitle;
+                    });
+                  },
+                ),
               ],
-              IconButton(
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                icon: Icon(
-                  _currentType == 'text' ? Icons.list_alt : Icons.table_chart,
-                  color: Colors.tealAccent,
-                  size: 20,
-                ),
-                tooltip: _currentType == 'text'
-                    ? 'Ubah ke Catatan Berfield (Tabel)'
-                    : 'Ubah ke Catatan Teks',
-                onPressed: () {
-                  setState(() {
-                    _currentType = _currentType == 'text' ? 'table' : 'text';
-                    _hasChanges = true;
-                  });
-                },
-              ),
-              const SizedBox(width: 10),
-              IconButton(
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                icon: Icon(
-                  _isEditingTitle ? Icons.check : Icons.edit,
-                  color: Colors.white,
-                  size: 18,
-                ),
-                tooltip: _isEditingTitle ? 'Selesai' : 'Ubah Judul',
-                onPressed: () {
-                  setState(() {
-                    if (_isEditingTitle &&
-                        _titleController.text.trim().isEmpty) {
-                      _titleController.text =
-                          _editableNote?.title ?? 'Catatan Baru';
-                    }
-                    _isEditingTitle = !_isEditingTitle;
-                  });
-                },
-              ),
             ],
-          ],
-        ),
-        themeColor: Colors.indigo,
-        titleColor: Colors.white,
-        content: Container(
-          height: MediaQuery.of(context).size.height * 0.65,
-          color: Colors.grey[100],
-          child: _currentType == 'text'
-              ? Container(
-                  color: Colors.white,
-                  padding: const EdgeInsets.all(16.0),
-                  child: TextField(
-                    controller: _contentController,
-                    readOnly:
-                        _isViewMode, // BARU: Mencegah ketik jika mode view
-                    maxLines: null,
-                    expands: true,
-                    textAlignVertical: TextAlignVertical.top,
-                    decoration: InputDecoration(
-                      hintText: _isViewMode
-                          ? 'Catatan kosong.'
-                          : 'Tulis catatan Anda di sini...',
-                      hintStyle: TextStyle(color: Colors.grey[400]),
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
+          ),
+          themeColor: Colors.indigo,
+          titleColor: Colors.white,
+          content: Container(
+            height: MediaQuery.of(context).size.height * 0.65,
+            color: Colors.grey[100],
+            child: _currentType == 'text'
+                ? Container(
+                    color: Colors.white,
+                    padding: const EdgeInsets.all(16.0),
+                    child: TextField(
+                      controller: _contentController,
+                      readOnly:
+                          _isViewMode, // BARU: Mencegah ketik jika mode view
+                      maxLines: null,
+                      expands: true,
+                      textAlignVertical: TextAlignVertical.top,
+                      decoration: InputDecoration(
+                        hintText: _isViewMode
+                            ? 'Catatan kosong.'
+                            : 'Tulis catatan Anda di sini...',
+                        hintStyle: TextStyle(color: Colors.grey[400]),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                  )
+                // BARU: Menangani tampilan tabel berdasarkan view mode
+                : _isViewMode
+                ? Container(
+                    color: Colors.white,
+                    child: NoteTableDataView(
+                      controller: widget.controller,
+                      currentFieldKeys: _currentFieldKeys,
+                      currentFieldTypes: _currentFieldTypes,
+                      tableRows: _tableRows,
+                      formControllers: _formControllers,
+                      sortColumnIndex: _sortColumnIndex,
+                      isAscending: _isAscending,
+                      onChanged: _triggerChange,
+                      isViewMode: true, // Kirim status view mode ke tabel
+                      onSortChanged: (index, ascending) {
+                        setState(() {
+                          _sortColumnIndex = index;
+                          _isAscending = ascending;
+                        });
+                      },
+                    ),
+                  )
+                : DefaultTabController(
+                    length: 2,
+                    child: Column(
+                      children: [
+                        Container(
+                          color: Colors.white,
+                          child: const TabBar(
+                            labelColor: Colors.indigo,
+                            unselectedLabelColor: Colors.grey,
+                            indicatorColor: Colors.indigo,
+                            tabs: [
+                              Tab(
+                                text: 'Data Tabel',
+                                icon: Icon(Icons.dataset_outlined, size: 18),
+                              ),
+                              Tab(
+                                text: 'Pengaturan Kolom',
+                                icon: Icon(
+                                  Icons.view_column_outlined,
+                                  size: 18,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: TabBarView(
+                            children: [
+                              NoteTableDataView(
+                                controller: widget.controller,
+                                currentFieldKeys: _currentFieldKeys,
+                                currentFieldTypes: _currentFieldTypes,
+                                tableRows: _tableRows,
+                                formControllers: _formControllers,
+                                sortColumnIndex: _sortColumnIndex,
+                                isAscending: _isAscending,
+                                onChanged: _triggerChange,
+                                isViewMode: false,
+                                onSortChanged: (index, ascending) {
+                                  setState(() {
+                                    _sortColumnIndex = index;
+                                    _isAscending = ascending;
+                                  });
+                                },
+                              ),
+                              NoteColumnSettingsView(
+                                controller: widget.controller,
+                                currentFieldKeys: _currentFieldKeys,
+                                currentFieldTypes: _currentFieldTypes,
+                                tableRows: _tableRows,
+                                formControllers: _formControllers,
+                                onChanged: _triggerChange,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                )
-              // BARU: Menangani tampilan tabel berdasarkan view mode
-              : _isViewMode
-              ? Container(
-                  color: Colors.white,
-                  child: NoteTableDataView(
-                    controller: widget.controller,
-                    currentFieldKeys: _currentFieldKeys,
-                    currentFieldTypes: _currentFieldTypes,
-                    tableRows: _tableRows,
-                    formControllers: _formControllers,
-                    sortColumnIndex: _sortColumnIndex,
-                    isAscending: _isAscending,
-                    onChanged: _triggerChange,
-                    isViewMode: true, // Kirim status view mode ke tabel
-                    onSortChanged: (index, ascending) {
-                      setState(() {
-                        _sortColumnIndex = index;
-                        _isAscending = ascending;
-                      });
-                    },
+          ),
+          footer: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 12.0,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                ElevatedButton(
+                  // PERUBAHAN: Dialihkan melalui validasi konfirmasi dialog sebelum melakukan pop
+                  onPressed: () async {
+                    if (_hasChanges) {
+                      final shouldPop = await _showExitConfirmationDialog();
+                      if (shouldPop && context.mounted) {
+                        Navigator.pop(context);
+                      }
+                    } else {
+                      Navigator.pop(context);
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.grey[400],
                   ),
-                )
-              : DefaultTabController(
-                  length: 2,
-                  child: Column(
-                    children: [
-                      Container(
-                        color: Colors.white,
-                        child: const TabBar(
-                          labelColor: Colors.indigo,
-                          unselectedLabelColor: Colors.grey,
-                          indicatorColor: Colors.indigo,
-                          tabs: [
-                            Tab(
-                              text: 'Data Tabel',
-                              icon: Icon(Icons.dataset_outlined, size: 18),
-                            ),
-                            Tab(
-                              text: 'Pengaturan Kolom',
-                              icon: Icon(Icons.view_column_outlined, size: 18),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Expanded(
-                        child: TabBarView(
-                          children: [
-                            NoteTableDataView(
-                              controller: widget.controller,
-                              currentFieldKeys: _currentFieldKeys,
-                              currentFieldTypes: _currentFieldTypes,
-                              tableRows: _tableRows,
-                              formControllers: _formControllers,
-                              sortColumnIndex: _sortColumnIndex,
-                              isAscending: _isAscending,
-                              onChanged: _triggerChange,
-                              isViewMode: false,
-                              onSortChanged: (index, ascending) {
-                                setState(() {
-                                  _sortColumnIndex = index;
-                                  _isAscending = ascending;
-                                });
-                              },
-                            ),
-                            NoteColumnSettingsView(
-                              controller: widget.controller,
-                              currentFieldKeys: _currentFieldKeys,
-                              currentFieldTypes: _currentFieldTypes,
-                              tableRows: _tableRows,
-                              formControllers: _formControllers,
-                              onChanged: _triggerChange,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                  child: const Text(
+                    'Tutup',
+                    style: TextStyle(color: Colors.white),
                   ),
                 ),
-        ),
-        footer: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.grey[400],
-                ),
-                child: const Text(
-                  'Tutup',
-                  style: TextStyle(color: Colors.white),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
