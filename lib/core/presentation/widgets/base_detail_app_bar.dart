@@ -92,11 +92,57 @@ class BaseDetailAppBar extends StatelessWidget implements PreferredSizeWidget {
       actions: [
         if (enableSearch && !isSelectMode)
           IconButton(
-            icon: Icon(
-              isSearchMode ? Icons.close : Icons.search,
-              color: Colors.white,
-            ),
             onPressed: onToggleSearchMode,
+            // --- MODIFIKASI: Mengubah Ikon Buka/Tutup & Efek Animasi ---
+            icon: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 350),
+              transitionBuilder: (Widget child, Animation<double> animation) {
+                // 1. Buat drive animasi untuk rotasi dengan kurva easeInOut
+                final Animation<double> rotationAnimation = animation.drive(
+                  Tween<double>(
+                    begin: child.key == const ValueKey('icon_open_panel')
+                        ? -0.5
+                        : 0.5,
+                    end: 0.0,
+                  ).chain(CurveTween(curve: Curves.easeInOut)),
+                );
+
+                // 2. Buat drive animasi untuk scale dengan kurva easeInOut
+                final Animation<double> scaleAnimation = animation.drive(
+                  Tween<double>(
+                    begin: 0.8,
+                    end: 1.0,
+                  ).chain(CurveTween(curve: Curves.easeInOut)),
+                );
+
+                // 3. Gabungkan semua transisinya
+                return RotationTransition(
+                  turns: rotationAnimation,
+                  child: FadeTransition(
+                    opacity: animation,
+                    child: ScaleTransition(scale: scaleAnimation, child: child),
+                  ),
+                );
+              },
+              child: isSearchMode
+                  ? const Icon(
+                      Icons
+                          .keyboard_arrow_up_rounded, // Panah ke ATAS saat panel terbuka (klik untuk collapse)
+                      color: Colors.white,
+                      size: 26,
+                      key: ValueKey('icon_close_panel'),
+                    )
+                  : const Icon(
+                      Icons
+                          .keyboard_arrow_down_rounded, // Panah ke BAWAH saat panel tertutup (klik untuk expand menu/search)
+                      color: Colors.white,
+                      size: 26,
+                      key: ValueKey('icon_open_panel'),
+                    ),
+            ),
+            tooltip: isSearchMode
+                ? 'Sembunyikan Panel'
+                : 'Tampilkan Menu & Pencarian',
           ),
         if (isSelectMode) ...[
           if (onMoveMassive != null)
@@ -111,10 +157,12 @@ class BaseDetailAppBar extends StatelessWidget implements PreferredSizeWidget {
             ),
         ] else ...[
           if (additionalAction != null) additionalAction!,
+          // Tombol bawaan search_off_rounded di bawah ini dihapus / disesuaikan agar tidak double icon panah
           if (isSearchMode)
             IconButton(
-              icon: const Icon(Icons.search_off_rounded, color: Colors.white),
+              icon: const Icon(Icons.unfold_less_rounded, color: Colors.white),
               onPressed: onToggleSearchMode,
+              tooltip: 'Collapse',
             ),
         ],
       ],
