@@ -25,9 +25,15 @@ class _NotesScreenState extends State<NotesScreen> {
   // Variabel untuk menyimpan query pencarian
   String _searchQuery = '';
 
+  // STATE BARU: Kontrol untuk menampilkan atau menyembunyikan kategori/grup tersembunyi
+  bool _showHiddenSection = false;
+
   // PERUBAHAN: Mulai dengan list kosong agar inisialisasi seksi dilakukan secara dinamis dari storage
   List<String> _sectionKeys = [];
   final Map<String, List<NoteGroup>> _groupedCategories = {};
+
+  // STATE BARU: Menampung kategori grup tersembunyi terpisah dari grid utama
+  final Map<String, List<NoteGroup>> _hiddenGroupedCategories = {};
 
   @override
   void initState() {
@@ -51,17 +57,26 @@ class _NotesScreenState extends State<NotesScreen> {
       // Bersihkan memory state lama sebelum memasukkan data hasil load
       _sectionKeys.clear();
       _groupedCategories.clear();
+      _hiddenGroupedCategories
+          .clear(); // Bersihkan data penampung tersembunyi lama
 
-      // Distribusikan note groups ke dalam seksinya masing-masing
+      // Distribusikan note groups ke dalam seksinya masing-masing dengan filter isHidden
       for (var group in loadedGroups) {
         String secName =
-            group.sectionName; // Menggunakan properti baru dari model
+            group.sectionName; // Menggunakan properti baru dari model[cite: 7]
 
-        if (!_sectionKeys.contains(secName)) {
-          _sectionKeys.add(secName);
-          _groupedCategories[secName] = [];
+        if (group.isHidden) {
+          if (!_hiddenGroupedCategories.containsKey(secName)) {
+            _hiddenGroupedCategories[secName] = [];
+          }
+          _hiddenGroupedCategories[secName]!.add(group);
+        } else {
+          if (!_sectionKeys.contains(secName)) {
+            _sectionKeys.add(secName);
+            _groupedCategories[secName] = [];
+          }
+          _groupedCategories[secName]!.add(group);
         }
-        _groupedCategories[secName]!.add(group);
       }
 
       setState(() {
@@ -90,6 +105,9 @@ class _NotesScreenState extends State<NotesScreen> {
       setState(() {
         for (var key in _sectionKeys) {
           _groupedCategories[key]?.remove(group);
+        }
+        for (var key in _hiddenGroupedCategories.keys) {
+          _hiddenGroupedCategories[key]?.remove(group);
         }
       });
     } catch (e) {
@@ -138,13 +156,25 @@ class _NotesScreenState extends State<NotesScreen> {
         false;
   }
 
+  // --- TAMBAHAN BARU: Fungsi Pengubah Status Visibilitas Grup Catatan ---
+  Future<void> _toggleGroupVisibility(NoteGroup group) async {
+    setState(() {
+      group.isHidden = !group.isHidden; // Balikkan status visibilitas[cite: 6]
+    });
+    await _saveGroupData(group);
+    await _loadNotesData(); // Muat ulang pemisahan struktur data grid
+  }
+
   // Fungsi untuk memfilter list kategori berdasarkan query pencarian
-  Map<String, List<NoteGroup>> _getFilteredCategories() {
-    if (_searchQuery.isEmpty) return _groupedCategories;
+  Map<String, List<NoteGroup>> _getFilteredCategories(
+    Map<String, List<NoteGroup>> sourceMap,
+    List<String> keys,
+  ) {
+    if (_searchQuery.isEmpty) return sourceMap;
 
     Map<String, List<NoteGroup>> filtered = {};
-    for (var key in _sectionKeys) {
-      filtered[key] = (_groupedCategories[key] ?? []).where((group) {
+    for (var key in keys) {
+      filtered[key] = (sourceMap[key] ?? []).where((group) {
         return group.groupName.toLowerCase().contains(
           _searchQuery.toLowerCase(),
         );
@@ -249,6 +279,7 @@ class _NotesScreenState extends State<NotesScreen> {
                   notes: [],
                   sectionName:
                       sectionName, // Menyimpan relasi seksi tujuan ke local storage
+                  isHidden: false,
                 );
 
                 setState(() => _groupedCategories[sectionName]!.add(newGroup));
@@ -428,20 +459,43 @@ class _NotesScreenState extends State<NotesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Ambil data yang sudah difilter
-    final filteredCategories = _getFilteredCategories();
+    // Ambil data yang sudah difilter untuk grid utama (grup aktif)
+    List<String> allRenderedKeys = List.from(_sectionKeys);
+    Map<String, List<NoteGroup>> allRenderedItems = _getFilteredCategories(
+      _groupedCategories,
+      _sectionKeys,
+    );
+
+    // Jika tombol mata diaktifkan, gabungkan seksi penampung data tersembunyi ke bagian bawah list
+    if (_showHiddenSection && _hiddenGroupedCategories.isNotEmpty) {
+      _hiddenGroupedCategories.forEach((sectionKey, groupsList) {
+        if (groupsList.isNotEmpty) {
+          String hiddenKey = '${sectionKey}_hidden_key';
+          allRenderedKeys.add(hiddenKey);
+
+          if (_searchQuery.isEmpty) {
+            allRenderedItems[hiddenKey] = groupsList;
+          } else {
+            allRenderedItems[hiddenKey] = groupsList.where((group) {
+              return group.groupName.toLowerCase().contains(
+                _searchQuery.toLowerCase(),
+              );
+            }).toList();
+          }
+        }
+      });
+    }
+
+    final int visibleKeysCount = _sectionKeys.length;
 
     return GroupedSectionLayout<NoteGroup>(
       title: 'Note Groups',
       drawer: const DrawerMenu(isNotesActive: true),
       isLoading: _isLoading,
-      // PERUBAHAN: Validasi state kosong yang disesuaikan dengan inisialisasi dinamis map data
-      isEmpty:
-          _sectionKeys.isEmpty &&
-          _groupedCategories.values.every((list) => list.isEmpty),
+      isEmpty: allRenderedKeys.isEmpty,
       emptyMessage: 'Belum ada grup catatan. Buat folder catatan pertama Anda!',
-      sectionKeys: _sectionKeys,
-      groupedItems: filteredCategories,
+      sectionKeys: allRenderedKeys,
+      groupedItems: allRenderedItems,
       isSelectMode: false,
       selectedItemsCount: 0,
       onClearSelection: () {},
@@ -454,7 +508,56 @@ class _NotesScreenState extends State<NotesScreen> {
       },
       // Tombol tambah utama membuka dialog seksi baru
       onAddPressed: _showAddSectionDialog,
+
+      // ====================================================================
+      // TAMBAHAN BARU: Tombol Muncul di AppBar Utama saat Tahan Lama Aktif
+      // Menyediakan tombol toggle kustom untuk menampilkan seksi hidden group
+      // ====================================================================
+      additionalAction: IconButton(
+        icon: Icon(
+          _showHiddenSection ? Icons.visibility : Icons.visibility_off,
+          color: Colors.white,
+        ),
+        tooltip: _showHiddenSection
+            ? 'Sembunyikan Grup Nonaktif'
+            : 'Tampilkan Grup Tersembunyi',
+        onPressed: () {
+          setState(() {
+            _showHiddenSection = !_showHiddenSection;
+          });
+        },
+      ),
+
       sectionHeaderBuilder: (context, index, sectionName, isLayoutEditMode) {
+        // Render Header Pembatas Khusus untuk Seksi Kategori yang Tersembunyi
+        if (index >= visibleKeysCount) {
+          String originalName = sectionName.replaceAll('_hidden_key', '');
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (index == visibleKeysCount)
+                const Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 8.0,
+                  ),
+                  child: Divider(thickness: 2, color: Colors.grey),
+                ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                child: Text(
+                  '$originalName (Tersembunyi)',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.blueGrey,
+                  ),
+                ),
+              ),
+            ],
+          );
+        }
+
         return InteractiveSectionHeader(
           sectionName: sectionName,
           themeColor: _themeColor,
@@ -492,6 +595,8 @@ class _NotesScreenState extends State<NotesScreen> {
         return InteractiveGridCard(
           themeColor: _themeColor,
           isEditMode: isLayoutEditMode ? true : _isCardEditMode,
+          isHiddenStyle: noteGroup
+              .isHidden, // Berikan style buram/redup jika grup disembunyikan
           isFirst: index == 0,
           isLast: index == sectionItems.length - 1,
           onTap: () {
@@ -507,32 +612,36 @@ class _NotesScreenState extends State<NotesScreen> {
             if (index > 0) {
               setState(() {
                 // Tukar posisi item di dalam list seksi yang sama
-                final list = _groupedCategories[sectionName]!;
-                final temp = list[index];
-                list[index] = list[index - 1];
-                list[index - 1] = temp;
+                final list = _groupedCategories[sectionName] ?? [];
+                if (list.isNotEmpty) {
+                  final temp = list[index];
+                  list[index] = list[index - 1];
+                  list[index - 1] = temp;
+                }
               });
               // Opsional: Simpan urutan baru ke penyimpanan lokal jika diperlukan
-              await _saveGroupData(_groupedCategories[sectionName]![index]);
-              await _saveGroupData(_groupedCategories[sectionName]![index - 1]);
+              await _saveGroupData(sectionItems[index]);
+              await _saveGroupData(sectionItems[index - 1]);
             }
           },
           onMoveRight: () async {
             if (index < sectionItems.length - 1) {
               setState(() {
                 // Tukar posisi item di dalam list seksi yang sama
-                final list = _groupedCategories[sectionName]!;
-                final temp = list[index];
-                list[index] = list[index + 1];
-                list[index + 1] = temp;
+                final list = _groupedCategories[sectionName] ?? [];
+                if (list.isNotEmpty) {
+                  final temp = list[index];
+                  list[index] = list[index + 1];
+                  list[index + 1] = temp;
+                }
               });
               // Opsional: Simpan urutan baru ke penyimpanan lokal jika diperlukan
-              await _saveGroupData(_groupedCategories[sectionName]![index]);
-              await _saveGroupData(_groupedCategories[sectionName]![index + 1]);
+              await _saveGroupData(sectionItems[index]);
+              await _saveGroupData(sectionItems[index + 1]);
             }
           },
-          popupMenuItems: const [
-            PopupMenuItem(
+          popupMenuItems: [
+            const PopupMenuItem(
               value: 'edit',
               child: Row(
                 children: [
@@ -542,7 +651,27 @@ class _NotesScreenState extends State<NotesScreen> {
                 ],
               ),
             ),
+            // --- TAMBAHAN BARU: Menu popup sembunyikan/tampilkan grup ---
             PopupMenuItem(
+              value: 'toggle_visibility',
+              child: Row(
+                children: [
+                  Icon(
+                    noteGroup.isHidden
+                        ? Icons.visibility
+                        : Icons.visibility_off,
+                    size: 18,
+                    color: Colors.blueGrey,
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    noteGroup.isHidden ? 'Tampilkan Grup' : 'Sembunyikan Grup',
+                  ),
+                ],
+              ),
+            ),
+            const PopupMenuDivider(),
+            const PopupMenuItem(
               value: 'delete',
               child: Row(
                 children: [
@@ -556,6 +685,10 @@ class _NotesScreenState extends State<NotesScreen> {
           onPopupSelected: (value) async {
             if (value == 'edit') {
               _showEditGroupDialog(noteGroup);
+            } else if (value == 'toggle_visibility') {
+              await _toggleGroupVisibility(
+                noteGroup,
+              ); // Jalankan aksi visibilitas
             } else if (value == 'delete') {
               final bool isConfirmed = await _showConfirmDeleteDialog(
                 noteGroup,

@@ -352,7 +352,7 @@ class _DailyScreenState extends State<DailyScreen> {
     }
 
     return GroupedSectionLayout<ChecklistGroup>(
-      title: 'My Checklist Groups',
+      title: 'Checklist Groups',
       drawer: const DrawerMenu(isDailyActive: true),
       isLoading: _controller.isLoading,
 

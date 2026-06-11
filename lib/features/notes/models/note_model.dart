@@ -8,6 +8,7 @@ class NoteGroup {
   final String type; // 'text' atau 'field'
   final Map<String, String> fields;
   String sectionName; // BARU: Menyimpan informasi seksi tempat grup ini berada
+  bool isHidden;
 
   NoteGroup({
     required this.id,
@@ -17,6 +18,7 @@ class NoteGroup {
     this.type = 'text',
     this.fields = const {},
     this.sectionName = 'Catatan Utama', // BARU: Default seksi awal
+    this.isHidden = false,
   });
 
   Map<String, dynamic> toJson() => {
@@ -27,6 +29,7 @@ class NoteGroup {
     'type': type,
     'fields': fields,
     'sectionName': sectionName, // BARU
+    'isHidden': isHidden,
   };
 
   factory NoteGroup.fromJson(Map<String, dynamic> json) => NoteGroup(
@@ -38,6 +41,7 @@ class NoteGroup {
         .toList(),
     // BARU: Jika data lama belum punya seksi, otomatis arahkan ke 'Catatan Utama'
     sectionName: json['sectionName'] ?? 'Catatan Utama',
+    isHidden: json['isHidden'] ?? false,
   );
 }
 

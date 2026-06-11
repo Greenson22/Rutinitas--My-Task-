@@ -146,7 +146,7 @@ class _DrawerMenuState extends State<DrawerMenu> {
           // 2. Menu My Checklist
           _buildMenuTile(
             icon: Icons.checklist_rtl,
-            title: 'My Checklist',
+            title: 'MyChecklist',
             isActive: widget.isDailyActive,
             onTap: () {
               Navigator.pop(context);
@@ -162,7 +162,7 @@ class _DrawerMenuState extends State<DrawerMenu> {
           // 3. Menu Catatan
           _buildMenuTile(
             icon: Icons.note_alt_outlined,
-            title: 'Catatan',
+            title: 'MyNote',
             isActive: widget.isNotesActive,
             onTap: () {
               Navigator.pop(context);
@@ -178,7 +178,7 @@ class _DrawerMenuState extends State<DrawerMenu> {
           // 4. Menu Jurnal Aktivitas
           _buildMenuTile(
             icon: Icons.menu_book,
-            title: 'Jurnal Aktivitas',
+            title: 'Activity Jurnal',
             isActive: widget.isJurnalActive,
             onTap: () {
               Navigator.pop(context);
@@ -196,7 +196,7 @@ class _DrawerMenuState extends State<DrawerMenu> {
           // 5. Menu Prompt
           _buildMenuTile(
             icon: Icons.psychology_alt,
-            title: 'Prompt',
+            title: 'MyPrompt',
             isActive: widget.isPromptActive,
             onTap: () {
               Navigator.pop(context);
