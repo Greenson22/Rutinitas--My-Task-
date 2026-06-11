@@ -42,8 +42,8 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
   int? _editingRowIndex;
   String? _editingKey;
 
-  // STATE BARU: Melacak indeks baris mana yang sedang membuka opsi tombol manajemen (pindah/hapus)
-  int? _actionRowIndex;
+  // GLOBAL STATE BARU: Jika ini true, MAKA SEMUA BARIS akan menampilkan tombol aksi modifikasi
+  bool _isManageModeGlobal = false;
 
   void _submitFormRow() {
     setState(() {
@@ -110,6 +110,8 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
       if (!isCurrentEditing) {
         return InkWell(
           onTap: () {
+            // Jika sedang dalam mode kelola global, matikan input ketikan teks biar fokus pindah baris
+            if (_isManageModeGlobal) return;
             setState(() {
               _editingRowIndex = rowIndex;
               _editingKey = key;
@@ -474,13 +476,76 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                       ),
               ),
               const SizedBox(height: 8),
-              const Text(
-                'Daftar Data Tersimpan:',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                  color: Colors.black54,
-                ),
+
+              // BARU: Penataan Header Pengelola Global
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Daftar Data Tersimpan:',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: Colors.black54,
+                    ),
+                  ),
+                  // Tombol pemicu mode kelola global (semua baris aktif bersamaan)
+                  InkWell(
+                    onTap: () {
+                      setState(() {
+                        _isManageModeGlobal = !_isManageModeGlobal;
+                        // Tutup editor sel ketikan teks jika mode kelola aktif
+                        if (_isManageModeGlobal) {
+                          _editingRowIndex = null;
+                          _editingKey = null;
+                        }
+                      });
+                    },
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: _isManageModeGlobal
+                              ? Colors.teal
+                              : Colors.grey.shade300,
+                        ),
+                        borderRadius: BorderRadius.circular(6),
+                        color: _isManageModeGlobal
+                            ? Colors.teal.withOpacity(0.08)
+                            : Colors.grey.shade50,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _isManageModeGlobal
+                                ? Icons.check_circle_outline
+                                : Icons.settings_outlined,
+                            size: 14,
+                            color: _isManageModeGlobal
+                                ? Colors.teal
+                                : Colors.indigo,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            _isManageModeGlobal ? 'Selesai' : 'Kelola Urutan',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: _isManageModeGlobal
+                                  ? Colors.teal
+                                  : Colors.indigo,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 6),
             ],
@@ -579,10 +644,6 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                                     int index = entry.key;
                                     var row = entry.value;
 
-                                    // Mengecek apakah baris ini sedang dalam kondisi membuka tombol sub-manajemen aksi
-                                    final bool isShowingRowActions =
-                                        (_actionRowIndex == index);
-
                                     return DataRow(
                                       cells: [
                                         DataCell(
@@ -615,8 +676,8 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                                         }).toList(),
                                         if (!widget.isViewMode)
                                           DataCell(
-                                            // MODIFIKASI UTAMA: Desain tombol aksi dinamis bersyarat
-                                            isShowingRowActions
+                                            // MODIFIKASI: Menampilkan tombol modifikasi pada SEMUA baris jika mode global aktif
+                                            _isManageModeGlobal
                                                 ? Row(
                                                     mainAxisSize:
                                                         MainAxisSize.min,
@@ -650,7 +711,7 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                                                         tooltip:
                                                             'Pindah Ke Atas',
                                                       ),
-                                                      const SizedBox(width: 8),
+                                                      const SizedBox(width: 12),
                                                       // 2. Tombol Pindah Turun
                                                       IconButton(
                                                         icon: const Icon(
@@ -685,7 +746,7 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                                                         tooltip:
                                                             'Pindah Ke Bawah',
                                                       ),
-                                                      const SizedBox(width: 8),
+                                                      const SizedBox(width: 12),
                                                       // 3. Tombol Hapus Baris
                                                       IconButton(
                                                         icon: const Icon(
@@ -698,101 +759,26 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                                                             EdgeInsets.zero,
                                                         constraints:
                                                             const BoxConstraints(),
-                                                        onPressed: () {
-                                                          widget.controller
-                                                              .removeRow(
-                                                                setDialogState:
-                                                                    setState,
-                                                                tableRows: widget
-                                                                    .tableRows,
-                                                                triggerChange:
-                                                                    widget
-                                                                        .onChanged,
-                                                                index: index,
-                                                              );
-                                                          setState(
-                                                            () =>
-                                                                _actionRowIndex =
-                                                                    null,
-                                                          );
-                                                        },
+                                                        onPressed: () => widget
+                                                            .controller
+                                                            .removeRow(
+                                                              setDialogState:
+                                                                  setState,
+                                                              tableRows: widget
+                                                                  .tableRows,
+                                                              triggerChange:
+                                                                  widget
+                                                                      .onChanged,
+                                                              index: index,
+                                                            ),
                                                         tooltip: 'Hapus Baris',
-                                                      ),
-                                                      const SizedBox(width: 10),
-                                                      // 4. Tombol Selesai (Menutup sub-menu aksi)
-                                                      IconButton(
-                                                        icon: const Icon(
-                                                          Icons
-                                                              .check_circle_outline_rounded,
-                                                          color: Colors.teal,
-                                                          size: 20,
-                                                        ),
-                                                        padding:
-                                                            EdgeInsets.zero,
-                                                        constraints:
-                                                            const BoxConstraints(),
-                                                        onPressed: () => setState(
-                                                          () =>
-                                                              _actionRowIndex =
-                                                                  null,
-                                                        ),
-                                                        tooltip: 'Selesai',
                                                       ),
                                                     ],
                                                   )
-                                                : InkWell(
-                                                    onTap: () => setState(
-                                                      () => _actionRowIndex =
-                                                          index,
-                                                    ),
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          6,
-                                                        ),
-                                                    child: Container(
-                                                      padding:
-                                                          const EdgeInsets.symmetric(
-                                                            horizontal: 10,
-                                                            vertical: 6,
-                                                          ),
-                                                      decoration: BoxDecoration(
-                                                        border: Border.all(
-                                                          color: Colors
-                                                              .grey
-                                                              .shade300,
-                                                        ),
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              6,
-                                                            ),
-                                                        color:
-                                                            Colors.grey.shade50,
-                                                      ),
-                                                      child: const Row(
-                                                        mainAxisSize:
-                                                            MainAxisSize.min,
-                                                        children: [
-                                                          Icon(
-                                                            Icons
-                                                                .settings_outlined,
-                                                            size: 14,
-                                                            color:
-                                                                Colors.indigo,
-                                                          ),
-                                                          SizedBox(width: 4),
-                                                          Text(
-                                                            'Kelola',
-                                                            style: TextStyle(
-                                                              fontSize: 12,
-                                                              color:
-                                                                  Colors.indigo,
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w500,
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ),
+                                                : const Text(
+                                                    '-',
+                                                    style: TextStyle(
+                                                      color: Colors.grey,
                                                     ),
                                                   ),
                                           ),
