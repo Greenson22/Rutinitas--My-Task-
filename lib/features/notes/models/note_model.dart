@@ -7,8 +7,9 @@ class NoteGroup {
   List<NoteModel> notes;
   final String type; // 'text' atau 'field'
   final Map<String, String> fields;
-  String sectionName; // BARU: Menyimpan informasi seksi tempat grup ini berada
+  String sectionName; // Menyimpan informasi seksi tempat grup ini berada
   bool isHidden;
+  int orderIndex; // <--- BARU: Menyimpan urutan posisi group note
 
   NoteGroup({
     required this.id,
@@ -17,8 +18,9 @@ class NoteGroup {
     required this.notes,
     this.type = 'text',
     this.fields = const {},
-    this.sectionName = 'Catatan Utama', // BARU: Default seksi awal
+    this.sectionName = 'Catatan Utama', // Default seksi awal
     this.isHidden = false,
+    this.orderIndex = 0, // <--- BARU: Default value urutan
   });
 
   Map<String, dynamic> toJson() => {
@@ -28,8 +30,9 @@ class NoteGroup {
     'notes': notes.map((note) => note.toJson()).toList(),
     'type': type,
     'fields': fields,
-    'sectionName': sectionName, // BARU
+    'sectionName': sectionName,
     'isHidden': isHidden,
+    'order_index': orderIndex, // <--- BARU: Menyimpan ke JSON storage
   };
 
   factory NoteGroup.fromJson(Map<String, dynamic> json) => NoteGroup(
@@ -39,22 +42,25 @@ class NoteGroup {
     notes: (json['notes'] as List)
         .map((noteJson) => NoteModel.fromJson(noteJson))
         .toList(),
-    // BARU: Jika data lama belum punya seksi, otomatis arahkan ke 'Catatan Utama'
+    // Jika data lama belum punya seksi, otomatis arahkan ke 'Catatan Utama'
     sectionName: json['sectionName'] ?? 'Catatan Utama',
     isHidden: json['isHidden'] ?? false,
+    orderIndex:
+        json['order_index'] ??
+        0, // <--- BARU: Mengambil dari JSON storage (jika kosong, default 0)
   );
 }
 
 class NoteModel {
-  final String id;
-  final String title;
-  final String content;
-  final DateTime createdAt;
-  final DateTime updatedAt;
-  final String type; // 'text' atau 'table'
-  final List<String> fieldKeys; // Menyimpan struktur kolom
-  final Map<String, String> fieldTypes; // BARU: Menyimpan tipe data per kolom
-  final List<Map<String, String>> tableData; // Menyimpan baris-baris data
+  String id;
+  String title;
+  String content;
+  DateTime createdAt;
+  DateTime updatedAt;
+  final String type;
+  final List<String> fieldKeys;
+  final Map<String, String> fieldTypes; // BARU
+  final List<Map<String, String>> tableData;
 
   NoteModel({
     required this.id,
@@ -99,13 +105,13 @@ class NoteModel {
 
     return NoteModel(
       id: json['id'],
-      title: json['title'],
-      content: json['content'],
+      title: json['title'] ?? '',
+      content: json['content'] ?? '',
       createdAt: DateTime.parse(json['createdAt']),
       updatedAt: DateTime.parse(json['updatedAt']),
       type: json['type'] ?? 'text',
       fieldKeys: parsedKeys,
-      fieldTypes: parsedTypes, // BARU
+      fieldTypes: parsedTypes,
       tableData: parsedData,
     );
   }
