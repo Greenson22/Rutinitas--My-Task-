@@ -373,6 +373,23 @@ class _DailyScreenState extends State<DailyScreen> {
       onSearchChanged: _controller.updateSearchQuery,
       onAddPressed: _showAddMainSectionDialog,
 
+      // ====================================================================
+      // TAMBAHAN BARU: Tombol Muncul di AppBar Utama saat Tahan Lama Aktif
+      // Menyediakan tombol toggle kustom untuk menampilkan seksi hidden group
+      // ====================================================================
+      additionalAction: IconButton(
+        icon: Icon(
+          _controller.showHiddenSection
+              ? Icons.visibility
+              : Icons.visibility_off,
+          color: Colors.white,
+        ),
+        tooltip: _controller.showHiddenSection
+            ? 'Sembunyikan Group Nonaktif'
+            : 'Tampilkan Group Tersembunyi',
+        onPressed: _controller.toggleShowHiddenSection,
+      ),
+
       sectionHeaderBuilder: (context, index, sectionKey, isLayoutEditMode) {
         if (index >= visibleKeysCount) {
           String originalName = sectionKey.replaceAll('_hidden_key', '');

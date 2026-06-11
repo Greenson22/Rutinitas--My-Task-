@@ -22,6 +22,9 @@ class GroupedSectionLayout<T> extends StatefulWidget {
   final ValueChanged<String>? onSearchChanged;
   final VoidCallback? onAddPressed;
 
+  // TAMBAHAN BARU: Parameter aksi kustom dari halaman parent
+  final Widget? additionalAction;
+
   final List<String> sectionKeys;
   final Map<String, List<T>> groupedItems;
 
@@ -61,6 +64,7 @@ class GroupedSectionLayout<T> extends StatefulWidget {
     this.onDeleteMassive,
     this.onSearchChanged,
     this.onAddPressed,
+    this.additionalAction, // <--- Daftarkan di konstruktor
     required this.sectionKeys,
     required this.groupedItems,
     required this.sectionHeaderBuilder,
@@ -118,6 +122,13 @@ class _GroupedSectionLayoutState<T> extends State<GroupedSectionLayout<T>> {
         enableMultiSelect: widget.enableMultiSelect,
         onMoveMassive: widget.onMoveMassive,
         onDeleteMassive: widget.onDeleteMassive,
+
+        // ====================================================================
+        // PERBAIKAN: Meneruskan additionalAction dari widget utama
+        // Muncul hanya jika _internalSearchMode aktif (AppBar sedang ditahan)
+        // ====================================================================
+        additionalAction: _internalSearchMode ? widget.additionalAction : null,
+
         searchBarContent: Row(
           children: [
             Expanded(
@@ -169,8 +180,6 @@ class _GroupedSectionLayoutState<T> extends State<GroupedSectionLayout<T>> {
                     final itemsInSection =
                         widget.groupedItems[sectionName] ?? [];
 
-                    // PERBAIKAN LOGIKA: Seksi kosong tidak akan disembunyikan jika nama seksi
-                    // tersebut mengandung kata kunci pencarian yang sedang diketik[cite: 2].
                     if (_internalSearchMode &&
                         itemsInSection.isEmpty &&
                         !sectionName.toLowerCase().contains(
