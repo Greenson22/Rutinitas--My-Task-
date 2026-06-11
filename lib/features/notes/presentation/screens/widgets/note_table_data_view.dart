@@ -45,6 +45,28 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
   // GLOBAL STATE BARU: Jika ini true, MAKA SEMUA BARIS akan menampilkan tombol aksi modifikasi
   bool _isManageModeGlobal = false;
 
+  // BARU: Fungsi penentu apakah suatu baris memiliki kolom pengingat yang sudah jatuh tempo/lewat waktu
+  bool _isRowOverdue(Map<String, TextEditingController> row) {
+    for (var key in widget.currentFieldKeys) {
+      final type = widget.currentFieldTypes[key];
+      if (type == 'Pengingat') {
+        final textValue = row[key]?.text.trim() ?? '';
+        if (textValue.isNotEmpty && textValue != '-') {
+          try {
+            // Memparsing format 'YYYY-MM-DD HH:mm'
+            final reminderDate = DateTime.parse(textValue);
+            if (DateTime.now().isAfter(reminderDate)) {
+              return true; // Waktu pengingat sudah lewat
+            }
+          } catch (_) {
+            // Jika format gagal diparse, lewati
+          }
+        }
+      }
+    }
+    return false;
+  }
+
   void _submitFormRow() {
     setState(() {
       Map<String, TextEditingController> newRow = {};
@@ -100,6 +122,13 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
           ? const Icon(Icons.calendar_today, size: 16, color: Colors.indigo)
           : type == 'Time'
           ? const Icon(Icons.access_time, size: 16, color: Colors.indigo)
+          : type ==
+                'Pengingat' // BARU: Ikon untuk field Pengingat
+          ? const Icon(
+              Icons.notifications_active,
+              size: 16,
+              color: Colors.deepOrangeAccent,
+            )
           : null,
     );
 
@@ -174,7 +203,11 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
       inputFormatters: type == 'Numerik'
           ? [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))]
           : null,
-      readOnly: type == 'Date' || type == 'Time',
+      readOnly:
+          type == 'Date' ||
+          type == 'Time' ||
+          type ==
+              'Pengingat', // BARU: Pengingat diset readOnly agar diisi via Picker
       decoration: inputDecoration,
       style: const TextStyle(fontSize: 13),
       autofocus: !isFormInput,
@@ -212,6 +245,33 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
               }
             });
             widget.onChanged();
+          }
+        } else if (type == 'Pengingat') {
+          // BARU: Logika pengisian berantai Pemilih Tanggal -> Pemilih Waktu
+          DateTime? pickedDate = await showDatePicker(
+            context: context,
+            initialDate: DateTime.now(),
+            firstDate: DateTime(2000),
+            lastDate: DateTime(2100),
+          );
+          if (pickedDate != null && context.mounted) {
+            TimeOfDay? pickedTime = await showTimePicker(
+              context: context,
+              initialTime: TimeOfDay.now(),
+            );
+            if (pickedTime != null) {
+              setState(() {
+                // Menghasilkan gabungan format standar ISO agar mudah diparse: 'YYYY-MM-DD HH:mm'
+                controller.text =
+                    "${pickedDate.year}-${pickedDate.month.toString().padLeft(2, '0')}-${pickedDate.day.toString().padLeft(2, '0')} "
+                    "${pickedTime.hour.toString().padLeft(2, '0')}:${pickedTime.minute.toString().padLeft(2, '0')}";
+                if (!isFormInput) {
+                  _editingRowIndex = null;
+                  _editingKey = null;
+                }
+              });
+              widget.onChanged();
+            }
           }
         }
       },
@@ -477,7 +537,7 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
               ),
               const SizedBox(height: 8),
 
-              // BARU: Penataan Header Pengelola Global
+              // Header Pengelola Global
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -489,12 +549,10 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                       color: Colors.black54,
                     ),
                   ),
-                  // Tombol pemicu mode kelola global (semua baris aktif bersamaan)
                   InkWell(
                     onTap: () {
                       setState(() {
                         _isManageModeGlobal = !_isManageModeGlobal;
-                        // Tutup editor sel ketikan teks jika mode kelola aktif
                         if (_isManageModeGlobal) {
                           _editingRowIndex = null;
                           _editingKey = null;
@@ -644,13 +702,31 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                                     int index = entry.key;
                                     var row = entry.value;
 
+                                    // BARU: Cek apakah baris ini memiliki pengingat yang lewat waktu/jatuh tempo
+                                    final bool isOverdue = _isRowOverdue(row);
+
                                     return DataRow(
+                                      // BARU: Mengubah warna latar belakang baris menjadi merah muda jika sudah lewat/jatuh tempo
+                                      color: MaterialStateProperty.resolveWith<Color?>((
+                                        Set<MaterialState> states,
+                                      ) {
+                                        if (isOverdue) {
+                                          return Colors
+                                              .red
+                                              .shade50; // Latar belakang merah lembut
+                                        }
+                                        return null; // Gunakan warna default bawaan sistem
+                                      }),
                                       cells: [
                                         DataCell(
                                           Text(
                                             '${index + 1}',
-                                            style: const TextStyle(
+                                            style: TextStyle(
                                               fontWeight: FontWeight.bold,
+                                              // Jika lewat, warnai teks angka penunjuk nomornya menjadi merah tua
+                                              color: isOverdue
+                                                  ? Colors.red.shade900
+                                                  : Colors.black87,
                                             ),
                                           ),
                                         ),
@@ -676,7 +752,6 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                                         }).toList(),
                                         if (!widget.isViewMode)
                                           DataCell(
-                                            // MODIFIKASI: Menampilkan tombol modifikasi pada SEMUA baris jika mode global aktif
                                             _isManageModeGlobal
                                                 ? Row(
                                                     mainAxisSize:

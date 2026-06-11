@@ -25,7 +25,17 @@ class NoteColumnSettingsView extends StatefulWidget {
 }
 
 class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
-  // BARU: Dialog pop-up untuk mengubah nama kolom yang ada
+  // BARU: Menambahkan 'Pengingat' ke dalam opsi tipe data kolom yang tersedia
+  final List<String> _availableTypes = [
+    'String',
+    'Numerik',
+    'Date',
+    'Time',
+    'Pengingat', // BARU: Tipe pengingat dengan deteksi lewat waktu
+    'Boolean',
+  ];
+
+  // Dialog pop-up untuk mengubah nama kolom yang ada
   void _showRenameFieldDialog(String oldKey) {
     final renameController = TextEditingController(text: oldKey);
     showDialog(
@@ -46,6 +56,7 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
             onPressed: () {
               final String newKey = renameController.text.trim();
               if (newKey.isNotEmpty && newKey != oldKey) {
+                // DISESUAIKAN: Menggunakan renameFieldKey sesuai controller Anda
                 widget.controller.renameFieldKey(
                   setDialogState: setState,
                   currentFieldKeys: widget.currentFieldKeys,
@@ -69,13 +80,7 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
   void _showAddFieldDialog() {
     final keyController = TextEditingController();
     String selectedType = 'String';
-    final List<String> availableTypes = [
-      'String',
-      'Numerik',
-      'Date',
-      'Time',
-      'Boolean',
-    ];
+
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -98,7 +103,7 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                   labelText: 'Tipe Data Kolom',
                   border: OutlineInputBorder(),
                 ),
-                items: availableTypes
+                items: _availableTypes
                     .map((t) => DropdownMenuItem(value: t, child: Text(t)))
                     .toList(),
                 onChanged: (val) {
@@ -118,6 +123,7 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
               onPressed: () {
                 final key = keyController.text.trim();
                 if (key.isNotEmpty) {
+                  // DISESUAIKAN: Menggunakan addFieldKey sesuai controller Anda
                   widget.controller.addFieldKey(
                     setDialogState: setState,
                     currentFieldKeys: widget.currentFieldKeys,
@@ -164,13 +170,6 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                     itemBuilder: (ctx, idx) {
                       final key = widget.currentFieldKeys[idx];
                       final type = widget.currentFieldTypes[key] ?? 'String';
-                      final List<String> availableTypes = [
-                        'String',
-                        'Numerik',
-                        'Date',
-                        'Time',
-                        'Boolean',
-                      ];
 
                       return Card(
                         margin: const EdgeInsets.only(bottom: 10),
@@ -233,7 +232,7 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                                               fontSize: 12,
                                               fontWeight: FontWeight.bold,
                                             ),
-                                            items: availableTypes
+                                            items: _availableTypes
                                                 .map(
                                                   (t) => DropdownMenuItem(
                                                     value: t,
@@ -244,6 +243,7 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                                             onChanged: (String? newType) {
                                               if (newType != null &&
                                                   newType != type) {
+                                                // FIXED: Menggunakan updateFieldType sesuai controller Anda
                                                 widget.controller
                                                     .updateFieldType(
                                                       setDialogState: setState,
