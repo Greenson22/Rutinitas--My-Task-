@@ -306,18 +306,37 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                 .map(
                   (sec) => PopupMenuItem<String>(
                     value: sec.sectionName,
-                    child: Text(
-                      'Pindah ke ${sec.sectionName}',
-                      style: const TextStyle(fontSize: 12),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.drive_file_move_outlined,
+                          size: 18,
+                          color: Colors.teal,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Pindah ke ${sec.sectionName}',
+                            style: const TextStyle(fontSize: 13),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
             if (currentGroup.allList.length > 1) const PopupMenuDivider(),
             const PopupMenuItem<String>(
               value: 'DELETE_ACTION',
-              child: Text(
-                'Hapus Item',
-                style: TextStyle(fontSize: 12, color: Colors.red),
+              child: Row(
+                children: [
+                  Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
+                  SizedBox(width: 10),
+                  Text(
+                    'Hapus Item',
+                    style: TextStyle(fontSize: 13, color: Colors.redAccent),
+                  ),
+                ],
               ),
             ),
           ],
