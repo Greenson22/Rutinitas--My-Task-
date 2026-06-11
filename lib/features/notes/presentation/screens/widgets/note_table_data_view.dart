@@ -1,6 +1,6 @@
 // lib/features/notes/presentation/screens/widgets/note_table_data_view.dart
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // BARU: Diperlukan untuk FilteringTextInputFormatter
+import 'package:flutter/services.dart';
 import '../../controllers/note_detail_controller.dart';
 
 class NoteTableDataView extends StatefulWidget {
@@ -42,6 +42,9 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
   int? _editingRowIndex;
   String? _editingKey;
 
+  // STATE BARU: Melacak indeks baris mana yang sedang membuka opsi tombol manajemen (pindah/hapus)
+  int? _actionRowIndex;
+
   void _submitFormRow() {
     setState(() {
       Map<String, TextEditingController> newRow = {};
@@ -72,14 +75,12 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
     widget.onChanged();
   }
 
-  // MODIFIKASI: Ditambahkan parameter rowIndex dan isFormInput opsional untuk membedakan form atas dan baris tabel data
   Widget _buildInputField(
     String key,
     TextEditingController controller, {
     int? rowIndex,
     bool isFormInput = false,
   }) {
-    // BARU: Jika di mode view, cukup render Text biasa (tanpa TextField / Dropdown)
     if (widget.isViewMode) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
@@ -102,13 +103,11 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
           : null,
     );
 
-    // BARU & UTAMA: Jika bagian dari daftar baris data tersimpan, cek apakah sedang dalam status aktif diedit
     if (!isFormInput && rowIndex != null) {
       final bool isCurrentEditing =
           (_editingRowIndex == rowIndex && _editingKey == key);
 
       if (!isCurrentEditing) {
-        // Tampilkan teks statis yang bersih agar terlihat jelas
         return InkWell(
           onTap: () {
             setState(() {
@@ -154,7 +153,6 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
           if (val != null) {
             setState(() {
               controller.text = val;
-              // Tutup mode edit setelah nilai dipilih
               if (!isFormInput) {
                 _editingRowIndex = null;
                 _editingKey = null;
@@ -168,18 +166,16 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
 
     return TextField(
       controller: controller,
-      // Diperbarui: menggunakanWithOptions jika tipenya Numerik agar keyboard di iOS/Android memunculkan tombol titik desimal
       keyboardType: type == 'Numerik'
           ? const TextInputType.numberWithOptions(decimal: true)
           : TextInputType.text,
-      // BARU & UTAMA: Mengunci ketikan huruf/simbol jika kolom bertipe 'Numerik'
       inputFormatters: type == 'Numerik'
           ? [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))]
           : null,
       readOnly: type == 'Date' || type == 'Time',
       decoration: inputDecoration,
       style: const TextStyle(fontSize: 13),
-      autofocus: !isFormInput, // Auto focus ketika baris diklik masuk mode edit
+      autofocus: !isFormInput,
       onTap: () async {
         if (type == 'Date') {
           DateTime? picked = await showDatePicker(
@@ -219,7 +215,6 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
       },
       onTapOutside: (_) {
         FocusScope.of(context).unfocus();
-        // BARU: Kembalikan ke tampilan teks biasa saat menekan area luar kolom
         if (!isFormInput) {
           setState(() {
             _editingRowIndex = null;
@@ -229,7 +224,6 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
       },
       onChanged: (_) => widget.onChanged(),
       onSubmitted: (_) {
-        // BARU: Kembalikan ke teks biasa setelah menekan tombol centang/enter pada keyboard
         if (!isFormInput) {
           setState(() {
             _editingRowIndex = null;
@@ -344,8 +338,7 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                                         child: _buildInputField(
                                           key,
                                           widget.formControllers[key]!,
-                                          isFormInput:
-                                              true, // Form atas selalu berupa input field langsung
+                                          isFormInput: true,
                                         ),
                                       ),
                                     ],
@@ -569,7 +562,6 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                                             ),
                                       );
                                     }).toList(),
-
                                     if (!widget.isViewMode)
                                       const DataColumn(
                                         label: Text(
@@ -586,6 +578,11 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                                   ) {
                                     int index = entry.key;
                                     var row = entry.value;
+
+                                    // Mengecek apakah baris ini sedang dalam kondisi membuka tombol sub-manajemen aksi
+                                    final bool isShowingRowActions =
+                                        (_actionRowIndex == index);
+
                                     return DataRow(
                                       cells: [
                                         DataCell(
@@ -610,33 +607,194 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                                               child: _buildInputField(
                                                 key,
                                                 row[key]!,
-                                                rowIndex:
-                                                    index, // Kirim parameter index baris
-                                                isFormInput:
-                                                    false, // Menandakan bahwa ini adalah bagian baris tabel data
+                                                rowIndex: index,
+                                                isFormInput: false,
                                               ),
                                             ),
                                           );
                                         }).toList(),
-
                                         if (!widget.isViewMode)
                                           DataCell(
-                                            IconButton(
-                                              icon: const Icon(
-                                                Icons.delete_outline,
-                                                color: Colors.redAccent,
-                                                size: 20,
-                                              ),
-                                              onPressed: () =>
-                                                  widget.controller.removeRow(
-                                                    setDialogState: setState,
-                                                    tableRows: widget.tableRows,
-                                                    triggerChange:
-                                                        widget.onChanged,
-                                                    index: index,
+                                            // MODIFIKASI UTAMA: Desain tombol aksi dinamis bersyarat
+                                            isShowingRowActions
+                                                ? Row(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: [
+                                                      // 1. Tombol Pindah Naik
+                                                      IconButton(
+                                                        icon: const Icon(
+                                                          Icons
+                                                              .arrow_upward_rounded,
+                                                          color: Colors.blue,
+                                                          size: 18,
+                                                        ),
+                                                        padding:
+                                                            EdgeInsets.zero,
+                                                        constraints:
+                                                            const BoxConstraints(),
+                                                        onPressed: index == 0
+                                                            ? null
+                                                            : () => widget.controller.moveRow(
+                                                                setDialogState:
+                                                                    setState,
+                                                                tableRows: widget
+                                                                    .tableRows,
+                                                                triggerChange:
+                                                                    widget
+                                                                        .onChanged,
+                                                                currentIndex:
+                                                                    index,
+                                                                moveUp: true,
+                                                              ),
+                                                        tooltip:
+                                                            'Pindah Ke Atas',
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                      // 2. Tombol Pindah Turun
+                                                      IconButton(
+                                                        icon: const Icon(
+                                                          Icons
+                                                              .arrow_downward_rounded,
+                                                          color: Colors.blue,
+                                                          size: 18,
+                                                        ),
+                                                        padding:
+                                                            EdgeInsets.zero,
+                                                        constraints:
+                                                            const BoxConstraints(),
+                                                        onPressed:
+                                                            index ==
+                                                                widget
+                                                                        .tableRows
+                                                                        .length -
+                                                                    1
+                                                            ? null
+                                                            : () => widget.controller.moveRow(
+                                                                setDialogState:
+                                                                    setState,
+                                                                tableRows: widget
+                                                                    .tableRows,
+                                                                triggerChange:
+                                                                    widget
+                                                                        .onChanged,
+                                                                currentIndex:
+                                                                    index,
+                                                                moveUp: false,
+                                                              ),
+                                                        tooltip:
+                                                            'Pindah Ke Bawah',
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                      // 3. Tombol Hapus Baris
+                                                      IconButton(
+                                                        icon: const Icon(
+                                                          Icons.delete_outline,
+                                                          color:
+                                                              Colors.redAccent,
+                                                          size: 18,
+                                                        ),
+                                                        padding:
+                                                            EdgeInsets.zero,
+                                                        constraints:
+                                                            const BoxConstraints(),
+                                                        onPressed: () {
+                                                          widget.controller
+                                                              .removeRow(
+                                                                setDialogState:
+                                                                    setState,
+                                                                tableRows: widget
+                                                                    .tableRows,
+                                                                triggerChange:
+                                                                    widget
+                                                                        .onChanged,
+                                                                index: index,
+                                                              );
+                                                          setState(
+                                                            () =>
+                                                                _actionRowIndex =
+                                                                    null,
+                                                          );
+                                                        },
+                                                        tooltip: 'Hapus Baris',
+                                                      ),
+                                                      const SizedBox(width: 10),
+                                                      // 4. Tombol Selesai (Menutup sub-menu aksi)
+                                                      IconButton(
+                                                        icon: const Icon(
+                                                          Icons
+                                                              .check_circle_outline_rounded,
+                                                          color: Colors.teal,
+                                                          size: 20,
+                                                        ),
+                                                        padding:
+                                                            EdgeInsets.zero,
+                                                        constraints:
+                                                            const BoxConstraints(),
+                                                        onPressed: () => setState(
+                                                          () =>
+                                                              _actionRowIndex =
+                                                                  null,
+                                                        ),
+                                                        tooltip: 'Selesai',
+                                                      ),
+                                                    ],
+                                                  )
+                                                : InkWell(
+                                                    onTap: () => setState(
+                                                      () => _actionRowIndex =
+                                                          index,
+                                                    ),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          6,
+                                                        ),
+                                                    child: Container(
+                                                      padding:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 10,
+                                                            vertical: 6,
+                                                          ),
+                                                      decoration: BoxDecoration(
+                                                        border: Border.all(
+                                                          color: Colors
+                                                              .grey
+                                                              .shade300,
+                                                        ),
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              6,
+                                                            ),
+                                                        color:
+                                                            Colors.grey.shade50,
+                                                      ),
+                                                      child: const Row(
+                                                        mainAxisSize:
+                                                            MainAxisSize.min,
+                                                        children: [
+                                                          Icon(
+                                                            Icons
+                                                                .settings_outlined,
+                                                            size: 14,
+                                                            color:
+                                                                Colors.indigo,
+                                                          ),
+                                                          SizedBox(width: 4),
+                                                          Text(
+                                                            'Kelola',
+                                                            style: TextStyle(
+                                                              fontSize: 12,
+                                                              color:
+                                                                  Colors.indigo,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w500,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
                                                   ),
-                                              tooltip: 'Hapus Baris',
-                                            ),
                                           ),
                                       ],
                                     );

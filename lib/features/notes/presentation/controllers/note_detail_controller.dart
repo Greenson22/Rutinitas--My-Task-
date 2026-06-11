@@ -277,6 +277,31 @@ class NoteDetailController {
     });
   }
 
+  // BARU: Fungsi untuk memindahkan posisi baris data tabel (naik atau turun)
+  void moveRow({
+    required StateSetter setDialogState,
+    required List<Map<String, TextEditingController>> tableRows,
+    required Function() triggerChange,
+    required int currentIndex,
+    required bool moveUp,
+  }) {
+    setDialogState(() {
+      if (moveUp && currentIndex > 0) {
+        // Tukar ke atas
+        final temp = tableRows[currentIndex];
+        tableRows[currentIndex] = tableRows[currentIndex - 1];
+        tableRows[currentIndex - 1] = temp;
+        triggerChange();
+      } else if (!moveUp && currentIndex < tableRows.length - 1) {
+        // Tukar ke bawah
+        final temp = tableRows[currentIndex];
+        tableRows[currentIndex] = tableRows[currentIndex + 1];
+        tableRows[currentIndex + 1] = temp;
+        triggerChange();
+      }
+    });
+  }
+
   Future<NoteModel> performSave({
     required NoteModel? existingNote,
     required String originalTitle,
