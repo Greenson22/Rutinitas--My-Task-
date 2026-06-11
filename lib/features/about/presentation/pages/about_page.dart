@@ -47,7 +47,7 @@ class _AboutPageState extends State<AboutPage>
       appBar: AppBar(
         title: const Text('Tentang Aplikasi'),
         backgroundColor:
-            Colors.indigo[700], // Menyesuaikan dengan tema aplikasi
+            Colors.indigo[700], // Menyesuaikan dengan tema aplikasi[cite: 2]
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: Colors.amberAccent,
@@ -68,7 +68,7 @@ class _AboutPageState extends State<AboutPage>
   }
 
   Widget _buildFeaturesTab(BuildContext context) {
-    // Informasi fitur yang telah diperluas dan dilengkapi sesuai pembaruan sistem aplikasi
+    // Informasi fitur yang telah diperluas dan dilengkapi sesuai pembaruan sistem aplikasi[cite: 2]
     final features = [
       {
         'icon': Icons.format_list_bulleted,
@@ -160,19 +160,95 @@ class _AboutPageState extends State<AboutPage>
   }
 
   Widget _buildDeveloperTab(BuildContext context, TextTheme textTheme) {
+    final theme = Theme.of(context);
+    final textScaleFactor = MediaQuery.of(context).textScaleFactor;
+    final primaryColor = theme.primaryColor;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24.0),
       child: Column(
         children: [
-          const SizedBox(height: 20),
+          // ========================================================
+          // CARD PUJIAN & UCAPAN SYUKUR KEPADA TUHAN (TERBAIK)
+          // ========================================================
+          Card(
+            elevation: 0,
+            margin: const EdgeInsets.only(bottom: 24.0),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(
+                color: primaryColor.withOpacity(0.2),
+                width: 1.5,
+              ),
+            ),
+            color: primaryColor.withOpacity(
+              0.05,
+            ), // Latar belakang soft adaptif
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.format_quote_rounded,
+                    size: 32 * textScaleFactor,
+                    color: primaryColor.withOpacity(0.5),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    '"Serahkanlah perbuatanmu kepada TUHAN,\nmaka terlaksanalah segala rencanamu."',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14 * textScaleFactor,
+                      fontStyle: FontStyle.italic,
+                      fontWeight: FontWeight.w600,
+                      color: theme.textTheme.bodyLarge?.color,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '— Amsal 16:3 —',
+                    style: TextStyle(
+                      fontSize: 12 * textScaleFactor,
+                      fontWeight: FontWeight.bold,
+                      color: primaryColor,
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 14.0),
+                    child: Divider(
+                      indent: 40,
+                      endIndent: 40,
+                      color: primaryColor.withOpacity(0.15),
+                    ),
+                  ),
+                  Text(
+                    'Puji dan syukur yang tak terhingga kepada TUHAN atas hikmat, kekuatan, dan tuntunan-Nya yang sempurna dari awal perancangan hingga terselesaikannya aplikasi ini. Segala kemuliaan hanya bagi nama-Nya.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13 * textScaleFactor,
+                      color: theme.textTheme.bodyMedium?.color?.withOpacity(
+                        0.85,
+                      ),
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // ========================================================
+          // INFORMASI PENGEMBANG[cite: 2]
+          // ========================================================
           Container(
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               gradient: LinearGradient(
                 colors: [
-                  Theme.of(context).primaryColor,
-                  Colors.teal, // Menggunakan warna sekunder aplikasi
+                  primaryColor,
+                  Colors.teal, // Menggunakan warna sekunder aplikasi[cite: 2]
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -316,7 +392,8 @@ class __AnimatedFeatureListItemState extends State<_AnimatedFeatureListItem>
               children: [
                 Icon(
                   widget.icon,
-                  color: Colors.indigo[700], // Menyesuaikan tema warna aplikasi
+                  color: Colors
+                      .indigo[700], // Menyesuaikan tema warna aplikasi[cite: 2]
                   size: 32,
                 ),
               ],
