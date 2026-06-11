@@ -423,119 +423,142 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                       ),
                       child: SingleChildScrollView(
                         scrollDirection: Axis.vertical,
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: DataTable(
-                            sortColumnIndex: widget.sortColumnIndex != null
-                                ? widget.sortColumnIndex! + 1
-                                : null,
-                            sortAscending: widget.isAscending,
-                            headingRowColor: MaterialStateProperty.resolveWith(
-                              (states) => Colors.indigo.shade50,
-                            ),
-                            dataRowMinHeight: 50,
-                            dataRowMaxHeight: widget.isViewMode
-                                ? 50
-                                : 60, // Sedikit lebih ramping di mode view
-                            columns: [
-                              const DataColumn(
-                                label: Text(
-                                  'No.',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.indigo,
-                                  ),
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            return SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  minWidth: constraints.maxWidth,
                                 ),
-                              ),
-                              ...widget.currentFieldKeys.asMap().entries.map((
-                                entry,
-                              ) {
-                                String key = entry.value;
-                                return DataColumn(
-                                  label: Text(
-                                    "$key (${widget.currentFieldTypes[key] ?? 'String'})",
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.indigo,
-                                    ),
-                                  ),
-                                  onSort: (columnIndex, ascending) =>
-                                      widget.controller.sortTable(
-                                        setDialogState: setState,
-                                        tableRows: widget.tableRows,
-                                        currentFieldTypes:
-                                            widget.currentFieldTypes,
-                                        triggerChange: widget.onChanged,
-                                        key: key,
-                                        columnIndex: columnIndex - 1,
-                                        currentSortColumnIndex:
-                                            widget.sortColumnIndex,
-                                        currentIsAscending: widget.isAscending,
-                                        onSortUpdated: widget.onSortChanged,
+                                child: DataTable(
+                                  horizontalMargin: 12,
+                                  columnSpacing: 24,
+                                  sortColumnIndex:
+                                      widget.sortColumnIndex != null
+                                      ? widget.sortColumnIndex! + 1
+                                      : null,
+                                  sortAscending: widget.isAscending,
+                                  headingRowColor:
+                                      MaterialStateProperty.resolveWith(
+                                        (states) => Colors.indigo.shade50,
                                       ),
-                                );
-                              }).toList(),
-
-                              // BARU: Sembunyikan kolom "Aksi" jika sedang View Mode
-                              if (!widget.isViewMode)
-                                const DataColumn(
-                                  label: Text(
-                                    'Aksi',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.indigo,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                            rows: widget.tableRows.asMap().entries.map((entry) {
-                              int index = entry.key;
-                              var row = entry.value;
-                              return DataRow(
-                                cells: [
-                                  DataCell(
-                                    Text(
-                                      '${index + 1}',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                  ...widget.currentFieldKeys.map((key) {
-                                    return DataCell(
-                                      Container(
-                                        width: widget.isViewMode ? null : 160,
-                                        padding: EdgeInsets.symmetric(
-                                          vertical: widget.isViewMode ? 0 : 4,
+                                  dataRowMinHeight: 50,
+                                  dataRowMaxHeight: widget.isViewMode ? 50 : 60,
+                                  columns: [
+                                    const DataColumn(
+                                      label: Text(
+                                        'No.',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.indigo,
                                         ),
-                                        child: _buildInputField(key, row[key]!),
                                       ),
-                                    );
-                                  }).toList(),
-
-                                  // BARU: Sembunyikan icon hapus baris jika sedang View Mode
-                                  if (!widget.isViewMode)
-                                    DataCell(
-                                      IconButton(
-                                        icon: const Icon(
-                                          Icons.delete_outline,
-                                          color: Colors.redAccent,
-                                          size: 20,
+                                    ),
+                                    ...widget.currentFieldKeys.asMap().entries.map((
+                                      entry,
+                                    ) {
+                                      String key = entry.value;
+                                      return DataColumn(
+                                        label: Text(
+                                          "$key (${widget.currentFieldTypes[key] ?? 'String'})",
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.indigo,
+                                          ),
                                         ),
-                                        onPressed: () =>
-                                            widget.controller.removeRow(
+                                        onSort: (columnIndex, ascending) =>
+                                            widget.controller.sortTable(
                                               setDialogState: setState,
                                               tableRows: widget.tableRows,
+                                              currentFieldTypes:
+                                                  widget.currentFieldTypes,
                                               triggerChange: widget.onChanged,
-                                              index: index,
+                                              key: key,
+                                              columnIndex: columnIndex - 1,
+                                              currentSortColumnIndex:
+                                                  widget.sortColumnIndex,
+                                              currentIsAscending:
+                                                  widget.isAscending,
+                                              onSortUpdated:
+                                                  widget.onSortChanged,
                                             ),
-                                        tooltip: 'Hapus Baris',
+                                      );
+                                    }).toList(),
+
+                                    // BARU: Sembunyikan kolom "Aksi" jika sedang View Mode
+                                    if (!widget.isViewMode)
+                                      const DataColumn(
+                                        label: Text(
+                                          'Aksi',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.indigo,
+                                          ),
+                                        ),
                                       ),
-                                    ),
-                                ],
-                              );
-                            }).toList(),
-                          ),
+                                  ],
+                                  rows: widget.tableRows.asMap().entries.map((
+                                    entry,
+                                  ) {
+                                    int index = entry.key;
+                                    var row = entry.value;
+                                    return DataRow(
+                                      cells: [
+                                        DataCell(
+                                          Text(
+                                            '${index + 1}',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                        ...widget.currentFieldKeys.map((key) {
+                                          return DataCell(
+                                            Container(
+                                              width: widget.isViewMode
+                                                  ? null
+                                                  : 160,
+                                              padding: EdgeInsets.symmetric(
+                                                vertical: widget.isViewMode
+                                                    ? 0
+                                                    : 4,
+                                              ),
+                                              child: _buildInputField(
+                                                key,
+                                                row[key]!,
+                                              ),
+                                            ),
+                                          );
+                                        }).toList(),
+
+                                        // BARU: Sembunyikan icon hapus baris jika sedang View Mode
+                                        if (!widget.isViewMode)
+                                          DataCell(
+                                            IconButton(
+                                              icon: const Icon(
+                                                Icons.delete_outline,
+                                                color: Colors.redAccent,
+                                                size: 20,
+                                              ),
+                                              onPressed: () =>
+                                                  widget.controller.removeRow(
+                                                    setDialogState: setState,
+                                                    tableRows: widget.tableRows,
+                                                    triggerChange:
+                                                        widget.onChanged,
+                                                    index: index,
+                                                  ),
+                                              tooltip: 'Hapus Baris',
+                                            ),
+                                          ),
+                                      ],
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ),
                     ),
