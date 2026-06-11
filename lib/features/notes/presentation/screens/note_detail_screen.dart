@@ -1,4 +1,5 @@
 // lib/features/notes/presentation/screens/note_detail_screen.dart
+
 import 'package:flutter/material.dart';
 import '../../models/note_model.dart';
 import '../controllers/note_detail_controller.dart';
@@ -45,12 +46,12 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       enableAddButton: true,
       enableFavoriteSort: false,
       itemTitle: (note) => note.title,
+
       // 1. Mengembalikan Layout Widget Custom dengan Warna Berbeda
       itemSubtitle: (note) {
         String created = _controller.formatDate(note.createdAt);
         String updated = _controller.formatDate(note.updatedAt);
         bool isTable = note.type == 'table';
-
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -78,6 +79,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           ],
         );
       },
+
       // 2. Mengembalikan data String murni agar sistem search bawaan tetap berfungsi
       itemSearchString: (note) {
         String created = _controller.formatDate(note.createdAt);
@@ -88,11 +90,30 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       itemIsFavorite: (note) => false,
       onAddPressed: () => _showNoteDialog(),
       onItemTap: (note) => _showNoteDialog(existingNote: note),
+
       itemMenuBuilder: (note) => const [
-        PopupMenuItem(value: 'edit', child: Text('Edit')),
+        PopupMenuItem(
+          value: 'edit',
+          child: Row(
+            children: [
+              Icon(Icons.edit_note, size: 18, color: Colors.teal),
+              SizedBox(width: 10),
+              Text('Edit', style: TextStyle(fontSize: 13)),
+            ],
+          ),
+        ),
         PopupMenuItem(
           value: 'delete',
-          child: Text('Hapus', style: TextStyle(color: Colors.red)),
+          child: Row(
+            children: [
+              Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
+              SizedBox(width: 10),
+              Text(
+                'Hapus',
+                style: TextStyle(fontSize: 13, color: Colors.redAccent),
+              ),
+            ],
+          ),
         ),
       ],
       onItemMenuSelected: (value, note) {
