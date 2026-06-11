@@ -34,9 +34,12 @@ class NoteTableDataView extends StatefulWidget {
 
 class _NoteTableDataViewState extends State<NoteTableDataView> {
   bool _isFormVisible = false;
-
   String _insertPosition = 'Paling Bawah';
   int _targetRowIndex = 0;
+
+  // STATE BARU: Melacak baris dan kolom ke berapa yang sedang aktif diedit di dalam tabel data tersimpan
+  int? _editingRowIndex;
+  String? _editingKey;
 
   void _submitFormRow() {
     setState(() {
@@ -68,13 +71,18 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
     widget.onChanged();
   }
 
-  Widget _buildInputField(String key, TextEditingController controller) {
+  // MODIFIKASI: Ditambahkan parameter rowIndex dan isFormInput opsional untuk membedakan form atas dan baris tabel data
+  Widget _buildInputField(
+    String key,
+    TextEditingController controller, {
+    int? rowIndex,
+    bool isFormInput = false,
+  }) {
     // BARU: Jika di mode view, cukup render Text biasa (tanpa TextField / Dropdown)
     if (widget.isViewMode) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
         child: SelectableText(
-          // <--- Diubah di sini
           controller.text.isEmpty ? '-' : controller.text,
           style: const TextStyle(fontSize: 13, color: Colors.black87),
         ),
@@ -93,6 +101,42 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
           : null,
     );
 
+    // BARU & UTAMA: Jika bagian dari daftar baris data tersimpan, cek apakah sedang dalam status aktif diedit
+    if (!isFormInput && rowIndex != null) {
+      final bool isCurrentEditing =
+          (_editingRowIndex == rowIndex && _editingKey == key);
+
+      if (!isCurrentEditing) {
+        // Tampilkan teks statis yang bersih agar terlihat jelas
+        return InkWell(
+          onTap: () {
+            setState(() {
+              _editingRowIndex = rowIndex;
+              _editingKey = key;
+            });
+          },
+          borderRadius: BorderRadius.circular(4),
+          child: Container(
+            width: double.infinity,
+            height: 35,
+            alignment: Alignment.centerLeft,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: Colors.transparent),
+            ),
+            child: Text(
+              controller.text.isEmpty ? '-' : controller.text,
+              style: const TextStyle(fontSize: 13, color: Colors.black87),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        );
+      }
+    }
+
     if (type == 'Boolean') {
       if (controller.text != 'Ya' && controller.text != 'Tidak') {
         controller.text = 'Tidak';
@@ -109,6 +153,11 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
           if (val != null) {
             setState(() {
               controller.text = val;
+              // Tutup mode edit setelah nilai dipilih
+              if (!isFormInput) {
+                _editingRowIndex = null;
+                _editingKey = null;
+              }
             });
             widget.onChanged();
           }
@@ -124,6 +173,7 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
       readOnly: type == 'Date' || type == 'Time',
       decoration: inputDecoration,
       style: const TextStyle(fontSize: 13),
+      autofocus: !isFormInput, // Auto focus ketika baris diklik masuk mode edit
       onTap: () async {
         if (type == 'Date') {
           DateTime? picked = await showDatePicker(
@@ -136,6 +186,10 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
             setState(() {
               controller.text =
                   "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
+              if (!isFormInput) {
+                _editingRowIndex = null;
+                _editingKey = null;
+              }
             });
             widget.onChanged();
           }
@@ -148,13 +202,35 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
             setState(() {
               controller.text =
                   "${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}";
+              if (!isFormInput) {
+                _editingRowIndex = null;
+                _editingKey = null;
+              }
             });
             widget.onChanged();
           }
         }
       },
-      onTapOutside: (_) => FocusScope.of(context).unfocus(),
+      onTapOutside: (_) {
+        FocusScope.of(context).unfocus();
+        // BARU: Kembalikan ke tampilan teks biasa saat menekan area luar kolom
+        if (!isFormInput) {
+          setState(() {
+            _editingRowIndex = null;
+            _editingKey = null;
+          });
+        }
+      },
       onChanged: (_) => widget.onChanged(),
+      onSubmitted: (_) {
+        // BARU: Kembalikan ke teks biasa setelah menekan tombol centang/enter pada keyboard
+        if (!isFormInput) {
+          setState(() {
+            _editingRowIndex = null;
+            _editingKey = null;
+          });
+        }
+      },
     );
   }
 
@@ -177,7 +253,6 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
               ),
             )
           else ...[
-            // BARU: Sembunyikan blok 'Tambah Data Baru' jika dalam View Mode
             if (!widget.isViewMode) ...[
               InkWell(
                 onTap: () => setState(() => _isFormVisible = !_isFormVisible),
@@ -263,6 +338,8 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                                         child: _buildInputField(
                                           key,
                                           widget.formControllers[key]!,
+                                          isFormInput:
+                                              true, // Form atas selalu berupa input field langsung
                                         ),
                                       ),
                                     ],
@@ -487,7 +564,6 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                                       );
                                     }).toList(),
 
-                                    // BARU: Sembunyikan kolom "Aksi" jika sedang View Mode
                                     if (!widget.isViewMode)
                                       const DataColumn(
                                         label: Text(
@@ -528,12 +604,15 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                                               child: _buildInputField(
                                                 key,
                                                 row[key]!,
+                                                rowIndex:
+                                                    index, // Kirim parameter index baris
+                                                isFormInput:
+                                                    false, // Menandakan bahwa ini adalah bagian baris tabel data
                                               ),
                                             ),
                                           );
                                         }).toList(),
 
-                                        // BARU: Sembunyikan icon hapus baris jika sedang View Mode
                                         if (!widget.isViewMode)
                                           DataCell(
                                             IconButton(
