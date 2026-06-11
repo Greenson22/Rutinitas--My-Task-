@@ -157,13 +157,7 @@ class BaseDetailAppBar extends StatelessWidget implements PreferredSizeWidget {
             ),
         ] else ...[
           if (additionalAction != null) additionalAction!,
-          // Tombol bawaan search_off_rounded di bawah ini dihapus / disesuaikan agar tidak double icon panah
-          if (isSearchMode)
-            IconButton(
-              icon: const Icon(Icons.unfold_less_rounded, color: Colors.white),
-              onPressed: onToggleSearchMode,
-              tooltip: 'Collapse',
-            ),
+          // MODIFIKASI: Menghapus tombol duplikat sembunyikan panel (unfold_less_rounded) agar seragam menggunakan tombol utama di atas
         ],
       ],
       bottom: isSearchMode
