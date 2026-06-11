@@ -756,6 +756,28 @@ class _HomeScreenState extends State<HomeScreen> {
         enableMultiSelect: false,
         onMoveMassive: () {},
         onDeleteMassive: () {},
+
+        // ====================================================================
+        // TAMBAHAN BARU: Tombol Muncul di AppBar Utama saat Tahan Lama Aktif
+        // (Bisa dikondisikan muncul hanya saat _internalSearchMode aktif)
+        // ====================================================================
+        additionalAction: _internalSearchMode
+            ? IconButton(
+                icon: Icon(
+                  _showHiddenSection ? Icons.visibility : Icons.visibility_off,
+                  color: Colors.white,
+                ),
+                tooltip: _showHiddenSection
+                    ? 'Sembunyikan Kategori Nonaktif'
+                    : 'Tampilkan Kategori Tersembunyi',
+                onPressed: () {
+                  setState(() {
+                    _showHiddenSection = !_showHiddenSection;
+                  });
+                },
+              )
+            : null,
+
         searchBarContent: Row(
           children: [
             Expanded(

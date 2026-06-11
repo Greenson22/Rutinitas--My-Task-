@@ -20,6 +20,9 @@ class BaseDetailAppBar extends StatelessWidget implements PreferredSizeWidget {
   // Konten isi kolom pencarian yang disuntikkan dari parent screen
   final Widget? searchBarContent;
 
+  // TAMBAHAN BARU: Widget aksi tambahan di sisi kanan title atau menu (opsional)
+  final Widget? additionalAction;
+
   const BaseDetailAppBar({
     super.key,
     required this.pageTitle,
@@ -33,6 +36,7 @@ class BaseDetailAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.onMoveMassive,
     this.onDeleteMassive,
     this.searchBarContent,
+    this.additionalAction, // <--- Daftarkan di konstruktor
   });
 
   @override
@@ -90,15 +94,17 @@ class BaseDetailAppBar extends StatelessWidget implements PreferredSizeWidget {
               icon: const Icon(Icons.delete, color: Colors.white),
               onPressed: onDeleteMassive,
             ),
-        ] else if (isSearchMode) ...[
-          IconButton(
-            icon: const Icon(Icons.search_off_rounded, color: Colors.white),
-            onPressed: onToggleSearchMode,
-          ),
+        ] else ...[
+          // TAMBAHAN BARU: Munculkan tombol aksi kustom jika dikirim dari parent
+          if (additionalAction != null) additionalAction!,
+
+          if (isSearchMode)
+            IconButton(
+              icon: const Icon(Icons.search_off_rounded, color: Colors.white),
+              onPressed: onToggleSearchMode,
+            ),
         ],
       ],
-      // Menggunakan SizedOverflowBox agar layout internal AppBar tidak menjerit eror
-      // saat batasan tinggi mengecil secara tiba-tiba ketika search dinonaktifkan.
       bottom: isSearchMode
           ? PreferredSize(
               preferredSize: const Size.fromHeight(70.0),
@@ -117,11 +123,10 @@ class BaseDetailAppBar extends StatelessWidget implements PreferredSizeWidget {
                 ),
               ),
             )
-          : null, // Jika tidak dalam search mode, kembalikan null agar AppBar kembali ke ukuran normal (56.0)
+          : null,
     );
   }
 
-  // Ukuran tinggi akan dinamis mengecil kembali ke kToolbarHeight (56.0) saat search mati
   @override
   Size get preferredSize =>
       Size.fromHeight(kToolbarHeight + (isSearchMode ? 70.0 : 0.0));
