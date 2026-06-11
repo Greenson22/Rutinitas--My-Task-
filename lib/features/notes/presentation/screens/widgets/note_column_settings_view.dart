@@ -25,6 +25,47 @@ class NoteColumnSettingsView extends StatefulWidget {
 }
 
 class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
+  // BARU: Dialog pop-up untuk mengubah nama kolom yang ada
+  void _showRenameFieldDialog(String oldKey) {
+    final renameController = TextEditingController(text: oldKey);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Ubah Nama Kolom'),
+        content: TextField(
+          controller: renameController,
+          decoration: const InputDecoration(labelText: 'Nama Kolom Baru'),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final String newKey = renameController.text.trim();
+              if (newKey.isNotEmpty && newKey != oldKey) {
+                widget.controller.renameFieldKey(
+                  setDialogState: setState,
+                  currentFieldKeys: widget.currentFieldKeys,
+                  currentFieldTypes: widget.currentFieldTypes,
+                  formControllers: widget.formControllers,
+                  tableRows: widget.tableRows,
+                  triggerChange: widget.onChanged,
+                  oldKey: oldKey,
+                  newKey: newKey,
+                );
+                Navigator.pop(ctx);
+              }
+            },
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showAddFieldDialog() {
     final keyController = TextEditingController();
     String selectedType = 'String';
@@ -35,7 +76,6 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
       'Time',
       'Boolean',
     ];
-
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -131,7 +171,6 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                         'Time',
                         'Boolean',
                       ];
-
                       return Card(
                         margin: const EdgeInsets.only(bottom: 8),
                         shape: RoundedRectangleBorder(
@@ -139,9 +178,32 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                         ),
                         child: ListTile(
                           dense: true,
-                          title: Text(
-                            key,
-                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          // MODIFIKASI: Mengubah judul kolom menjadi InkWell agar bisa ditekan untuk mengubah namanya
+                          title: Row(
+                            children: [
+                              Expanded(
+                                child: InkWell(
+                                  onTap: () => _showRenameFieldDialog(key),
+                                  child: Text(
+                                    key,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.black87,
+                                      decoration: TextDecoration.underline,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.edit_outlined,
+                                  size: 16,
+                                  color: Colors.indigo,
+                                ),
+                                onPressed: () => _showRenameFieldDialog(key),
+                                tooltip: 'Ubah Nama Kolom',
+                              ),
+                            ],
                           ),
                           subtitle: Row(
                             mainAxisSize: MainAxisSize.min,

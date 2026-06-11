@@ -129,6 +129,59 @@ class NoteDetailController {
     });
   }
 
+  // BARU: Fungsi untuk mengubah nama kolom dan memigrasikan datanya di setiap baris
+  void renameFieldKey({
+    required StateSetter setDialogState,
+    required List<String> currentFieldKeys,
+    required Map<String, String> currentFieldTypes,
+    required Map<String, TextEditingController> formControllers,
+    required List<Map<String, TextEditingController>> tableRows,
+    required Function() triggerChange,
+    required String oldKey,
+    required String newKey,
+  }) {
+    if (newKey.isEmpty || oldKey == newKey) return;
+
+    // Validasi jika nama kolom baru sudah ada
+    if (currentFieldKeys.contains(newKey)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Nama kolom sudah digunakan!'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    setDialogState(() {
+      // 1. Perbarui daftar kunci utama
+      int index = currentFieldKeys.indexOf(oldKey);
+      if (index != -1) {
+        currentFieldKeys[index] = newKey;
+      }
+
+      // 2. Migrasikan tipe data map
+      final String type = currentFieldTypes.remove(oldKey) ?? 'String';
+      currentFieldTypes[newKey] = type;
+
+      // 3. Migrasikan controller form input utama
+      final TextEditingController? formCtrl = formControllers.remove(oldKey);
+      if (formCtrl != null) {
+        formControllers[newKey] = formCtrl;
+      }
+
+      // 4. Urus migrasi data pada setiap baris tersimpan
+      for (var row in tableRows) {
+        final TextEditingController? rowCtrl = row.remove(oldKey);
+        if (rowCtrl != null) {
+          row.addAll({newKey: rowCtrl});
+        }
+      }
+
+      triggerChange();
+    });
+  }
+
   // BARU: Fungsi untuk mengubah tipe data kolom dan memvalidasi nilai yang sudah ada
   void updateFieldType({
     required StateSetter setDialogState,
