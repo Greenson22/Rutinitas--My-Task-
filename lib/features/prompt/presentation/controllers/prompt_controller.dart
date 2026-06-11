@@ -1212,4 +1212,27 @@ class PromptController extends ChangeNotifier {
       }
     }
   }
+
+  Future<void> toggleGroupVisibility(
+    PromptGroup group,
+    BuildContext context,
+  ) async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      group.isHidden = !group.isHidden; // Balikkan status visibilitas
+      final baseDir = await _storageService.getBaseDirSetting();
+      final String jsonString = _storageService.formatJsonPretty(
+        group.toJson(),
+      );
+      await _storageService.savePromptGroup(baseDir, group.id, jsonString);
+
+      // Muat ulang data secara otomatis setelah berhasil disimpan
+      await loadAllPrompts(context);
+    } catch (e) {
+      _isLoading = false;
+      notifyListeners();
+      debugPrint("Gagal mengubah visibilitas prompt group: $e");
+    }
+  }
 }

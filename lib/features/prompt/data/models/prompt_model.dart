@@ -8,6 +8,7 @@ class PromptGroup {
   final String lastUpdated;
   final int orderIndex; // PROPERTI BARU UNTUK MENYIMPAN URUTAN POSISI
   final List<PromptItem> prompts;
+  bool isHidden;
 
   PromptGroup({
     required this.id,
@@ -16,6 +17,7 @@ class PromptGroup {
     required this.icon,
     required this.lastUpdated,
     this.orderIndex = 0, // DEFAULT VALUE
+    this.isHidden = false,
     required this.prompts,
   });
 
@@ -32,6 +34,7 @@ class PromptGroup {
       icon: json['icon'] ?? '📝',
       lastUpdated: json['last_updated'] ?? '',
       orderIndex: json['order_index'] ?? 0, // AMBIL DATA URUTAN DARI JSON
+      isHidden: json['isHidden'] ?? false,
       prompts: promptList,
     );
   }
@@ -44,6 +47,7 @@ class PromptGroup {
       'icon': icon,
       'last_updated': lastUpdated,
       'order_index': orderIndex, // SIMPAN KE JSON
+      'isHidden': isHidden,
       'prompts': prompts.map((e) => e.toJson()).toList(),
     };
   }

@@ -18,6 +18,9 @@ class PromptScreen extends StatefulWidget {
 class _PromptScreenState extends State<PromptScreen> {
   late final PromptController _controller;
 
+  // STATE BARU: Kontrol untuk menampilkan atau menyembunyikan kategori/grup tersembunyi
+  bool _showHiddenSection = false;
+
   @override
   void initState() {
     super.initState();
@@ -292,16 +295,27 @@ class _PromptScreenState extends State<PromptScreen> {
       listenable: _controller,
       builder: (context, _) {
         final Map<String, List<PromptGroup>> sectionsMap = {};
+        final Map<String, List<PromptGroup>> hiddenSectionsMap =
+            {}; // Penampung baru khusus data hidden
         final bool isSearching = _controller.searchQuery.isNotEmpty;
 
+        // Pisahkan penempatan grup berdasarkan status group.isHidden[cite: 11]
         for (var group in _controller.filteredPromptGroups) {
           final secName = group.sectionName.isEmpty
               ? 'GENERAL'
               : group.sectionName.toUpperCase();
-          if (!sectionsMap.containsKey(secName)) {
-            sectionsMap[secName] = [];
+
+          if (group.isHidden) {
+            if (!hiddenSectionsMap.containsKey(secName)) {
+              hiddenSectionsMap[secName] = [];
+            }
+            hiddenSectionsMap[secName]!.add(group);
+          } else {
+            if (!sectionsMap.containsKey(secName)) {
+              sectionsMap[secName] = [];
+            }
+            sectionsMap[secName]!.add(group);
           }
-          sectionsMap[secName]!.add(group);
         }
 
         if (!isSearching) {
@@ -316,10 +330,31 @@ class _PromptScreenState extends State<PromptScreen> {
           sectionKeys.insert(0, 'GENERAL');
         }
 
+        final int visibleKeysCount = sectionKeys.length;
+
+        // Jika tombol mata diaktifkan dan ada seksi tersembunyi, gabungkan key seksi tersebut ke paling bawah list[cite: 11]
+        if (_showHiddenSection && hiddenSectionsMap.isNotEmpty) {
+          hiddenSectionsMap.forEach((key, groupsList) {
+            if (groupsList.isNotEmpty) {
+              String hiddenKey = '${key}_hidden_key';
+              sectionKeys.add(hiddenKey);
+
+              if (_controller.searchQuery.isEmpty) {
+                sectionsMap[hiddenKey] = groupsList;
+              } else {
+                sectionsMap[hiddenKey] = groupsList.where((group) {
+                  return group.title.toLowerCase().contains(
+                    _controller.searchQuery,
+                  );
+                }).toList();
+              }
+            }
+          });
+        }
+
         return GroupedSectionLayout<PromptGroup>(
           title: 'Prompt Groups',
           drawer: const DrawerMenu(isPromptActive: true),
-          // MODIFIKASI: floatingActionButton dihapus (bernilai null) agar tombol tambah di bawah hilang
           floatingActionButton: null,
           isLoading: _controller.isLoading,
           isEmpty: sectionsMap.isEmpty,
@@ -336,55 +371,97 @@ class _PromptScreenState extends State<PromptScreen> {
           onSearchChanged: (query) {
             _controller.updateSearchQuery(query);
           },
-          // MODIFIKASI: Aksi tombol add di AppBar dialihkan untuk memicu dialog Tambah Seksi Kategori Baru
           onAddPressed: () {
             _showAddSectionDialog();
           },
 
+          // ====================================================================
+          // TAMBAHAN BARU: Tombol Muncul di AppBar Utama saat Tahan Lama Aktif
+          // Menyediakan tombol toggle kustom untuk menampilkan seksi hidden group[cite: 11]
+          // ====================================================================
+          additionalAction: IconButton(
+            icon: Icon(
+              _showHiddenSection ? Icons.visibility : Icons.visibility_off,
+              color: Colors.white,
+            ),
+            tooltip: _showHiddenSection
+                ? 'Sembunyikan Grup Nonaktif'
+                : 'Tampilkan Grup Tersembunyi',
+            onPressed: () {
+              setState(() {
+                _showHiddenSection = !_showHiddenSection;
+              });
+            },
+          ),
+
           sectionKeys: sectionKeys,
           groupedItems: sectionsMap,
 
-          sectionHeaderBuilder:
-              (context, sIndex, sectionName, isLayoutEditMode) {
-                if (sIndex >= sectionKeys.length)
-                  return const SizedBox.shrink();
+          sectionHeaderBuilder: (context, sIndex, sectionName, isLayoutEditMode) {
+            // Render Header Pembatas Khusus seksi yang Tersembunyi di paling bawah[cite: 11]
+            if (sIndex >= visibleKeysCount) {
+              String originalName = sectionName.replaceAll('_hidden_key', '');
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (sIndex == visibleKeysCount)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 16.0,
+                        vertical: 8.0,
+                      ),
+                      child: Divider(thickness: 2, color: Colors.grey),
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                    child: Text(
+                      '$originalName (Tersembunyi)',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.blueGrey,
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            }
 
-                return InteractiveSectionHeader(
-                  sectionName: sectionName,
-                  themeColor: Colors.indigo[900]!,
-                  isEditMode: isLayoutEditMode
-                      ? true
-                      : _controller.isSectionEditMode,
-                  isUpperCase: false,
-                  isFirst: isSearching ? true : (sIndex == 0),
-                  isLast: isSearching
-                      ? true
-                      : (sIndex == sectionKeys.length - 1),
-                  onToggleEdit: () {
-                    if (isSearching) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Matikan pencarian untuk mengubah struktur seksi!',
-                          ),
-                        ),
-                      );
-                      return;
-                    }
-                    _controller.toggleSectionEditMode();
-                  },
-                  onMoveUp: isSearching
-                      ? () {}
-                      : () => _controller.moveSectionOrder(sIndex, -1, context),
-                  onMoveDown: isSearching
-                      ? () {}
-                      : () => _controller.moveSectionOrder(sIndex, 1, context),
-                  onEditName: () => _showEditSectionNameDialog(sectionName),
-                  onDelete: () => _showDeleteSectionDialog(sectionName),
-                  onAddItem: () =>
-                      _showAddGroupDialog(defaultSection: sectionName),
-                );
+            if (sIndex >= sectionKeys.length) return const SizedBox.shrink();
+
+            return InteractiveSectionHeader(
+              sectionName: sectionName,
+              themeColor: Colors.indigo[900]!,
+              isEditMode: isLayoutEditMode
+                  ? true
+                  : _controller.isSectionEditMode,
+              isUpperCase: false,
+              isFirst: isSearching ? true : (sIndex == 0),
+              isLast: isSearching ? true : (sIndex == sectionKeys.length - 1),
+              onToggleEdit: () {
+                if (isSearching) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Matikan pencarian untuk mengubah struktur seksi!',
+                      ),
+                    ),
+                  );
+                  return;
+                }
+                _controller.toggleSectionEditMode();
               },
+              onMoveUp: isSearching
+                  ? () {}
+                  : () => _controller.moveSectionOrder(sIndex, -1, context),
+              onMoveDown: isSearching
+                  ? () {}
+                  : () => _controller.moveSectionOrder(sIndex, 1, context),
+              onEditName: () => _showEditSectionNameDialog(sectionName),
+              onDelete: () => _showDeleteSectionDialog(sectionName),
+              onAddItem: () => _showAddGroupDialog(defaultSection: sectionName),
+            );
+          },
 
           gridItemBuilder: (context, promptGroup, index, items, isLayoutEditMode) {
             if (index >= items.length) return const SizedBox.shrink();
@@ -392,6 +469,8 @@ class _PromptScreenState extends State<PromptScreen> {
             return InteractiveGridCard(
               themeColor: Colors.indigo,
               isEditMode: isLayoutEditMode ? true : _controller.isCardEditMode,
+              isHiddenStyle: promptGroup
+                  .isHidden, // Berikan style buram/redup jika grup disembunyikan[cite: 11]
               isFirst: isSearching ? true : (index == 0),
               isLast: isSearching ? true : (index == items.length - 1),
               onTap: () {
@@ -401,26 +480,23 @@ class _PromptScreenState extends State<PromptScreen> {
                     builder: (context) =>
                         PromptDetailScreen(promptGroup: promptGroup),
                   ),
-                );
+                ).then((_) => _controller.loadAllPrompts(context));
               },
               onLongPress: () {
                 _controller.toggleCardEditMode();
               },
               onMoveLeft: () {
                 if (index > 0) {
-                  // Memanggil Controller untuk memastikan pergeseran tersimpan dengan baik
                   _controller.moveGroupOrderHorizontal(items, index, -1);
                 }
               },
-
               onMoveRight: () {
                 if (index < items.length - 1) {
-                  // Memanggil Controller untuk memastikan pergeseran tersimpan dengan baik
                   _controller.moveGroupOrderHorizontal(items, index, 1);
                 }
               },
-              popupMenuItems: const [
-                PopupMenuItem(
+              popupMenuItems: [
+                const PopupMenuItem(
                   value: 'edit',
                   child: Row(
                     children: [
@@ -430,7 +506,7 @@ class _PromptScreenState extends State<PromptScreen> {
                     ],
                   ),
                 ),
-                PopupMenuItem(
+                const PopupMenuItem(
                   value: 'move_section',
                   child: Row(
                     children: [
@@ -444,8 +520,30 @@ class _PromptScreenState extends State<PromptScreen> {
                     ],
                   ),
                 ),
-                PopupMenuDivider(),
+                // --- Menu popup sembunyikan/tampilkan grup ---[cite: 11]
                 PopupMenuItem(
+                  value: 'toggle_visibility',
+                  child: Row(
+                    children: [
+                      Icon(
+                        promptGroup.isHidden
+                            ? Icons.visibility
+                            : Icons.visibility_off,
+                        size: 18,
+                        color: Colors.blueGrey,
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        promptGroup.isHidden
+                            ? 'Tampilkan Group'
+                            : 'Sembunyikan Group',
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
+                const PopupMenuDivider(),
+                const PopupMenuItem(
                   value: 'delete',
                   child: Row(
                     children: [
@@ -463,11 +561,14 @@ class _PromptScreenState extends State<PromptScreen> {
                   ),
                 ),
               ],
-              onPopupSelected: (value) {
+              onPopupSelected: (value) async {
                 if (value == 'edit') {
                   _showEditGroupDialog(promptGroup);
                 } else if (value == 'move_section') {
                   _showMoveSectionDialog(promptGroup);
+                } else if (value == 'toggle_visibility') {
+                  // PERBAIKAN: Memanggil fungsi pembalik visibilitas langsung dari controller[cite: 11]
+                  await _controller.toggleGroupVisibility(promptGroup, context);
                 } else if (value == 'delete') {
                   _showDeleteGroupItemDialog(promptGroup);
                 }
