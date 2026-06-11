@@ -73,7 +73,8 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
     if (widget.isViewMode) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
-        child: Text(
+        child: SelectableText(
+          // <--- Diubah di sini
           controller.text.isEmpty ? '-' : controller.text,
           style: const TextStyle(fontSize: 13, color: Colors.black87),
         ),
