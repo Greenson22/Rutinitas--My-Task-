@@ -231,6 +231,12 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
                     ? TextField(
                         controller: _titleController,
                         autofocus: true,
+                        // --- PEMBARUAN DESAIN KURSOR & INPUT LINE ---
+                        cursorColor: Colors
+                            .amberAccent, // Kursor terlihat kontras di atas warna Indigo
+                        cursorWidth: 2.0,
+                        cursorRadius: const Radius.circular(2),
+                        textAlignVertical: TextAlignVertical.center,
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 16,
@@ -238,10 +244,25 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
                         ),
                         decoration: const InputDecoration(
                           hintText: 'Judul Catatan...',
-                          hintStyle: TextStyle(color: Colors.white60),
+                          hintStyle: TextStyle(
+                            color: Colors.white60,
+                            fontWeight: FontWeight.normal,
+                          ),
                           border: InputBorder.none,
+                          enabledBorder: UnderlineInputBorder(
+                            borderSide: BorderSide(
+                              color: Colors.white24,
+                              width: 1.0,
+                            ),
+                          ),
+                          focusedBorder: UnderlineInputBorder(
+                            borderSide: BorderSide(
+                              color: Colors.tealAccent,
+                              width: 1.5,
+                            ),
+                          ),
                           isDense: true,
-                          contentPadding: EdgeInsets.zero,
+                          contentPadding: EdgeInsets.only(bottom: 6.0),
                         ),
                       )
                     : Text(
