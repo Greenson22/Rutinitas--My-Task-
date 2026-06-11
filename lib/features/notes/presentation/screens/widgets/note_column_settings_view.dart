@@ -171,95 +171,155 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                         'Time',
                         'Boolean',
                       ];
+
                       return Card(
-                        margin: const EdgeInsets.only(bottom: 8),
+                        margin: const EdgeInsets.only(bottom: 10),
+                        elevation: 0, // Desain flat modern
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(color: Colors.grey.shade200),
                         ),
-                        child: ListTile(
-                          dense: true,
-                          // MODIFIKASI: Mengubah judul kolom menjadi InkWell agar bisa ditekan untuk mengubah namanya
-                          title: Row(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
                             children: [
+                              // SISI KIRI: Detail Kolom (Nama & Dropdown Tipe)
                               Expanded(
-                                child: InkWell(
-                                  onTap: () => _showRenameFieldDialog(key),
-                                  child: Text(
-                                    key,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.black87,
-                                      decoration: TextDecoration.underline,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      key,
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black87,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Row(
+                                      children: [
+                                        Text(
+                                          "Tipe: ",
+                                          style: TextStyle(
+                                            color: Colors.grey[500],
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                        Theme(
+                                          data: Theme.of(
+                                            context,
+                                          ).copyWith(canvasColor: Colors.white),
+                                          child: DropdownButton<String>(
+                                            value: type,
+                                            isDense: true,
+                                            underline: const SizedBox(),
+                                            icon: const Icon(
+                                              Icons.arrow_drop_down,
+                                              size: 18,
+                                              color: Colors.indigo,
+                                            ),
+                                            style: const TextStyle(
+                                              color: Colors.indigo,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                            items: availableTypes
+                                                .map(
+                                                  (t) => DropdownMenuItem(
+                                                    value: t,
+                                                    child: Text(t),
+                                                  ),
+                                                )
+                                                .toList(),
+                                            onChanged: (String? newType) {
+                                              if (newType != null &&
+                                                  newType != type) {
+                                                widget.controller
+                                                    .updateFieldType(
+                                                      setDialogState: setState,
+                                                      currentFieldTypes: widget
+                                                          .currentFieldTypes,
+                                                      tableRows:
+                                                          widget.tableRows,
+                                                      triggerChange:
+                                                          widget.onChanged,
+                                                      key: key,
+                                                      newType: newType,
+                                                    );
+                                              }
+                                            },
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                              // SISI KANAN: Tombol Aksi Bersih
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  // Tombol Edit Nama Kolom
+                                  Material(
+                                    color: Colors.indigo.withOpacity(0.08),
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: InkWell(
+                                      onTap: () => _showRenameFieldDialog(key),
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: const Padding(
+                                        padding: EdgeInsets.all(8.0),
+                                        child: Icon(
+                                          Icons.edit_rounded,
+                                          size: 18,
+                                          color: Colors.indigo,
+                                        ),
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ),
-                              IconButton(
-                                icon: const Icon(
-                                  Icons.edit_outlined,
-                                  size: 16,
-                                  color: Colors.indigo,
-                                ),
-                                onPressed: () => _showRenameFieldDialog(key),
-                                tooltip: 'Ubah Nama Kolom',
-                              ),
-                            ],
-                          ),
-                          subtitle: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                "Tipe Data: ",
-                                style: TextStyle(color: Colors.grey[600]),
-                              ),
-                              DropdownButton<String>(
-                                value: type,
-                                isDense: true,
-                                underline: const SizedBox(),
-                                style: const TextStyle(
-                                  color: Colors.indigo,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                items: availableTypes
-                                    .map(
-                                      (t) => DropdownMenuItem(
-                                        value: t,
-                                        child: Text(t),
+                                  const SizedBox(width: 8),
+                                  // Tombol Hapus Kolom
+                                  Material(
+                                    color: Colors.red.withOpacity(0.08),
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: InkWell(
+                                      onTap: () =>
+                                          widget.controller.removeFieldKey(
+                                            setDialogState: setState,
+                                            currentFieldKeys:
+                                                widget.currentFieldKeys,
+                                            currentFieldTypes:
+                                                widget.currentFieldTypes,
+                                            formControllers:
+                                                widget.formControllers,
+                                            tableRows: widget.tableRows,
+                                            triggerChange: widget.onChanged,
+                                            key: key,
+                                          ),
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: const Padding(
+                                        padding: EdgeInsets.all(8.0),
+                                        child: Icon(
+                                          Icons.delete_outline_rounded,
+                                          size: 18,
+                                          color: Colors.redAccent,
+                                        ),
                                       ),
-                                    )
-                                    .toList(),
-                                onChanged: (String? newType) {
-                                  if (newType != null && newType != type) {
-                                    widget.controller.updateFieldType(
-                                      setDialogState: setState,
-                                      currentFieldTypes:
-                                          widget.currentFieldTypes,
-                                      tableRows: widget.tableRows,
-                                      triggerChange: widget.onChanged,
-                                      key: key,
-                                      newType: newType,
-                                    );
-                                  }
-                                },
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
-                          ),
-                          trailing: IconButton(
-                            icon: const Icon(
-                              Icons.delete_outline,
-                              color: Colors.redAccent,
-                              size: 20,
-                            ),
-                            onPressed: () => widget.controller.removeFieldKey(
-                              setDialogState: setState,
-                              currentFieldKeys: widget.currentFieldKeys,
-                              currentFieldTypes: widget.currentFieldTypes,
-                              formControllers: widget.formControllers,
-                              tableRows: widget.tableRows,
-                              triggerChange: widget.onChanged,
-                              key: key,
-                            ),
                           ),
                         ),
                       );
