@@ -1,5 +1,6 @@
 // lib/features/notes/presentation/screens/widgets/note_table_data_view.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // BARU: Diperlukan untuk FilteringTextInputFormatter
 import '../../controllers/note_detail_controller.dart';
 
 class NoteTableDataView extends StatefulWidget {
@@ -167,9 +168,14 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
 
     return TextField(
       controller: controller,
+      // Diperbarui: menggunakanWithOptions jika tipenya Numerik agar keyboard di iOS/Android memunculkan tombol titik desimal
       keyboardType: type == 'Numerik'
-          ? TextInputType.number
+          ? const TextInputType.numberWithOptions(decimal: true)
           : TextInputType.text,
+      // BARU & UTAMA: Mengunci ketikan huruf/simbol jika kolom bertipe 'Numerik'
+      inputFormatters: type == 'Numerik'
+          ? [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))]
+          : null,
       readOnly: type == 'Date' || type == 'Time',
       decoration: inputDecoration,
       style: const TextStyle(fontSize: 13),
