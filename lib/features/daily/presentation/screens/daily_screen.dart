@@ -19,6 +19,8 @@ class DailyScreen extends StatefulWidget {
 
 class _DailyScreenState extends State<DailyScreen> {
   late DailyController _controller;
+  final Color _themeColor =
+      Colors.indigo; // <--- BARU: Mendefinisikan warna tema dasar indigo
 
   @override
   void initState() {
@@ -68,7 +70,8 @@ class _DailyScreenState extends State<DailyScreen> {
                     content: Text(
                       'Seksi "$namaSeksiBaru" berhasil dibuat! Tekan tombol + di kanannya untuk menambah group.',
                     ),
-                    backgroundColor: Colors.teal[800],
+                    backgroundColor:
+                        _themeColor, // <--- UBAH: teal[800] menjadi indigo
                   ),
                 );
               }
@@ -228,10 +231,16 @@ class _DailyScreenState extends State<DailyScreen> {
                   title: Text(sectionName.toUpperCase()),
                   leading: Icon(
                     isCurrentSection ? Icons.folder_special : Icons.folder_open,
-                    color: isCurrentSection ? Colors.teal[800] : Colors.grey,
+                    color: isCurrentSection
+                        ? _themeColor
+                        : Colors
+                              .grey, // <--- UBAH: teal[800] menjadi _themeColor
                   ),
                   trailing: isCurrentSection
-                      ? const Icon(Icons.check_circle, color: Colors.teal)
+                      ? Icon(
+                          Icons.check_circle,
+                          color: _themeColor,
+                        ) // <--- UBAH: Colors.teal menjadi _themeColor
                       : null,
                   selected: isCurrentSection,
                   onTap: isCurrentSection
@@ -248,7 +257,8 @@ class _DailyScreenState extends State<DailyScreen> {
                                 content: Text(
                                   'Group "${group.groupName}" berhasil dipindahkan ke seksi "$sectionName"',
                                 ),
-                                backgroundColor: Colors.teal[800],
+                                backgroundColor:
+                                    _themeColor, // <--- UBAH: teal[800] menjadi _themeColor
                               ),
                             );
                           }
@@ -421,7 +431,8 @@ class _DailyScreenState extends State<DailyScreen> {
 
         return InteractiveSectionHeader(
           sectionName: sectionKey,
-          themeColor: Colors.teal[900]!,
+          themeColor: Colors
+              .indigo[900]!, // <--- UBAH: Colors.teal[900]! menjadi Colors.indigo[900]!
           isEditMode: isLayoutEditMode ? true : _controller.isSectionEditMode,
           isFirst: index == 0,
           isLast: index == visibleKeysCount - 1,
@@ -441,7 +452,8 @@ class _DailyScreenState extends State<DailyScreen> {
         }
 
         return InteractiveGridCard(
-          themeColor: Colors.teal[800]!,
+          themeColor:
+              _themeColor, // <--- UBAH: Colors.teal[800]! menjadi _themeColor
           isEditMode: isLayoutEditMode ? true : _controller.isPageEditMode,
           isHiddenStyle: group.isHidden,
           isFirst: index == 0,
@@ -563,8 +575,11 @@ class _DailyScreenState extends State<DailyScreen> {
                       vertical: 3,
                     ),
                     decoration: BoxDecoration(
-                      color: (group.isHidden ? Colors.grey : Colors.teal[800]!)
-                          .withOpacity(0.1),
+                      color:
+                          (group.isHidden
+                                  ? Colors.grey
+                                  : _themeColor) // <--- UBAH: teal[800] menjadi _themeColor
+                              .withOpacity(0.1),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
@@ -574,7 +589,8 @@ class _DailyScreenState extends State<DailyScreen> {
                         fontWeight: FontWeight.w600,
                         color: group.isHidden
                             ? Colors.grey[700]
-                            : Colors.teal[900]!,
+                            : Colors
+                                  .indigo[900]!, // <--- UBAH: teal[900] menjadi indigo[900]
                       ),
                     ),
                   ),
