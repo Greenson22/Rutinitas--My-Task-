@@ -97,12 +97,19 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
     widget.onChanged();
   }
 
-  // Helper Widget untuk membuat Opsi Durasi Cepat pada Pengingat
+  // Helper untuk melakukan format DateTime ke String standar 'YYYY-MM-DD HH:mm'
+  String _formatDateTime(DateTime dateTime) {
+    return "${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')} "
+        "${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}";
+  }
+
+  // Helper Widget untuk membuat Opsi Durasi Cepat pada Pengingat berbasis startTime yang ditentukan
   Widget _buildDurationOption({
     required BuildContext dialogContext,
     required TextEditingController controller,
     required String title,
-    required Duration duration,
+    required int daysToAdd,
+    required DateTime startTime,
     required bool isFormInput,
   }) {
     return ListTile(
@@ -110,21 +117,20 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
       title: Text(title, style: const TextStyle(fontSize: 13)),
       dense: true,
       onTap: () {
-        final DateTime now = DateTime.now();
-        final DateTime calculatedDate = now.add(duration);
+        final DateTime calculatedDate = startTime.add(
+          Duration(days: daysToAdd),
+        );
 
         setState(() {
-          // Menghasilkan format standar agar sinkron dengan sistem overdue: 'YYYY-MM-DD HH:mm'
-          controller.text =
-              "${calculatedDate.year}-${calculatedDate.month.toString().padLeft(2, '0')}-${calculatedDate.day.toString().padLeft(2, '0')} "
-              "${calculatedDate.hour.toString().padLeft(2, '0')}:${calculatedDate.minute.toString().padLeft(2, '0')}";
+          // Format ke standar YYYY-MM-DD HH:mm agar sinkron dengan sistem overdue bawaan
+          controller.text = _formatDateTime(calculatedDate);
           if (!isFormInput) {
             _editingRowIndex = null;
             _editingKey = null;
           }
         });
         widget.onChanged();
-        Navigator.pop(dialogContext); // Tutup Dialog Utama
+        Navigator.pop(dialogContext); // Tutup Dialog Utama pengingat
       },
     );
   }
@@ -279,120 +285,294 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
             widget.onChanged();
           }
         } else if (type == 'Pengingat') {
-          // IMPLEMENTASI BARU: Menampilkan Dialog Opsi Pengingat Kustom
+          // State awal waktu hitung dasar (default: waktu sekarang)
+          DateTime reminderBaseTime = DateTime.now();
+          final customDaysController = TextEditingController();
+
           showDialog(
             context: context,
             builder: (BuildContext ctx) {
-              return AlertDialog(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                title: const Text(
-                  'Atur Waktu Pengingat',
-                  style: TextStyle(
-                    color: Colors.indigo,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // OPSI 1: Pilih Manual Tanggal dan Waktu
-                    ListTile(
-                      leading: const Icon(Icons.date_range, color: Colors.teal),
-                      title: const Text(
-                        'Pilih Tanggal & Waktu Manual',
-                        style: TextStyle(fontSize: 14),
-                      ),
-                      onTap: () async {
-                        Navigator.pop(ctx); // Tutup dialog pilihan utama
-
-                        DateTime? pickedDate = await showDatePicker(
-                          context: context,
-                          initialDate: DateTime.now(),
-                          firstDate: DateTime(2000),
-                          lastDate: DateTime(2100),
-                        );
-                        if (pickedDate != null && context.mounted) {
-                          TimeOfDay? pickedTime = await showTimePicker(
-                            context: context,
-                            initialTime: TimeOfDay.now(),
-                          );
-                          if (pickedTime != null) {
-                            setState(() {
-                              controller.text =
-                                  "${pickedDate.year}-${pickedDate.month.toString().padLeft(2, '0')}-${pickedDate.day.toString().padLeft(2, '0')} "
-                                  "${pickedTime.hour.toString().padLeft(2, '0')}:${pickedTime.minute.toString().padLeft(2, '0')}";
-                              if (!isFormInput) {
-                                _editingRowIndex = null;
-                                _editingKey = null;
-                              }
-                            });
-                            widget.onChanged();
-                          }
-                        }
-                      },
+              return StatefulBuilder(
+                builder: (dialogContext, setDialogState) {
+                  return AlertDialog(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    const Divider(),
-
-                    // OPSI 2: Durasi Cepat (Otomatis)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(
-                        vertical: 4.0,
-                        horizontal: 16.0,
+                    title: const Text(
+                      'Atur Waktu Pengingat',
+                      style: TextStyle(
+                        color: Colors.indigo,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
                       ),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          'Tambah Durasi Otomatis:',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey,
+                    ),
+                    content: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // OPSI 1: Pilih Manual Tanggal dan Waktu Langsung Berdasarkan Pilihan
+                          ListTile(
+                            leading: const Icon(
+                              Icons.edit_calendar,
+                              color: Colors.teal,
+                            ),
+                            title: const Text(
+                              'Pilih Tanggal & Waktu Manual',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            onTap: () async {
+                              Navigator.pop(ctx); // Tutup dialog utama
+
+                              DateTime? pickedDate = await showDatePicker(
+                                context: context,
+                                initialDate: DateTime.now(),
+                                firstDate: DateTime(2000),
+                                lastDate: DateTime(2100),
+                              );
+                              if (pickedDate != null && context.mounted) {
+                                TimeOfDay? pickedTime = await showTimePicker(
+                                  context: context,
+                                  initialTime: TimeOfDay.now(),
+                                );
+                                if (pickedTime != null) {
+                                  setState(() {
+                                    controller.text = _formatDateTime(
+                                      DateTime(
+                                        pickedDate.year,
+                                        pickedDate.month,
+                                        pickedDate.day,
+                                        pickedTime.hour,
+                                        pickedTime.minute,
+                                      ),
+                                    );
+                                    if (!isFormInput) {
+                                      _editingRowIndex = null;
+                                      _editingKey = null;
+                                    }
+                                  });
+                                  widget.onChanged();
+                                }
+                              }
+                            },
                           ),
+                          const Divider(),
+
+                          // BAGIAN KUSTOMISASI: WAKTU MULAI PERHITUNGAN (Default: Sekarang)
+                          const Text(
+                            'Waktu Mulai Perhitungan:',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.indigo,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          InkWell(
+                            onTap: () async {
+                              DateTime? pickedDate = await showDatePicker(
+                                context: context,
+                                initialDate: reminderBaseTime,
+                                firstDate: DateTime(2000),
+                                lastDate: DateTime(2100),
+                              );
+                              if (pickedDate != null && context.mounted) {
+                                TimeOfDay? pickedTime = await showTimePicker(
+                                  context: context,
+                                  initialTime: TimeOfDay.fromDateTime(
+                                    reminderBaseTime,
+                                  ),
+                                );
+                                if (pickedTime != null) {
+                                  setDialogState(() {
+                                    reminderBaseTime = DateTime(
+                                      pickedDate.year,
+                                      pickedDate.month,
+                                      pickedDate.day,
+                                      pickedTime.hour,
+                                      pickedTime.minute,
+                                    );
+                                  });
+                                }
+                              }
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 8,
+                                horizontal: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey.shade400),
+                                borderRadius: BorderRadius.circular(6),
+                                color: Colors.grey.shade100,
+                              ),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    _formatDateTime(reminderBaseTime),
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  const Icon(
+                                    Icons.edit,
+                                    size: 16,
+                                    color: Colors.indigo,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          const Divider(),
+
+                          // OPSI: Tambah Hari Kustom via Field Input Angka
+                          const Text(
+                            'Tambah Hari Kustom:',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: SizedBox(
+                                  height: 36,
+                                  child: TextField(
+                                    controller: customDaysController,
+                                    keyboardType: TextInputType.number,
+                                    inputFormatters: [
+                                      FilteringTextInputFormatter.digitsOnly,
+                                    ],
+                                    style: const TextStyle(fontSize: 13),
+                                    decoration: InputDecoration(
+                                      isDense: true,
+                                      hintText: 'Contoh: 7',
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 8,
+                                          ),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              ElevatedButton(
+                                onPressed: () {
+                                  final text = customDaysController.text.trim();
+                                  if (text.isNotEmpty) {
+                                    final days = int.tryParse(text) ?? 0;
+                                    final calculatedDate = reminderBaseTime.add(
+                                      Duration(days: days),
+                                    );
+                                    setState(() {
+                                      controller.text = _formatDateTime(
+                                        calculatedDate,
+                                      );
+                                      if (!isFormInput) {
+                                        _editingRowIndex = null;
+                                        _editingKey = null;
+                                      }
+                                    });
+                                    widget.onChanged();
+                                    Navigator.pop(ctx);
+                                  }
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.teal,
+                                  visualDensity: VisualDensity
+                                      .compact, // FIXED: Menggantikan properti dense yang undefined
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Tambah',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          const Divider(),
+
+                          // OPSI: Pilihan Durasi Cepat (Otomatis berdasarkan waktu awal kalkulasi)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 4.0),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                'Opsi Durasi Instan Bulanan/Tahunan:',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ),
+                          ),
+                          _buildDurationOption(
+                            dialogContext: ctx,
+                            controller: controller,
+                            title: 'Tambahkan 1 Bulan',
+                            daysToAdd: 30,
+                            startTime: reminderBaseTime,
+                            isFormInput: isFormInput,
+                          ),
+                          _buildDurationOption(
+                            dialogContext: ctx,
+                            controller: controller,
+                            title: 'Tambahkan 3 Bulan',
+                            daysToAdd: 90,
+                            startTime: reminderBaseTime,
+                            isFormInput: isFormInput,
+                          ),
+                          _buildDurationOption(
+                            dialogContext: ctx,
+                            controller: controller,
+                            title: 'Tambahkan 6 Bulan',
+                            daysToAdd: 180,
+                            startTime: reminderBaseTime,
+                            isFormInput: isFormInput,
+                          ),
+                          _buildDurationOption(
+                            dialogContext: ctx,
+                            controller: controller,
+                            title: 'Tambahkan 1 Tahun',
+                            daysToAdd: 365,
+                            startTime: reminderBaseTime,
+                            isFormInput: isFormInput,
+                          ),
+                        ],
+                      ),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text(
+                          'Batal',
+                          style: TextStyle(color: Colors.grey),
                         ),
                       ),
-                    ),
-                    _buildDurationOption(
-                      dialogContext: ctx,
-                      controller: controller,
-                      title: 'Tambahkan 1 Bulan',
-                      duration: const Duration(days: 30),
-                      isFormInput: isFormInput,
-                    ),
-                    _buildDurationOption(
-                      dialogContext: ctx,
-                      controller: controller,
-                      title: 'Tambahkan 3 Bulan',
-                      duration: const Duration(days: 90),
-                      isFormInput: isFormInput,
-                    ),
-                    _buildDurationOption(
-                      dialogContext: ctx,
-                      controller: controller,
-                      title: 'Tambahkan 6 Bulan',
-                      duration: const Duration(days: 180),
-                      isFormInput: isFormInput,
-                    ),
-                    _buildDurationOption(
-                      dialogContext: ctx,
-                      controller: controller,
-                      title: 'Tambahkan 1 Tahun',
-                      duration: const Duration(days: 365),
-                      isFormInput: isFormInput,
-                    ),
-                  ],
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    child: const Text(
-                      'Batal',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  ),
-                ],
+                    ],
+                  );
+                },
               );
             },
           );
