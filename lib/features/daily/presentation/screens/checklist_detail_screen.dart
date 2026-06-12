@@ -6,6 +6,7 @@ import '../controllers/checklist_detail_controller.dart';
 import '../../../../core/presentation/widgets/grouped_section_layout.dart';
 import '../../../../core/presentation/widgets/interactive_grid_card.dart';
 import '../../../../core/presentation/widgets/interactive_section_header.dart';
+import '../widgets/checklist_empty_state.dart'; // <-- IMPORT BARU DI SINI
 
 class ChecklistDetailScreen extends StatefulWidget {
   final ChecklistGroup group;
@@ -50,7 +51,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
       return count;
     }
 
-    // 1. Tangani keadaan awal kosong dengan Scaffold bawaan agar tombol ElevatedButton tetap di tengah
+    // 1. Tangani keadaan awal kosong dengan integrasi Animasi Premium Empty State
     if (currentGroup.allList.isEmpty) {
       return Scaffold(
         backgroundColor: Colors.grey[200],
@@ -65,13 +66,8 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
           backgroundColor: Colors.teal[700],
           actions: const [],
         ),
-        body: Center(
-          child: ElevatedButton.icon(
-            onPressed: () => addItemToSection(context, null),
-            icon: const Icon(Icons.add_box),
-            label: const Text('Tambah Item Pertama'),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal[700]),
-          ),
+        body: ChecklistEmptyState(
+          onAddItemPressed: () => addItemToSection(context, null),
         ),
       );
     }
