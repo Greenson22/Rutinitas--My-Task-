@@ -4,7 +4,7 @@ import '../../../../core/presentation/widgets/drawer_menu.dart';
 import '../../../../core/presentation/widgets/grouped_section_layout.dart';
 import '../../../../core/presentation/widgets/interactive_section_header.dart';
 import '../../../../core/presentation/widgets/interactive_grid_card.dart';
-import '../../../../core/presentation/widgets/universal_empty_state.dart'; // IMPORT BARU
+import '../../../../core/presentation/widgets/universal_empty_state.dart';
 import '../../data/models/prompt_model.dart';
 import '../controllers/prompt_controller.dart';
 import 'prompt_detail_screen.dart';
@@ -33,6 +33,62 @@ class _PromptScreenState extends State<PromptScreen> {
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  // METHOD BARU: Alur Sekuensial Berantai Berurutan (Seksi Baru -> Group Prompt) Khusus Kondisi Kosong
+  void _showSequentialAddDialog() {
+    final sectionController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Langkah 1: Buat Seksi Kategori'),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: sectionController,
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: 'Nama Seksi Utama',
+              hintText: 'Misal: CODING, COPYWRITING, ARSIP...',
+            ),
+            validator: (value) => value == null || value.trim().isEmpty
+                ? 'Nama seksi tidak boleh kosong'
+                : null,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                final newSectionName = sectionController.text
+                    .trim()
+                    .toUpperCase();
+
+                // Daftarkan seksi kosong ke dalam data controller secara lokal
+                if (!_controller.localEmptySections.contains(newSectionName)) {
+                  _controller.addSection(newSectionName, context);
+                }
+
+                Navigator.pop(context);
+                // Langsung berantai membuka pembuatan grup prompt di dalam seksi ini
+                _showAddGroupDialog(defaultSection: newSectionName);
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
+            child: const Text(
+              'Lanjut ke Grup ➔',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showAddSectionDialog() {
@@ -130,10 +186,19 @@ class _PromptScreenState extends State<PromptScreen> {
     final titleController = TextEditingController();
     final iconController = TextEditingController(text: '🤖');
     final sectionController = TextEditingController(text: defaultSection ?? '');
+
+    // PERBAIKAN UX: Berikan judul dinamis mendeteksi jika ini adalah kelanjutan Langkah 2 dari sekuensial kosong
+    final bool isSequentialStep =
+        defaultSection != null && _controller.promptGroups.isEmpty;
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Tambah Group Prompt'),
+        title: Text(
+          isSequentialStep
+              ? 'Langkah 2: Buat Grup di $defaultSection'
+              : 'Tambah Group Prompt',
+        ),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -175,7 +240,8 @@ class _PromptScreenState extends State<PromptScreen> {
               );
               Navigator.pop(context);
             },
-            child: const Text('Simpan'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
+            child: Text(isSequentialStep ? 'Simpan & Selesai' : 'Simpan'),
           ),
         ],
       ),
@@ -357,25 +423,24 @@ class _PromptScreenState extends State<PromptScreen> {
           drawer: const DrawerMenu(isPromptActive: true),
           floatingActionButton: null,
           isLoading: _controller.isLoading,
-          isEmpty: sectionKeys
-              .isEmpty, // DISESUAIKAN: agar sinkron dengan daftar seksi yang ter-render
-          // PEMBARUAN UTAMA: Menggunakan widget bersama UniversalEmptyState interaktif
+          isEmpty: sectionKeys.isEmpty,
+
+          // PEMBARUAN UTAMA: Menggunakan alur pembuatan berantai sekuensial (Seksi -> Grup) saat ditekan
           emptyStateView: UniversalEmptyState(
-            icon: Icons
-                .psychology_alt_rounded, // Ikon representasi AI/Prompt yang menarik
+            icon: Icons.psychology_alt_rounded,
             title: 'Kategori Prompt Masih Kosong',
             description: isSearching
                 ? 'Tidak ada kategori atau grup seksi prompt yang cocok dengan kata kunci "${_controller.searchQuery}" Anda.'
-                : 'Belum ada seksi kategori atau grup penampung instruksi AI yang terdaftar. Yuk, buat seksi kategori utama pertama Anda sekarang!',
+                : 'Belum ada seksi kategori atau grup penampung instruksi AI yang terdaftar. Yuk, buat Seksi Utama sekaligus Grup Prompt pertama Anda sekarang juga!',
             buttonLabel: isSearching
                 ? 'Reset Pencarian'
-                : 'Buat Seksi Kategori',
+                : 'Buat Seksi & Grup Prompt',
             themeColor: Colors.indigo,
             onPressed: () {
               if (isSearching) {
                 _controller.updateSearchQuery('');
               } else {
-                _showAddSectionDialog();
+                _showSequentialAddDialog(); // DIPANGGIL DI SINI
               }
             },
           ),
