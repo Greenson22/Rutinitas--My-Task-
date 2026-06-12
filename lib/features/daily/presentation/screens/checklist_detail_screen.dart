@@ -6,7 +6,7 @@ import '../controllers/checklist_detail_controller.dart';
 import '../../../../core/presentation/widgets/grouped_section_layout.dart';
 import '../../../../core/presentation/widgets/interactive_grid_card.dart';
 import '../../../../core/presentation/widgets/interactive_section_header.dart';
-import '../widgets/checklist_empty_state.dart'; // <-- IMPORT BARU DI SINI
+import '../../../../core/presentation/widgets/universal_empty_state.dart'; // <-- DIUBAH: Menggunakan Universal Widget dari Core
 
 class ChecklistDetailScreen extends StatefulWidget {
   final ChecklistGroup group;
@@ -51,7 +51,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
       return count;
     }
 
-    // 1. Tangani keadaan awal kosong dengan integrasi Animasi Premium Empty State
+    // 1. Tangani keadaan awal kosong dengan integrasi UniversalEmptyState terpusat (Tema Teal)
     if (currentGroup.allList.isEmpty) {
       return Scaffold(
         backgroundColor: Colors.grey[200],
@@ -66,8 +66,14 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
           backgroundColor: Colors.teal[700],
           actions: const [],
         ),
-        body: ChecklistEmptyState(
-          onAddItemPressed: () => addItemToSection(context, null),
+        body: UniversalEmptyState(
+          icon: Icons.fact_check_rounded,
+          title: 'Materi Checklist Masih Kosong',
+          description:
+              'Kelompok grup checklist ini belum memiliki daftar tugas atau materi harian. Tekan tombol di bawah untuk membuat rutinitas pertama Anda.',
+          buttonLabel: 'Tambah Item Pertama',
+          themeColor: Colors.teal[700]!,
+          onPressed: () => addItemToSection(context, null),
         ),
       );
     }
