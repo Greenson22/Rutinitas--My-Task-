@@ -98,6 +98,25 @@ class _NotesScreenState extends State<NotesScreen> {
     }
   }
 
+  // PEMBARUAN PERMANEN: Fungsi untuk menyimpan urutan seksi baru ke local storage
+  Future<void> _saveSectionOrderToStorage() async {
+    int globalIndex = 0;
+
+    // Iterasi disesuaikan dengan urutan seksi (_sectionKeys) yang baru saja ditukar
+    for (String sectionKey in _sectionKeys) {
+      final groupsInSection = _groupedCategories[sectionKey] ?? [];
+
+      for (var group in groupsInSection) {
+        // Atur kembali orderIndex agar grup di seksi atas selalu memiliki bobot lebih kecil
+        group.orderIndex = globalIndex;
+        globalIndex++;
+
+        // Tulis perubahan ke dalam disk
+        await _saveGroupData(group);
+      }
+    }
+  }
+
   Future<void> _deleteGroupData(NoteGroup group) async {
     try {
       final baseDir = await _storageService.getBaseDirSetting();
@@ -307,7 +326,7 @@ class _NotesScreenState extends State<NotesScreen> {
   void _showAddGroupDialog(String sectionName) {
     final TextEditingController groupController = TextEditingController();
     final TextEditingController iconController = TextEditingController(
-      text: '📁',
+      text: '刀',
     );
     showDialog(
       context: context,
@@ -347,7 +366,7 @@ class _NotesScreenState extends State<NotesScreen> {
                 final newGroup = NoteGroup(
                   id: DateTime.now().millisecondsSinceEpoch.toString(),
                   groupName: newName,
-                  icon: newIcon.isEmpty ? '📁' : newIcon,
+                  icon: newIcon.isEmpty ? '刀' : newIcon,
                   notes: [],
                   sectionName:
                       sectionName, // Menyimpan relasi seksi tujuan ke local storage
@@ -407,7 +426,7 @@ class _NotesScreenState extends State<NotesScreen> {
               if (updatedName.isNotEmpty) {
                 setState(() {
                   group.groupName = updatedName;
-                  group.icon = updatedIcon.isEmpty ? '📁' : updatedIcon;
+                  group.icon = updatedIcon.isEmpty ? '刀' : updatedIcon;
                 });
                 await _saveGroupData(group);
                 if (mounted) Navigator.pop(context);
@@ -634,22 +653,25 @@ class _NotesScreenState extends State<NotesScreen> {
           onDelete: () => _confirmDeleteSection(sectionName),
           // Tombol tambah di header sub-seksi membuat grup baru di dalam seksi bersangkutan
           onAddItem: () => _showAddGroupDialog(sectionName),
-          onMoveUp: () {
+          // MODIFIKASI: Menambahkan penanganan `async` untuk memicu penyimpanan ke disk
+          onMoveUp: () async {
             if (index > 0) {
               setState(() {
                 final temp = _sectionKeys[index];
                 _sectionKeys[index] = _sectionKeys[index - 1];
                 _sectionKeys[index - 1] = temp;
               });
+              await _saveSectionOrderToStorage();
             }
           },
-          onMoveDown: () {
+          onMoveDown: () async {
             if (index < _sectionKeys.length - 1) {
               setState(() {
                 final temp = _sectionKeys[index];
                 _sectionKeys[index] = _sectionKeys[index + 1];
                 _sectionKeys[index + 1] = temp;
               });
+              await _saveSectionOrderToStorage();
             }
           },
         );
