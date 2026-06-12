@@ -10,7 +10,7 @@ import '../../../../core/presentation/widgets/drawer_menu.dart';
 import '../widgets/settings_dialog.dart';
 import '../widgets/tasks_dialog.dart';
 import '../widgets/add_category_dialog.dart';
-import '../widgets/task_master_empty_state.dart'; // <-- IMPORT BARU DI SINI
+import '../../../../core/presentation/widgets/universal_empty_state.dart'; // <-- DIUBAH: Menggunakan Universal Widget dari Core
 import 'package:intl/intl.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -810,11 +810,19 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       drawer: const DrawerMenu(),
-      // PEMBARUAN DI BODY: Deteksi apakah data benar-benar kosong, jika iya maka tampilkan Empty State widget
+      // PEMBARUAN DI BODY: Menggunakan UniversalEmptyState terpusat dari folder core dengan penyesuaian parameter khusus Task Master
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _allCategoriesRaw.isEmpty
-          ? TaskMasterEmptyState(onAddCategoryPressed: _showAddCategoryDialog)
+          ? UniversalEmptyState(
+              icon: Icons.assignment_turned_in_rounded,
+              title: 'Mulai Langkah Produktif Anda!',
+              description:
+                  'Task Master membantu Anda melacak repetisi aktivitas, target progress bar, dan terhubung langsung dengan Jurnal Waktu 30 menit Anda.',
+              buttonLabel: 'Buat Kategori Pertama',
+              themeColor: Colors.indigo,
+              onPressed: _showAddCategoryDialog,
+            )
           : LayoutBuilder(
               builder: (context, constraints) {
                 return ListView(
