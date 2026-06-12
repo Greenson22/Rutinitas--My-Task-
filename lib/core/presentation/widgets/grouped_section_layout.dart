@@ -6,11 +6,10 @@ class GroupedSectionLayout<T> extends StatefulWidget {
   final String title;
   final Widget? drawer;
   final Widget? floatingActionButton;
-
   final bool isLoading;
   final bool isEmpty;
   final String emptyMessage;
-
+  final Widget? emptyStateView; // <-- 1. TAMBAHKAN PROPERTI BARU DI SINI
   final bool isSelectMode;
   final int selectedItemsCount;
   final VoidCallback onClearSelection;
@@ -18,16 +17,11 @@ class GroupedSectionLayout<T> extends StatefulWidget {
   final bool enableMultiSelect;
   final VoidCallback? onMoveMassive;
   final VoidCallback? onDeleteMassive;
-
   final ValueChanged<String>? onSearchChanged;
   final VoidCallback? onAddPressed;
-
-  // TAMBAHAN BARU: Parameter aksi kustom dari halaman parent
   final Widget? additionalAction;
-
   final List<String> sectionKeys;
   final Map<String, List<T>> groupedItems;
-
   final Widget Function(
     BuildContext context,
     int index,
@@ -35,7 +29,6 @@ class GroupedSectionLayout<T> extends StatefulWidget {
     bool isPageEditMode,
   )
   sectionHeaderBuilder;
-
   final Widget Function(
     BuildContext context,
     T item,
@@ -44,7 +37,6 @@ class GroupedSectionLayout<T> extends StatefulWidget {
     bool isPageEditMode,
   )
   gridItemBuilder;
-
   final double childAspectRatio;
 
   const GroupedSectionLayout({
@@ -55,6 +47,7 @@ class GroupedSectionLayout<T> extends StatefulWidget {
     required this.isLoading,
     required this.isEmpty,
     this.emptyMessage = 'Belum ada data.',
+    this.emptyStateView, // <-- 2. DAFTARKAN DI KONSTRUKTOR DI SINI
     required this.isSelectMode,
     required this.selectedItemsCount,
     required this.onClearSelection,
@@ -64,7 +57,7 @@ class GroupedSectionLayout<T> extends StatefulWidget {
     this.onDeleteMassive,
     this.onSearchChanged,
     this.onAddPressed,
-    this.additionalAction, // <--- Daftarkan di konstruktor
+    this.additionalAction,
     required this.sectionKeys,
     required this.groupedItems,
     required this.sectionHeaderBuilder,
@@ -122,13 +115,7 @@ class _GroupedSectionLayoutState<T> extends State<GroupedSectionLayout<T>> {
         enableMultiSelect: widget.enableMultiSelect,
         onMoveMassive: widget.onMoveMassive,
         onDeleteMassive: widget.onDeleteMassive,
-
-        // ====================================================================
-        // PERBAIKAN: Meneruskan additionalAction dari widget utama
-        // Muncul hanya jika _internalSearchMode aktif (AppBar sedang ditahan)
-        // ====================================================================
         additionalAction: _internalSearchMode ? widget.additionalAction : null,
-
         searchBarContent: Row(
           children: [
             Expanded(
@@ -167,10 +154,11 @@ class _GroupedSectionLayoutState<T> extends State<GroupedSectionLayout<T>> {
       ),
       drawer: widget.drawer,
       floatingActionButton: widget.floatingActionButton,
+      // 3. LOGIKA EVALUASI EMPTY STATE DIPERBARUI DI SINI
       body: widget.isLoading
           ? const Center(child: CircularProgressIndicator())
           : widget.isEmpty
-          ? Center(child: Text(widget.emptyMessage))
+          ? (widget.emptyStateView ?? Center(child: Text(widget.emptyMessage)))
           : LayoutBuilder(
               builder: (context, constraints) {
                 return ListView.builder(
@@ -179,7 +167,6 @@ class _GroupedSectionLayoutState<T> extends State<GroupedSectionLayout<T>> {
                     final sectionName = widget.sectionKeys[index];
                     final itemsInSection =
                         widget.groupedItems[sectionName] ?? [];
-
                     if (_internalSearchMode &&
                         itemsInSection.isEmpty &&
                         !sectionName.toLowerCase().contains(
@@ -187,7 +174,6 @@ class _GroupedSectionLayoutState<T> extends State<GroupedSectionLayout<T>> {
                         )) {
                       return const SizedBox.shrink();
                     }
-
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -239,7 +225,6 @@ class _GroupedSectionLayoutState<T> extends State<GroupedSectionLayout<T>> {
     } else if (constraints.maxWidth >= 600) {
       crossAxisCount = 3;
     }
-
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),

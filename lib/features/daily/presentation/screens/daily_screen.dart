@@ -6,6 +6,7 @@ import '../../../../core/presentation/widgets/drawer_menu.dart';
 import '../../../../core/presentation/widgets/grouped_section_layout.dart';
 import '../../../../core/presentation/widgets/interactive_grid_card.dart';
 import '../../../../core/presentation/widgets/interactive_section_header.dart';
+import '../../../../core/presentation/widgets/universal_empty_state.dart'; // <-- DIUBAH: Menggunakan Universal Widget dari Core
 import '../../data/models/daily_model.dart';
 import '../controllers/daily_controller.dart';
 import 'checklist_detail_screen.dart';
@@ -369,8 +370,16 @@ class _DailyScreenState extends State<DailyScreen> {
       // Jika seksi visual di layout kosong DAN data raw kosong, baru tampilkan empty placeholder
       isEmpty: _controller.allGroupRaw.isEmpty && allKeys.isEmpty,
 
-      emptyMessage:
-          'Belum ada Seksi Kategori. Tekan + di bawah untuk membuat baru!',
+      // PEMBARUAN: Menggunakan custom emptyStateView dari komponen terpusat core bertema Indigo
+      emptyStateView: UniversalEmptyState(
+        icon: Icons.dashboard_customize_rounded,
+        title: 'Checklist Groups Masih Kosong',
+        description:
+            'Belum ada Seksi Kategori atau Hub tugas harian yang terdaftar. Tekan tombol di bawah untuk membuat seksi penempatan utama Anda.',
+        buttonLabel: 'Tambah Seksi Kategori Baru',
+        themeColor: _themeColor,
+        onPressed: _showAddMainSectionDialog,
+      ),
       sectionKeys: allKeys,
       groupedItems: allItems,
       isSelectMode: false,
@@ -434,6 +443,7 @@ class _DailyScreenState extends State<DailyScreen> {
           themeColor: Colors
               .indigo[900]!, // <--- UBAH: Colors.teal[900]! menjadi Colors.indigo[900]!
           isEditMode: isLayoutEditMode ? true : _controller.isSectionEditMode,
+          isUpperCase: false,
           isFirst: index == 0,
           isLast: index == visibleKeysCount - 1,
           onToggleEdit: _controller.toggleSectionEditMode,
