@@ -6,7 +6,7 @@ import '../../../../core/presentation/widgets/drawer_menu.dart';
 import '../../../../core/presentation/widgets/grouped_section_layout.dart';
 import '../../../../core/presentation/widgets/interactive_grid_card.dart';
 import '../../../../core/presentation/widgets/interactive_section_header.dart';
-import '../../../../core/presentation/widgets/universal_empty_state.dart'; // <-- DIUBAH: Menggunakan Universal Widget dari Core
+import '../../../../core/presentation/widgets/universal_empty_state.dart'; // Using Universal Widget from Core
 import '../../data/models/daily_model.dart';
 import '../controllers/daily_controller.dart';
 import 'checklist_detail_screen.dart';
@@ -20,8 +20,7 @@ class DailyScreen extends StatefulWidget {
 
 class _DailyScreenState extends State<DailyScreen> {
   late DailyController _controller;
-  final Color _themeColor =
-      Colors.indigo; // <--- BARU: Mendefinisikan warna tema dasar indigo
+  final Color _themeColor = Colors.indigo; // Definisi warna tema dasar indigo
 
   @override
   void initState() {
@@ -40,6 +39,58 @@ class _DailyScreenState extends State<DailyScreen> {
     _controller.removeListener(_onControllerNotify);
     _controller.dispose();
     super.dispose();
+  }
+
+  // METHOD BARU: Alur Berurutan Otomatis (Seksi Utama -> Group Checklist) Khusus Kondisi Kosong
+  void _showSequentialAddDialog() {
+    final sectionController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Langkah 1: Buat Seksi Kategori'),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: sectionController,
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: 'Nama Seksi Utama',
+              hintText: 'Contoh: PRIORITAS, HARIAN, KULIAH...',
+            ),
+            validator: (value) => value == null || value.trim().isEmpty
+                ? 'Nama seksi tidak boleh kosong'
+                : null,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                final String namaSeksiBaru = sectionController.text.trim();
+                _controller.addLocalMainSection(namaSeksiBaru);
+
+                // Tutup dialog langkah 1
+                Navigator.pop(context);
+
+                // Otomatis lanjut ke dialog langkah 2 untuk mengisi Group Checklist di seksi tersebut
+                _showAddGroupDialogAtSection(namaSeksiBaru);
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: _themeColor),
+            child: const Text(
+              'Lanjut ke Group ➔',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showAddMainSectionDialog() {
@@ -71,8 +122,7 @@ class _DailyScreenState extends State<DailyScreen> {
                     content: Text(
                       'Seksi "$namaSeksiBaru" berhasil dibuat! Tekan tombol + di kanannya untuk menambah group.',
                     ),
-                    backgroundColor:
-                        _themeColor, // <--- UBAH: teal[800] menjadi indigo
+                    backgroundColor: _themeColor, // indigo
                   ),
                 );
               }
@@ -87,26 +137,42 @@ class _DailyScreenState extends State<DailyScreen> {
   void _showAddGroupDialogAtSection(String targetMainSection) {
     final nameController = TextEditingController();
     final iconController = TextEditingController(text: '📁');
+    final formKey = GlobalKey<FormState>();
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Buat Group Baru di $targetMainSection'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(
-                labelText: 'Nama Group (Misal: Pekerjaan)',
+        title: Text(
+          _controller.allGroupRaw.isEmpty
+              ? 'Langkah 2: Buat Group Baru di $targetMainSection'
+              : 'Buat Group Baru di $targetMainSection',
+        ),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: nameController,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Nama Group Checklist',
+                  hintText: 'Contoh: Pekerjaan, Olahraga, Belajar...',
+                ),
+                validator: (value) => value == null || value.trim().isEmpty
+                    ? 'Nama group tidak boleh kosong'
+                    : null,
               ),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: iconController,
-              decoration: const InputDecoration(labelText: 'Ikon Emoji'),
-            ),
-          ],
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: iconController,
+                decoration: const InputDecoration(labelText: 'Ikon Emoji'),
+                validator: (value) => value == null || value.trim().isEmpty
+                    ? 'Ikon tidak boleh kosong'
+                    : null,
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -115,7 +181,7 @@ class _DailyScreenState extends State<DailyScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              if (nameController.text.isNotEmpty) {
+              if (formKey.currentState!.validate()) {
                 await _controller.createGroupAtSection(
                   nameController.text.trim(),
                   iconController.text.trim(),
@@ -124,7 +190,11 @@ class _DailyScreenState extends State<DailyScreen> {
                 if (mounted) Navigator.pop(context);
               }
             },
-            child: const Text('Buat Group'),
+            style: ElevatedButton.styleFrom(backgroundColor: _themeColor),
+            child: const Text(
+              'Buat Group & Selesai',
+              style: TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -234,14 +304,10 @@ class _DailyScreenState extends State<DailyScreen> {
                     isCurrentSection ? Icons.folder_special : Icons.folder_open,
                     color: isCurrentSection
                         ? _themeColor
-                        : Colors
-                              .grey, // <--- UBAH: teal[800] menjadi _themeColor
+                        : Colors.grey, // indigo
                   ),
                   trailing: isCurrentSection
-                      ? Icon(
-                          Icons.check_circle,
-                          color: _themeColor,
-                        ) // <--- UBAH: Colors.teal menjadi _themeColor
+                      ? Icon(Icons.check_circle, color: _themeColor) // indigo
                       : null,
                   selected: isCurrentSection,
                   onTap: isCurrentSection
@@ -258,8 +324,7 @@ class _DailyScreenState extends State<DailyScreen> {
                                 content: Text(
                                   'Group "${group.groupName}" berhasil dipindahkan ke seksi "$sectionName"',
                                 ),
-                                backgroundColor:
-                                    _themeColor, // <--- UBAH: teal[800] menjadi _themeColor
+                                backgroundColor: _themeColor, // indigo
                               ),
                             );
                           }
@@ -367,18 +432,19 @@ class _DailyScreenState extends State<DailyScreen> {
       drawer: const DrawerMenu(isDailyActive: true),
       isLoading: _controller.isLoading,
 
-      // Jika seksi visual di layout kosong DAN data raw kosong, baru tampilkan empty placeholder
+      // Menandai kondisi kosong jika data raw di controller benar-benar nihil
       isEmpty: _controller.allGroupRaw.isEmpty && allKeys.isEmpty,
 
-      // PEMBARUAN: Menggunakan custom emptyStateView dari komponen terpusat core bertema Indigo
+      // KUSTOMISASI TERBARU: Menghubungkan fungsi sekuensial agar langsung membuat seksi + group sekaligus
       emptyStateView: UniversalEmptyState(
         icon: Icons.dashboard_customize_rounded,
         title: 'Checklist Groups Masih Kosong',
         description:
-            'Belum ada Seksi Kategori atau Hub tugas harian yang terdaftar. Tekan tombol di bawah untuk membuat seksi penempatan utama Anda.',
-        buttonLabel: 'Tambah Seksi Kategori Baru',
+            'Belum ada grup tugas harian yang terdaftar. Yuk, buat Seksi Utama sekaligus Group Checklist pertama Anda sekarang juga!',
+        buttonLabel: 'Buat Seksi & Group Checklist',
         themeColor: _themeColor,
-        onPressed: _showAddMainSectionDialog,
+        onPressed:
+            _showSequentialAddDialog, // <-- Memanggil alur langkah berurutan
       ),
       sectionKeys: allKeys,
       groupedItems: allItems,
@@ -388,14 +454,9 @@ class _DailyScreenState extends State<DailyScreen> {
       enableSearch: true,
       enableMultiSelect: false,
 
-      // Menghubungkan fungsi pencarian dan penambahan ke Appbar layout
       onSearchChanged: _controller.updateSearchQuery,
       onAddPressed: _showAddMainSectionDialog,
 
-      // ====================================================================
-      // TAMBAHAN BARU: Tombol Muncul di AppBar Utama saat Tahan Lama Aktif
-      // Menyediakan tombol toggle kustom untuk menampilkan seksi hidden group
-      // ====================================================================
       additionalAction: IconButton(
         icon: Icon(
           _controller.showHiddenSection
@@ -440,8 +501,7 @@ class _DailyScreenState extends State<DailyScreen> {
 
         return InteractiveSectionHeader(
           sectionName: sectionKey,
-          themeColor: Colors
-              .indigo[900]!, // <--- UBAH: Colors.teal[900]! menjadi Colors.indigo[900]!
+          themeColor: Colors.indigo[900]!, // Indigo
           isEditMode: isLayoutEditMode ? true : _controller.isSectionEditMode,
           isUpperCase: false,
           isFirst: index == 0,
@@ -462,8 +522,7 @@ class _DailyScreenState extends State<DailyScreen> {
         }
 
         return InteractiveGridCard(
-          themeColor:
-              _themeColor, // <--- UBAH: Colors.teal[800]! menjadi _themeColor
+          themeColor: _themeColor, // Indigo
           isEditMode: isLayoutEditMode ? true : _controller.isPageEditMode,
           isHiddenStyle: group.isHidden,
           isFirst: index == 0,
@@ -585,11 +644,8 @@ class _DailyScreenState extends State<DailyScreen> {
                       vertical: 3,
                     ),
                     decoration: BoxDecoration(
-                      color:
-                          (group.isHidden
-                                  ? Colors.grey
-                                  : _themeColor) // <--- UBAH: teal[800] menjadi _themeColor
-                              .withOpacity(0.1),
+                      color: (group.isHidden ? Colors.grey : _themeColor)
+                          .withOpacity(0.1),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
@@ -599,8 +655,7 @@ class _DailyScreenState extends State<DailyScreen> {
                         fontWeight: FontWeight.w600,
                         color: group.isHidden
                             ? Colors.grey[700]
-                            : Colors
-                                  .indigo[900]!, // <--- UBAH: teal[900] menjadi indigo[900]
+                            : Colors.indigo[900]!,
                       ),
                     ),
                   ),
