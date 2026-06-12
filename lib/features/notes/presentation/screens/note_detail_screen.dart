@@ -4,11 +4,11 @@ import 'package:flutter/material.dart';
 import '../../models/note_model.dart';
 import '../controllers/note_detail_controller.dart';
 import '../../../../core/presentation/widgets/base_detail_list_screen.dart';
+import '../../../../core/presentation/widgets/universal_empty_state.dart'; // <-- IMPORT BARU DARI CORE
 import 'note_edit_dialog.dart'; // Import file dialog baru
 
 class NoteDetailScreen extends StatefulWidget {
   final NoteGroup noteGroup;
-
   const NoteDetailScreen({super.key, required this.noteGroup});
 
   @override
@@ -38,6 +38,43 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // ================= TANGANI KEADAAN AWAL KOSONG DI SINI =================
+    if (_controller.currentGroup.notes.isEmpty) {
+      return Scaffold(
+        backgroundColor: const Color(
+          0xFFF5F6FA,
+        ), // Menyelaraskan background BaseDetailListScreen
+        appBar: AppBar(
+          title: Text(
+            _controller.currentGroup.groupName,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => Navigator.pop(context),
+          ),
+          backgroundColor: const Color(
+            0xFF3F51B5,
+          ), // Menyelaraskan warna AppBar utama (Indigo)
+          elevation: 2,
+        ),
+        body: UniversalEmptyState(
+          icon: Icons.note_add_rounded,
+          title: 'Belum Ada Catatan',
+          description:
+              'Grup ini masih kosong dari lembar tulisan. Tekan tombol di bawah untuk membuat catatan teks atau lembar tabel data pertama Anda!',
+          buttonLabel: 'Buat Catatan Baru',
+          themeColor: const Color(0xFF3F51B5), // Warna tema Indigo
+          onPressed: () => _showNoteDialog(),
+        ),
+      );
+    }
+
+    // ================= TAMPILKAN LIST UTAMA JIKA DATA TERSEDIA =================
     return BaseDetailListScreen<NoteModel>(
       pageTitle: _controller.currentGroup.groupName,
       items: _controller.currentGroup.notes,
@@ -90,7 +127,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       itemIsFavorite: (note) => false,
       onAddPressed: () => _showNoteDialog(),
       onItemTap: (note) => _showNoteDialog(existingNote: note),
-
       itemMenuBuilder: (note) => const [
         PopupMenuItem(
           value: 'edit',
@@ -110,7 +146,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
               SizedBox(width: 10),
               Text(
                 'Hapus',
-                style: TextStyle(fontSize: 13, color: Colors.redAccent),
+                style: TextStyle(color: Colors.redAccent, fontSize: 13),
               ),
             ],
           ),
