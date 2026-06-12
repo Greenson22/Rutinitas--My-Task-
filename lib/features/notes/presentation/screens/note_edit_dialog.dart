@@ -1,6 +1,7 @@
 // lib/features/notes/presentation/screens/note_edit_dialog.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_markdown/flutter_markdown.dart'; // <-- TAMBAHKAN DEPENDENCY INI[cite: 1]
 import '../../models/note_model.dart';
 import '../controllers/note_detail_controller.dart';
 import '../../../../core/presentation/widgets/base_popup_dialog.dart';
@@ -141,6 +142,8 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
       setState(() {
         _hasChanges = false;
         _isSaving = false;
+        _isViewMode =
+            true; // Otomatis kembali ke mode rendering Markdown setelah menyimpan
       });
       return true;
     }
@@ -371,21 +374,70 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
                 ? Container(
                     color: Colors.white,
                     padding: const EdgeInsets.all(16.0),
-                    child: TextField(
-                      controller: _contentController,
-                      readOnly: _isViewMode, // Mencegah ketik jika mode view
-                      maxLines: null,
-                      expands: true,
-                      textAlignVertical: TextAlignVertical.top,
-                      decoration: InputDecoration(
-                        hintText: _isViewMode
-                            ? 'Catatan kosong.'
-                            : 'Tulis catatan Anda di sini...',
-                        hintStyle: TextStyle(color: Colors.grey[400]),
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ),
+                    child: _isViewMode
+                        // ========================================================
+                        // MODE VIEW: Tampilkan Teks Ter-render Markdown yang Cantik[cite: 2]
+                        // ========================================================
+                        ? Markdown(
+                            data: _contentController.text.isEmpty
+                                ? '*Catatan kosong.*'
+                                : _contentController.text,
+                            selectable:
+                                true, // Teks dalam Markdown tetap bisa diblok/select/copy
+                            styleSheet:
+                                MarkdownStyleSheet.fromTheme(
+                                  Theme.of(context),
+                                ).copyWith(
+                                  p: const TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.black87,
+                                    height: 1.5,
+                                  ),
+                                  h1: const TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.indigo,
+                                  ),
+                                  h2: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.indigo,
+                                  ),
+                                  h3: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.indigo,
+                                  ),
+                                  code: TextStyle(
+                                    backgroundColor: Colors.grey[200],
+                                    color: Colors.red[700],
+                                  ),
+                                  codeblockDecoration: BoxDecoration(
+                                    color: Colors.grey[900],
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                          )
+                        // ========================================================
+                        // MODE EDIT: Tampilkan TextField untuk ketik / paste Markdown[cite: 2]
+                        // ========================================================
+                        : TextField(
+                            controller: _contentController,
+                            maxLines: null,
+                            expands: true,
+                            textAlignVertical: TextAlignVertical.top,
+                            style: const TextStyle(
+                              fontFamily: 'Courier',
+                              fontSize: 14,
+                            ), // Font Monospace agar struktur tag MD kelihatan rapi
+                            decoration: InputDecoration(
+                              hintText:
+                                  'Tulis atau paste catatan Anda di sini (Mendukung Markdown)...',
+                              hintStyle: TextStyle(color: Colors.grey[400]),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                          ),
                   )
                 // Menangani tampilan tabel berdasarkan view mode
                 : _isViewMode
@@ -419,7 +471,6 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
                             labelColor: Colors.indigo,
                             unselectedLabelColor: Colors.grey,
                             indicatorColor: Colors.indigo,
-                            // PERBAIKAN: Parameter 'tabs' yang sebelumnya hilang dimasukkan kembali di sini
                             tabs: [
                               Tab(
                                 text: 'Data Tabel',
