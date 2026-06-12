@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:rutinitasku/features/data_center/presentation/widgets/backup_tab.dart';
-import 'package:rutinitasku/features/data_center/presentation/widgets/local_sharing_tab.dart';
-import '../../../../core/services/storage_service.dart';
-import '../../../../core/presentation/widgets/drawer_menu.dart';
+import 'package:rutinitasku/features/data_center/backup/backup_tab.dart';
+import 'package:rutinitasku/features/data_center/local_sharing/local_sharing_tab.dart';
+import '../../core/services/storage_service.dart';
+import '../../core/presentation/widgets/drawer_menu.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:archive/archive_io.dart';

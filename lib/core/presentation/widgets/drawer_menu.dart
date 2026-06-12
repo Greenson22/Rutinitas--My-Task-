@@ -6,7 +6,7 @@ import '../../../features/daily/presentation/screens/daily_screen.dart';
 import '../../../features/notes/presentation/screens/note_screen.dart'; // Pindah ke atas sesuai urutan
 import '../../../features/jurnal_aktivitas/presentation/screens/jurnal_aktivitas_screen.dart';
 import '../../../features/prompt/presentation/screens/prompt_screen.dart';
-import '../../../features/data_center/presentation/screens/data_center_screen.dart';
+import '../../../features/data_center/data_center_screen.dart';
 import '../../../features/about/presentation/pages/about_page.dart';
 import '../../../features/task_master/presentation/widgets/settings_dialog.dart';
 import '../../services/storage_service.dart';
