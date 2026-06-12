@@ -152,11 +152,22 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           ),
         ),
       ],
-      onItemMenuSelected: (value, note) {
+      // PERUBAHAN: Menjadikan method ini asinkron untuk menunggu konfirmasi dialog
+      onItemMenuSelected: (value, note) async {
         if (value == 'edit') {
           _showNoteDialog(existingNote: note);
         } else if (value == 'delete') {
-          _controller.deleteNote(note);
+          // Memanggil utilitas konfirmasi yang ada di controller Anda
+          final bool confirm = await _controller.showConfirmDialog(
+            title: 'Hapus Catatan',
+            content:
+                'Apakah Anda yakin ingin menghapus catatan "${note.title}" secara permanen?',
+          );
+
+          // Eksekusi penghapusan hanya jika user memilih "Hapus" (true)
+          if (confirm) {
+            _controller.deleteNote(note);
+          }
         }
       },
       onDeleteMassive: (selectedItems) async {
