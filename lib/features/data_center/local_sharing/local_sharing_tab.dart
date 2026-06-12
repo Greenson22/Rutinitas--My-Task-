@@ -2,31 +2,97 @@
 
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../../../core/services/storage_service.dart'; // Menambahkan StorageService untuk manajemen data internal
 
 class LocalSharingTab extends StatefulWidget {
   final VoidCallback onSendFile;
   final VoidCallback onReceiveFile;
-  final List<File> serverBackupFiles;
-  final Function(File) onDeleteServerBackup;
   final Function(File) onRestoreAllZip;
 
   const LocalSharingTab({
     super.key,
     required this.onSendFile,
     required this.onReceiveFile,
-    required this.serverBackupFiles,
-    required this.onDeleteServerBackup,
     required this.onRestoreAllZip,
   });
 
   @override
-  State<LocalSharingTab> createState() => _LocalSharingTabState();
+  State<LocalSharingTab> createState() => LocalSharingTabState(); // Mengubah kelas State menjadi publik agar dapat diakses via GlobalKey
 }
 
-class _LocalSharingTabState extends State<LocalSharingTab> {
-  // Deklarasi variabel state untuk manajemen hapus masal berkas server
+class LocalSharingTabState extends State<LocalSharingTab> {
+  final StorageService _storageService = StorageService();
+  String _baseDir = 'Documents';
+
+  // === LOGIKA MANAJEMEN BERKAS SERVER (Dipindahkan dari Screen Utama) ===
+  List<File> _serverBackupFiles = [];
   bool _isServerSelectionMode = false;
   final List<File> _selectedServerFiles = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBaseDirectory();
+  }
+
+  Future<void> _loadBaseDirectory() async {
+    String dir = await _storageService.getBaseDirSetting();
+    if (mounted) {
+      setState(() {
+        _baseDir = dir;
+      });
+      refreshServerBackups();
+    }
+  }
+
+  // Fungsi publik agar bisa dipicu dari DataCenterScreen (misal setelah selesai menerima file secara otomatis)
+  Future<void> refreshServerBackups() async {
+    List<File> files = await _storageService.getAllServerBackupFiles(_baseDir);
+    files.sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
+    setState(() {
+      _serverBackupFiles = files;
+    });
+  }
+
+  Future<bool> _showConfirmDeleteDialog({
+    required String title,
+    required String content,
+  }) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Row(
+              children: const [
+                Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
+                SizedBox(width: 8),
+                Text('Konfirmasi Hapus'),
+              ],
+            ),
+            content: Text(content),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text(
+                  'Batal',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                child: const Text(
+                  'Hapus',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -53,8 +119,7 @@ class _LocalSharingTabState extends State<LocalSharingTab> {
                   leading: const CircleAvatar(child: Icon(Icons.cloud_upload)),
                   title: const Text('Mode Pengirim (Server)'),
                   trailing: ElevatedButton(
-                    onPressed: widget
-                        .onSendFile, // Menggunakan widget. untuk mengakses parameter parent
+                    onPressed: widget.onSendFile,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.indigo,
                     ),
@@ -71,8 +136,7 @@ class _LocalSharingTabState extends State<LocalSharingTab> {
                   ),
                   title: const Text('Mode Penerima (Client)'),
                   trailing: ElevatedButton(
-                    onPressed: widget
-                        .onReceiveFile, // Menggunakan widget. untuk mengakses parameter parent
+                    onPressed: widget.onReceiveFile,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.teal,
                     ),
@@ -104,16 +168,14 @@ class _LocalSharingTabState extends State<LocalSharingTab> {
               children: [
                 IconButton(
                   icon: Icon(
-                    _selectedServerFiles.length ==
-                            widget.serverBackupFiles.length
+                    _selectedServerFiles.length == _serverBackupFiles.length
                         ? Icons.deselect
                         : Icons.select_all,
                     size: 18,
                     color: Colors.teal[700],
                   ),
                   tooltip:
-                      _selectedServerFiles.length ==
-                          widget.serverBackupFiles.length
+                      _selectedServerFiles.length == _serverBackupFiles.length
                       ? 'Batal Semua'
                       : 'Pilih Semua',
                   constraints: const BoxConstraints(),
@@ -121,11 +183,11 @@ class _LocalSharingTabState extends State<LocalSharingTab> {
                   onPressed: () {
                     setState(() {
                       if (_selectedServerFiles.length ==
-                          widget.serverBackupFiles.length) {
+                          _serverBackupFiles.length) {
                         _selectedServerFiles.clear();
                       } else {
                         _selectedServerFiles.clear();
-                        _selectedServerFiles.addAll(widget.serverBackupFiles);
+                        _selectedServerFiles.addAll(_serverBackupFiles);
                       }
                     });
                   },
@@ -141,57 +203,17 @@ class _LocalSharingTabState extends State<LocalSharingTab> {
                 ),
                 const SizedBox(width: 8),
 
-                // === PERBAIKAN DI SINI: MENAMBAHKAN DIALOG KONFIRMASI HAPUS MASSAL SERVER ===
+                // Logic hapus masal internal tanpa callback trigger ke parent screen
                 InkWell(
                   onTap: _selectedServerFiles.isEmpty
                       ? null
                       : () async {
-                          // 1. Tampilkan dialog konfirmasi pop-up terlebih dahulu
-                          final bool confirm =
-                              await showDialog<bool>(
-                                context: context,
-                                builder: (ctx) => AlertDialog(
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  title: Row(
-                                    children: const [
-                                      Icon(
-                                        Icons.warning_amber_rounded,
-                                        color: Colors.redAccent,
-                                      ),
-                                      SizedBox(width: 8),
-                                      Text('Konfirmasi Hapus Masal'),
-                                    ],
-                                  ),
-                                  content: Text(
-                                    'Apakah Anda yakin ingin menghapus ${_selectedServerFiles.length} berkas cadangan dari server terpilih secara permanen?',
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.pop(ctx, false),
-                                      child: const Text(
-                                        'Batal',
-                                        style: TextStyle(color: Colors.grey),
-                                      ),
-                                    ),
-                                    ElevatedButton(
-                                      onPressed: () => Navigator.pop(ctx, true),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.red,
-                                      ),
-                                      child: const Text(
-                                        'Hapus',
-                                        style: TextStyle(color: Colors.white),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ) ??
-                              false;
+                          final bool confirm = await _showConfirmDeleteDialog(
+                            title: 'Konfirmasi Hapus Masal',
+                            content:
+                                'Apakah Anda yakin ingin menghapus ${_selectedServerFiles.length} berkas cadangan dari server terpilih secara permanen?',
+                          );
 
-                          // 2. Jika ditekan 'Hapus' (confirm == true), jalankan penghapusan fisik
                           if (confirm) {
                             for (var file in _selectedServerFiles) {
                               if (await file.exists()) {
@@ -199,16 +221,12 @@ class _LocalSharingTabState extends State<LocalSharingTab> {
                               }
                             }
 
-                            // 3. Bersihkan penampung state
                             setState(() {
                               _selectedServerFiles.clear();
                               _isServerSelectionMode = false;
                             });
 
-                            // 4. Picu pembaruan data di parent screen
-                            widget.onDeleteServerBackup(
-                              File('trigger_refresh_after_bulk_delete'),
-                            );
+                            refreshServerBackups();
                           }
                         },
                   borderRadius: BorderRadius.circular(6),
@@ -261,7 +279,7 @@ class _LocalSharingTabState extends State<LocalSharingTab> {
           ),
         ],
         // Menampilkan daftar berkas dari server
-        widget.serverBackupFiles.isEmpty
+        _serverBackupFiles.isEmpty
             ? const Center(
                 child: Padding(
                   padding: EdgeInsets.all(16.0),
@@ -271,20 +289,19 @@ class _LocalSharingTabState extends State<LocalSharingTab> {
             : ListView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                itemCount: widget.serverBackupFiles.length,
+                itemCount: _serverBackupFiles.length,
                 itemBuilder: (context, index) {
-                  final file = widget.serverBackupFiles[index];
+                  final file = _serverBackupFiles[index];
                   final isSelected = _selectedServerFiles.contains(file);
+                  final String fileName = file.path.split('/').last;
 
                   return ListTile(
-                    // Jika ditahan lama, aktifkan mode pemilihan massal dan otomatis centang file ini
                     onLongPress: () {
                       setState(() {
                         _isServerSelectionMode = true;
                         if (!isSelected) _selectedServerFiles.add(file);
                       });
                     },
-                    // Ketukan biasa: Jika dalam mode edit maka lakukan centang, jika mode normal jalankan fungsi Restore
                     onTap: _isServerSelectionMode
                         ? () {
                             setState(() {
@@ -296,7 +313,6 @@ class _LocalSharingTabState extends State<LocalSharingTab> {
                             });
                           }
                         : () async {
-                            // --- DIALOG KONFIRMASI RESTORE DARI SERVER ---
                             final bool confirm =
                                 await showDialog<bool>(
                                   context: context,
@@ -315,7 +331,7 @@ class _LocalSharingTabState extends State<LocalSharingTab> {
                                       ],
                                     ),
                                     content: Text(
-                                      'Apakah Anda yakin ingin memulihkan seluruh data menggunakan file cadangan server "${file.path.split('/').last}"?\n\n*Peringatan: Data aktif Anda saat ini akan sepenuhnya ditimpa.',
+                                      'Apakah Anda yakin ingin memulihkan seluruh data menggunakan file cadangan server "$fileName"?\n\n*Peringatan: Data aktif Anda saat ini akan sepenuhnya ditimpa.',
                                     ),
                                     actions: [
                                       TextButton(
@@ -347,12 +363,10 @@ class _LocalSharingTabState extends State<LocalSharingTab> {
                                 ) ??
                                 false;
 
-                            // Jika dikonfirmasi, panggil fungsi restore
                             if (confirm) {
                               widget.onRestoreAllZip(file);
                             }
                           },
-                    // Ikon kiri berubah menjadi Checkbox apabila mode pemilihan masal sedang aktif
                     leading: _isServerSelectionMode
                         ? Checkbox(
                             value: isSelected,
@@ -368,8 +382,7 @@ class _LocalSharingTabState extends State<LocalSharingTab> {
                             },
                           )
                         : const Icon(Icons.cloud_download, color: Colors.teal),
-                    title: Text(file.path.split('/').last),
-                    // Sembunyikan tombol hapus satuan saat sedang memilih banyak file
+                    title: Text(fileName),
                     trailing: _isServerSelectionMode
                         ? null
                         : IconButton(
@@ -377,7 +390,18 @@ class _LocalSharingTabState extends State<LocalSharingTab> {
                               Icons.delete_outline,
                               color: Colors.red,
                             ),
-                            onPressed: () => widget.onDeleteServerBackup(file),
+                            onPressed: () async {
+                              final bool
+                              confirm = await _showConfirmDeleteDialog(
+                                title: 'Hapus Berkas Server',
+                                content:
+                                    'Apakah Anda yakin ingin menghapus berkas "$fileName" ini secara permanen?',
+                              );
+                              if (confirm && await file.exists()) {
+                                await file.delete();
+                                refreshServerBackups();
+                              }
+                            },
                           ),
                   );
                 },

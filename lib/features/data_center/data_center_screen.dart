@@ -23,13 +23,14 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
   final StorageService _storageService = StorageService();
   String _baseDir = 'Documents';
   HttpServer? _serverEksternal;
-
-  List<File> _serverBackupFiles = [];
   bool _isLoading = false;
 
-  // GlobalKey digunakan untuk memicu pembaruan daftar berkas lokal di dalam BackupTab
-  // ketika aplikasi selesai mengunduh/menerima berkas dari server.
+  // GlobalKey untuk memicu pembaruan daftar berkas lokal di dalam BackupTab
   final GlobalKey<BackupTabState> _backupTabKey = GlobalKey<BackupTabState>();
+
+  // PERBAIKAN: Menambahkan GlobalKey untuk memicu pembaruan daftar berkas server di dalam LocalSharingTab
+  final GlobalKey<LocalSharingTabState> _sharingTabKey =
+      GlobalKey<LocalSharingTabState>();
 
   @override
   void initState() {
@@ -43,16 +44,9 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
       setState(() {
         _baseDir = dir;
       });
-      _loadServerBackups();
+      // Memperbarui tab sharing melalui GlobalKey jika sudah terpasang
+      _sharingTabKey.currentState?.refreshServerBackups();
     }
-  }
-
-  Future<void> _loadServerBackups() async {
-    List<File> files = await _storageService.getAllServerBackupFiles(_baseDir);
-    files.sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
-    setState(() {
-      _serverBackupFiles = files;
-    });
   }
 
   String _getFormattedFileName(String prefix, String extension) {
@@ -225,8 +219,8 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                   );
                   await fileZipTarget.writeAsBytes(finalZipBytes);
 
-                  _loadBaseDirectory();
-                  // Picu pembaruan daftar file cadangan lokal di tab sebelah jika sedang aktif
+                  // PERBAIKAN: Menyegarkan list pada kedua tab anak secara real-time via GlobalKey
+                  _sharingTabKey.currentState?.refreshServerBackups();
                   _backupTabKey.currentState?.refreshLocalBackups();
 
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -896,7 +890,8 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                   );
                   await fileZipTarget.writeAsBytes(finalZipBytes);
 
-                  _loadBaseDirectory();
+                  // PERBAIKAN: Menyegarkan tab sharing via GlobalKey setelah data sukses masuk
+                  _sharingTabKey.currentState?.refreshServerBackups();
 
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -1238,47 +1233,11 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                   onImportZip: () => _importZipLokal(),
                 ),
 
-                // TAB 2: Local Sharing (Tetap menangani fitur transfer jaringan P2P)
+                // TAB 2: Local Sharing (Sekarang mengelola data & dialog internalnya sendiri)
                 LocalSharingTab(
+                  key: _sharingTabKey,
                   onSendFile: () => _startServerSharing(),
                   onReceiveFile: () => _showConnectToServerDialog(),
-                  serverBackupFiles: _serverBackupFiles,
-                  onDeleteServerBackup: (file) async {
-                    if (file.path == 'trigger_refresh_after_bulk_delete') {
-                      await _loadServerBackups();
-                      return;
-                    }
-
-                    final bool confirm =
-                        await showDialog<bool>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: const Text('Hapus Berkas Server?'),
-                            content: Text(
-                              'Apakah Anda yakin ingin menghapus berkas "${file.path.split('/').last}" ini secara permanen?',
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx, false),
-                                child: const Text('Batal'),
-                              ),
-                              ElevatedButton(
-                                onPressed: () => Navigator.pop(ctx, true),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.red,
-                                ),
-                                child: const Text('Hapus'),
-                              ),
-                            ],
-                          ),
-                        ) ??
-                        false;
-
-                    if (confirm && await file.exists()) {
-                      await file.delete();
-                      await _loadServerBackups();
-                    }
-                  },
                   onRestoreAllZip: (file) => _importAllFromZip(file),
                 ),
               ],
