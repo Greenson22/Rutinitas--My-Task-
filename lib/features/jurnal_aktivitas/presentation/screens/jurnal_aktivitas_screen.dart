@@ -1,11 +1,11 @@
 // lib/features/jurnal_aktivitas/presentation/screens/jurnal_aktivitas_screen.dart
-
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../../../../core/services/storage_service.dart';
 import '../../../../core/presentation/widgets/drawer_menu.dart';
+import '../../../../core/presentation/widgets/universal_empty_state.dart'; // IMPORT BARU
 import '../../../task_master/data/models/task_model.dart';
 import '../../data/models/time_log_model.dart';
 import '../widgets/jurnal_statistik_dialog.dart';
@@ -17,15 +17,15 @@ class JurnalAktivitasScreen extends StatefulWidget {
   State<JurnalAktivitasScreen> createState() => _JurnalAktivitasScreenState();
 }
 
+class _PromptScreenState {} // Placeholder state dari source asli, abaikan jika tidak sengaja terbawa
+
 class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
   final StorageService _storageService = StorageService();
-
   List<TimeLogEntry> _logs = [];
   List<TaskCategory> _allTaskCategories = [];
   String _baseDir = '';
   String _fullJsonPath = '';
   bool _isLoading = true;
-
   bool _isEditMode = false;
 
   @override
@@ -44,11 +44,9 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
       _baseDir = await _storageService.getBaseDirSetting();
       final File jsonFile = await _storageService.getJurnalJsonFile(_baseDir);
       _fullJsonPath = jsonFile.path;
-
       final String jsonString = await _storageService
           .loadOrInitializeJurnalJson(jsonFile);
       final List<dynamic> decodedJson = jsonDecode(jsonString);
-
       List<TimeLogEntry> loadedLogs = decodedJson
           .map((e) => TimeLogEntry.fromJson(e))
           .toList();
@@ -84,7 +82,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
       }
 
       await _loadTaskMasterData();
-
       setState(() {
         _logs = loadedLogs;
         _isLoading = false;
@@ -125,7 +122,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
 
   bool _isTaskTrulyLinked(TimeLogTask jurnalTask) {
     if (jurnalTask.linkedTaskIds.isEmpty) return false;
-
     for (var category in _allTaskCategories) {
       for (var task in category.tasks) {
         if (jurnalTask.linkedTaskIds.contains(task.id)) {
@@ -136,7 +132,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     return false;
   }
 
-  // === FITUR BARU: MEMINDAHKAN URUTAN AKTIVITAS PADA HARI INI ===
   void _moveTaskOrder(
     List<TimeLogTask> taskList,
     int currentIndex,
@@ -144,13 +139,11 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
   ) async {
     int newIndex = currentIndex + direction;
     if (newIndex < 0 || newIndex >= taskList.length) return;
-
     setState(() {
       final temp = taskList[currentIndex];
       taskList[currentIndex] = taskList[newIndex];
       taskList[newIndex] = temp;
     });
-
     await _saveData();
   }
 
@@ -198,7 +191,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                               final bool isLinkedWithThis = jurnalTask
                                   .linkedTaskIds
                                   .contains(taskItem.id);
-
                               return ListTile(
                                 dense: true,
                                 title: Text(taskItem.name),
@@ -275,21 +267,17 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
         ],
       ),
     );
-
     if (konfirmasi != true) return;
 
-    // PERBAIKAN: Cari dan ubah langsung pada referensi list objek di dalam _logs
     for (var logEntry in _logs) {
       int idx = logEntry.tasks.indexWhere((t) => t.id == task.id);
       if (idx != -1) {
         setState(() {
-          // Mengubah durasiMenit milik item asli di dalam list state _logs
           logEntry.tasks[idx].durasiMenit += 30;
         });
         break;
       }
     }
-
     await _saveData();
     if (onDone != null) onDone();
   }
@@ -299,7 +287,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
       text: task.durasiMenit.toString(),
     );
     final formKey = GlobalKey<FormState>();
-
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -352,7 +339,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
   void _showAddActivityDialog() {
     final TextEditingController inputController = TextEditingController();
     final formKey = GlobalKey<FormState>();
-
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -381,7 +367,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                 final int todayLogIndex = _logs.indexWhere(
                   (entry) => entry.tanggal == todayStr,
                 );
-
                 if (todayLogIndex != -1) {
                   final randomId = Random().nextInt(999999);
                   final newTask = TimeLogTask(
@@ -390,11 +375,9 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                     durasiMenit: 0,
                     linkedTaskIds: [],
                   );
-
                   setState(() {
                     _logs[todayLogIndex].tasks.add(newTask);
                   });
-
                   await _saveData();
                   Navigator.pop(context);
                 }
@@ -467,13 +450,11 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
         ],
       ),
     );
-
     if (konfirmasi == true) {
       final String todayStr = _getTodayDateString();
       final int todayLogIndex = _logs.indexWhere(
         (entry) => entry.tanggal == todayStr,
       );
-
       if (todayLogIndex != -1) {
         setState(() {
           _logs[todayLogIndex].tasks.removeWhere((t) => t.id == task.id);
@@ -489,12 +470,8 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            // Membuat duplikasi list agar tidak merusak data master _logs
             final sortedLogs = List<TimeLogEntry>.from(_logs);
-
-            // Mengurutkan secara eksplisit berdasarkan string tanggal dari terbaru ke terlama
             sortedLogs.sort((a, b) => b.tanggal.compareTo(a.tanggal));
-
             return AlertDialog(
               title: Row(
                 children: const [
@@ -612,8 +589,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
         title: const Text('Jurnal Aktivitas'),
         backgroundColor: Colors.indigo[700],
         actions: [
-          // === TOMBOL EDIT DI SINI TELAH DIHAPUS ===
-          // === TOMBOL STATISTIK (BARU) ===
           IconButton(
             icon: const Icon(Icons.analytics_outlined, color: Colors.white),
             tooltip: 'Lihat Statistik',
@@ -661,17 +636,22 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                   ),
                 ),
                 Expanded(
+                  // PEMBARUAN UTAMA: Menggantikan teks statis dengan UniversalEmptyState interaktif saat kosong
                   child: todayTasks.isEmpty
-                      ? const Center(
-                          child: Text("Belum ada aktivitas dicatat hari ini."),
+                      ? UniversalEmptyState(
+                          icon: Icons.edit_calendar_rounded,
+                          title: 'Jurnal Hari Ini Masih Kosong',
+                          description:
+                              'Kamu belum mencatat produktivitas atau kegiatan apa pun hari ini. Yuk, mulai rekam aktivitas pertamamu sekarang juga!',
+                          buttonLabel: 'Catat Aktivitas Sekarang',
+                          themeColor: Colors.indigo,
+                          onPressed: _showAddActivityDialog,
                         )
                       : ListView.builder(
                           itemCount: todayTasks.length,
                           itemBuilder: (context, index) {
                             final task = todayTasks[index];
-                            final bool isLinked = _isTaskTrulyLinked(
-                              task,
-                            ); // Menghitung status tautan tugas
+                            final bool isLinked = _isTaskTrulyLinked(task);
                             return Card(
                               elevation: 2,
                               margin: const EdgeInsets.symmetric(
@@ -682,7 +662,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: ListTile(
-                                // === FITUR BARU: MENAHAN AKTIVITAS UNTUK AKTIF/NONAKTIFKAN MODE EDIT ===
                                 onLongPress: () {
                                   setState(() {
                                     _isEditMode = !_isEditMode;
@@ -710,7 +689,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                 title: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    // MODIFIKASI DI SINI: Membungkus Judul Tugas dengan Row untuk menyisipkan ikon terhubung
                                     Row(
                                       children: [
                                         Expanded(
@@ -722,7 +700,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                             ),
                                           ),
                                         ),
-                                        // Jikalau tugas terhubung dengan Tasks Master, munculkan ikon tautan berwarna teal
                                         if (isLinked)
                                           Padding(
                                             padding: const EdgeInsets.only(
@@ -742,7 +719,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                           ),
                                       ],
                                     ),
-                                    // Jika Mode Edit AKTIF, tampilkan kumpulan tombol kontrol dengan Wrap agar ramah mobile
                                     if (_isEditMode) ...[
                                       const SizedBox(height: 10),
                                       Wrap(
@@ -862,7 +838,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     );
   }
 
-  // Fungsi pembantu untuk membuat tombol edit yang rapi dan pas untuk ukuran layar HP
   Widget _buildMobileEditButton({
     required IconData icon,
     required Color color,
