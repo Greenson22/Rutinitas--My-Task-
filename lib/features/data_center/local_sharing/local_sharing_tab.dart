@@ -2,29 +2,32 @@
 
 import 'dart:io';
 import 'package:flutter/material.dart';
-import '../../../core/services/storage_service.dart'; // Menambahkan StorageService untuk manajemen data internal
+import '../../../core/services/storage_service.dart';
+import 'sharing_server.dart'; // Impor berkas Server baru
+import 'sharing_client.dart'; // Impor berkas Client baru
 
 class LocalSharingTab extends StatefulWidget {
-  final VoidCallback onSendFile;
-  final VoidCallback onReceiveFile;
   final Function(File) onRestoreAllZip;
+  final Function(bool) onLoadingStatusChanged;
+  final VoidCallback onDataSynchronized;
 
   const LocalSharingTab({
     super.key,
-    required this.onSendFile,
-    required this.onReceiveFile,
     required this.onRestoreAllZip,
+    required this.onLoadingStatusChanged,
+    required this.onDataSynchronized,
   });
 
   @override
-  State<LocalSharingTab> createState() => LocalSharingTabState(); // Mengubah kelas State menjadi publik agar dapat diakses via GlobalKey
+  State<LocalSharingTab> createState() => LocalSharingTabState();
 }
 
 class LocalSharingTabState extends State<LocalSharingTab> {
   final StorageService _storageService = StorageService();
-  String _baseDir = 'Documents';
+  final SharingServer _sharingServer = SharingServer();
+  final SharingClient _sharingClient = SharingClient();
 
-  // === LOGIKA MANAJEMEN BERKAS SERVER (Dipindahkan dari Screen Utama) ===
+  String _baseDir = 'Documents';
   List<File> _serverBackupFiles = [];
   bool _isServerSelectionMode = false;
   final List<File> _selectedServerFiles = [];
@@ -45,13 +48,31 @@ class LocalSharingTabState extends State<LocalSharingTab> {
     }
   }
 
-  // Fungsi publik agar bisa dipicu dari DataCenterScreen (misal setelah selesai menerima file secara otomatis)
   Future<void> refreshServerBackups() async {
     List<File> files = await _storageService.getAllServerBackupFiles(_baseDir);
     files.sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
     setState(() {
       _serverBackupFiles = files;
     });
+  }
+
+  String _getFormattedFileName(String prefix, String extension) {
+    final now = DateTime.now();
+    const daftarHari = [
+      'Senin',
+      'Selasa',
+      'Rabu',
+      'Kamis',
+      'Jumat',
+      'Sabtu',
+      'Minggu',
+    ];
+    String namaHari = daftarHari[now.weekday - 1];
+    String tanggal =
+        "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+    String waktu =
+        "${now.hour.toString().padLeft(2, '0')}-${now.minute.toString().padLeft(2, '0')}-${now.second.toString().padLeft(2, '0')}";
+    return "${prefix}_${tanggal}_${namaHari}_$waktu.$extension";
   }
 
   Future<bool> _showConfirmDeleteDialog({
@@ -113,30 +134,46 @@ class LocalSharingTabState extends State<LocalSharingTab> {
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 const Divider(),
-
-                // Pilihan Operasi 1: Mode Server / Pengirim
                 ListTile(
                   leading: const CircleAvatar(child: Icon(Icons.cloud_upload)),
                   title: const Text('Mode Pengirim (Server)'),
                   trailing: ElevatedButton(
-                    onPressed: widget.onSendFile,
+                    onPressed: () {
+                      _sharingServer.startServer(
+                        context: context,
+                        baseDir: _baseDir,
+                        getFormattedFileName: _getFormattedFileName,
+                        onDataReceived: () {
+                          refreshServerBackups();
+                          widget.onDataSynchronized();
+                        },
+                      );
+                    },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.indigo,
                     ),
                     child: const Text('Kirim File'),
                   ),
                 ),
-
                 const Divider(),
-
-                // Pilihan Operasi 2: Mode Client / Penerima
                 ListTile(
                   leading: const CircleAvatar(
                     child: Icon(Icons.cloud_download),
                   ),
                   title: const Text('Mode Penerima (Client)'),
                   trailing: ElevatedButton(
-                    onPressed: widget.onReceiveFile,
+                    onPressed: () {
+                      _sharingClient.showConnectDialog(
+                        context: context,
+                        baseDir: _baseDir,
+                        getFormattedFileName: _getFormattedFileName,
+                        onLoadingStatusChanged: widget.onLoadingStatusChanged,
+                        onDataReceived: () {
+                          refreshServerBackups();
+                          widget.onDataSynchronized();
+                        },
+                      );
+                    },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.teal,
                     ),
@@ -155,8 +192,6 @@ class LocalSharingTabState extends State<LocalSharingTab> {
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
         ),
-
-        // === TOMBOL KONTROL MASAL ===
         if (_isServerSelectionMode) ...[
           Padding(
             padding: const EdgeInsets.symmetric(
@@ -174,12 +209,6 @@ class LocalSharingTabState extends State<LocalSharingTab> {
                     size: 18,
                     color: Colors.teal[700],
                   ),
-                  tooltip:
-                      _selectedServerFiles.length == _serverBackupFiles.length
-                      ? 'Batal Semua'
-                      : 'Pilih Semua',
-                  constraints: const BoxConstraints(),
-                  padding: const EdgeInsets.all(6),
                   onPressed: () {
                     setState(() {
                       if (_selectedServerFiles.length ==
@@ -202,8 +231,6 @@ class LocalSharingTabState extends State<LocalSharingTab> {
                   ),
                 ),
                 const SizedBox(width: 8),
-
-                // Logic hapus masal internal tanpa callback trigger ke parent screen
                 InkWell(
                   onTap: _selectedServerFiles.isEmpty
                       ? null
@@ -213,23 +240,17 @@ class LocalSharingTabState extends State<LocalSharingTab> {
                             content:
                                 'Apakah Anda yakin ingin menghapus ${_selectedServerFiles.length} berkas cadangan dari server terpilih secara permanen?',
                           );
-
                           if (confirm) {
                             for (var file in _selectedServerFiles) {
-                              if (await file.exists()) {
-                                await file.delete();
-                              }
+                              if (await file.exists()) await file.delete();
                             }
-
                             setState(() {
                               _selectedServerFiles.clear();
                               _isServerSelectionMode = false;
                             });
-
                             refreshServerBackups();
                           }
                         },
-                  borderRadius: BorderRadius.circular(6),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 8,
@@ -255,14 +276,8 @@ class LocalSharingTabState extends State<LocalSharingTab> {
                     ),
                   ),
                 ),
-
                 const SizedBox(width: 4),
                 TextButton(
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
                   onPressed: () {
                     setState(() {
                       _selectedServerFiles.clear();
@@ -278,7 +293,6 @@ class LocalSharingTabState extends State<LocalSharingTab> {
             ),
           ),
         ],
-        // Menampilkan daftar berkas dari server
         _serverBackupFiles.isEmpty
             ? const Center(
                 child: Padding(
@@ -347,11 +361,6 @@ class LocalSharingTabState extends State<LocalSharingTab> {
                                             Navigator.pop(ctx, true),
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor: Colors.indigo,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                          ),
                                         ),
                                         child: const Text(
                                           'Ya, Restore',
@@ -362,10 +371,7 @@ class LocalSharingTabState extends State<LocalSharingTab> {
                                   ),
                                 ) ??
                                 false;
-
-                            if (confirm) {
-                              widget.onRestoreAllZip(file);
-                            }
+                            if (confirm) widget.onRestoreAllZip(file);
                           },
                     leading: _isServerSelectionMode
                         ? Checkbox(
