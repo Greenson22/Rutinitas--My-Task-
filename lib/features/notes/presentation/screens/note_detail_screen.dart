@@ -36,6 +36,111 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     );
   }
 
+  // =========================================================================
+  // FITUR BARU: DIALOG SELEKSI GRUP TARGET UNTUK PINDAH MASSAL (BULK MOVE)
+  // =========================================================================
+  void _showMoveMassiveDialog(List<NoteModel> selectedItems) async {
+    // 1. Tampilkan loading indicator selagi mengambil berkas dari storage
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) =>
+          const Center(child: CircularProgressIndicator(color: Colors.indigo)),
+    );
+
+    // 2. Ambil data semua grup notes via controller
+    final allGroups = await _controller.getAllNoteGroups();
+
+    if (!mounted) return;
+    Navigator.pop(context); // Tutup loading indicator yang sedang tampil
+
+    // 3. Saring grup tujuan agar tidak menyertakan grup asal saat ini
+    final availableGroups = allGroups
+        .where((g) => g.id != _controller.currentGroup.id)
+        .toList();
+
+    // 4. Jika tidak ada grup lain selain grup ini, tampilkan notifikasi
+    if (availableGroups.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Tidak ada grup tujuan lain yang tersedia.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    // 5. Tampilkan BottomSheet penampung daftar grup tujuan pemindahan
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (bottomSheetContext) {
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 8,
+                ),
+                child: Text(
+                  'Pindahkan ${selectedItems.length} Catatan Ke Grup:',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+              ),
+              const Divider(),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: availableGroups.length,
+                  itemBuilder: (ctx, index) {
+                    final targetGroup = availableGroups[index];
+                    return ListTile(
+                      leading: const Icon(Icons.folder, color: Colors.amber),
+                      title: Text(targetGroup.groupName),
+                      subtitle: Text('${targetGroup.notes.length} catatan'),
+                      onTap: () async {
+                        Navigator.pop(
+                          bottomSheetContext,
+                        ); // Tutup panel bottom sheet
+
+                        // Eksekusi pemindahan data massal di controller
+                        await _controller.moveMassiveNotes(
+                          selectedItems,
+                          targetGroup,
+                        );
+
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                '${selectedItems.length} catatan berhasil dipindahkan ke "${targetGroup.groupName}"',
+                              ),
+                              backgroundColor: Colors.teal,
+                            ),
+                          );
+                        }
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // ================= TANGANI KEADAAN AWAL KOSONG DI SINI =================
@@ -173,7 +278,9 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       onDeleteMassive: (selectedItems) async {
         await _controller.deleteMassiveNotes(selectedItems);
       },
-      onMoveMassive: (selectedItems) {},
+      onMoveMassive: (selectedItems) {
+        _showMoveMassiveDialog(selectedItems); // <--- DIHUBUNGKAN DI SINI
+      },
     );
   }
 }

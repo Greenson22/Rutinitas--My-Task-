@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:rutinitasku/core/services/storage_service.dart';
@@ -357,6 +359,62 @@ class NoteDetailController {
     currentGroup.notes.removeWhere((n) => n.id == note.id);
     onStateChanged();
     await saveCurrentGroup();
+  }
+
+  // =========================================================================
+  // FITUR BARU: AMBIL SELURUH DATA GRUP NOTE DARI STORAGE SERVICE
+  // =========================================================================
+  Future<List<NoteGroup>> getAllNoteGroups() async {
+    try {
+      final baseDir = await _storageService.getBaseDirSetting();
+      final files = await _storageService.getAllNoteGroups(baseDir);
+
+      List<NoteGroup> loadedGroups = [];
+      for (var file in files) {
+        final content = await file.readAsString();
+        loadedGroups.add(NoteGroup.fromJson(jsonDecode(content)));
+      }
+      return loadedGroups;
+    } catch (e) {
+      debugPrint("Gagal memuat seluruh data daftar grup notes: $e");
+      return [];
+    }
+  }
+
+  // =========================================================================
+  // FITUR BARU: MANAJEMEN PEMINDAHAN MASSAL (BULK MOVE NOTES)
+  // =========================================================================
+  Future<void> moveMassiveNotes(
+    List<NoteModel> selectedItems,
+    NoteGroup targetGroup,
+  ) async {
+    if (selectedItems.isEmpty || currentGroup.id == targetGroup.id) return;
+
+    // 1. Dapatkan sekumpulan ID unik item terpilih untuk mempercepat proses penyaringan
+    final selectedIds = selectedItems.map((e) => e.id).toSet();
+
+    // 2. Tambahkan semua item catatan terpilih ke list milik grup tujuan
+    targetGroup.notes.addAll(selectedItems);
+
+    // 3. Keluarkan item-item catatan terpilih dari list milik grup asal saat ini
+    currentGroup.notes.removeWhere((note) => selectedIds.contains(note.id));
+
+    // 4. Picu pembaruan state pada UI lokal layar detail asal
+    onStateChanged();
+
+    // 5. Tulis perubahan struktur data grup asal (currentGroup) ke penyimpanan lokal
+    await saveCurrentGroup();
+
+    // 6. Tulis perubahan struktur data grup target ke penyimpanan lokal secara persisten
+    try {
+      final baseDir = await _storageService.getBaseDirSetting();
+      final jsonString = _storageService.formatJsonPretty(targetGroup.toJson());
+      await _storageService.saveNoteGroup(baseDir, targetGroup.id, jsonString);
+    } catch (e) {
+      debugPrint(
+        "Gagal mengamankan penyimpanan grup target saat memindahkan notes: $e",
+      );
+    }
   }
 
   Future<void> deleteMassiveNotes(List<NoteModel> selectedItems) async {
