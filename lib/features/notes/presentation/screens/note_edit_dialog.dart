@@ -290,8 +290,8 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
               ),
               const SizedBox(width: 8),
 
-              // SWITCH TOGGLE MD: Tampilkan switch jika tipe tipe catatan adalah 'text'
-              if (_currentType == 'text') ...[
+              // MODIFIKASI: Switch MD hanya muncul saat tipe 'text' DAN sedang dalam MODE EDIT (!_isViewMode)
+              if (_currentType == 'text' && !_isViewMode) ...[
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
