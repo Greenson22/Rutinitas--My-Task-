@@ -37,7 +37,7 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
   bool _isEditingTitle = false;
   bool _hasChanges = false;
   bool _isSaving = false;
-  bool _isViewMode = false; // BARU: State untuk mengontrol mode view/edit
+  bool _isViewMode = false; // State untuk mengontrol mode view/edit
 
   int? _sortColumnIndex;
   bool _isAscending = true;
@@ -51,7 +51,7 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
         : 'Catatan Baru';
     _currentType = _editableNote?.type ?? 'text';
 
-    // BARU: Aktifkan view mode jika membuka catatan yang sudah ada
+    // Aktifkan view mode jika membuka catatan yang sudah ada
     _isViewMode = _editableNote != null;
 
     _titleController = TextEditingController(text: _originalTitle);
@@ -91,7 +91,10 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
     }
   }
 
+  // Perbaikan: Cegah perubahan state jika widget hanya di-render untuk View Mode
   void _triggerChange() {
+    if (_isViewMode) return;
+
     if (!_hasChanges) {
       setState(() => _hasChanges = true);
     }
@@ -144,14 +147,14 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
     return false;
   }
 
-  // BARU: Fungsi untuk menampilkan Pop-up Konfirmasi Simpan/Buang Perubahan
+  // Fungsi untuk menampilkan Pop-up Konfirmasi Simpan/Buang Perubahan
   Future<bool> _showExitConfirmationDialog() async {
     final result = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: const [
+        title: const Row(
+          children: [
             Icon(Icons.warning_amber_rounded, color: Colors.amber),
             SizedBox(width: 8),
             Text('Perubahan Belum Disimpan'),
@@ -193,7 +196,7 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
 
   @override
   Widget build(BuildContext context) {
-    // BARU: Membungkus seluruh hirarki dengan PopScope untuk memantau gesture close/back system
+    // Membungkus seluruh hirarki dengan PopScope untuk memantau gesture close/back system
     return PopScope(
       canPop:
           !_hasChanges ||
@@ -231,9 +234,7 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
                     ? TextField(
                         controller: _titleController,
                         autofocus: true,
-                        // --- PEMBARUAN DESAIN KURSOR & INPUT LINE ---
-                        cursorColor: Colors
-                            .amberAccent, // Kursor terlihat kontras di atas warna Indigo
+                        cursorColor: Colors.amberAccent,
                         cursorWidth: 2.0,
                         cursorRadius: const Radius.circular(2),
                         textAlignVertical: TextAlignVertical.center,
@@ -278,7 +279,7 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
               ),
               const SizedBox(width: 8),
 
-              // BARU: Logika Tampilan Tombol berdasarkan View Mode
+              // Logika Tampilan Tombol berdasarkan View Mode
               if (_isViewMode) ...[
                 IconButton(
                   padding: EdgeInsets.zero,
@@ -288,6 +289,8 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
                   onPressed: () {
                     setState(() {
                       _isViewMode = false;
+                      _hasChanges =
+                          false; // Reset paksa flag agar perubahan valid dihitung sejak tombol edit ditekan
                     });
                   },
                 ),
@@ -370,8 +373,7 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
                     padding: const EdgeInsets.all(16.0),
                     child: TextField(
                       controller: _contentController,
-                      readOnly:
-                          _isViewMode, // BARU: Mencegah ketik jika mode view
+                      readOnly: _isViewMode, // Mencegah ketik jika mode view
                       maxLines: null,
                       expands: true,
                       textAlignVertical: TextAlignVertical.top,
@@ -385,7 +387,7 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
                       ),
                     ),
                   )
-                // BARU: Menangani tampilan tabel berdasarkan view mode
+                // Menangani tampilan tabel berdasarkan view mode
                 : _isViewMode
                 ? Container(
                     color: Colors.white,
@@ -417,6 +419,7 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
                             labelColor: Colors.indigo,
                             unselectedLabelColor: Colors.grey,
                             indicatorColor: Colors.indigo,
+                            // PERBAIKAN: Parameter 'tabs' yang sebelumnya hilang dimasukkan kembali di sini
                             tabs: [
                               Tab(
                                 text: 'Data Tabel',
@@ -476,7 +479,6 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 ElevatedButton(
-                  // PERUBAHAN: Dialihkan melalui validasi konfirmasi dialog sebelum melakukan pop
                   onPressed: () async {
                     if (_hasChanges) {
                       final shouldPop = await _showExitConfirmationDialog();
