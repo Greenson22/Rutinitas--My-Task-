@@ -1,18 +1,19 @@
-// lib/features/data_center/presentation/widgets/local_sharing_tab.dart
-
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../core/services/storage_service.dart';
-import 'sharing_server.dart'; // Impor berkas Server baru
-import 'sharing_client.dart'; // Impor berkas Client baru
+import '../presentation/widgets/last_restore_banner.dart'; // Sertakan impor banner
+import 'sharing_server.dart';
+import 'sharing_client.dart';
 
 class LocalSharingTab extends StatefulWidget {
+  final Map<String, String>? lastRestoreInfo; // Konstruktor tambahan
   final Function(File) onRestoreAllZip;
   final Function(bool) onLoadingStatusChanged;
   final VoidCallback onDataSynchronized;
 
   const LocalSharingTab({
     super.key,
+    this.lastRestoreInfo,
     required this.onRestoreAllZip,
     required this.onLoadingStatusChanged,
     required this.onDataSynchronized,
@@ -120,6 +121,9 @@ class LocalSharingTabState extends State<LocalSharingTab> {
     return ListView(
       padding: const EdgeInsets.all(16.0),
       children: [
+        // MENAMPILKAN BANNER STATUS RESTORE TERAKHIR DI SINI
+        LastRestoreBanner(lastRestoreInfo: widget.lastRestoreInfo),
+
         Card(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),

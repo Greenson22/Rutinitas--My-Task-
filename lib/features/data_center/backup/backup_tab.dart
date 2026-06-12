@@ -4,23 +4,25 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:archive/archive_io.dart';
-import '../../../core/services/storage_service.dart'; // Sesuaikan dengan path StorageService Anda
+import '../../../core/services/storage_service.dart';
+import '../presentation/widgets/last_restore_banner.dart'; // Sertakan impor banner
 
 class BackupTab extends StatefulWidget {
+  final Map<String, String>? lastRestoreInfo; // Konstruktor tambahan
   final Function(File) onRestoreAllZip;
   final VoidCallback onImportZip;
 
   const BackupTab({
     super.key,
+    this.lastRestoreInfo,
     required this.onRestoreAllZip,
     required this.onImportZip,
   });
 
   @override
-  State<BackupTab> createState() => BackupTabState(); // 1. PERBAIKAN: Mengembalikan kelas state publik tanpa underscore
+  State<BackupTab> createState() => BackupTabState();
 }
 
-// 2. PERBAIKAN: Mengubah kelas menjadi publik agar tipenya dapat dikenali oleh GlobalKey di screen luar
 class BackupTabState extends State<BackupTab> {
   final StorageService _storageService = StorageService();
   String _baseDir = 'Documents';
@@ -34,7 +36,6 @@ class BackupTabState extends State<BackupTab> {
     _loadBaseDirectory();
   }
 
-  // === LOGIKA MANAJEMEN BERKAS LOKAL (Dipindahkan dari Screen) ===
   Future<void> _loadBaseDirectory() async {
     String dir = await _storageService.getBaseDirSetting();
     if (mounted) {
@@ -53,7 +54,6 @@ class BackupTabState extends State<BackupTab> {
     });
   }
 
-  // 3. PERBAIKAN: Menyediakan fungsi penjembatan publik agar screen luar bisa memerintahkan reload berkas
   void refreshLocalBackups() {
     _loadLocalBackups();
   }
@@ -77,7 +77,6 @@ class BackupTabState extends State<BackupTab> {
     return "${prefix}_${tanggal}_${namaHari}_$waktu.$extension";
   }
 
-  // === LOGIKA BACKUP UTAMA (Dipindahkan dari Screen) ===
   void _backupAllFeature() async {
     try {
       File fileTasks = await _storageService.getTargetJsonFile(_baseDir);
@@ -211,7 +210,6 @@ class BackupTabState extends State<BackupTab> {
     }
   }
 
-  // === LOGIKA INDIVIDUAL: EXPORT/IMPORT FEATURE (Dipindahkan dari Screen) ===
   void _exportTaskMaster() async {
     try {
       File fileAsli = await _storageService.getTargetJsonFile(_baseDir);
@@ -599,6 +597,9 @@ class BackupTabState extends State<BackupTab> {
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: 16),
       children: [
+        // MENAMPILKAN BANNER STATUS RESTORE TERAKHIR DI SINI
+        LastRestoreBanner(lastRestoreInfo: widget.lastRestoreInfo),
+
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
           child: SingleChildScrollView(

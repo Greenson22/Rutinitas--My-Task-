@@ -4,6 +4,7 @@ import 'package:rutinitasku/features/data_center/backup/backup_tab.dart';
 import 'package:rutinitasku/features/data_center/local_sharing/local_sharing_tab.dart';
 import '../../core/services/storage_service.dart';
 import '../../core/presentation/widgets/drawer_menu.dart';
+import 'presentation/widgets/last_restore_banner.dart'; // Impor widget banner
 import 'package:file_picker/file_picker.dart';
 import 'package:archive/archive_io.dart';
 
@@ -18,6 +19,9 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
   final StorageService _storageService = StorageService();
   String _baseDir = 'Documents';
   bool _isLoading = false;
+
+  // State untuk menyimpan informasi status restore terakhir
+  Map<String, String>? _lastRestoreInfo;
 
   // GlobalKey untuk memicu pembaruan daftar berkas lokal di dalam BackupTab
   final GlobalKey<BackupTabState> _backupTabKey = GlobalKey<BackupTabState>();
@@ -103,10 +107,28 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
       // Picu pembaruan daftar file cadangan lokal setelah sistem berhasil melakukan data restore total
       _backupTabKey.currentState?.refreshLocalBackups();
 
+      // Format informasi nama file, waktu, dan penentuan sumber data untuk LastRestoreBanner
+      final String fileName = zipFile.path.split('/').last;
+      final now = DateTime.now();
+      final String timeString =
+          "${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year} ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
+
+      setState(() {
+        _lastRestoreInfo = {
+          'source':
+              fileName.startsWith('server_backup') ||
+                  fileName.startsWith('client_backup')
+              ? 'Server Sharing'
+              : 'Penyimpanan Lokal',
+          'time': timeString,
+          'file': fileName,
+        };
+      });
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Restore Berhasil! Seluruh data disinkronkan dari "${zipFile.path.split('/').last}".',
+            'Restore Berhasil! Seluruh data disinkronkan dari "$fileName".',
           ),
           backgroundColor: Colors.teal,
         ),
@@ -198,16 +220,20 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
           children: [
             TabBarView(
               children: [
-                // TAB 1: Backup (Mandiri mengelola alur ekspor-impor fitur dan arsip ZIP lokal)
+                // TAB 1: Backup
                 BackupTab(
                   key: _backupTabKey,
+                  lastRestoreInfo:
+                      _lastRestoreInfo, // Meneruskan state info restore
                   onRestoreAllZip: (file) => _importAllFromZip(file),
                   onImportZip: () => _importZipLokal(),
                 ),
 
-                // TAB 2: Local Sharing (Kini murni mendelegasikan perintah P2P internal melalui Server & Client terpisah)
+                // TAB 2: Local Sharing
                 LocalSharingTab(
                   key: _sharingTabKey,
+                  lastRestoreInfo:
+                      _lastRestoreInfo, // Meneruskan state info restore
                   onRestoreAllZip: (file) => _importAllFromZip(file),
                   onLoadingStatusChanged: (statusLoading) {
                     setState(() {
