@@ -1,7 +1,7 @@
 // lib/features/notes/presentation/screens/note_edit_dialog.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_markdown/flutter_markdown.dart'; // <-- TAMBAHKAN DEPENDENCY INI[cite: 1]
+import 'package:flutter_markdown/flutter_markdown.dart';
 import '../../models/note_model.dart';
 import '../controllers/note_detail_controller.dart';
 import '../../../../core/presentation/widgets/base_popup_dialog.dart';
@@ -42,6 +42,9 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
 
   int? _sortColumnIndex;
   bool _isAscending = true;
+
+  // STATE BARU: Mengontrol apakah formatting Markdown aktif atau tidak
+  bool _isMarkdownEnabled = true;
 
   @override
   void initState() {
@@ -143,7 +146,7 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
         _hasChanges = false;
         _isSaving = false;
         _isViewMode =
-            true; // Otomatis kembali ke mode rendering Markdown setelah menyimpan
+            true; // Otomatis kembali ke mode rendering/view setelah menyimpan
       });
       return true;
     }
@@ -282,6 +285,39 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
               ),
               const SizedBox(width: 8),
 
+              // SWITCH TOGGLE MD: Tampilkan switch jika tipe tipe catatan adalah 'text'
+              if (_currentType == 'text') ...[
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'MD',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Transform.scale(
+                      scale: 0.7,
+                      child: Switch(
+                        value: _isMarkdownEnabled,
+                        activeColor: Colors.tealAccent,
+                        activeTrackColor: Colors.teal.shade700,
+                        inactiveThumbColor: Colors.white70,
+                        inactiveTrackColor: Colors.white24,
+                        onChanged: (value) {
+                          setState(() {
+                            _isMarkdownEnabled = value;
+                          });
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 4),
+              ],
+
               // Logika Tampilan Tombol berdasarkan View Mode
               if (_isViewMode) ...[
                 IconButton(
@@ -375,64 +411,87 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
                     color: Colors.white,
                     padding: const EdgeInsets.all(16.0),
                     child: _isViewMode
+                        ? (_isMarkdownEnabled
+                              // ========================================================
+                              // MODE VIEW (MD AKTIF): Tampilkan Render Markdown yang Cantik
+                              // ========================================================
+                              ? Markdown(
+                                  data: _contentController.text.isEmpty
+                                      ? '*Catatan kosong.*'
+                                      : _contentController.text,
+                                  selectable: true,
+                                  styleSheet:
+                                      MarkdownStyleSheet.fromTheme(
+                                        Theme.of(context),
+                                      ).copyWith(
+                                        p: const TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.black87,
+                                          height: 1.5,
+                                        ),
+                                        h1: const TextStyle(
+                                          fontSize: 22,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.indigo,
+                                        ),
+                                        h2: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.indigo,
+                                        ),
+                                        h3: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.indigo,
+                                        ),
+                                        code: TextStyle(
+                                          backgroundColor: Colors.grey[200],
+                                          color: Colors.red[700],
+                                        ),
+                                        codeblockDecoration: BoxDecoration(
+                                          color: Colors.grey[900],
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                      ),
+                                )
+                              // ========================================================
+                              // MODE VIEW (MD NONAKTIF): Tampilkan Sebagai Teks Biasa (Read Only)
+                              // ========================================================
+                              : TextField(
+                                  controller: _contentController,
+                                  readOnly: true,
+                                  maxLines: null,
+                                  expands: true,
+                                  textAlignVertical: TextAlignVertical.top,
+                                  decoration: InputDecoration(
+                                    hintText: 'Catatan kosong.',
+                                    hintStyle: TextStyle(
+                                      color: Colors.grey[400],
+                                    ),
+                                    border: InputBorder.none,
+                                    contentPadding: EdgeInsets.zero,
+                                  ),
+                                ))
                         // ========================================================
-                        // MODE VIEW: Tampilkan Teks Ter-render Markdown yang Cantik[cite: 2]
-                        // ========================================================
-                        ? Markdown(
-                            data: _contentController.text.isEmpty
-                                ? '*Catatan kosong.*'
-                                : _contentController.text,
-                            selectable:
-                                true, // Teks dalam Markdown tetap bisa diblok/select/copy
-                            styleSheet:
-                                MarkdownStyleSheet.fromTheme(
-                                  Theme.of(context),
-                                ).copyWith(
-                                  p: const TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.black87,
-                                    height: 1.5,
-                                  ),
-                                  h1: const TextStyle(
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.indigo,
-                                  ),
-                                  h2: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.indigo,
-                                  ),
-                                  h3: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.indigo,
-                                  ),
-                                  code: TextStyle(
-                                    backgroundColor: Colors.grey[200],
-                                    color: Colors.red[700],
-                                  ),
-                                  codeblockDecoration: BoxDecoration(
-                                    color: Colors.grey[900],
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                ),
-                          )
-                        // ========================================================
-                        // MODE EDIT: Tampilkan TextField untuk ketik / paste Markdown[cite: 2]
+                        // MODE EDIT: Tampilkan TextField Utama untuk Ketik / Paste
                         // ========================================================
                         : TextField(
                             controller: _contentController,
                             maxLines: null,
                             expands: true,
                             textAlignVertical: TextAlignVertical.top,
-                            style: const TextStyle(
-                              fontFamily: 'Courier',
+                            style: TextStyle(
+                              fontFamily: _isMarkdownEnabled
+                                  ? 'Courier'
+                                  : null, // Monospace hanya jika MD aktif
                               fontSize: 14,
-                            ), // Font Monospace agar struktur tag MD kelihatan rapi
+                            ),
                             decoration: InputDecoration(
-                              hintText:
-                                  'Tulis atau paste catatan Anda di sini (Mendukung Markdown)...',
+                              hintText: _isMarkdownEnabled
+                                  ? 'Tulis atau paste catatan Anda di sini (Mendukung Markdown)...'
+                                  : 'Tulis catatan Anda di sini...',
                               hintStyle: TextStyle(color: Colors.grey[400]),
                               border: InputBorder.none,
                               contentPadding: EdgeInsets.zero,
