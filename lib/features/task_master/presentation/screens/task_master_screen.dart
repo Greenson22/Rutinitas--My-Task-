@@ -360,7 +360,8 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context) => TasksDialog(
         category: category,
         allCategories: _allCategoriesRaw,
-        onIncrementTask: (task) => _incrementTaskCount(task),
+        // PERBAIKAN 1: Oper langsung referensi fungsi asinkron agar `Future` tidak terpotong di tengah jalan saat dialog ditutup
+        onIncrementTask: _incrementTaskCount,
         onUpdateTargetToday: (task, target) {},
         onEditTaskDetail:
             (
@@ -384,6 +385,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 task.isActive = active;
                 task.type = type;
               });
+              // PERBAIKAN 2: Tambahkan 'await' agar data dipastikan tersimpan penuh ke file JSON sebelum melanjutkan
               await _saveAllCategoriesToFile();
             },
         onDeleteTask: (task) async {
@@ -757,11 +759,6 @@ class _HomeScreenState extends State<HomeScreen> {
         enableMultiSelect: false,
         onMoveMassive: () {},
         onDeleteMassive: () {},
-
-        // ====================================================================
-        // TAMBAHAN BARU: Tombol Muncul di AppBar Utama saat Tahan Lama Aktif
-        // (Bisa dikondisikan muncul hanya saat _internalSearchMode aktif)
-        // ====================================================================
         additionalAction: _internalSearchMode
             ? IconButton(
                 icon: Icon(
@@ -778,7 +775,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
               )
             : null,
-
         searchBarContent: Row(
           children: [
             Expanded(
