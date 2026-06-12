@@ -61,6 +61,8 @@ class NoteModel {
   final List<String> fieldKeys;
   final Map<String, String> fieldTypes; // BARU
   final List<Map<String, String>> tableData;
+  bool
+  isMarkdownEnabled; // <--- BARU: Menyimpan status aktif/nonaktif format MD
 
   NoteModel({
     required this.id,
@@ -72,6 +74,7 @@ class NoteModel {
     this.fieldKeys = const [],
     this.fieldTypes = const {}, // BARU
     this.tableData = const [],
+    this.isMarkdownEnabled = false, // <--- BARU: Default awal diset off (false)
   });
 
   Map<String, dynamic> toJson() => {
@@ -84,6 +87,7 @@ class NoteModel {
     'fieldKeys': fieldKeys,
     'fieldTypes': fieldTypes, // BARU
     'tableData': tableData,
+    'isMarkdownEnabled': isMarkdownEnabled, // <--- BARU: Simpan ke JSON storage
   };
 
   factory NoteModel.fromJson(Map<String, dynamic> json) {
@@ -113,6 +117,9 @@ class NoteModel {
       fieldKeys: parsedKeys,
       fieldTypes: parsedTypes,
       tableData: parsedData,
+      isMarkdownEnabled:
+          json['isMarkdownEnabled'] ??
+          false, // <--- BARU: Ambil dari JSON storage (jika kosong, default false)
     );
   }
 }

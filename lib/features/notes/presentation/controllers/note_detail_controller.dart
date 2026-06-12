@@ -313,6 +313,7 @@ class NoteDetailController {
     required List<String> currentFieldKeys,
     required Map<String, String> currentFieldTypes,
     required List<Map<String, TextEditingController>> tableRows,
+    bool isMarkdownEnabled = false, // <--- BARU: Menerima status md dari dialog
   }) async {
     String finalTitle = titleController.text.trim();
     if (finalTitle.isEmpty) finalTitle = originalTitle;
@@ -338,6 +339,8 @@ class NoteDetailController {
       fieldKeys: currentType == 'table' ? currentFieldKeys : [],
       fieldTypes: currentType == 'table' ? currentFieldTypes : {},
       tableData: currentType == 'table' ? finalTableData : [],
+      isMarkdownEnabled:
+          isMarkdownEnabled, // <--- BARU: Tetapkan status md secara persisten
     );
 
     if (existingNote == null) {

@@ -43,8 +43,8 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
   int? _sortColumnIndex;
   bool _isAscending = true;
 
-  // STATE BARU: Mengontrol apakah formatting Markdown aktif atau tidak
-  bool _isMarkdownEnabled = true;
+  // STATE BARU: Mengontrol apakah formatting Markdown aktif atau tidak (Default: false)
+  bool _isMarkdownEnabled = false;
 
   @override
   void initState() {
@@ -57,6 +57,9 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
 
     // Aktifkan view mode jika membuka catatan yang sudah ada
     _isViewMode = _editableNote != null;
+
+    // AMBIL STATUS DARI EXISTING NOTE (Jika catatan baru, otomatis false / off)
+    _isMarkdownEnabled = _editableNote?.isMarkdownEnabled ?? false;
 
     _titleController = TextEditingController(text: _originalTitle);
     _contentController = TextEditingController(
@@ -128,6 +131,8 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
       currentFieldKeys: _currentFieldKeys,
       currentFieldTypes: _currentFieldTypes,
       tableRows: _tableRows,
+      isMarkdownEnabled:
+          _isMarkdownEnabled, // <--- TERUSKAN PARAMETER TOGGLE MD DI SINI
     );
 
     _editableNote = savedNote;
@@ -310,6 +315,7 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
                           setState(() {
                             _isMarkdownEnabled = value;
                           });
+                          _triggerChange(); // <--- PICU PERUBAHAN AGAR IKUT DISIMPAN SECARA PERMANEN
                         },
                       ),
                     ),
