@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:rutinitasku/core/presentation/widgets/base_popup_dialog.dart';
 import '../../../../core/presentation/widgets/base_detail_list_screen.dart';
+import '../../../../core/presentation/widgets/universal_empty_state.dart'; // IMPORT BARU
 import '../../data/models/prompt_model.dart';
 import '../controllers/prompt_controller.dart';
 import '../widgets/prompt_detail_screen/add_prompt_item_dialog.dart';
@@ -863,6 +864,41 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
         );
         _currentGroup = updatedGroup;
 
+        // ================= TANGANI KEADAAN AWAL KOSONG DI SINI =================
+        if (_currentGroup.prompts.isEmpty) {
+          return Scaffold(
+            backgroundColor: const Color(
+              0xFFF5F6FA,
+            ), // Menyelaraskan latar belakang
+            appBar: AppBar(
+              title: Text(
+                _currentGroup.title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                onPressed: () => Navigator.pop(context),
+              ),
+              backgroundColor: Colors.indigo,
+              elevation: 2,
+            ),
+            body: UniversalEmptyState(
+              icon: Icons.post_add_rounded,
+              title: 'Belum Ada Item Prompt',
+              description:
+                  'Grup ini masih kosong dari daftar instruksi AI. Tekan tombol di bawah untuk melahirkan template perintah AI (Act As) pertama Anda!',
+              buttonLabel: 'Tambah Prompt Baru',
+              themeColor: Colors.indigo,
+              onPressed: _openAddPromptDialog,
+            ),
+          );
+        }
+
+        // ================= TAMPILKAN LIST UTAMA JIKA DATA TERSEDIA =================
         return BaseDetailListScreen<PromptItem>(
           pageTitle: _currentGroup.title,
           items: _currentGroup.prompts,
