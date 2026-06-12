@@ -1,57 +1,558 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:archive/archive_io.dart';
+import '../../../core/services/storage_service.dart'; // Sesuaikan dengan path StorageService Anda
 
 class BackupTab extends StatefulWidget {
-  final List<File> localBackupFiles;
-  final VoidCallback onCreateBackup;
-  final Function(File) onDeleteBackup;
-  final VoidCallback onBackupTaskMaster;
-  final VoidCallback onRestoreTaskMaster;
-  final VoidCallback onBackupChecklist;
-  final VoidCallback onRestoreChecklist;
-  final VoidCallback onBackupJurnal;
-  final VoidCallback onRestoreJurnal;
-  // === TAMBAHAN: Callback untuk Notes & Prompts ===
-  final VoidCallback onBackupNotes;
-  final VoidCallback onRestoreNotes;
-  final VoidCallback onBackupPrompts;
-  final VoidCallback onRestorePrompts;
-  // ================================================
   final Function(File) onRestoreAllZip;
-  final List<File> serverBackupFiles;
-  final Function(File) onDeleteServerBackup;
   final VoidCallback onImportZip;
-  final Function(File) onExportToFolder;
 
   const BackupTab({
     super.key,
-    required this.localBackupFiles,
-    required this.onCreateBackup,
-    required this.onDeleteBackup,
-    required this.onBackupTaskMaster,
-    required this.onRestoreTaskMaster,
-    required this.onBackupChecklist,
-    required this.onRestoreChecklist,
-    required this.onBackupJurnal,
-    required this.onRestoreJurnal,
-    required this.onBackupNotes,
-    required this.onRestoreNotes,
-    required this.onBackupPrompts,
-    required this.onRestorePrompts,
     required this.onRestoreAllZip,
-    required this.serverBackupFiles,
-    required this.onDeleteServerBackup,
     required this.onImportZip,
-    required this.onExportToFolder,
   });
 
   @override
-  State<BackupTab> createState() => _BackupTabState();
+  State<BackupTab> createState() => BackupTabState(); // 1. PERBAIKAN: Mengembalikan kelas state publik tanpa underscore
 }
 
-class _BackupTabState extends State<BackupTab> {
+// 2. PERBAIKAN: Mengubah kelas menjadi publik agar tipenya dapat dikenali oleh GlobalKey di screen luar
+class BackupTabState extends State<BackupTab> {
+  final StorageService _storageService = StorageService();
+  String _baseDir = 'Documents';
+  List<File> _localBackupFiles = [];
   bool _isSelectionMode = false;
   final List<File> _selectedFiles = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBaseDirectory();
+  }
+
+  // === LOGIKA MANAJEMEN BERKAS LOKAL (Dipindahkan dari Screen) ===
+  Future<void> _loadBaseDirectory() async {
+    String dir = await _storageService.getBaseDirSetting();
+    if (mounted) {
+      setState(() {
+        _baseDir = dir;
+      });
+      _loadLocalBackups();
+    }
+  }
+
+  Future<void> _loadLocalBackups() async {
+    List<File> files = await _storageService.getAllLocalBackupFiles(_baseDir);
+    files.sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
+    setState(() {
+      _localBackupFiles = files;
+    });
+  }
+
+  // 3. PERBAIKAN: Menyediakan fungsi penjembatan publik agar screen luar bisa memerintahkan reload berkas
+  void refreshLocalBackups() {
+    _loadLocalBackups();
+  }
+
+  String _getFormattedFileName(String prefix, String extension) {
+    final now = DateTime.now();
+    const daftarHari = [
+      'Senin',
+      'Selasa',
+      'Rabu',
+      'Kamis',
+      'Jumat',
+      'Sabtu',
+      'Minggu',
+    ];
+    String namaHari = daftarHari[now.weekday - 1];
+    String tanggal =
+        "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+    String waktu =
+        "${now.hour.toString().padLeft(2, '0')}-${now.minute.toString().padLeft(2, '0')}-${now.second.toString().padLeft(2, '0')}";
+    return "${prefix}_${tanggal}_${namaHari}_$waktu.$extension";
+  }
+
+  // === LOGIKA BACKUP UTAMA (Dipindahkan dari Screen) ===
+  void _backupAllFeature() async {
+    try {
+      File fileTasks = await _storageService.getTargetJsonFile(_baseDir);
+      String kontenTasks = await fileTasks.exists()
+          ? await fileTasks.readAsString()
+          : "{}";
+
+      File fileJurnal = await _storageService.getJurnalJsonFile(_baseDir);
+      String kontenJurnal = await fileJurnal.exists()
+          ? await fileJurnal.readAsString()
+          : "[]";
+
+      List<File> hubFiles = await _storageService.getAllChecklistGroups(
+        _baseDir,
+      );
+      List<File> noteFiles = await _storageService.getAllNoteGroups(_baseDir);
+      List<File> promptFiles = await _storageService.getAllPromptGroups(
+        _baseDir,
+      );
+
+      final Archive backupArchive = Archive();
+
+      backupArchive.addFile(
+        ArchiveFile(
+          'my_tasks.json',
+          utf8.encode(kontenTasks).length,
+          utf8.encode(kontenTasks),
+        ),
+      );
+
+      backupArchive.addFile(
+        ArchiveFile(
+          'time_log.json',
+          utf8.encode(kontenJurnal).length,
+          utf8.encode(kontenJurnal),
+        ),
+      );
+
+      for (var file in hubFiles) {
+        final String namaFile = file.path.split('/').last;
+        final List<int> bytes = await file.readAsBytes();
+        backupArchive.addFile(
+          ArchiveFile('my_checklist/$namaFile', bytes.length, bytes),
+        );
+      }
+
+      for (var file in noteFiles) {
+        final String namaFile = file.path.split('/').last;
+        final List<int> bytes = await file.readAsBytes();
+        backupArchive.addFile(
+          ArchiveFile('notes/$namaFile', bytes.length, bytes),
+        );
+      }
+
+      for (var file in promptFiles) {
+        final String namaFile = file.path.split('/').last;
+        final List<int> bytes = await file.readAsBytes();
+        backupArchive.addFile(
+          ArchiveFile('prompts/$namaFile', bytes.length, bytes),
+        );
+      }
+
+      final List<int>? finalZipBytes = ZipEncoder().encode(backupArchive);
+      if (finalZipBytes == null) return;
+
+      String namaZipDinamis = _getFormattedFileName('local_backup', 'zip');
+
+      File fileZipTarget = await _storageService.getLocalBackupZipFile(
+        _baseDir,
+        namaZipDinamis,
+      );
+      await fileZipTarget.writeAsBytes(finalZipBytes);
+
+      _loadLocalBackups();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Backup semua fitur berhasil disimpan: $namaZipDinamis',
+          ),
+          backgroundColor: Colors.teal,
+        ),
+      );
+    } catch (e) {
+      debugPrint("Gagal membuat backup lokal: $e");
+    }
+  }
+
+  void _exportBackupToCustomFolder(File fileBackup) async {
+    try {
+      final String namaFile = fileBackup.path.split('/').last;
+
+      if (Platform.isLinux) {
+        String? lokasiSimpan = await FilePicker.saveFile(
+          dialogTitle: 'Simpan Berkas Cadangan',
+          fileName: namaFile,
+          type: FileType.custom,
+          allowedExtensions: ['zip'],
+        );
+
+        if (lokasiSimpan != null) {
+          await fileBackup.copy(lokasiSimpan);
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Berkas berhasil disimpan ke: $lokasiSimpan'),
+              backgroundColor: Colors.teal,
+            ),
+          );
+        }
+      } else {
+        String? direktoriPilihan = await FilePicker.getDirectoryPath(
+          dialogTitle: 'Pilih Folder Tujuan Penyimpanan',
+        );
+
+        if (direktoriPilihan != null) {
+          final String pathTargetBaru = '$direktoriPilihan/$namaFile';
+          await fileBackup.copy(pathTargetBaru);
+
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Berkas sukses disalin ke folder kustom!'),
+              backgroundColor: Colors.teal,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint("Gagal mengekspor berkas backup ke folder kustom: $e");
+    }
+  }
+
+  // === LOGIKA INDIVIDUAL: EXPORT/IMPORT FEATURE (Dipindahkan dari Screen) ===
+  void _exportTaskMaster() async {
+    try {
+      File fileAsli = await _storageService.getTargetJsonFile(_baseDir);
+      if (await fileAsli.exists()) {
+        if (Platform.isLinux) {
+          String? lokasiSimpan = await FilePicker.saveFile(
+            dialogTitle: 'Simpan Backup Task Master',
+            fileName: _getFormattedFileName('my_tasks_backup', 'json'),
+            type: FileType.custom,
+            allowedExtensions: ['json'],
+          );
+          if (lokasiSimpan != null) {
+            await fileAsli.copy(lokasiSimpan);
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Backup Berhasil Disimpan di Linux!'),
+              ),
+            );
+          }
+        } else {
+          String namaDinamis = _getFormattedFileName('my_tasks_backup', 'json');
+          final tempFile = await fileAsli.copy(
+            '${Directory.systemTemp.path}/$namaDinamis',
+          );
+          await Share.shareXFiles([
+            XFile(tempFile.path),
+          ], text: 'Backup Task Master Data');
+        }
+      }
+    } catch (e) {
+      debugPrint("Gagal export: $e");
+    }
+  }
+
+  void _importTaskMaster() async {
+    try {
+      FilePickerResult? result = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+      if (result != null && result.files.single.path != null) {
+        String fileContent = await File(
+          result.files.single.path!,
+        ).readAsString();
+        File targetFile = await _storageService.getTargetJsonFile(_baseDir);
+        await _storageService.saveJsonData(targetFile, fileContent);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Data Task Master berhasil di-import!')),
+        );
+      }
+    } catch (e) {
+      debugPrint("Gagal import Task Master: $e");
+    }
+  }
+
+  void _exportJurnal() async {
+    try {
+      File fileAsli = await _storageService.getJurnalJsonFile(_baseDir);
+      if (await fileAsli.exists()) {
+        if (Platform.isLinux) {
+          String? lokasiSimpan = await FilePicker.saveFile(
+            dialogTitle: 'Simpan Backup Jurnal Aktivitas',
+            fileName: _getFormattedFileName('time_log_backup', 'json'),
+            type: FileType.custom,
+            allowedExtensions: ['json'],
+          );
+          if (lokasiSimpan != null) {
+            await fileAsli.copy(lokasiSimpan);
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Backup Jurnal Berhasil Disimpan di Linux!'),
+              ),
+            );
+          }
+        } else {
+          String namaDinamis = _getFormattedFileName('time_log_backup', 'json');
+          final tempFile = await fileAsli.copy(
+            '${Directory.systemTemp.path}/$namaDinamis',
+          );
+          await Share.shareXFiles([
+            XFile(tempFile.path),
+          ], text: 'Backup Jurnal Aktivitas Data');
+        }
+      }
+    } catch (e) {
+      debugPrint("Gagal export Jurnal: $e");
+    }
+  }
+
+  void _importJurnal() async {
+    try {
+      FilePickerResult? result = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+      if (result != null && result.files.single.path != null) {
+        String fileContent = await File(
+          result.files.single.path!,
+        ).readAsString();
+        File targetFile = await _storageService.getJurnalJsonFile(_baseDir);
+        await _storageService.saveJsonData(targetFile, fileContent);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Data Jurnal Aktivitas berhasil di-import!'),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint("Gagal import Jurnal: $e");
+    }
+  }
+
+  void _exportChecklist() async {
+    try {
+      List<File> hubFiles = await _storageService.getAllChecklistGroups(
+        _baseDir,
+      );
+      if (hubFiles.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Tidak ada data checklist untuk di-backup.'),
+          ),
+        );
+        return;
+      }
+      final Archive archive = Archive();
+      for (var file in hubFiles) {
+        archive.addFile(
+          ArchiveFile(
+            file.path.split('/').last,
+            file.lengthSync(),
+            await file.readAsBytes(),
+          ),
+        );
+      }
+      final List<int>? zipBytes = ZipEncoder().encode(archive);
+      if (zipBytes == null) return;
+
+      String namaZipDinamis = _getFormattedFileName('checklist_backup', 'zip');
+      final File zipFile = File('${Directory.systemTemp.path}/$namaZipDinamis')
+        ..writeAsBytesSync(zipBytes);
+
+      if (Platform.isLinux) {
+        String? lokasiSimpan = await FilePicker.saveFile(
+          dialogTitle: 'Simpan Backup Checklist (ZIP)',
+          fileName: namaZipDinamis,
+          type: FileType.custom,
+          allowedExtensions: ['zip'],
+        );
+        if (lokasiSimpan != null) await zipFile.copy(lokasiSimpan);
+      } else {
+        await Share.shareXFiles([
+          XFile(zipFile.path),
+        ], text: 'Backup Semua Hub Checklist Data (ZIP)');
+      }
+    } catch (e) {
+      debugPrint("Gagal export ZIP Checklist: $e");
+    }
+  }
+
+  void _importChecklist() async {
+    try {
+      FilePickerResult? result = await FilePicker.pickFiles(
+        allowMultiple: true,
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+      if (result != null && result.files.isNotEmpty) {
+        String targetFolder = await _storageService.getChecklistDirPath(
+          _baseDir,
+        );
+        int hitungSukses = 0;
+        for (var pickedFile in result.files) {
+          if (pickedFile.path != null) {
+            String isiFile = await File(pickedFile.path!).readAsString();
+            String namaFileBaru = pickedFile.name;
+            File fileBaru = File('$targetFolder/$namaFileBaru');
+            if (await fileBaru.exists()) {
+              final String timestamp = DateTime.now().millisecondsSinceEpoch
+                  .toString();
+              namaFileBaru = namaFileBaru.replaceAll(
+                '.json',
+                '_$timestamp.json',
+              );
+              fileBaru = File('$targetFolder/$namaFileBaru');
+            }
+            await _storageService.saveJsonData(fileBaru, isiFile);
+            hitungSukses++;
+          }
+        }
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Berhasil mengimport $hitungSukses file Hub Checklist!',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint("Gagal import Checklist: $e");
+    }
+  }
+
+  void _exportNotesIndividual() async {
+    try {
+      List<File> noteFiles = await _storageService.getAllNoteGroups(_baseDir);
+      if (noteFiles.isEmpty) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Tidak ada data Notes.')));
+        return;
+      }
+      final Archive archive = Archive();
+      for (var f in noteFiles) {
+        archive.addFile(
+          ArchiveFile(
+            f.path.split('/').last,
+            f.lengthSync(),
+            await f.readAsBytes(),
+          ),
+        );
+      }
+      final List<int>? zip = ZipEncoder().encode(archive);
+      if (zip == null) return;
+
+      String name = _getFormattedFileName('notes_individual_backup', 'zip');
+      File tmp = File('${Directory.systemTemp.path}/$name')
+        ..writeAsBytesSync(zip);
+
+      if (Platform.isLinux) {
+        String? path = await FilePicker.saveFile(
+          dialogTitle: 'Simpan Notes (ZIP)',
+          fileName: name,
+          type: FileType.custom,
+          allowedExtensions: ['zip'],
+        );
+        if (path != null) await tmp.copy(path);
+      } else {
+        await Share.shareXFiles([XFile(tmp.path)], text: 'Backup Notes (ZIP)');
+      }
+    } catch (e) {
+      debugPrint("Gagal ekspor Notes: $e");
+    }
+  }
+
+  void _importNotesIndividual() async {
+    try {
+      FilePickerResult? res = await FilePicker.pickFiles(
+        allowMultiple: true,
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+      if (res != null && res.files.isNotEmpty) {
+        Directory dir = await _storageService.getNotesDir(_baseDir);
+        for (var pf in res.files) {
+          if (pf.path != null)
+            File(pf.path!).copySync('${dir.path}/${pf.name}');
+        }
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Notes berhasil di-import!')),
+        );
+      }
+    } catch (e) {
+      debugPrint("Gagal import Notes: $e");
+    }
+  }
+
+  void _exportPromptsIndividual() async {
+    try {
+      List<File> promptFiles = await _storageService.getAllPromptGroups(
+        _baseDir,
+      );
+      if (promptFiles.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Tidak ada data Prompts.')),
+        );
+        return;
+      }
+      final Archive archive = Archive();
+      for (var f in promptFiles) {
+        archive.addFile(
+          ArchiveFile(
+            f.path.split('/').last,
+            f.lengthSync(),
+            await f.readAsBytes(),
+          ),
+        );
+      }
+      final List<int>? zip = ZipEncoder().encode(archive);
+      if (zip == null) return;
+
+      String name = _getFormattedFileName('prompts_individual_backup', 'zip');
+      File tmp = File('${Directory.systemTemp.path}/$name')
+        ..writeAsBytesSync(zip);
+
+      if (Platform.isLinux) {
+        String? path = await FilePicker.saveFile(
+          dialogTitle: 'Simpan Prompts (ZIP)',
+          fileName: name,
+          type: FileType.custom,
+          allowedExtensions: ['zip'],
+        );
+        if (path != null) await tmp.copy(path);
+      } else {
+        await Share.shareXFiles([
+          XFile(tmp.path),
+        ], text: 'Backup Prompts (ZIP)');
+      }
+    } catch (e) {
+      debugPrint("Gagal ekspor Prompts: $e");
+    }
+  }
+
+  void _importPromptsIndividual() async {
+    try {
+      FilePickerResult? res = await FilePicker.pickFiles(
+        allowMultiple: true,
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+      if (res != null && res.files.isNotEmpty) {
+        Directory dir = await _storageService.getPromptDir(_baseDir);
+        for (var pf in res.files) {
+          if (pf.path != null)
+            File(pf.path!).copySync('${dir.path}/${pf.name}');
+        }
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Prompts berhasil di-import!')),
+        );
+      }
+    } catch (e) {
+      debugPrint("Gagal import Prompts: $e");
+    }
+  }
 
   Future<bool> _showConfirmDeleteDialog({
     required String title,
@@ -98,10 +599,8 @@ class _BackupTabState extends State<BackupTab> {
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: 16),
       children: [
-        // Baris Tombol Ringkas (Task Master, Checklist, Jurnal, Notes, Prompts)
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          // PERBAIKAN: Menggunakan SingleChildScrollView agar tidak overflow jika layar kecil
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
@@ -109,43 +608,42 @@ class _BackupTabState extends State<BackupTab> {
                 _buildCompactButton(
                   'Task Master',
                   Icons.format_list_bulleted,
-                  widget.onBackupTaskMaster,
-                  widget.onRestoreTaskMaster,
+                  _exportTaskMaster,
+                  _importTaskMaster,
                 ),
                 const SizedBox(width: 16),
                 _buildCompactButton(
                   'Checklist',
                   Icons.checklist_rtl,
-                  widget.onBackupChecklist,
-                  widget.onRestoreChecklist,
+                  _exportChecklist,
+                  _importChecklist,
                 ),
                 const SizedBox(width: 16),
                 _buildCompactButton(
                   'Jurnal',
                   Icons.menu_book,
-                  widget.onBackupJurnal,
-                  widget.onRestoreJurnal,
+                  _exportJurnal,
+                  _importJurnal,
                 ),
                 const SizedBox(width: 16),
                 _buildCompactButton(
                   'Notes',
                   Icons.note_alt,
-                  widget.onBackupNotes,
-                  widget.onRestoreNotes,
+                  _exportNotesIndividual,
+                  _importNotesIndividual,
                 ),
                 const SizedBox(width: 16),
                 _buildCompactButton(
                   'Prompts',
                   Icons.smart_toy,
-                  widget.onBackupPrompts,
-                  widget.onRestorePrompts,
+                  _exportPromptsIndividual,
+                  _importPromptsIndividual,
                 ),
               ],
             ),
           ),
         ),
         const Divider(thickness: 2),
-        // Bagian Header Daftar Berkas & Tombol Dinamis
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
           child: Row(
@@ -161,16 +659,14 @@ class _BackupTabState extends State<BackupTab> {
                     if (_isSelectionMode) ...[
                       IconButton(
                         icon: Icon(
-                          _selectedFiles.length ==
-                                  widget.localBackupFiles.length
+                          _selectedFiles.length == _localBackupFiles.length
                               ? Icons.deselect
                               : Icons.select_all,
                           size: 18,
                           color: Colors.teal[700],
                         ),
                         tooltip:
-                            _selectedFiles.length ==
-                                widget.localBackupFiles.length
+                            _selectedFiles.length == _localBackupFiles.length
                             ? 'Batal Semua'
                             : 'Pilih Semua',
                         constraints: const BoxConstraints(),
@@ -178,11 +674,11 @@ class _BackupTabState extends State<BackupTab> {
                         onPressed: () {
                           setState(() {
                             if (_selectedFiles.length ==
-                                widget.localBackupFiles.length) {
+                                _localBackupFiles.length) {
                               _selectedFiles.clear();
                             } else {
                               _selectedFiles.clear();
-                              _selectedFiles.addAll(widget.localBackupFiles);
+                              _selectedFiles.addAll(_localBackupFiles);
                             }
                           });
                         },
@@ -209,12 +705,14 @@ class _BackupTabState extends State<BackupTab> {
                                 );
                                 if (confirm) {
                                   for (var file in _selectedFiles) {
-                                    widget.onDeleteBackup(file);
+                                    if (await file.exists())
+                                      await file.delete();
                                   }
                                   setState(() {
                                     _selectedFiles.clear();
                                     _isSelectionMode = false;
                                   });
+                                  _loadLocalBackups();
                                 }
                               },
                         borderRadius: BorderRadius.circular(6),
@@ -280,7 +778,7 @@ class _BackupTabState extends State<BackupTab> {
                       ),
                       const SizedBox(width: 6),
                       ElevatedButton.icon(
-                        onPressed: widget.onCreateBackup,
+                        onPressed: _backupAllFeature,
                         icon: const Icon(Icons.add, size: 14),
                         label: const Text(
                           'Backup',
@@ -302,15 +800,14 @@ class _BackupTabState extends State<BackupTab> {
             ],
           ),
         ),
-        // Daftar File ZIP Lokal
-        widget.localBackupFiles.isEmpty
+        _localBackupFiles.isEmpty
             ? const Center(child: Text('Belum ada file backup.'))
             : ListView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                itemCount: widget.localBackupFiles.length,
+                itemCount: _localBackupFiles.length,
                 itemBuilder: (context, index) {
-                  final file = widget.localBackupFiles[index];
+                  final file = _localBackupFiles[index];
                   final isSelected = _selectedFiles.contains(file);
                   final String fileName = file.path.split('/').last;
                   return ListTile(
@@ -410,7 +907,7 @@ class _BackupTabState extends State<BackupTab> {
                             padding: EdgeInsets.zero,
                             onSelected: (value) async {
                               if (value == 'export_folder') {
-                                widget.onExportToFolder(file);
+                                _exportBackupToCustomFolder(file);
                               } else if (value == 'delete_backup') {
                                 final bool
                                 confirm = await _showConfirmDeleteDialog(
@@ -419,7 +916,8 @@ class _BackupTabState extends State<BackupTab> {
                                       'Apakah Anda yakin ingin menghapus berkas cadangan "$fileName" secara permanen?',
                                 );
                                 if (confirm) {
-                                  widget.onDeleteBackup(file);
+                                  if (await file.exists()) await file.delete();
+                                  _loadLocalBackups();
                                 }
                               }
                             },
