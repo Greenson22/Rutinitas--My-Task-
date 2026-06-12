@@ -1,6 +1,7 @@
 // lib/features/notes/presentation/screens/note_detail_screen.dart
 
 import 'package:flutter/material.dart';
+import 'package:rutinitasku/core/presentation/widgets/base_popup_dialog.dart';
 import '../../models/note_model.dart';
 import '../controllers/note_detail_controller.dart';
 import '../../../../core/presentation/widgets/base_detail_list_screen.dart';
@@ -37,7 +38,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   }
 
   // =========================================================================
-  // FITUR BARU: DIALOG SELEKSI GRUP TARGET UNTUK PINDAH MASSAL (BULK MOVE)
+  // FITUR BARU: DIALOG PINDAH MASSAL MENGIKUTI STYLE PROMPT SCREEN
   // =========================================================================
   void _showMoveMassiveDialog(List<NoteModel> selectedItems) async {
     // 1. Tampilkan loading indicator selagi mengambil berkas dari storage
@@ -52,7 +53,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     final allGroups = await _controller.getAllNoteGroups();
 
     if (!mounted) return;
-    Navigator.pop(context); // Tutup loading indicator yang sedang tampil
+    Navigator.pop(context); // Tutup loading indicator
 
     // 3. Saring grup tujuan agar tidak menyertakan grup asal saat ini
     final availableGroups = allGroups
@@ -63,81 +64,96 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     if (availableGroups.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Tidak ada grup tujuan lain yang tersedia.'),
+          content: Text('Tidak ada grup catatan lain yang tersedia.'),
           backgroundColor: Colors.orange,
         ),
       );
       return;
     }
 
-    // 5. Tampilkan BottomSheet penampung daftar grup tujuan pemindahan
-    showModalBottomSheet(
+    // 5. Tampilkan Dialog berbasis BasePopupDialog dengan spesifikasi UI modul Prompt
+    showDialog(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (bottomSheetContext) {
-        return Container(
-          padding: const EdgeInsets.symmetric(vertical: 16),
+      builder: (ctx) => BasePopupDialog(
+        title: Text(
+          'Pindahkan ${selectedItems.length} Catatan Terpilih',
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+        ),
+        themeColor: Colors.indigo,
+        titleColor: Colors.white,
+        content: Padding(
+          padding: const EdgeInsets.all(12.0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 8,
-                ),
-                child: Text(
-                  'Pindahkan ${selectedItems.length} Catatan Ke Grup:',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
+              const Text(
+                'Pilih Grup Target Pemindahan:',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
               ),
-              const Divider(),
+              const SizedBox(height: 6),
               Flexible(
                 child: ListView.builder(
                   shrinkWrap: true,
                   itemCount: availableGroups.length,
-                  itemBuilder: (ctx, index) {
-                    final targetGroup = availableGroups[index];
+                  itemBuilder: (c, idx) {
+                    final targetG = availableGroups[idx];
                     return ListTile(
-                      leading: const Icon(Icons.folder, color: Colors.amber),
-                      title: Text(targetGroup.groupName),
-                      subtitle: Text('${targetGroup.notes.length} catatan'),
-                      onTap: () async {
-                        Navigator.pop(
-                          bottomSheetContext,
-                        ); // Tutup panel bottom sheet
+                      dense: true,
+                      leading: Text(
+                        targetG.icon.isEmpty ? '📁' : targetG.icon,
+                        style: const TextStyle(fontSize: 18),
+                      ),
+                      title: Text(
+                        targetG.groupName,
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                      subtitle: Text(
+                        targetG.sectionName,
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                      trailing: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.indigo,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                        ),
+                        onPressed: () async {
+                          Navigator.pop(ctx); // Tutup Dialog utama
 
-                        // Eksekusi pemindahan data massal di controller
-                        await _controller.moveMassiveNotes(
-                          selectedItems,
-                          targetGroup,
-                        );
-
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                '${selectedItems.length} catatan berhasil dipindahkan ke "${targetGroup.groupName}"',
-                              ),
-                              backgroundColor: Colors.teal,
-                            ),
+                          // Eksekusi pemindahan data massal di controller
+                          await _controller.moveMassiveNotes(
+                            selectedItems,
+                            targetG,
                           );
-                        }
-                      },
+
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Semua catatan terpilih berhasil dipindahkan ke "${targetG.groupName}"!',
+                                ),
+                                backgroundColor: Colors.indigo,
+                              ),
+                            );
+                          }
+                        },
+                        child: const Text(
+                          'Pindah Ke Sini',
+                          style: TextStyle(color: Colors.white, fontSize: 12),
+                        ),
+                      ),
                     );
                   },
                 ),
               ),
             ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
