@@ -1,8 +1,8 @@
 // lib/features/notes/presentation/screens/notes_screen.dart
-
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:rutinitasku/core/presentation/widgets/drawer_menu.dart';
+import 'package:rutinitasku/core/presentation/widgets/universal_empty_state.dart';
 import 'package:rutinitasku/core/services/storage_service.dart';
 import '../../models/note_model.dart';
 import '../../../../core/presentation/widgets/widgets.dart';
@@ -52,7 +52,6 @@ class _NotesScreenState extends State<NotesScreen> {
         final content = await file.readAsString();
         loadedGroups.add(NoteGroup.fromJson(jsonDecode(content)));
       }
-
       // PERBAIKAN: Mengurutkan list berdasarkan orderIndex secara persisten (bukan acak)
       loadedGroups.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
 
@@ -101,16 +100,13 @@ class _NotesScreenState extends State<NotesScreen> {
   // PEMBARUAN PERMANEN: Fungsi untuk menyimpan urutan seksi baru ke local storage
   Future<void> _saveSectionOrderToStorage() async {
     int globalIndex = 0;
-
     // Iterasi disesuaikan dengan urutan seksi (_sectionKeys) yang baru saja ditukar
     for (String sectionKey in _sectionKeys) {
       final groupsInSection = _groupedCategories[sectionKey] ?? [];
-
       for (var group in groupsInSection) {
         // Atur kembali orderIndex agar grup di seksi atas selalu memiliki bobot lebih kecil
         group.orderIndex = globalIndex;
         globalIndex++;
-
         // Tulis perubahan ke dalam disk
         await _saveGroupData(group);
       }
@@ -224,7 +220,6 @@ class _NotesScreenState extends State<NotesScreen> {
                       : () async {
                           // PERBAIKAN: Dapatkan ScaffoldMessenger sebelum dialog di-pop / tree context tidak stabil
                           final messenger = ScaffoldMessenger.of(context);
-
                           Navigator.pop(context);
                           setState(() {
                             group.sectionName = sectionName.isEmpty
@@ -233,7 +228,6 @@ class _NotesScreenState extends State<NotesScreen> {
                           });
                           await _saveGroupData(group);
                           await _loadNotesData();
-
                           // Tampilkan pesan menggunakan referensi messenger yang aman
                           messenger.showSnackBar(
                             SnackBar(
@@ -274,6 +268,60 @@ class _NotesScreenState extends State<NotesScreen> {
       }).toList();
     }
     return filtered;
+  }
+
+  // METHOD BARU: Alur Sekuensial Berantai Berurutan (Seksi Baru -> Group Catatan) Khusus Kondisi Kosong
+  void _showSequentialAddDialog() {
+    final sectionController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Langkah 1: Buat Seksi Catatan'),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: sectionController,
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: 'Nama Seksi Utama',
+              hintText: 'Misal: KULIAH, KERJA, ARSIP...',
+            ),
+            validator: (value) => value == null || value.trim().isEmpty
+                ? 'Nama seksi tidak boleh kosong'
+                : null,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                final newSectionName = sectionController.text.trim();
+                if (!_sectionKeys.contains(newSectionName)) {
+                  setState(() {
+                    _sectionKeys.add(newSectionName);
+                    _groupedCategories[newSectionName] = [];
+                  });
+                }
+                Navigator.pop(context);
+                // Langsung berantai membuka pembuatan grup catatan di dalam seksi ini
+                _showAddGroupDialog(newSectionName);
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: _themeColor),
+            child: const Text(
+              'Lanjut ke Grup ➔',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // Dialog khusus untuk menambah Seksi Baru
@@ -329,29 +377,44 @@ class _NotesScreenState extends State<NotesScreen> {
   void _showAddGroupDialog(String sectionName) {
     final TextEditingController groupController = TextEditingController();
     final TextEditingController iconController = TextEditingController(
-      text: '刀',
+      text: '📝',
     );
+    final formKey = GlobalKey<FormState>();
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Buat Grup Baru di $sectionName'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: groupController,
-              decoration: const InputDecoration(
-                labelText: 'Nama Grup Catatan',
-                hintText: 'Misal: Ide Bisnis, Jurnal...',
+        title: Text(
+          _sectionKeys.length <= 1 && _groupedCategories[sectionName]!.isEmpty
+              ? 'Langkah 2: Buat Grup di $sectionName'
+              : 'Buat Grup Baru di $sectionName',
+        ),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: groupController,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Nama Grup Catatan',
+                  hintText: 'Misal: Ide Bisnis, Kuliah Flutter, Jurnal...',
+                ),
+                validator: (value) => value == null || value.trim().isEmpty
+                    ? 'Nama grup tidak boleh kosong'
+                    : null,
               ),
-              autofocus: true,
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: iconController,
-              decoration: const InputDecoration(labelText: 'Ikon Emoji'),
-            ),
-          ],
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: iconController,
+                decoration: const InputDecoration(labelText: 'Ikon Emoji'),
+                validator: (value) => value == null || value.trim().isEmpty
+                    ? 'Ikon tidak boleh kosong'
+                    : null,
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -360,30 +423,32 @@ class _NotesScreenState extends State<NotesScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              final newName = groupController.text.trim();
-              final newIcon = iconController.text.trim();
-              if (newName.isNotEmpty) {
-                // Ambil panjang list saat ini di seksi terkait untuk dijadikan indeks urutan akhir
+              if (formKey.currentState!.validate()) {
+                final newName = groupController.text.trim();
+                final newIcon = iconController.text.trim();
+
                 final currentSectionLength =
                     _groupedCategories[sectionName]?.length ?? 0;
                 final newGroup = NoteGroup(
                   id: DateTime.now().millisecondsSinceEpoch.toString(),
                   groupName: newName,
-                  icon: newIcon.isEmpty ? '刀' : newIcon,
+                  icon: newIcon,
                   notes: [],
-                  sectionName:
-                      sectionName, // Menyimpan relasi seksi tujuan ke local storage
+                  sectionName: sectionName,
                   isHidden: false,
-                  orderIndex:
-                      currentSectionLength, // <--- SET DI URUTAN TERAKHIR
+                  orderIndex: currentSectionLength,
                 );
+
                 setState(() => _groupedCategories[sectionName]!.add(newGroup));
                 await _saveGroupData(newGroup);
                 if (mounted) Navigator.pop(context);
               }
             },
             style: ElevatedButton.styleFrom(backgroundColor: _themeColor),
-            child: const Text('Simpan', style: TextStyle(color: Colors.white)),
+            child: const Text(
+              'Simpan & Selesai',
+              style: TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -429,7 +494,7 @@ class _NotesScreenState extends State<NotesScreen> {
               if (updatedName.isNotEmpty) {
                 setState(() {
                   group.groupName = updatedName;
-                  group.icon = updatedIcon.isEmpty ? '刀' : updatedIcon;
+                  group.icon = updatedIcon.isEmpty ? '📝' : updatedIcon;
                 });
                 await _saveGroupData(group);
                 if (mounted) Navigator.pop(context);
@@ -468,20 +533,15 @@ class _NotesScreenState extends State<NotesScreen> {
               if (newSectionName.isNotEmpty &&
                   newSectionName != oldSectionName) {
                 setState(() {
-                  // 1. Update list seksi
                   int index = _sectionKeys.indexOf(oldSectionName);
                   if (index != -1) {
                     _sectionKeys[index] = newSectionName;
                   }
-                  // 2. Pindahkan data map kategori ke key baru
                   final items = _groupedCategories.remove(oldSectionName) ?? [];
                   _groupedCategories[newSectionName] = items;
-                  // 3. Update sectionName di setiap NoteGroup objeknya agar sinkron saat di-save
                   for (var group in items) {
                     group.sectionName = newSectionName;
-                    _saveGroupData(
-                      group,
-                    ); // Save perubahan seksi ke local storage
+                    _saveGroupData(group);
                   }
                 });
                 Navigator.pop(context);
@@ -520,7 +580,6 @@ class _NotesScreenState extends State<NotesScreen> {
           ElevatedButton(
             onPressed: () async {
               final groupsToDelete = _groupedCategories[sectionName] ?? [];
-              // 1. Hapus semua file group yang ada di seksi ini dari storage
               for (var group in groupsToDelete) {
                 try {
                   final baseDir = await _storageService.getBaseDirSetting();
@@ -529,7 +588,6 @@ class _NotesScreenState extends State<NotesScreen> {
                   debugPrint("Gagal menghapus grup disk: $e");
                 }
               }
-              // 2. Hapus dari state memory widget
               setState(() {
                 _sectionKeys.remove(sectionName);
                 _groupedCategories.remove(sectionName);
@@ -549,14 +607,12 @@ class _NotesScreenState extends State<NotesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Ambil data yang sudah difilter untuk grid utama (grup aktif)
     List<String> allRenderedKeys = List.from(_sectionKeys);
     Map<String, List<NoteGroup>> allRenderedItems = _getFilteredCategories(
       _groupedCategories,
       _sectionKeys,
     );
 
-    // Jika tombol mata diaktifkan, gabungkan seksi penampung data tersembunyi ke bagian bawah list
     if (_showHiddenSection && _hiddenGroupedCategories.isNotEmpty) {
       _hiddenGroupedCategories.forEach((sectionKey, groupsList) {
         if (groupsList.isNotEmpty) {
@@ -582,7 +638,17 @@ class _NotesScreenState extends State<NotesScreen> {
       drawer: const DrawerMenu(isNotesActive: true),
       isLoading: _isLoading,
       isEmpty: allRenderedKeys.isEmpty,
-      emptyMessage: 'Belum ada grup catatan. Buat folder catatan pertama Anda!',
+
+      // PEMBARUAN UTAMA: Menggunakan widget bersama dengan alur pembuatan berantai sekuensial (Seksi -> Grup)
+      emptyStateView: UniversalEmptyState(
+        icon: Icons.note_alt_rounded,
+        title: 'Folder Catatan Masih Kosong',
+        description:
+            'Belum ada seksi atau grup penampung catatan yang terdaftar. Yuk, buat Seksi Utama sekaligus Grup Catatan pertama Anda sekarang juga!',
+        buttonLabel: 'Buat Seksi & Grup Catatan',
+        themeColor: _themeColor, // Indigo
+        onPressed: _showSequentialAddDialog,
+      ),
       sectionKeys: allRenderedKeys,
       groupedItems: allRenderedItems,
       isSelectMode: false,
@@ -595,12 +661,7 @@ class _NotesScreenState extends State<NotesScreen> {
           _searchQuery = query;
         });
       },
-      // Tombol tambah utama membuka dialog seksi baru
       onAddPressed: _showAddSectionDialog,
-      // ====================================================================
-      // TAMBAHAN BARU: Tombol Muncul di AppBar Utama saat Tahan Lama Aktif
-      // Menyediakan tombol toggle kustom untuk menampilkan seksi hidden group
-      // ====================================================================
       additionalAction: IconButton(
         icon: Icon(
           _showHiddenSection ? Icons.visibility : Icons.visibility_off,
@@ -616,7 +677,6 @@ class _NotesScreenState extends State<NotesScreen> {
         },
       ),
       sectionHeaderBuilder: (context, index, sectionName, isLayoutEditMode) {
-        // Render Header Pembatas Khusus untuk Seksi Kategori yang Tersembunyi
         if (index >= visibleKeysCount) {
           String originalName = sectionName.replaceAll('_hidden_key', '');
           return Column(
@@ -654,9 +714,7 @@ class _NotesScreenState extends State<NotesScreen> {
               setState(() => _isSectionEditMode = !_isSectionEditMode),
           onEditName: () => _showRenameSectionDialog(sectionName),
           onDelete: () => _confirmDeleteSection(sectionName),
-          // Tombol tambah di header sub-seksi membuat grup baru di dalam seksi bersangkutan
           onAddItem: () => _showAddGroupDialog(sectionName),
-          // MODIFIKASI: Menambahkan penanganan `async` untuk memicu penyimpanan ke disk
           onMoveUp: () async {
             if (index > 0) {
               setState(() {
@@ -679,179 +737,181 @@ class _NotesScreenState extends State<NotesScreen> {
           },
         );
       },
-      gridItemBuilder: (context, noteGroup, index, sectionItems, isLayoutEditMode) {
-        return InteractiveGridCard(
-          themeColor: _themeColor,
-          isEditMode: isLayoutEditMode ? true : _isCardEditMode,
-          isHiddenStyle: noteGroup
-              .isHidden, // Berikan style buram/redup jika grup disembunyikan
-          isFirst: index == 0,
-          isLast: index == sectionItems.length - 1,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => NoteDetailScreen(noteGroup: noteGroup),
-              ),
-            ).then((_) => _loadNotesData());
-          },
-          onLongPress: () => setState(() => _isCardEditMode = !_isCardEditMode),
-          onMoveLeft: () async {
-            if (index > 0) {
-              setState(() {
-                // Tukar posisi item di dalam list seksi yang sama
-                final list = _groupedCategories[noteGroup.sectionName] ?? [];
-                if (list.isNotEmpty) {
-                  final temp = list[index];
-                  list[index] = list[index - 1];
-                  list[index - 1] = temp;
+      gridItemBuilder:
+          (context, noteGroup, index, sectionItems, isLayoutEditMode) {
+            return InteractiveGridCard(
+              themeColor: _themeColor,
+              isEditMode: isLayoutEditMode ? true : _isCardEditMode,
+              isHiddenStyle: noteGroup.isHidden,
+              isFirst: index == 0,
+              isLast: index == sectionItems.length - 1,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        NoteDetailScreen(noteGroup: noteGroup),
+                  ),
+                ).then((_) => _loadNotesData());
+              },
+              onLongPress: () =>
+                  setState(() => _isCardEditMode = !_isCardEditMode),
+              onMoveLeft: () async {
+                if (index > 0) {
+                  setState(() {
+                    final list =
+                        _groupedCategories[noteGroup.sectionName] ?? [];
+                    if (list.isNotEmpty) {
+                      final temp = list[index];
+                      list[index] = list[index - 1];
+                      list[index - 1] = temp;
+                    }
+                  });
+                  final currentList =
+                      _groupedCategories[noteGroup.sectionName] ?? [];
+                  for (int i = 0; i < currentList.length; i++) {
+                    currentList[i].orderIndex = i;
+                    await _saveGroupData(currentList[i]);
+                  }
                 }
-              });
-              // PERBAIKAN: Berikan nomor index urutan baru lalu save ke lokal agar posisinya permanen
-              final currentList =
-                  _groupedCategories[noteGroup.sectionName] ?? [];
-              for (int i = 0; i < currentList.length; i++) {
-                currentList[i].orderIndex = i;
-                await _saveGroupData(currentList[i]);
-              }
-            }
-          },
-          onMoveRight: () async {
-            if (index < sectionItems.length - 1) {
-              setState(() {
-                // Tukar posisi item di dalam list seksi yang sama
-                final list = _groupedCategories[noteGroup.sectionName] ?? [];
-                if (list.isNotEmpty) {
-                  final temp = list[index];
-                  list[index] = list[index + 1];
-                  list[index + 1] = temp;
+              },
+              onMoveRight: () async {
+                if (index < sectionItems.length - 1) {
+                  setState(() {
+                    final list =
+                        _groupedCategories[noteGroup.sectionName] ?? [];
+                    if (list.isNotEmpty) {
+                      final temp = list[index];
+                      list[index] = list[index + 1];
+                      list[index + 1] = temp;
+                    }
+                  });
+                  final currentList =
+                      _groupedCategories[noteGroup.sectionName] ?? [];
+                  for (int i = 0; i < currentList.length; i++) {
+                    currentList[i].orderIndex = i;
+                    await _saveGroupData(currentList[i]);
+                  }
                 }
-              });
-              // PERBAIKAN: Berikan nomor index urutan baru lalu save ke lokal agar posisinya permanen
-              final currentList =
-                  _groupedCategories[noteGroup.sectionName] ?? [];
-              for (int i = 0; i < currentList.length; i++) {
-                currentList[i].orderIndex = i;
-                await _saveGroupData(currentList[i]);
-              }
-            }
-          },
-          popupMenuItems: [
-            const PopupMenuItem(
-              value: 'edit',
-              child: Row(
-                children: [
-                  Icon(Icons.edit, size: 18, color: Colors.teal),
-                  SizedBox(width: 10),
-                  Text('Ubah Nama & Ikon', style: TextStyle(fontSize: 13)),
-                ],
-              ),
-            ),
-            // --- PEMBARUAN BARU: Opsi Menu Pindah Seksi ---
-            const PopupMenuItem(
-              value: 'move_section',
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.drive_file_move_outlined,
-                    size: 18,
-                    color: Colors.indigo,
+              },
+              popupMenuItems: [
+                const PopupMenuItem(
+                  value: 'edit',
+                  child: Row(
+                    children: [
+                      Icon(Icons.edit, size: 18, color: Colors.teal),
+                      SizedBox(width: 10),
+                      Text('Ubah Nama & Ikon', style: TextStyle(fontSize: 13)),
+                    ],
                   ),
-                  SizedBox(width: 10),
-                  Text('Pindahkan Seksi', style: TextStyle(fontSize: 13)),
-                ],
-              ),
-            ),
-            // --- Menu popup sembunyikan/tampilkan grup ---
-            PopupMenuItem(
-              value: 'toggle_visibility',
-              child: Row(
-                children: [
-                  Icon(
-                    noteGroup.isHidden
-                        ? Icons.visibility
-                        : Icons.visibility_off,
-                    size: 18,
-                    color: Colors.blueGrey,
+                ),
+                const PopupMenuItem(
+                  value: 'move_section',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.drive_file_move_outlined,
+                        size: 18,
+                        color: Colors.indigo,
+                      ),
+                      SizedBox(width: 10),
+                      Text('Pindahkan Seksi', style: TextStyle(fontSize: 13)),
+                    ],
                   ),
-                  const SizedBox(width: 10),
+                ),
+                PopupMenuItem(
+                  value: 'toggle_visibility',
+                  child: Row(
+                    children: [
+                      Icon(
+                        noteGroup.isHidden
+                            ? Icons.visibility
+                            : Icons.visibility_off,
+                        size: 18,
+                        color: Colors.blueGrey,
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        noteGroup.isHidden
+                            ? 'Tampilkan Grup'
+                            : 'Sembunyikan Grup',
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
+                const PopupMenuDivider(),
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                      SizedBox(width: 10),
+                      Text(
+                        'Hapus Grup',
+                        style: TextStyle(color: Colors.red, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              onPopupSelected: (value) async {
+                if (value == 'edit') {
+                  _showEditGroupDialog(noteGroup);
+                } else if (value == 'move_section') {
+                  _showMoveGroupSectionDialog(noteGroup);
+                } else if (value == 'toggle_visibility') {
+                  await _toggleGroupVisibility(noteGroup);
+                } else if (value == 'delete') {
+                  final bool isConfirmed = await _showConfirmDeleteDialog(
+                    noteGroup,
+                  );
+                  if (isConfirmed) {
+                    _deleteGroupData(noteGroup);
+                  }
+                }
+              },
+              content: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
                   Text(
-                    noteGroup.isHidden ? 'Tampilkan Grup' : 'Sembunyikan Grup',
-                    style: const TextStyle(fontSize: 13),
+                    noteGroup.icon.isEmpty ? '📝' : noteGroup.icon,
+                    style: const TextStyle(fontSize: 32),
                   ),
-                ],
-              ),
-            ),
-            const PopupMenuDivider(),
-            const PopupMenuItem(
-              value: 'delete',
-              child: Row(
-                children: [
-                  Icon(Icons.delete_outline, size: 18, color: Colors.red),
-                  SizedBox(width: 10),
+                  const SizedBox(height: 8),
                   Text(
-                    'Hapus Grup',
-                    style: TextStyle(color: Colors.red, fontSize: 13),
+                    noteGroup.groupName,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _themeColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '${noteGroup.notes.length} Catatan',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: _themeColor,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ],
               ),
-            ),
-          ],
-          onPopupSelected: (value) async {
-            if (value == 'edit') {
-              _showEditGroupDialog(noteGroup);
-            } else if (value == 'move_section') {
-              _showMoveGroupSectionDialog(
-                noteGroup,
-              ); // <--- Jalankan aksi dialog pemindahan seksi
-            } else if (value == 'toggle_visibility') {
-              await _toggleGroupVisibility(
-                noteGroup,
-              ); // Jalankan aksi visibilitas
-            } else if (value == 'delete') {
-              final bool isConfirmed = await _showConfirmDeleteDialog(
-                noteGroup,
-              );
-              if (isConfirmed) {
-                _deleteGroupData(noteGroup);
-              }
-            }
+            );
           },
-          content: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(noteGroup.icon, style: const TextStyle(fontSize: 32)),
-              const SizedBox(height: 8),
-              Text(
-                noteGroup.groupName,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _themeColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  '${noteGroup.notes.length} Catatan',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: _themeColor,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
     );
   }
 }
