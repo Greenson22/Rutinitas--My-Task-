@@ -222,6 +222,9 @@ class _NotesScreenState extends State<NotesScreen> {
                   onTap: isCurrentSection
                       ? null
                       : () async {
+                          // PERBAIKAN: Dapatkan ScaffoldMessenger sebelum dialog di-pop / tree context tidak stabil
+                          final messenger = ScaffoldMessenger.of(context);
+
                           Navigator.pop(context);
                           setState(() {
                             group.sectionName = sectionName.isEmpty
@@ -230,16 +233,16 @@ class _NotesScreenState extends State<NotesScreen> {
                           });
                           await _saveGroupData(group);
                           await _loadNotesData();
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Grup "${group.groupName}" berhasil dipindahkan ke seksi "$sectionName"',
-                                ),
-                                backgroundColor: _themeColor,
+
+                          // Tampilkan pesan menggunakan referensi messenger yang aman
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Grup "${group.groupName}" berhasil dipindahkan ke seksi "$sectionName"',
                               ),
-                            );
-                          }
+                              backgroundColor: _themeColor,
+                            ),
+                          );
                         },
                 );
               },
