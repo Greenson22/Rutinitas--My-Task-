@@ -1,4 +1,3 @@
-// lib/features/task_master/presentation/screens/home_screen.dart
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -11,6 +10,7 @@ import '../../../../core/presentation/widgets/drawer_menu.dart';
 import '../widgets/settings_dialog.dart';
 import '../widgets/tasks_dialog.dart';
 import '../widgets/add_category_dialog.dart';
+import '../widgets/task_master_empty_state.dart'; // <-- IMPORT BARU DI SINI
 import 'package:intl/intl.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -360,7 +360,6 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context) => TasksDialog(
         category: category,
         allCategories: _allCategoriesRaw,
-        // PERBAIKAN 1: Oper langsung referensi fungsi asinkron agar `Future` tidak terpotong di tengah jalan saat dialog ditutup
         onIncrementTask: _incrementTaskCount,
         onUpdateTargetToday: (task, target) {},
         onEditTaskDetail:
@@ -385,7 +384,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 task.isActive = active;
                 task.type = type;
               });
-              // PERBAIKAN 2: Tambahkan 'await' agar data dipastikan tersimpan penuh ke file JSON sebelum melanjutkan
               await _saveAllCategoriesToFile();
             },
         onDeleteTask: (task) async {
@@ -812,8 +810,11 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       drawer: const DrawerMenu(),
+      // PEMBARUAN DI BODY: Deteksi apakah data benar-benar kosong, jika iya maka tampilkan Empty State widget
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
+          : _allCategoriesRaw.isEmpty
+          ? TaskMasterEmptyState(onAddCategoryPressed: _showAddCategoryDialog)
           : LayoutBuilder(
               builder: (context, constraints) {
                 return ListView(
@@ -837,24 +838,24 @@ class _HomeScreenState extends State<HomeScreen> {
                           horizontal: 16.0,
                           vertical: 8.0,
                         ),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.visibility_off_outlined,
+                      ),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.visibility_off_outlined,
+                            color: Colors.blueGrey,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Kategori yang disembunyikan (${_hiddenCategories.length})',
+                            style: const TextStyle(
                               color: Colors.blueGrey,
-                              size: 20,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
                             ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Kategori yang disembunyikan (${_hiddenCategories.length})',
-                              style: const TextStyle(
-                                color: Colors.blueGrey,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                       _buildCategoryGrid(_hiddenCategories, constraints),
                     ],
