@@ -1,16 +1,12 @@
 // lib/features/jurnal_aktivitas/presentation/screens/jurnal_aktivitas_screen.dart
-import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../../../../core/services/storage_service.dart';
 import '../../../../core/presentation/widgets/drawer_menu.dart';
 import '../../../../core/presentation/widgets/universal_empty_state.dart';
-import '../../../task_master/data/models/task_model.dart';
+import '../../../../core/utils/crypto_helper.dart';
 import '../../data/models/time_log_model.dart';
 import '../widgets/jurnal_statistik_dialog.dart';
-import '../../../../core/utils/crypto_helper.dart';
+import '../controllers/jurnal_aktivitas_controller.dart'; // Import Controller Baru
 
 class JurnalAktivitasScreen extends StatefulWidget {
   const JurnalAktivitasScreen({super.key});
@@ -20,34 +16,30 @@ class JurnalAktivitasScreen extends StatefulWidget {
 }
 
 class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
-  final StorageService _storageService = StorageService();
-  List<TimeLogEntry> _logs = [];
-  List<TaskCategory> _allTaskCategories = [];
-  String _baseDir = '';
-  String _fullJsonPath = '';
-  bool _isLoading = true;
-  bool _isEditMode = false;
-
-  // STATE BARU: Melacak apakah berkas jurnal terindikasi rusak / gagal didekripsi
-  bool _isJurnalFileCorrupted = false;
+  // Inisialisasi controller pembawa state logika bisnis
+  final JurnalAktivitasController _controller = JurnalAktivitasController();
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _triggerLoadData();
   }
 
-  String _getTodayDateString() {
-    final now = DateTime.now();
-    return "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+  void _triggerLoadData() {
+    _controller.loadData(onNotify: () => setState(() {})).catchError((
+      jsonFile,
+    ) {
+      if (jsonFile is File && mounted) {
+        _showDecryptionErrorDialog(jsonFile);
+      }
+    });
   }
 
-  // --- OPSI DIALOG KUSTOM KETIKA TERJADI DECRYPTION ERROR / BERKAS CORRUPT ---
+  // --- INTERAKSI DIALOG UI ---
   void _showDecryptionErrorDialog(File jsonFile) {
     showDialog(
       context: context,
-      barrierDismissible:
-          true, // PERUBAHAN: Dialog sekarang bisa ditutup dengan mengetuk di luar area
+      barrierDismissible: true,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
@@ -61,7 +53,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
           'Aplikasi gagal membaca data Jurnal Aktivitas. Berkas ini mungkin dienkripsi oleh sistem dengan kata sandi lain, atau format data di dalamnya rusak.',
         ),
         actions: [
-          // PERUBAHAN: Ditambahkan tombol tutup manual agar user bisa mengakses halaman utama di baliknya
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Tutup', style: TextStyle(color: Colors.grey)),
@@ -105,22 +96,8 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                 ),
               );
               if (confirmNew == true) {
-                setState(() {
-                  _isLoading = true;
-                  _isJurnalFileCorrupted =
-                      false; // Reset status error karena diset baru
-                });
-                // 1. Tulis file JSON kosong baru untuk Array Log
-                await jsonFile.writeAsString(jsonEncode([]));
-                // 2. Bersihkan konfigurasi enkripsi agar tidak memicu kegagalan decrypt ulang
-                try {
-                  final prefs = await SharedPreferences.getInstance();
-                  await prefs.setBool('is_encrypted', false);
-                  await prefs.remove('encryption_password');
-                } catch (err) {
-                  debugPrint("Gagal mereset preferensi enkripsi jurnal: $err");
-                }
-                _loadData();
+                await _controller.resetAndCreateNewLog(jsonFile);
+                _triggerLoadData();
               } else {
                 _showDecryptionErrorDialog(jsonFile);
               }
@@ -183,40 +160,11 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                     encryptedContent,
                     input,
                   );
-                  final parsed = jsonDecode(decrypted);
-                  if (parsed is List) {
+
+                  bool success = _controller.handleManualUnlock(decrypted);
+                  if (success) {
                     Navigator.pop(ctx);
-                    setState(() {
-                      _isLoading = true;
-                      _isJurnalFileCorrupted =
-                          false; // Reset status error karena sukses terbuka
-                    });
-                    _logs = parsed
-                        .map((e) => TimeLogEntry.fromJson(e))
-                        .toList();
-                    final String todayStr = _getTodayDateString();
-                    bool hasTodayLog = _logs.any(
-                      (entry) => entry.tanggal == todayStr,
-                    );
-                    if (!hasTodayLog && _logs.isNotEmpty) {
-                      final lastLog = _logs.last;
-                      List<TimeLogTask> copiedTasks = lastLog.tasks.map((task) {
-                        return TimeLogTask(
-                          id: task.id,
-                          nama: task.nama,
-                          durasiMenit: 0,
-                          kategori: task.kategori,
-                          linkedTaskIds: task.linkedTaskIds,
-                        );
-                      }).toList();
-                      _logs.add(
-                        TimeLogEntry(tanggal: todayStr, tasks: copiedTasks),
-                      );
-                    } else if (_logs.isEmpty) {
-                      _logs.add(TimeLogEntry(tanggal: todayStr, tasks: []));
-                    }
-                    await _loadTaskMasterData();
-                    setState(() => _isLoading = false);
+                    _triggerLoadData();
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('Buka kunci data sukses!'),
@@ -249,147 +197,15 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     );
   }
 
-  Future<void> _loadData() async {
-    setState(() {
-      _isLoading = true;
-      _isJurnalFileCorrupted =
-          false; // Reset status pelacak error setiap pemuatan ulang
-    });
-    File? jsonFile;
-    try {
-      _baseDir = await _storageService.getBaseDirSetting();
-      jsonFile = await _storageService.getJurnalJsonFile(_baseDir);
-      _fullJsonPath = jsonFile.path;
-      String jsonString = await _storageService.loadOrInitializeJurnalJson(
-        jsonFile,
-      );
-      bool isEncrypted = await _storageService.isEncryptionEnabled();
-      String? password = await _storageService.getEncryptionPassword();
-      if (isEncrypted &&
-          password != null &&
-          !jsonString.trim().startsWith('[')) {
-        jsonString = CryptoHelper.decrypt(jsonString, password);
-      }
-      final List<dynamic> decodedJson = jsonDecode(jsonString);
-      List<TimeLogEntry> loadedLogs = decodedJson
-          .map((e) => TimeLogEntry.fromJson(e))
-          .toList();
-      final String todayStr = _getTodayDateString();
-      bool hasTodayLog = loadedLogs.any((entry) => entry.tanggal == todayStr);
-      if (!hasTodayLog && loadedLogs.isNotEmpty) {
-        final lastLog = loadedLogs.last;
-        List<TimeLogTask> copiedTasks = lastLog.tasks.map((task) {
-          return TimeLogTask(
-            id: task.id,
-            nama: task.nama,
-            durasiMenit: 0,
-            kategori: task.kategori,
-            linkedTaskIds: task.linkedTaskIds,
-          );
-        }).toList();
-        final todayEntry = TimeLogEntry(tanggal: todayStr, tasks: copiedTasks);
-        loadedLogs.add(todayEntry);
-        final String jsonContent = jsonEncode(
-          loadedLogs.map((e) => e.toJson()).toList(),
-        );
-        await _storageService.saveJsonData(jsonFile, jsonContent);
-      } else if (loadedLogs.isEmpty) {
-        loadedLogs.add(TimeLogEntry(tanggal: todayStr, tasks: []));
-        final String jsonContent = jsonEncode(
-          loadedLogs.map((e) => e.toJson()).toList(),
-        );
-        await _storageService.saveJsonData(jsonFile, jsonContent);
-      }
-      await _loadTaskMasterData();
-      setState(() {
-        _logs = loadedLogs;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _isJurnalFileCorrupted =
-            true; // PERUBAHAN: Tandai bahwa berkas gagal dimuat / corrupt
-      });
-      debugPrint("Error loading jurnal data: $e");
-      if (jsonFile != null && mounted) {
-        _showDecryptionErrorDialog(
-          jsonFile,
-        ); // Panggil otomatis saat halaman dibuka pertama kali dan bermasalah
-      }
-    }
-  }
-
-  Future<void> _loadTaskMasterData() async {
-    try {
-      File taskFile = await _storageService.getTargetJsonFile(_baseDir);
-      if (await taskFile.exists()) {
-        String jsonString = await taskFile.readAsString();
-        bool isEncrypted = await _storageService.isEncryptionEnabled();
-        String? password = await _storageService.getEncryptionPassword();
-        if (isEncrypted &&
-            password != null &&
-            !jsonString.trim().startsWith('{')) {
-          jsonString = CryptoHelper.decrypt(jsonString, password);
-        }
-        final Map<String, dynamic> parsedMap = jsonDecode(jsonString);
-        final List<dynamic> catList = parsedMap['categories'] ?? [];
-        _allTaskCategories = catList
-            .map((json) => TaskCategory.fromJson(json))
-            .toList();
-      }
-    } catch (e) {
-      debugPrint("Error loading task master components: $e");
-    }
-  }
-
-  Future<void> _saveData() async {
-    try {
-      final File jsonFile = await _storageService.getJurnalJsonFile(_baseDir);
-      final String jsonContent = jsonEncode(
-        _logs.map((e) => e.toJson()).toList(),
-      );
-      await _storageService.saveJsonData(jsonFile, jsonContent);
-    } catch (e) {
-      debugPrint("Error saving jurnal data: $e");
-    }
-  }
-
-  bool _isTaskTrulyLinked(TimeLogTask jurnalTask) {
-    if (jurnalTask.linkedTaskIds.isEmpty) return false;
-    for (var category in _allTaskCategories) {
-      for (var task in category.tasks) {
-        if (jurnalTask.linkedTaskIds.contains(task.id)) {
-          return true;
-        }
-      }
-    }
-    return false;
-  }
-
-  void _moveTaskOrder(
-    List<TimeLogTask> taskList,
-    int currentIndex,
-    int direction,
-  ) async {
-    int newIndex = currentIndex + direction;
-    if (newIndex < 0 || newIndex >= taskList.length) return;
-    setState(() {
-      final temp = taskList[currentIndex];
-      taskList[currentIndex] = taskList[newIndex];
-      taskList[newIndex] = temp;
-    });
-    await _saveData();
-  }
-
   void _showDialogTaskLink(TimeLogTask jurnalTask) {
-    final String todayStr = _getTodayDateString();
-    final int todayLogIndex = _logs.indexWhere(
+    final String todayStr = _controller.getTodayDateString();
+    final int todayLogIndex = _controller.logs.indexWhere(
       (entry) => entry.tanggal == todayStr,
     );
     final List<TimeLogTask> todayTasks = todayLogIndex != -1
-        ? _logs[todayLogIndex].tasks
+        ? _controller.logs[todayLogIndex].tasks
         : [];
+
     showDialog(
       context: context,
       builder: (context) {
@@ -400,16 +216,17 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
               content: SizedBox(
                 width: double.maxFinite,
                 height: MediaQuery.of(context).size.height * 0.5,
-                child: _allTaskCategories.isEmpty
+                child: _controller.allTaskCategories.isEmpty
                     ? const Center(
                         child: Text(
                           "Tidak ada kategori tugas ditemukan di Task Master.",
                         ),
                       )
                     : ListView.builder(
-                        itemCount: _allTaskCategories.length,
+                        itemCount: _controller.allTaskCategories.length,
                         itemBuilder: (context, catIdx) {
-                          final category = _allTaskCategories[catIdx];
+                          final category =
+                              _controller.allTaskCategories[catIdx];
                           return ExpansionTile(
                             leading: Text(
                               category.icon,
@@ -444,21 +261,13 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                     : null,
                                 onTap: () {
                                   setDialogState(() {
-                                    if (isLinkedWithThis) {
-                                      jurnalTask.linkedTaskIds.remove(
-                                        taskItem.id,
-                                      );
-                                    } else {
-                                      for (var t in todayTasks) {
-                                        if (t.id != jurnalTask.id) {
-                                          t.linkedTaskIds.remove(taskItem.id);
-                                        }
-                                      }
-                                      jurnalTask.linkedTaskIds.clear();
-                                      jurnalTask.linkedTaskIds.add(taskItem.id);
-                                    }
+                                    _controller.updateTaskLink(
+                                      jurnalTask,
+                                      taskItem.id,
+                                      todayTasks,
+                                    );
                                   });
-                                  _saveData();
+                                  _controller.saveData();
                                   setState(() {});
                                 },
                               );
@@ -502,16 +311,10 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
       ),
     );
     if (konfirmasi != true) return;
-    for (var logEntry in _logs) {
-      int idx = logEntry.tasks.indexWhere((t) => t.id == task.id);
-      if (idx != -1) {
-        setState(() {
-          logEntry.tasks[idx].durasiMenit += 30;
-        });
-        break;
-      }
-    }
-    await _saveData();
+    setState(() {
+      _controller.addActivityDuration30Minutes(task);
+    });
+    await _controller.saveData();
     if (onDone != null) onDone();
   }
 
@@ -552,11 +355,10 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
           ElevatedButton(
             onPressed: () async {
               if (formKey.currentState!.validate()) {
-                final int newDuration = int.parse(timerController.text.trim());
                 setState(() {
-                  task.durasiMenit = newDuration;
+                  task.durasiMenit = int.parse(timerController.text.trim());
                 });
-                await _saveData();
+                await _controller.saveData();
                 if (onDone != null) onDone();
                 Navigator.pop(context);
               }
@@ -596,24 +398,11 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
           ElevatedButton(
             onPressed: () async {
               if (formKey.currentState!.validate()) {
-                final String todayStr = _getTodayDateString();
-                final int todayLogIndex = _logs.indexWhere(
-                  (entry) => entry.tanggal == todayStr,
-                );
-                if (todayLogIndex != -1) {
-                  final randomId = Random().nextInt(999999);
-                  final newTask = TimeLogTask(
-                    id: randomId,
-                    nama: inputController.text.trim(),
-                    durasiMenit: 0,
-                    linkedTaskIds: [],
-                  );
-                  setState(() {
-                    _logs[todayLogIndex].tasks.add(newTask);
-                  });
-                  await _saveData();
-                  Navigator.pop(context);
-                }
+                setState(() {
+                  _controller.addNewActivity(inputController.text.trim());
+                });
+                await _controller.saveData();
+                Navigator.pop(context);
               }
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
@@ -651,7 +440,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                 setState(() {
                   task.nama = newName;
                 });
-                await _saveData();
+                await _controller.saveData();
                 Navigator.pop(context);
               }
             },
@@ -684,16 +473,10 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
       ),
     );
     if (konfirmasi == true) {
-      final String todayStr = _getTodayDateString();
-      final int todayLogIndex = _logs.indexWhere(
-        (entry) => entry.tanggal == todayStr,
-      );
-      if (todayLogIndex != -1) {
-        setState(() {
-          _logs[todayLogIndex].tasks.removeWhere((t) => t.id == task.id);
-        });
-        await _saveData();
-      }
+      setState(() {
+        _controller.removeActivity(task);
+      });
+      await _controller.saveData();
     }
   }
 
@@ -703,7 +486,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            final sortedLogs = List<TimeLogEntry>.from(_logs);
+            final sortedLogs = List<TimeLogEntry>.from(_controller.logs);
             sortedLogs.sort((a, b) => b.tanggal.compareTo(a.tanggal));
             return AlertDialog(
               title: Row(
@@ -733,7 +516,9 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                               ),
                               subtitle: Text('${log.tasks.length} aktivitas'),
                               children: log.tasks.map((task) {
-                                final isLinked = _isTaskTrulyLinked(task);
+                                final isLinked = _controller.isTaskTrulyLinked(
+                                  task,
+                                );
                                 return ListTile(
                                   dense: true,
                                   title: Row(
@@ -806,7 +591,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     ).then((_) => setState(() {}));
   }
 
-  // METHOD BARU: Menampilkan status halaman kosong informatif apabila berkas jurnal terkunci/corrupt
   Widget _buildCorruptedJurnalEmptyState() {
     return Center(
       child: SingleChildScrollView(
@@ -849,9 +633,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
             const SizedBox(height: 28),
             ElevatedButton.icon(
               onPressed: () async {
-                File jsonFile = await _storageService.getJurnalJsonFile(
-                  _baseDir,
-                );
+                File jsonFile = await _controller.getJurnalFile();
                 _showDecryptionErrorDialog(jsonFile);
               },
               icon: const Icon(
@@ -885,12 +667,12 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final String todayStr = _getTodayDateString();
-    final todayLogIndex = _logs.indexWhere(
+    final String todayStr = _controller.getTodayDateString();
+    final todayLogIndex = _controller.logs.indexWhere(
       (entry) => entry.tanggal == todayStr,
     );
     final List<TimeLogTask> todayTasks = todayLogIndex != -1
-        ? _logs[todayLogIndex].tasks
+        ? _controller.logs[todayLogIndex].tasks
         : [];
 
     return Scaffold(
@@ -903,7 +685,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
             icon: const Icon(Icons.analytics_outlined, color: Colors.white),
             tooltip: 'Lihat Statistik',
             onPressed: () {
-              if (_logs.isEmpty) {
+              if (_controller.logs.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('Belum ada data untuk dianalisis.'),
@@ -913,7 +695,8 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
               }
               showDialog(
                 context: context,
-                builder: (context) => JurnalStatistikDialog(logs: _logs),
+                builder: (context) =>
+                    JurnalStatistikDialog(logs: _controller.logs),
               );
             },
           ),
@@ -924,10 +707,10 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
         ],
       ),
       drawer: const DrawerMenu(isJurnalActive: true),
-      body: _isLoading
+      body: _controller.isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _isJurnalFileCorrupted
-          ? _buildCorruptedJurnalEmptyState() // PERUBAHAN: Menampilkan UI khusus berkas rusak jika true
+          : _controller.isJurnalFileCorrupted
+          ? _buildCorruptedJurnalEmptyState()
           : Column(
               children: [
                 Padding(
@@ -962,7 +745,9 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                           itemCount: todayTasks.length,
                           itemBuilder: (context, index) {
                             final task = todayTasks[index];
-                            final bool isLinked = _isTaskTrulyLinked(task);
+                            final bool isLinked = _controller.isTaskTrulyLinked(
+                              task,
+                            );
                             return Card(
                               elevation: 2,
                               margin: const EdgeInsets.symmetric(
@@ -975,7 +760,8 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                               child: ListTile(
                                 onLongPress: () {
                                   setState(() {
-                                    _isEditMode = !_isEditMode;
+                                    _controller.isEditMode =
+                                        !_controller.isEditMode;
                                   });
                                 },
                                 contentPadding: const EdgeInsets.symmetric(
@@ -983,15 +769,15 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                   vertical: 8,
                                 ),
                                 leading: CircleAvatar(
-                                  backgroundColor: _isEditMode
+                                  backgroundColor: _controller.isEditMode
                                       ? Colors.amber[50]
                                       : Colors.teal[50],
                                   radius: 16,
                                   child: Icon(
-                                    _isEditMode
+                                    _controller.isEditMode
                                         ? Icons.edit_attributes
                                         : Icons.check_circle_outline,
-                                    color: _isEditMode
+                                    color: _controller.isEditMode
                                         ? Colors.amber[800]
                                         : Colors.teal,
                                     size: 18,
@@ -1030,7 +816,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                           ),
                                       ],
                                     ),
-                                    if (_isEditMode) ...[
+                                    if (_controller.isEditMode) ...[
                                       const SizedBox(height: 10),
                                       Wrap(
                                         spacing: 8.0,
@@ -1042,11 +828,16 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                                 ? Colors.indigo
                                                 : Colors.grey[300]!,
                                             onPressed: index > 0
-                                                ? () => _moveTaskOrder(
-                                                    todayTasks,
-                                                    index,
-                                                    -1,
-                                                  )
+                                                ? () {
+                                                    setState(() {
+                                                      _controller.moveTaskOrder(
+                                                        todayTasks,
+                                                        index,
+                                                        -1,
+                                                      );
+                                                    });
+                                                    _controller.saveData();
+                                                  }
                                                 : null,
                                           ),
                                           _buildMobileEditButton(
@@ -1056,11 +847,16 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                                 : Colors.grey[300]!,
                                             onPressed:
                                                 index < todayTasks.length - 1
-                                                ? () => _moveTaskOrder(
-                                                    todayTasks,
-                                                    index,
-                                                    1,
-                                                  )
+                                                ? () {
+                                                    setState(() {
+                                                      _controller.moveTaskOrder(
+                                                        todayTasks,
+                                                        index,
+                                                        1,
+                                                      );
+                                                    });
+                                                    _controller.saveData();
+                                                  }
                                                 : null,
                                           ),
                                           _buildMobileEditButton(
@@ -1086,7 +882,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                     ],
                                   ],
                                 ),
-                                trailing: _isEditMode
+                                trailing: _controller.isEditMode
                                     ? const SizedBox.shrink()
                                     : Row(
                                         mainAxisSize: MainAxisSize.min,
@@ -1141,8 +937,8 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                 ),
               ],
             ),
-      floatingActionButton: _isJurnalFileCorrupted
-          ? null // Sembunyikan FAB jika berkas data rusak
+      floatingActionButton: _controller.isJurnalFileCorrupted
+          ? null
           : FloatingActionButton(
               onPressed: _showAddActivityDialog,
               backgroundColor: Colors.indigo[700],
