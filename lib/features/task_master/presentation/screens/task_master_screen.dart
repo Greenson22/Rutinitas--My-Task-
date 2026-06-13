@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:rutinitasku/core/presentation/widgets/base_detail_app_bar.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/services/storage_service.dart';
 import '../../data/models/task_model.dart';
 import '../../../jurnal_aktivitas/data/models/time_log_model.dart';
@@ -175,9 +176,26 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
               );
+
               if (confirmNew == true) {
                 setState(() => _isLoading = true);
+
+                // 1. Tulis file JSON kosong baru
                 await jsonFile.writeAsString(jsonEncode({'categories': []}));
+
+                // 2. TAMBAHAN UTAMA: Matikan status enkripsi di Storage agar tidak mencoba
+                // mendekripsi file kosong ini dengan password lama yang salah/korup
+                try {
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setBool('is_encrypted', false);
+                  await prefs.remove(
+                    'encryption_password',
+                  ); // Hapus password lama dari preferensi
+                } catch (e) {
+                  debugPrint("Gagal mereset preferensi enkripsi: $e");
+                }
+
+                // 3. Muat ulang data (sekarang akan sukses karena dibaca sebagai JSON murni)
                 _initStorageAndLoadData();
               } else {
                 _showDecryptionErrorDialog(jsonFile);
