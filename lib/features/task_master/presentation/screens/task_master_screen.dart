@@ -4,21 +4,17 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:rutinitasku/core/presentation/widgets/base_detail_app_bar.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../../../../core/services/storage_service.dart';
-import '../../data/models/task_model.dart';
-import '../../../jurnal_aktivitas/data/models/time_log_model.dart';
 import '../../../../core/presentation/widgets/drawer_menu.dart';
-import '../widgets/settings_dialog.dart';
-import '../widgets/tasks_dialog.dart';
-import '../widgets/add_category_dialog.dart';
 import '../../../../core/presentation/widgets/universal_empty_state.dart';
 import '../../../../core/utils/crypto_helper.dart';
-
-// Import widget yang baru saja kita pisahkan
-import '../widgets/task_summary_header.dart';
-import '../widgets/corrupted_empty_state.dart';
+import '../../data/models/task_model.dart';
+import '../controllers/task_master_controller.dart';
+import '../widgets/add_category_dialog.dart';
 import '../widgets/category_grid.dart';
+import '../widgets/corrupted_empty_state.dart';
+import '../widgets/settings_dialog.dart';
+import '../widgets/task_summary_header.dart';
+import '../widgets/tasks_dialog.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -28,29 +24,24 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final StorageService _storageService = StorageService();
-  List<TaskCategory> _visibleCategories = [];
-  List<TaskCategory> _hiddenCategories = [];
-  List<TaskCategory> _allCategoriesRaw = [];
-  String _selectedBaseDir = 'Documents';
-  String _fullJsonPath = '';
-  bool _isLoading = true;
-  bool _isPageEditMode = false;
-  bool _showHiddenSection = false;
-
-  bool _isFileCorrupted = false;
-
-  bool _internalSearchMode = false;
+  late TaskMasterController _controller;
   late TextEditingController _searchController;
-  String _searchQuery = '';
-
-  String _totalJurnalDurationString = "0j";
 
   @override
   void initState() {
     super.initState();
     _searchController = TextEditingController();
-    _initStorageAndLoadData();
+
+    // Inisialisasi controller dengan callback setState lokal
+    _controller = TaskMasterController(
+      onUpdate: () {
+        if (mounted) setState(() {});
+      },
+    );
+
+    _controller.initStorageAndLoadData(
+      onCorrupted: (jsonFile) => _showDecryptionErrorDialog(jsonFile),
+    );
   }
 
   @override
@@ -59,85 +50,21 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  String _getTodayDateString() {
-    final now = DateTime.now();
-    return "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
-  }
-
-  Future<void> _kalkulasiTotalJurnalHariIni() async {
-    try {
-      File fileJurnal = await _storageService.getJurnalJsonFile(
-        _selectedBaseDir,
-      );
-
-      if (await fileJurnal.exists()) {
-        String jsonString = await fileJurnal.readAsString();
-
-        bool isEncrypted = await _storageService.isEncryptionEnabled();
-        String? password = await _storageService.getEncryptionPassword();
-        if (isEncrypted &&
-            password != null &&
-            !jsonString.trim().startsWith('[')) {
-          jsonString = CryptoHelper.decrypt(jsonString, password);
-        }
-
-        if (jsonString.trim().isNotEmpty) {
-          List<dynamic> decodedJson = jsonDecode(jsonString);
-          List<TimeLogEntry> logs = decodedJson
-              .map((e) => TimeLogEntry.fromJson(e))
-              .toList();
-
-          String todayStr = _getTodayDateString();
-          final int todayLogIndex = logs.indexWhere(
-            (entry) => entry.tanggal == todayStr,
-          );
-
-          if (todayLogIndex != -1) {
-            final List<TimeLogTask> todayTasks = logs[todayLogIndex].tasks;
-            int totalMenit = todayTasks.fold(
-              0,
-              (sum, task) => sum + task.durasiMenit,
-            );
-
-            int jam = totalMenit ~/ 60;
-            int menit = totalMenit % 60;
-
-            if (mounted) {
-              setState(() {
-                _totalJurnalDurationString = menit > 0
-                    ? '${jam}j ${menit}m'
-                    : '${jam}j';
-              });
-            }
-            return;
-          }
-        }
-      }
-      if (mounted) {
-        setState(() {
-          _totalJurnalDurationString = "0j";
-        });
-      }
-    } catch (e) {
-      debugPrint("Gagal mengkalkulasi total jurnal hari ini: $e");
-    }
-  }
-
   void _showDecryptionErrorDialog(File jsonFile) {
     showDialog(
       context: context,
       barrierDismissible: true,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: const [
+        title: const Row(
+          children: [
             Icon(Icons.lock_outline, color: Colors.redAccent),
             SizedBox(width: 8),
             Text('Berkas Terkunci / Rusak'),
           ],
         ),
         content: const Text(
-          'Aplikasi gagal membaca data Task Master. Berkas ini mungkin dienkripsi oleh sistem dengan kata sandi lain, atau format data di dalamnya rusak.',
+          'Aplikasi gagal membaca data Task Master. Berkas ini mungkin dienkripsi dengan PIN lain, atau format data rusak.',
         ),
         actions: [
           TextButton(
@@ -145,7 +72,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: const Text('Tutup', style: TextStyle(color: Colors.grey)),
           ),
           TextButton(
-            onPressed: () async {
+            onPressed: () {
               Navigator.pop(ctx);
               _showManualUnlockDialog(jsonFile);
             },
@@ -160,46 +87,10 @@ class _HomeScreenState extends State<HomeScreen> {
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(ctx);
-              final bool? confirmNew = await showDialog<bool>(
-                context: context,
-                builder: (c) => AlertDialog(
-                  title: const Text('Buat Baru?'),
-                  content: const Text(
-                    'Semua data lama di dalam berkas Task Master ini akan dihapus total dan diganti dengan struktur baru yang kosong. Tindakan ini tidak bisa dibatalkan!',
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(c, false),
-                      child: const Text('Batal'),
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.pop(c, true),
-                      child: const Text(
-                        'Ya, Hapus & Reset',
-                        style: TextStyle(color: Colors.red),
-                      ),
-                    ),
-                  ],
-                ),
-              );
+              final bool confirmNew = await _showConfirmResetDialog() ?? false;
 
-              if (confirmNew == true) {
-                setState(() {
-                  _isLoading = true;
-                  _isFileCorrupted = false;
-                });
-
-                await jsonFile.writeAsString(jsonEncode({'categories': []}));
-
-                try {
-                  final prefs = await SharedPreferences.getInstance();
-                  await prefs.setBool('is_encrypted', false);
-                  await prefs.remove('encryption_password');
-                } catch (e) {
-                  debugPrint("Gagal mereset preferensi enkripsi: $e");
-                }
-
-                _initStorageAndLoadData();
+              if (confirmNew) {
+                _controller.forceResetNewFile(jsonFile);
               } else {
                 _showDecryptionErrorDialog(jsonFile);
               }
@@ -208,6 +99,31 @@ class _HomeScreenState extends State<HomeScreen> {
             child: const Text(
               'Buat Baru',
               style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<bool?> _showConfirmResetDialog() {
+    return showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Buat Baru?'),
+        content: const Text(
+          'Semua data lama di dalam berkas Task Master ini akan dihapus total dan diganti dengan struktur baru yang kosong. Tindakan ini tidak bisa dibatalkan!',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text(
+              'Ya, Hapus & Reset',
+              style: TextStyle(color: Colors.red),
             ),
           ),
         ],
@@ -265,21 +181,15 @@ class _HomeScreenState extends State<HomeScreen> {
                     input,
                   );
 
-                  final parsed = jsonDecode(decrypted);
+                  final parsed = jsonDecode(decrypted); // Atau jsonDecode
                   if (parsed is Map && parsed.containsKey('categories')) {
                     Navigator.pop(ctx);
-                    setState(() {
-                      _isLoading = true;
-                      _isFileCorrupted = false;
-                    });
-
                     final List<dynamic> catList = parsed['categories'] ?? [];
-                    _allCategoriesRaw = catList
+                    List<TaskCategory> loaded = catList
                         .map((json) => TaskCategory.fromJson(json))
                         .toList();
 
-                    await _kalkulasiTotalJurnalHariIni();
-                    _processCategoriesDisplay();
+                    _controller.handleManualUnlockSuccess(loaded);
 
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
@@ -313,273 +223,15 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _initStorageAndLoadData() async {
-    setState(() {
-      _isLoading = true;
-      _isFileCorrupted = false;
-    });
-    File? jsonFile;
-    try {
-      _selectedBaseDir = await _storageService.getBaseDirSetting();
-      jsonFile = await _storageService.getTargetJsonFile(_selectedBaseDir);
-      _fullJsonPath = jsonFile.path;
-      String jsonString = await _storageService.loadOrInitializeJson(jsonFile);
-
-      bool isEncrypted = await _storageService.isEncryptionEnabled();
-      String? password = await _storageService.getEncryptionPassword();
-      if (isEncrypted &&
-          password != null &&
-          !jsonString.trim().startsWith('{')) {
-        jsonString = CryptoHelper.decrypt(jsonString, password);
-      }
-
-      final Map<String, dynamic> parsedMap = jsonDecode(jsonString);
-      final List<dynamic> catList = parsedMap['categories'] ?? [];
-      List<TaskCategory> loadedCategories = catList
-          .map((json) => TaskCategory.fromJson(json))
-          .toList();
-
-      String todayStr = _getTodayDateString();
-      bool isDataChanged = false;
-      for (var category in loadedCategories) {
-        for (var task in category.tasks) {
-          if (task.date != todayStr && task.countToday > 0) {
-            task.countToday = 0;
-            isDataChanged = true;
-          }
-        }
-      }
-      _allCategoriesRaw = loadedCategories;
-      if (isDataChanged) {
-        await _saveAllCategoriesToFile(shouldRefresh: false);
-      }
-
-      await _kalkulasiTotalJurnalHariIni();
-      _processCategoriesDisplay();
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _isFileCorrupted = true;
-        });
-      }
-      debugPrint("Error loading data: $e");
-
-      if (jsonFile != null && mounted) {
-        _showDecryptionErrorDialog(jsonFile);
-      }
-    }
-  }
-
-  void _processCategoriesDisplay() {
-    final filteredCategories = _allCategoriesRaw.where((cat) {
-      if (_searchQuery.isEmpty) return true;
-      return cat.name.toLowerCase().contains(_searchQuery);
-    }).toList();
-
-    List<TaskCategory> visible = filteredCategories
-        .where((cat) => !cat.isHidden)
-        .toList();
-    List<TaskCategory> hidden = filteredCategories
-        .where((cat) => cat.isHidden)
-        .toList();
-    if (mounted) {
-      setState(() {
-        _visibleCategories = visible;
-        _hiddenCategories = hidden;
-        _isLoading = false;
-      });
-    }
-  }
-
-  void _updateSearchQuery(String query) {
-    setState(() {
-      _searchQuery = query.trim().toLowerCase();
-    });
-    _processCategoriesDisplay();
-  }
-
-  void _moveCategoryOrder(
-    List<TaskCategory> targetSubList,
-    int currentIndex,
-    int direction,
-  ) async {
-    int newIndex = currentIndex + direction;
-    if (newIndex < 0 || newIndex >= targetSubList.length) return;
-    final itemA = targetSubList[currentIndex];
-    final itemB = targetSubList[newIndex];
-    int rawIdxA = _allCategoriesRaw.indexWhere((cat) => cat.name == itemA.name);
-    int rawIdxB = _allCategoriesRaw.indexWhere((cat) => cat.name == itemB.name);
-    if (rawIdxA != -1 && rawIdxB != -1) {
-      setState(() {
-        final temp = _allCategoriesRaw[rawIdxA];
-        _allCategoriesRaw[rawIdxA] = _allCategoriesRaw[rawIdxB];
-        _allCategoriesRaw[rawIdxB] = temp;
-      });
-      await _saveAllCategoriesToFile(shouldRefresh: false);
-      _processCategoriesDisplay();
-    }
-  }
-
-  Future<void> _toggleCategoryVisibility(TaskCategory category) async {
-    int index = _allCategoriesRaw.indexWhere(
-      (cat) => cat.name == category.name,
-    );
-    if (index != -1) {
-      setState(() {
-        _allCategoriesRaw[index].isHidden = !_allCategoriesRaw[index].isHidden;
-      });
-      await _saveAllCategoriesToFile(shouldRefresh: false);
-      _processCategoriesDisplay();
-    }
-  }
-
-  Future<void> _addNewCategory(String name, String icon) async {
-    final newCategory = TaskCategory(
-      name: name,
-      icon: icon,
-      isHidden: false,
-      tasks: [],
-    );
-    _allCategoriesRaw.add(newCategory);
-    await _saveAllCategoriesToFile();
-  }
-
-  Future<void> _updateUbuntuStorage(String newDir) async {
-    await _storageService.saveBaseDirSetting(newDir);
-    _initStorageAndLoadData();
-  }
-
   void _showSettingsDialog() {
     showDialog(
       context: context,
       builder: (context) => SettingsDialog(
-        currentBaseDir: _selectedBaseDir,
-        onSave: (newDir) {
-          _updateUbuntuStorage(newDir);
-        },
-        onEncryptionToggled: () {
-          _initStorageAndLoadData();
-        },
+        currentBaseDir: _controller.selectedBaseDir,
+        onSave: (newDir) => _controller.updateUbuntuStorage(newDir),
+        onEncryptionToggled: () => _controller.initStorageAndLoadData(),
       ),
     );
-  }
-
-  Future<bool> _incrementTaskCount(TaskItem task) async {
-    setState(() {
-      task.count += 1;
-      task.countToday += 1;
-      task.date = _getTodayDateString();
-    });
-    await _saveAllCategoriesToFile(shouldRefresh: false);
-
-    bool isLinked = await _add30MinutesToJurnal(task.id);
-
-    if (!isLinked && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Progress bertambah! (Tugas tidak terhubung ke jurnal)',
-          ),
-          duration: Duration(seconds: 2),
-          backgroundColor: Colors.blueGrey,
-        ),
-      );
-    }
-    return true;
-  }
-
-  Future<bool> _add30MinutesToJurnal(String myTaskId) async {
-    try {
-      final File jurnalFile = await _storageService.getJurnalJsonFile(
-        _selectedBaseDir,
-      );
-      String jsonString = await _storageService.loadOrInitializeJurnalJson(
-        jurnalFile,
-      );
-
-      bool isEncrypted = await _storageService.isEncryptionEnabled();
-      String? password = await _storageService.getEncryptionPassword();
-      if (isEncrypted &&
-          password != null &&
-          !jsonString.trim().startsWith('[')) {
-        jsonString = CryptoHelper.decrypt(jsonString, password);
-      }
-
-      List<dynamic> decodedJson = [];
-      if (jsonString.trim().isNotEmpty) {
-        try {
-          decodedJson = jsonDecode(jsonString);
-        } catch (e) {
-          debugPrint(
-            "Format berkas JSON jurnal tidak valid, menggunakan array kosong: $e",
-          );
-        }
-      }
-
-      List<TimeLogEntry> loadedLogs = decodedJson
-          .map((e) => TimeLogEntry.fromJson(e))
-          .toList();
-      final String todayStr = _getTodayDateString();
-      bool hasTodayLog = loadedLogs.any((entry) => entry.tanggal == todayStr);
-
-      if (!hasTodayLog && loadedLogs.isNotEmpty) {
-        final lastLog = loadedLogs.last;
-        List<TimeLogTask> copiedTasks = lastLog.tasks.map((task) {
-          return TimeLogTask(
-            id: task.id,
-            nama: task.nama,
-            durasiMenit: 0,
-            kategori: task.kategori,
-            linkedTaskIds: task.linkedTaskIds,
-          );
-        }).toList();
-        loadedLogs.add(TimeLogEntry(tanggal: todayStr, tasks: copiedTasks));
-      } else if (loadedLogs.isEmpty) {
-        loadedLogs.add(TimeLogEntry(tanggal: todayStr, tasks: []));
-      }
-
-      int todayIndex = loadedLogs.indexWhere(
-        (entry) => entry.tanggal == todayStr,
-      );
-      if (todayIndex != -1) {
-        bool isUpdated = false;
-        String updatedJurnalTaskName = "";
-        for (var logTask in loadedLogs[todayIndex].tasks) {
-          if (logTask.linkedTaskIds.contains(myTaskId)) {
-            logTask.durasiMenit += 30;
-            isUpdated = true;
-            updatedJurnalTaskName = logTask.nama;
-            break;
-          }
-        }
-        if (isUpdated) {
-          final String updatedJsonContent = jsonEncode(
-            loadedLogs.map((e) => e.toJson()).toList(),
-          );
-          await _storageService.saveJsonData(jurnalFile, updatedJsonContent);
-
-          await _kalkulasiTotalJurnalHariIni();
-
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  '  Terhubung! "$updatedJurnalTaskName" di Jurnal +30 menit.',
-                ),
-                duration: const Duration(seconds: 2),
-                backgroundColor: Colors.teal[800],
-              ),
-            );
-          }
-          return true;
-        }
-      }
-      return false;
-    } catch (e) {
-      debugPrint("Error updating linked jurnal data: $e");
-      return false;
-    }
   }
 
   void _showCategoryTasksDialog(TaskCategory category) {
@@ -587,224 +239,184 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (context) => TasksDialog(
         category: category,
-        allCategories: _allCategoriesRaw,
-        onIncrementTask: _incrementTaskCount,
+        allCategories: _controller.allCategoriesRaw,
+        onIncrementTask: (task) =>
+            _controller.incrementTaskCount(task, context),
         onUpdateTargetToday: (task, target) {},
         onEditTaskDetail: (task, name, c, ct, tc, tct, d, active, type) async {
-          setState(() {
-            task.name = name;
-            task.count = c;
-            task.countToday = ct;
-            task.targetCount = tc;
-            task.targetCountToday = tct;
-            task.date = d;
-            task.isActive = active;
-            task.type = type;
-          });
-          await _saveAllCategoriesToFile();
+          task.name = name;
+          task.count = c;
+          task.countToday = ct;
+          task.targetCount = tc;
+          task.targetCountToday = tct;
+          task.date = d;
+          task.isActive = active;
+          task.type = type;
+          await _controller.saveAllCategoriesToFile();
         },
         onDeleteTask: (task) async {
           final bool confirm =
-              await showDialog<bool>(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  title: const Row(
-                    children: [
-                      Icon(Icons.warning_amber_rounded, color: Colors.red),
-                      SizedBox(width: 8),
-                      Text('Hapus Tugas?'),
-                    ],
-                  ),
-                  content: Text(
-                    'Apakah Anda yakin ingin menghapus tugas "${task.name}" secara permanen?',
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx, false),
-                      child: const Text(
-                        'Batal',
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                    ),
-                    ElevatedButton(
-                      onPressed: () => Navigator.pop(ctx, true),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                      ),
-                      child: const Text(
-                        'Hapus',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    ),
-                  ],
-                ),
-              ) ??
-              false;
+              await _showConfirmDeleteTaskDialog(task) ?? false;
           if (confirm) {
-            setState(() {
-              category.tasks.removeWhere((t) => t.id == task.id);
-            });
-            await _saveAllCategoriesToFile(shouldRefresh: false);
+            category.tasks.removeWhere((t) => t.id == task.id);
+            await _controller.saveAllCategoriesToFile(shouldRefresh: false);
             return true;
           }
           return false;
         },
         onBulkAction: (tasksToUpdate, action) async {
-          setState(() {
-            if (action == 'delete') {
-              category.tasks.removeWhere((t) => tasksToUpdate.contains(t.id));
-            } else if (action == 'activate') {
-              for (var t in category.tasks) {
-                if (tasksToUpdate.contains(t.id)) t.isActive = true;
-              }
-            } else if (action == 'deactivate') {
-              for (var t in category.tasks) {
-                if (tasksToUpdate.contains(t.id)) t.isActive = false;
-              }
+          if (action == 'delete') {
+            category.tasks.removeWhere((t) => tasksToUpdate.contains(t.id));
+          } else if (action == 'activate') {
+            for (var t in category.tasks) {
+              if (tasksToUpdate.contains(t.id)) t.isActive = true;
             }
-          });
-          await _saveAllCategoriesToFile();
+          } else if (action == 'deactivate') {
+            for (var t in category.tasks) {
+              if (tasksToUpdate.contains(t.id)) t.isActive = false;
+            }
+          }
+          await _controller.saveAllCategoriesToFile();
         },
-        onAddTask: () {
-          final TextEditingController taskNameController =
-              TextEditingController();
-          final TextEditingController targetTodayController =
-              TextEditingController(text: '0');
-          final TextEditingController targetTotalController =
-              TextEditingController(text: '0');
-          int selectedType = 0;
-          final formKey = GlobalKey<FormState>();
-          showDialog(
-            context: context,
-            builder: (ctx) => StatefulBuilder(
-              builder: (context, setDialogState) {
-                return AlertDialog(
-                  title: Text('Tambah Tugas ke ${category.name}'),
-                  content: Form(
-                    key: formKey,
-                    child: SingleChildScrollView(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          TextFormField(
-                            controller: taskNameController,
-                            decoration: const InputDecoration(
-                              labelText: 'Nama Tugas Baru',
-                              hintText: 'Contoh: Belajar Flutter',
-                            ),
-                            validator: (v) => v!.trim().isEmpty
-                                ? 'Nama tidak boleh kosong'
-                                : null,
-                          ),
-                          const SizedBox(height: 12),
-                          DropdownButtonFormField<int>(
-                            value: selectedType,
-                            decoration: const InputDecoration(
-                              labelText: 'Tipe Tugas',
-                              icon: Icon(Icons.stacked_line_chart),
-                            ),
-                            items: const [
-                              DropdownMenuItem(
-                                value: 0,
-                                child: Text('Tugas Biasa'),
-                              ),
-                              DropdownMenuItem(
-                                value: 1,
-                                child: Text(
-                                  'Tugas Progress (Ada Progress Bar)',
-                                ),
-                              ),
-                            ],
-                            onChanged: (val) {
-                              if (val != null)
-                                setDialogState(() => selectedType = val);
-                            },
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: targetTodayController,
-                            decoration: const InputDecoration(
-                              labelText: 'Target Hitungan Hari Ini',
-                            ),
-                            keyboardType: TextInputType.number,
-                          ),
-                          if (selectedType == 1) ...[
-                            const SizedBox(height: 12),
-                            TextFormField(
-                              controller: targetTotalController,
-                              decoration: const InputDecoration(
-                                labelText: 'Target Total Keseluruhan Progress',
-                                hintText: 'Contoh: 100',
-                              ),
-                              keyboardType: TextInputType.number,
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      child: const Text('Batal'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () async {
-                        if (formKey.currentState!.validate()) {
-                          final String newName = taskNameController.text.trim();
-                          final int newTargetToday =
-                              int.tryParse(targetTodayController.text.trim()) ??
-                              0;
-                          final int newTargetTotal =
-                              int.tryParse(targetTotalController.text.trim()) ??
-                              0;
-                          final newTask = TaskItem(
-                            id: TaskItem.generateRandomId(),
-                            name: newName,
-                            count: 0,
-                            checked: false,
-                            countToday: 0,
-                            lastUpdated: '',
-                            targetCountToday: newTargetToday,
-                            type: selectedType,
-                            targetCount: selectedType == 1 ? newTargetTotal : 0,
-                            isActive: true,
-                            date: _getTodayDateString(),
-                          );
-                          setState(() {
-                            category.tasks.add(newTask);
-                          });
-                          await _saveAllCategoriesToFile();
-                          if (ctx.mounted) Navigator.pop(ctx);
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.indigo,
-                      ),
-                      child: const Text(
-                        'Simpan Tugas',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-          );
-        },
+        onAddTask: () => _showAddTaskFormDialog(category),
         onMoveTaskCategory: (task, source, target) async {
-          setState(() {
-            source.tasks.removeWhere((t) => t.id == task.id);
-            target.tasks.add(task);
-          });
-          await _saveAllCategoriesToFile(shouldRefresh: true);
+          source.tasks.removeWhere((t) => t.id == task.id);
+          target.tasks.add(task);
+          await _controller.saveAllCategoriesToFile(shouldRefresh: true);
         },
         onReorderTasks: () async {
-          await _saveAllCategoriesToFile(shouldRefresh: false);
+          await _controller.saveAllCategoriesToFile(shouldRefresh: false);
         },
+      ),
+    );
+  }
+
+  Future<bool?> _showConfirmDeleteTaskDialog(TaskItem task) {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Hapus Tugas?'),
+          ],
+        ),
+        content: Text(
+          'Apakah Anda yakin ingin menghapus tugas "${task.name}" secara permanen?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Hapus', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddTaskFormDialog(TaskCategory category) {
+    final taskNameController = TextEditingController();
+    final targetTodayController = TextEditingController(text: '0');
+    final targetTotalController = TextEditingController(text: '0');
+    int selectedType = 0;
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text('Tambah Tugas ke ${category.name}'),
+          content: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: taskNameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Nama Tugas Baru',
+                    ),
+                    validator: (v) =>
+                        v!.trim().isEmpty ? 'Nama tidak boleh kosong' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<int>(
+                    value: selectedType,
+                    decoration: const InputDecoration(labelText: 'Tipe Tugas'),
+                    items: const [
+                      DropdownMenuItem(value: 0, child: Text('Tugas Biasa')),
+                      DropdownMenuItem(
+                        value: 1,
+                        child: Text('Tugas Progress (Bar)'),
+                      ),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) setDialogState(() => selectedType = val);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: targetTodayController,
+                    decoration: const InputDecoration(
+                      labelText: 'Target Hari Ini',
+                    ),
+                    keyboardType: TextInputType.number,
+                  ),
+                  if (selectedType == 1) ...[
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: targetTotalController,
+                      decoration: const InputDecoration(
+                        labelText: 'Target Total',
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (formKey.currentState!.validate()) {
+                  final newTask = TaskItem(
+                    id: TaskItem.generateRandomId(),
+                    name: taskNameController.text.trim(),
+                    count: 0,
+                    checked: false,
+                    countToday: 0,
+                    lastUpdated: '',
+                    targetCountToday:
+                        int.tryParse(targetTodayController.text.trim()) ?? 0,
+                    type: selectedType,
+                    targetCount: selectedType == 1
+                        ? (int.tryParse(targetTotalController.text.trim()) ?? 0)
+                        : 0,
+                    isActive: true,
+                    date: _controller.getTodayDateString(),
+                  );
+                  category.tasks.add(newTask);
+                  await _controller.saveAllCategoriesToFile();
+                  if (ctx.mounted) Navigator.pop(ctx);
+                }
+              },
+              child: const Text('Simpan'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -812,7 +424,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _showAddCategoryDialog() {
     showDialog(
       context: context,
-      builder: (ctx) => AddCategoryDialog(onSave: _addNewCategory),
+      builder: (ctx) => AddCategoryDialog(onSave: _controller.addNewCategory),
     );
   }
 
@@ -821,73 +433,10 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (ctx) => AddCategoryDialog(
         categoryToEdit: category,
-        onSave: (newName, newIcon) async {
-          setState(() {
-            int idx = _allCategoriesRaw.indexWhere(
-              (cat) => cat.name == category.name,
-            );
-            if (idx != -1) {
-              _allCategoriesRaw[idx] = TaskCategory(
-                name: newName,
-                icon: newIcon,
-                isHidden: category.isHidden,
-                tasks: category.tasks,
-              );
-            }
-          });
-          await _saveAllCategoriesToFile();
-        },
+        onSave: (newName, newIcon) =>
+            _controller.updateCategory(category, newName, newIcon),
       ),
     );
-  }
-
-  Future<void> _saveAllCategoriesToFile({bool shouldRefresh = true}) async {
-    final Map<String, dynamic> updatedMap = {
-      'categories': _allCategoriesRaw.map((cat) => cat.toJson()).toList(),
-    };
-    final String updatedJsonString = const JsonEncoder.withIndent(
-      '  ',
-    ).convert(updatedMap);
-    try {
-      File jsonFile = await _storageService.getTargetJsonFile(_selectedBaseDir);
-      await _storageService.saveJsonData(jsonFile, updatedJsonString);
-      if (shouldRefresh) {
-        _initStorageAndLoadData();
-      }
-    } catch (e) {
-      debugPrint("Error: $e");
-    }
-  }
-
-  Future<void> _deleteCategory(TaskCategory category) async {
-    final bool confirm =
-        await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('Hapus Kategori?'),
-            content: Text(
-              'Apakah Anda yakin ingin menghapus kategori "${category.name}" beserta seluruh tugas di dalamnya secara permanen?',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Batal'),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                child: const Text('Hapus'),
-              ),
-            ],
-          ),
-        ) ??
-        false;
-    if (confirm) {
-      setState(() {
-        _allCategoriesRaw.removeWhere((cat) => cat.name == category.name);
-      });
-      await _saveAllCategoriesToFile();
-    }
   }
 
   @override
@@ -898,40 +447,31 @@ class _HomeScreenState extends State<HomeScreen> {
         pageTitle: 'Task Master',
         forceShowMenu: true,
         isSelectMode: false,
-        selectedItemsCount: _visibleCategories.length,
-        isSearchMode: _internalSearchMode,
+        selectedItemsCount: _controller.visibleCategories.length,
+        isSearchMode: _controller.internalSearchMode,
         onClearSelection: () {
-          setState(() {
-            _internalSearchMode = false;
-            _isPageEditMode = false;
-          });
           _searchController.clear();
-          _updateSearchQuery('');
+          _controller.clearSearch();
         },
         onToggleSearchMode: () {
-          setState(() {
-            _internalSearchMode = !_internalSearchMode;
-          });
-          if (!_internalSearchMode) {
+          _controller.toggleInternalSearchMode();
+          if (!_controller.internalSearchMode) {
             _searchController.clear();
-            _updateSearchQuery('');
           }
         },
         enableSearch: true,
         enableMultiSelect: false,
         onMoveMassive: () {},
         onDeleteMassive: () {},
-        additionalAction: _internalSearchMode
+        additionalAction: _controller.internalSearchMode
             ? IconButton(
                 icon: Icon(
-                  _showHiddenSection ? Icons.visibility : Icons.visibility_off,
+                  _controller.showHiddenSection
+                      ? Icons.visibility
+                      : Icons.visibility_off,
                   color: Colors.white,
                 ),
-                tooltip: _showHiddenSection
-                    ? 'Sembunyikan Kategori Nonaktif'
-                    : 'Tampilkan Kategori Tersembunyi',
-                onPressed: () =>
-                    setState(() => _showHiddenSection = !_showHiddenSection),
+                onPressed: _controller.toggleHiddenSection,
               )
             : null,
         searchBarContent: Row(
@@ -941,13 +481,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 controller: _searchController,
                 autofocus: true,
                 style: const TextStyle(color: Colors.white, fontSize: 14),
-                onChanged: (val) => _updateSearchQuery(val),
+                onChanged: _controller.updateSearchQuery,
                 decoration: InputDecoration(
                   hintText: 'Cari kategori...',
-                  hintStyle: const TextStyle(
-                    color: Colors.white60,
-                    fontSize: 13,
-                  ),
                   prefixIcon: const Icon(Icons.search, color: Colors.white70),
                   filled: true,
                   fillColor: Colors.white.withOpacity(0.15),
@@ -971,23 +507,22 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       drawer: const DrawerMenu(),
-      body: _isLoading
+      body: _controller.isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _isFileCorrupted
+          : _controller.isFileCorrupted
           ? CorruptedEmptyState(
               onRecoveryPressed: () async {
-                File jsonFile = await _storageService.getTargetJsonFile(
-                  _selectedBaseDir,
-                );
+                File jsonFile = await _controller.storageService
+                    .getTargetJsonFile(_controller.selectedBaseDir);
                 _showDecryptionErrorDialog(jsonFile);
               },
             )
-          : _allCategoriesRaw.isEmpty
+          : _controller.allCategoriesRaw.isEmpty
           ? UniversalEmptyState(
               icon: Icons.assignment_turned_in_rounded,
               title: 'Mulai Langkah Produktif Anda!',
               description:
-                  'Task Master membantu Anda melacak repetisi aktivitas, target progress bar, dan terhubung langsung dengan Jurnal Waktu 30 menit Anda.',
+                  'Task Master membantu melacak repetisi aktivitas terintegrasi dengan Jurnal Waktu 30 menit.',
               buttonLabel: 'Buat Kategori Pertama',
               themeColor: Colors.indigo,
               onPressed: _showAddCategoryDialog,
@@ -996,72 +531,62 @@ class _HomeScreenState extends State<HomeScreen> {
               builder: (context, constraints) {
                 return ListView(
                   children: [
-                    if (!_isLoading && _allCategoriesRaw.isNotEmpty)
-                      TaskSummaryHeader(
-                        allCategoriesRaw: _allCategoriesRaw,
-                        visibleCategories: _visibleCategories,
-                        totalJurnalDurationString: _totalJurnalDurationString,
-                      ),
-                    if (_visibleCategories.isNotEmpty)
+                    TaskSummaryHeader(
+                      allCategoriesRaw: _controller.allCategoriesRaw,
+                      visibleCategories: _controller.visibleCategories,
+                      totalJurnalDurationString:
+                          _controller.totalJurnalDurationString,
+                    ),
+                    if (_controller.visibleCategories.isNotEmpty)
                       CategoryGrid(
-                        categoriesList: _visibleCategories,
-                        isPageEditMode: _isPageEditMode,
+                        categoriesList: _controller.visibleCategories,
+                        isPageEditMode: _controller.isPageEditMode,
                         constraints: constraints,
-                        onToggleEditMode: () =>
-                            setState(() => _isPageEditMode = !_isPageEditMode),
+                        onToggleEditMode: _controller.togglePageEditMode,
                         onTapCategory: _showCategoryTasksDialog,
                         onEditCategory: _showEditCategoryDialog,
-                        onDeleteCategory: _deleteCategory,
-                        onToggleVisibility: _toggleCategoryVisibility,
+                        onDeleteCategory: (cat) async {
+                          _controller.deleteCategory(cat);
+                        },
+                        onToggleVisibility:
+                            _controller.toggleCategoryVisibility,
                         onMoveCategoryOrder: (index, dir) =>
-                            _moveCategoryOrder(_visibleCategories, index, dir),
+                            _controller.moveCategoryOrder(
+                              _controller.visibleCategories,
+                              index,
+                              dir,
+                            ),
                       ),
-                    if (_visibleCategories.isEmpty && _hiddenCategories.isEmpty)
+                    if (_controller.visibleCategories.isEmpty &&
+                        _controller.hiddenCategories.isEmpty)
                       const Padding(
                         padding: EdgeInsets.all(32.0),
                         child: Center(child: Text('Tidak ada kategori.')),
                       ),
-                    if (_hiddenCategories.isNotEmpty && _showHiddenSection) ...[
+                    if (_controller.hiddenCategories.isNotEmpty &&
+                        _controller.showHiddenSection) ...[
                       const Padding(
                         padding: EdgeInsets.symmetric(horizontal: 16.0),
                         child: Divider(thickness: 2, color: Colors.grey),
                       ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16.0,
-                          vertical: 8.0,
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.visibility_off_outlined,
-                              color: Colors.blueGrey,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Kategori yang disembunyikan (${_hiddenCategories.length})',
-                              style: const TextStyle(
-                                color: Colors.blueGrey,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                       CategoryGrid(
-                        categoriesList: _hiddenCategories,
-                        isPageEditMode: _isPageEditMode,
+                        categoriesList: _controller.hiddenCategories,
+                        isPageEditMode: _controller.isPageEditMode,
                         constraints: constraints,
-                        onToggleEditMode: () =>
-                            setState(() => _isPageEditMode = !_isPageEditMode),
+                        onToggleEditMode: _controller.togglePageEditMode,
                         onTapCategory: _showCategoryTasksDialog,
                         onEditCategory: _showEditCategoryDialog,
-                        onDeleteCategory: _deleteCategory,
-                        onToggleVisibility: _toggleCategoryVisibility,
+                        onDeleteCategory: (cat) async {
+                          _controller.deleteCategory(cat);
+                        },
+                        onToggleVisibility:
+                            _controller.toggleCategoryVisibility,
                         onMoveCategoryOrder: (index, dir) =>
-                            _moveCategoryOrder(_hiddenCategories, index, dir),
+                            _controller.moveCategoryOrder(
+                              _controller.hiddenCategories,
+                              index,
+                              dir,
+                            ),
                       ),
                     ],
                   ],
