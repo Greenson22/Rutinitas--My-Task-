@@ -561,8 +561,27 @@ class PromptController extends ChangeNotifier {
     notifyListeners();
     try {
       final baseDir = await _storageService.getBaseDirSetting();
-      await _storageService.deletePromptGroup(baseDir, group.id);
-      if (context.mounted) await loadAllPrompts(context);
+
+      // SOLUSI: Cek apakah ini berkas korup/enkripsi tiruan
+      String targetId = group.id;
+      if (targetId.startsWith("CORRUPTED_")) {
+        // Potong prefix mock ID untuk mendapatkan nama file asli seperti di logika handleManualDecrypt
+        targetId = targetId.replaceFirst(RegExp(r'CORRUPTED_\d+_'), '');
+      }
+
+      // Hapus menggunakan targetId (nama file) yang sudah bersih
+      await _storageService.deletePromptGroup(baseDir, targetId);
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Berkas "${group.title}" berhasil dihapus secara permanen!',
+            ),
+          ),
+        );
+        await loadAllPrompts(context);
+      }
     } catch (e) {
       _isLoading = false;
       notifyListeners();
