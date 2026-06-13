@@ -50,6 +50,9 @@ dependencies:
   window_manager: ^0.5.1
 
   flutter_markdown: ^0.7.5
+
+  encrypt: ^5.0.3 # Library untuk enkripsi AES
+  crypto: ^3.0.3 # Untuk hashing password menjadi kunci 256-bit
   # shelf: ^1.4.1
   # shelf_web_socket: ^1.0.4
   # web_socket_channel: ^3.0.1

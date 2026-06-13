@@ -6,16 +6,37 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/default_json.dart';
+import '../utils/crypto_helper.dart'; // Pastikan import CryptoHelper sudah benar
 
 class StorageService {
-  // 1. Definisikan dua key yang berbeda untuk memisahkan preferensi penyimpanan
+  // 1. Definisikan key preferensi penyimpanan
   static const String _keyBaseDirRelease = 'ubuntu_base_dir';
   static const String _keyBaseDirDebug = 'ubuntu_base_dir_debug';
   static const String _keyIpHistory = 'sharing_ip_history';
 
+  // BARU: Key untuk konfigurasi keamanan enkripsi
+  static const String _keyIsEncrypted = 'is_encrypted';
+  static const String _keyEncryptionPassword = 'encryption_password';
+
   // Helper untuk mendapatkan key yang sesuai secara otomatis berdasarkan build mode
   String _getBaseDirKey() {
     return kDebugMode ? _keyBaseDirDebug : _keyBaseDirRelease;
+  }
+
+  // =========================================================================
+  // === HELPER KEAMANAN & STATUS ENKRIPSI ===
+  // =========================================================================
+
+  /// Mengambil status aktif/nonaktif enkripsi saat ini
+  Future<bool> isEncryptionEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyIsEncrypted) ?? false;
+  }
+
+  /// Mengambil kunci/kata sandi enkripsi terkonfigurasi
+  Future<String?> getEncryptionPassword() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyEncryptionPassword);
   }
 
   // 2. Perbarui fungsi mengambil pengaturan path
@@ -26,7 +47,6 @@ class StorageService {
     }
 
     final prefs = await SharedPreferences.getInstance();
-    // Gunakan folder default yang berbeda sekaligus key SharedPreferences yang berbeda
     String defaultFolder = kDebugMode ? 'Documents_Debug' : 'Documents';
 
     return prefs.getString(_getBaseDirKey()) ?? defaultFolder;
@@ -37,7 +57,6 @@ class StorageService {
     if (!kIsWeb && Platform.isAndroid) return;
 
     final prefs = await SharedPreferences.getInstance();
-    // Menyimpan ke key yang sesuai dengan mode aplikasi saat ini
     await prefs.setString(_getBaseDirKey(), value);
   }
 
@@ -58,12 +77,10 @@ class StorageService {
     return await jsonFile.readAsString();
   }
 
-  // Fungsi ini sebenarnya sudah ada di kode Anda, pastikan bisa digunakan untuk menimpa data lama
   Future<void> saveJsonData(File jsonFile, String jsonContent) async {
     await jsonFile.writeAsString(jsonContent);
   }
 
-  // Tambahkan helper ini untuk memudahkan pengecekan struktur folder my_checklist saat eksport/import massal
   Future<String> getChecklistDirPath(String baseDirSetting) async {
     final Directory checklistDir = Directory('$baseDirSetting/my_checklist');
     return checklistDir.path;
@@ -83,7 +100,6 @@ class StorageService {
 
   Future<List<File>> getAllChecklistGroups(String baseDirSetting) async {
     final Directory checklistDir = await getChecklistDir(baseDirSetting);
-    // Modifikasi listSync() menjadi try-catch aman
     try {
       List<FileSystemEntity> files = checklistDir.listSync();
       return files
@@ -126,12 +142,10 @@ class StorageService {
   // === STORAGE BACKUP FROM SERVER (ZIP VERSION) ===
   // =========================================================================
 
-  /// Fungsi untuk menyiapkan folder induk backup dan mengembalikan file target ZIP
   Future<File> getBackupZipFile(
     String baseDirSetting,
     String namaZipDinamis,
   ) async {
-    // Buat folder induk 'storage/backup_from_server' jika belum ada
     final Directory backupDir = Directory(
       '$baseDirSetting/storage/backup_from_server',
     );
@@ -139,13 +153,9 @@ class StorageService {
       await backupDir.create(recursive: true);
     }
 
-    // Kembalikan objek file ZIP di dalam folder tersebut
     return File('${backupDir.path}/$namaZipDinamis');
   }
 
-  // === TAMBAHAN UNTUK BACKUP LOKAL (ZIP) ===
-
-  /// Fungsi untuk menyiapkan folder 'storage/backup' dan mengembalikan file target ZIP
   Future<File> getLocalBackupZipFile(
     String baseDirSetting,
     String namaZipDinamis,
@@ -157,7 +167,6 @@ class StorageService {
     return File('${backupDir.path}/$namaZipDinamis');
   }
 
-  /// Fungsi untuk mengambil daftar semua file ZIP yang ada di folder 'storage/backup'
   Future<List<File>> getAllLocalBackupFiles(String baseDirSetting) async {
     final Directory backupDir = Directory('$baseDirSetting/storage/backup');
     if (!await backupDir.exists()) return [];
@@ -172,24 +181,18 @@ class StorageService {
     }
   }
 
-  // 1. Fungsi Ambil Riwayat IP (IP terakhir akan berada di urutan pertama)
   Future<List<String>> getIpHistory() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getStringList(_keyIpHistory) ?? [];
   }
 
-  // 2. Fungsi Simpan IP Baru ke dalam Riwayat
   Future<void> saveIpToHistory(String ip) async {
     final prefs = await SharedPreferences.getInstance();
     List<String> currentHistory = prefs.getStringList(_keyIpHistory) ?? [];
 
-    // Hapus jika IP sudah ada sebelumnya agar tidak duplikat
     currentHistory.remove(ip);
-
-    // Masukkan IP baru di posisi paling depan (index 0) agar menjadi IP terakhir yang digunakan
     currentHistory.insert(0, ip);
 
-    // Batasi riwayat misalnya maksimal hanya menyimpan 5 IP terakhir
     if (currentHistory.length > 5) {
       currentHistory = currentHistory.sublist(0, 5);
     }
@@ -197,7 +200,6 @@ class StorageService {
     await prefs.setStringList(_keyIpHistory, currentHistory);
   }
 
-  // 3. Fungsi Hapus IP tertentu dari Riwayat
   Future<void> deleteIpFromHistory(String ip) async {
     final prefs = await SharedPreferences.getInstance();
     List<String> currentHistory = prefs.getStringList(_keyIpHistory) ?? [];
@@ -205,7 +207,6 @@ class StorageService {
     await prefs.setStringList(_keyIpHistory, currentHistory);
   }
 
-  // TAMBAHKAN fungsi ini di dalam kelas StorageService
   Future<List<File>> getAllServerBackupFiles(String baseDirSetting) async {
     final Directory backupDir = Directory(
       '$baseDirSetting/storage/backup_from_server',
@@ -223,7 +224,7 @@ class StorageService {
   }
 
   // =========================================================================
-  // === PROMPT HUB STORAGE ===
+  // === PROMPT HUB STORAGE (Mendukung Enkripsi Otomatis) ===
   // =========================================================================
 
   Future<Directory> getPromptDir(String baseDirSetting) async {
@@ -258,7 +259,17 @@ class StorageService {
     String jsonContent,
   ) async {
     final file = await getSpecificPromptFile(baseDirSetting, id);
-    await file.writeAsString(jsonContent);
+    String dataToSave = jsonContent;
+
+    // Cek jika fitur enkripsi aktif, lakukan enkripsi konten JSON sebelum ditulis
+    bool isEncrypted = await isEncryptionEnabled();
+    String? password = await getEncryptionPassword();
+
+    if (isEncrypted && password != null && password.isNotEmpty) {
+      dataToSave = CryptoHelper.encrypt(jsonContent, password);
+    }
+
+    await file.writeAsString(dataToSave);
   }
 
   Future<void> deletePromptGroup(String baseDir, String id) async {
@@ -273,7 +284,7 @@ class StorageService {
   }
 
   // =========================================================================
-  // === NOTES STORAGE ===
+  // === NOTES STORAGE (Mendukung Enkripsi Otomatis) ===
   // =========================================================================
 
   Future<Directory> getNotesDir(String baseDirSetting) async {
@@ -308,13 +319,68 @@ class StorageService {
     String jsonContent,
   ) async {
     final file = await getSpecificNoteFile(baseDirSetting, id);
-    await file.writeAsString(jsonContent);
+    String dataToSave = jsonContent;
+
+    // Cek jika fitur enkripsi aktif, lakukan enkripsi konten JSON sebelum ditulis
+    bool isEncrypted = await isEncryptionEnabled();
+    String? password = await getEncryptionPassword();
+
+    if (isEncrypted && password != null && password.isNotEmpty) {
+      dataToSave = CryptoHelper.encrypt(jsonContent, password);
+    }
+
+    await file.writeAsString(dataToSave);
   }
 
   Future<void> deleteNoteGroup(String baseDirSetting, String id) async {
     final file = await getSpecificNoteFile(baseDirSetting, id);
     if (await file.exists()) {
       await file.delete();
+    }
+  }
+
+  // =========================================================================
+  // === FITUR UTAMA BARU: MIGRASI MASSAL SAAT AMANKAN/DEKRIPSI DATA ===
+  // =========================================================================
+
+  /// Melakukan migrasi massal seluruh data file .json (Notes & Prompts)
+  /// jika fitur enkripsi diaktifkan atau dinonaktifkan.
+  Future<void> migrateFilesEncryption(bool turnOn, String password) async {
+    final baseDir = await getBaseDirSetting();
+
+    // Ambil daftar berkas dari folder Notes dan Prompts
+    final List<File> notesFiles = await getAllNoteGroups(baseDir);
+    final List<File> promptFiles = await getAllPromptGroups(baseDir);
+
+    final List<File> allTargetFiles = [...notesFiles, ...promptFiles];
+
+    for (var file in allTargetFiles) {
+      if (!await file.exists()) continue;
+      String content = await file.readAsString();
+
+      if (turnOn) {
+        // PROSES AKTIVASI: Enkripsi data JSON jika belum terenkripsi sebelumnya
+        if (!content.contains(':')) {
+          String encrypted = CryptoHelper.encrypt(content, password);
+          await file.writeAsString(encrypted);
+        }
+      } else {
+        // PROSES DEAKTIVASI: Dekripsi data kembali ke JSON murni
+        if (content.contains(':')) {
+          String decrypted = CryptoHelper.decrypt(content, password);
+          await file.writeAsString(decrypted);
+        }
+      }
+    }
+
+    // Perbarui status preferensi sistem secara persisten
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyIsEncrypted, turnOn);
+
+    if (turnOn) {
+      await prefs.setString(_keyEncryptionPassword, password);
+    } else {
+      await prefs.remove(_keyEncryptionPassword);
     }
   }
 }
