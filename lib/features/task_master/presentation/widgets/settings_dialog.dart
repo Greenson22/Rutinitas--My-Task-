@@ -10,13 +10,13 @@ import 'package:rutinitasku/core/utils/crypto_helper.dart';
 class SettingsDialog extends StatefulWidget {
   final String currentBaseDir;
   final Function(String) onSave;
-  final VoidCallback onEncryptionToggled; // <--- TAMBAHAN PARAMETER BARU
+  final VoidCallback onEncryptionToggled;
 
   const SettingsDialog({
     super.key,
     required this.currentBaseDir,
     required this.onSave,
-    required this.onEncryptionToggled, // <--- WAJIB DIISI
+    required this.onEncryptionToggled,
   });
 
   @override
@@ -137,17 +137,17 @@ class _SettingsDialogState extends State<SettingsDialog> {
       );
 
       try {
-        // Jalankan migrasi menyeluruh untuk semua folder data
+        // Mengeksekusi penulisan enkripsi massal ke seluruh file biner .json di disk lokal
         await _storageService.migrateFilesEncryption(value, inputPassword);
 
         if (!mounted) return;
-        Navigator.pop(context); // Tutup dialog loading
+        Navigator.pop(context); // Menutup overlay loading indicator
 
         setState(() {
           _isEncryptionEnabled = value;
         });
 
-        // === PICU TRIGER CALL BACK SEGERA AGAR MEMORI SCREEN UTAMA RE-FRESH ===
+        // Menjalankan callback inter-screen secara instan untuk memperbarui state memori halaman utama
         widget.onEncryptionToggled();
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -162,7 +162,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
         );
       } catch (e) {
         if (!mounted) return;
-        Navigator.pop(context); // Tutup loading jika gagal
+        Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Proses gagal. Kata sandi salah atau berkas rusak.'),

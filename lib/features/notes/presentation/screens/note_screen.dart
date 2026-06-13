@@ -7,6 +7,7 @@ import 'package:rutinitasku/core/services/storage_service.dart';
 import 'package:rutinitasku/core/utils/crypto_helper.dart';
 import '../../models/note_model.dart';
 import '../../../../core/presentation/widgets/widgets.dart';
+import '../../../task_master/presentation/widgets/settings_dialog.dart'; // Pastikan import SettingsDialog tersedia
 import 'note_detail_screen.dart';
 
 class NotesScreen extends StatefulWidget {
@@ -42,10 +43,13 @@ class _NotesScreenState extends State<NotesScreen> {
     _loadNotesData();
   }
 
-  // PERUBAHAN: Memuat dan mengelompokkan grup note secara dinamis dengan dukungan dekripsi otomatis
+  // PERUBAHAN UTAMA: Ditambahkan jeda Future mikro asinkron agar sistem operasi selesai mengamankan file sebelum dibaca
   Future<void> _loadNotesData() async {
     setState(() => _isLoading = true);
     try {
+      // BERIKAN JEDA MIKRO: Menjamin penulisan enkripsi massal dari modal dialog selesai sepenuhnya di disk storage
+      await Future.delayed(const Duration(milliseconds: 150));
+
       final baseDir = await _storageService.getBaseDirSetting();
       final files = await _storageService.getAllNoteGroups(baseDir);
 
@@ -59,8 +63,7 @@ class _NotesScreenState extends State<NotesScreen> {
 
         String content = await file.readAsString();
 
-        // === LOGIKA DEKRIPSI BARU ===
-        // Jika fitur enkripsi aktif, sandi tersedia, dan file memiliki tanda enkripsi GCM (karakter ':')
+        // === LOGIKA DEKRIPSI OTOMATIS ===
         if (isEncrypted && password != null && content.contains(':')) {
           try {
             content = CryptoHelper.decrypt(content, password);
@@ -99,11 +102,15 @@ class _NotesScreenState extends State<NotesScreen> {
           _groupedCategories[secName]!.add(group);
         }
       }
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
       debugPrint("Gagal memuat catatan: $e");
     }
   }
@@ -626,6 +633,25 @@ class _NotesScreenState extends State<NotesScreen> {
     );
   }
 
+  // NEW METHOD: Pemicu refresh instan halaman notes ketika dipanggil dari appBar lokal (opsional)
+  void _openLocalSettings() async {
+    final baseDir = await _storageService.getBaseDirSetting();
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (context) => SettingsDialog(
+        currentBaseDir: baseDir,
+        onSave: (newPath) async {
+          await _storageService.saveBaseDirSetting(newPath);
+          _loadNotesData();
+        },
+        onEncryptionToggled: () {
+          _loadNotesData(); // <--- Paksa refresh instan data grid di sini
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     List<String> allRenderedKeys = List.from(_sectionKeys);
@@ -656,9 +682,9 @@ class _NotesScreenState extends State<NotesScreen> {
 
     return GroupedSectionLayout<NoteGroup>(
       title: 'Note Groups',
-      // === PERBAIKAN DI SINI ===
-      // Mengisi isNotesActive: true agar DrawerMenu tahu halaman ini yang aktif saat enkripsi di-toggle
-      drawer: const DrawerMenu(isNotesActive: true),
+      drawer: const DrawerMenu(
+        isNotesActive: true,
+      ), // Menyematkan status aktif modul notes agar pushReplacement di Drawer tersinkronisasi
       isLoading: _isLoading,
       isEmpty: allRenderedKeys.isEmpty,
 
