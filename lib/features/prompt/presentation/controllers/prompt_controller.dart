@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:rutinitasku/core/services/storage_service.dart';
 import '../../data/models/prompt_model.dart';
+// Perlu dipastikan CryptoHelper sudah di-import.
+// Sesuaikan path import di bawah ini jika lokasi CryptoHelper Anda berbeda.
+import '../../../../core/utils/crypto_helper.dart';
 
 class PromptController extends ChangeNotifier {
   final StorageService _storageService = StorageService();
@@ -109,9 +112,23 @@ class PromptController extends ChangeNotifier {
     try {
       final baseDir = await _storageService.getBaseDirSetting();
       final files = await _storageService.getAllPromptGroups(baseDir);
+
+      // Ambil status enkripsi di luar perulangan (loop) untuk mengoptimalkan performa
+      bool isEncrypted = await _storageService.isEncryptionEnabled();
+      String? password = await _storageService.getEncryptionPassword();
+
       List<PromptGroup> loadedGroups = [];
       for (var file in files) {
-        final content = await file.readAsString();
+        String content = await file.readAsString();
+
+        // --- LOGIKA DEKRIPSI BARU UNTUK MENCEGAH FORMAT EXCEPTION (PROMPT SCREEN) ---
+        if (isEncrypted &&
+            password != null &&
+            !content.trim().startsWith('{')) {
+          content = CryptoHelper.decrypt(content, password);
+        }
+        // ----------------------------------------------------------------------------
+
         final jsonMap = jsonDecode(content);
         loadedGroups.add(PromptGroup.fromJson(jsonMap));
       }
