@@ -68,17 +68,34 @@ class _NotesScreenState extends State<NotesScreen> {
         bool isRawJson =
             trimmedContent.startsWith('{') || trimmedContent.startsWith('[');
 
-        // Jika mode enkripsi aktif dan file BUKAN json murni (berarti ciphertext terenkripsi)
-        if (isEncrypted && password != null && !isRawJson) {
-          try {
-            content = CryptoHelper.decrypt(content, password);
-          } catch (cryptoError) {
-            debugPrint("Gagal mendekripsi berkas ${file.path}: $cryptoError");
-            continue; // Lewati berkas ini jika password salah agar aplikasi tidak crash
-          }
-        }
+        // Menyiapkan nama file fallback untuk groupName jika file corrupt/terenkripsi
+        String fileName = file.path.split('/').last.replaceAll('.json', '');
 
-        loadedGroups.add(NoteGroup.fromJson(jsonDecode(content)));
+        try {
+          // Jika mode enkripsi aktif dan file BUKAN json murni (berarti ciphertext terenkripsi)
+          if (isEncrypted && password != null && !isRawJson) {
+            content = CryptoHelper.decrypt(content, password);
+          }
+
+          loadedGroups.add(NoteGroup.fromJson(jsonDecode(content)));
+        } catch (error) {
+          debugPrint(
+            "Gagal memuat atau mendekripsi berkas ${file.path}: $error",
+          );
+
+          // TETAP TAMPILKAN SEBAGAI CARD: Tambahkan mock NoteGroup dengan penanda ID khusus
+          loadedGroups.add(
+            NoteGroup(
+              id: "CORRUPTED_${DateTime.now().millisecondsSinceEpoch}_$fileName",
+              groupName: fileName,
+              icon: '⚠️',
+              notes: [],
+              sectionName:
+                  'Berkas Rusak / Terenkripsi', // Seksi otomatis khusus berkas bermasalah
+              isHidden: false,
+            ),
+          );
+        }
       }
 
       // PERBAIKAN: Mengurutkan list berdasarkan orderIndex secara persisten (bukan acak)
@@ -121,6 +138,8 @@ class _NotesScreenState extends State<NotesScreen> {
   }
 
   Future<void> _saveGroupData(NoteGroup group) async {
+    // Lewati penyimpanan jika ini adalah berkas korup buatan/mock
+    if (group.id.startsWith("CORRUPTED_")) return;
     try {
       final baseDir = await _storageService.getBaseDirSetting();
       final jsonString = _storageService.formatJsonPretty(group.toJson());
@@ -137,6 +156,7 @@ class _NotesScreenState extends State<NotesScreen> {
     for (String sectionKey in _sectionKeys) {
       final groupsInSection = _groupedCategories[sectionKey] ?? [];
       for (var group in groupsInSection) {
+        if (group.id.startsWith("CORRUPTED_")) continue;
         // Atur kembali orderIndex agar grup di seksi atas selalu memiliki bobot lebih kecil
         group.orderIndex = globalIndex;
         globalIndex++;
@@ -152,10 +172,10 @@ class _NotesScreenState extends State<NotesScreen> {
       await _storageService.deleteNoteGroup(baseDir, group.id);
       setState(() {
         for (var key in _sectionKeys) {
-          _groupedCategories[key]?.remove(group);
+          _groupedCategories[key]?.removeWhere((g) => g.id == group.id);
         }
         for (var key in _hiddenGroupedCategories.keys) {
-          _hiddenGroupedCategories[key]?.remove(group);
+          _hiddenGroupedCategories[key]?.removeWhere((g) => g.id == group.id);
         }
       });
     } catch (e) {
@@ -206,6 +226,7 @@ class _NotesScreenState extends State<NotesScreen> {
 
   // --- TAMBAHAN BARU: Fungsi Pengubah Status Visibilitas Grup Catatan ---
   Future<void> _toggleGroupVisibility(NoteGroup group) async {
+    if (group.id.startsWith("CORRUPTED_")) return;
     setState(() {
       group.isHidden = !group.isHidden; // Balikkan status visibilitas
     });
@@ -215,6 +236,7 @@ class _NotesScreenState extends State<NotesScreen> {
 
   // --- TAMBAHAN BARU: Dialog Pemindahan Grup Note ke Seksi Lain ---
   void _showMoveGroupSectionDialog(NoteGroup group) {
+    if (group.id.startsWith("CORRUPTED_")) return;
     List<String> availableSections = List.from(_sectionKeys);
     // Tambahkan seksi dari penampung hidden jika belum terdaftar agar opsinya lengkap
     for (var key in _hiddenGroupedCategories.keys) {
@@ -490,6 +512,7 @@ class _NotesScreenState extends State<NotesScreen> {
 
   // Mengubah dialog edit agar mendukung perubahan nama sekaligus ikon emoji
   void _showEditGroupDialog(NoteGroup group) {
+    if (group.id.startsWith("CORRUPTED_")) return;
     final TextEditingController nameController = TextEditingController(
       text: group.groupName,
     );
@@ -616,7 +639,15 @@ class _NotesScreenState extends State<NotesScreen> {
               for (var group in groupsToDelete) {
                 try {
                   final baseDir = await _storageService.getBaseDirSetting();
-                  await _storageService.deleteNoteGroup(baseDir, group.id);
+                  // Jika mock corrupted, sesuaikan id untuk penghapusan file asli
+                  String targetId = group.id;
+                  if (targetId.startsWith("CORRUPTED_")) {
+                    targetId = targetId.replaceFirst(
+                      RegExp(r'CORRUPTED_\d+_'),
+                      '',
+                    );
+                  }
+                  await _storageService.deleteNoteGroup(baseDir, targetId);
                 } catch (e) {
                   debugPrint("Gagal menghapus grup disk: $e");
                 }
@@ -791,181 +822,279 @@ class _NotesScreenState extends State<NotesScreen> {
           },
         );
       },
-      gridItemBuilder:
-          (context, noteGroup, index, sectionItems, isLayoutEditMode) {
-            return InteractiveGridCard(
-              themeColor: _themeColor,
-              isEditMode: isLayoutEditMode ? true : _isCardEditMode,
-              isHiddenStyle: noteGroup.isHidden,
-              isFirst: index == 0,
-              isLast: index == sectionItems.length - 1,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        NoteDetailScreen(noteGroup: noteGroup),
+      gridItemBuilder: (context, noteGroup, index, sectionItems, isLayoutEditMode) {
+        // Evaluasi apakah berkas tiruan terdeteksi bermasalah / terenkripsi
+        final bool isCorrupted = noteGroup.id.startsWith("CORRUPTED_");
+
+        if (isCorrupted) {
+          return InteractiveGridCard(
+            themeColor: Colors.redAccent,
+            isEditMode: isLayoutEditMode ? true : _isCardEditMode,
+            isHiddenStyle: false,
+            isFirst: index == 0,
+            isLast: index == sectionItems.length - 1,
+            onTap: () {
+              ScaffoldMessenger.of(context).clearSnackBars();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Tidak dapat membuka! Berkas JSON ini korup atau terkunci kata sandi enkripsi lain.',
                   ),
-                ).then((_) => _loadNotesData());
-              },
-              onLongPress: () =>
-                  setState(() => _isCardEditMode = !_isCardEditMode),
-              onMoveLeft: () async {
-                if (index > 0) {
-                  setState(() {
-                    final list =
-                        _groupedCategories[noteGroup.sectionName] ?? [];
-                    if (list.isNotEmpty) {
-                      final temp = list[index];
-                      list[index] = list[index - 1];
-                      list[index - 1] = temp;
-                    }
-                  });
-                  final currentList =
-                      _groupedCategories[noteGroup.sectionName] ?? [];
-                  for (int i = 0; i < currentList.length; i++) {
-                    currentList[i].orderIndex = i;
-                    await _saveGroupData(currentList[i]);
-                  }
+                  backgroundColor: Colors.redAccent,
+                ),
+              );
+            },
+            onLongPress: () =>
+                setState(() => _isCardEditMode = !_isCardEditMode),
+            onMoveLeft:
+                () {}, // Matikan interaksi perubahan posisi untuk berkas rusak
+            onMoveRight: () {},
+            popupMenuItems: [
+              const PopupMenuItem(
+                value: 'delete',
+                child: Row(
+                  children: [
+                    Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                    SizedBox(width: 10),
+                    Text(
+                      'Hapus Berkas Rusak',
+                      style: TextStyle(color: Colors.red, fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            onPopupSelected: (value) async {
+              if (value == 'delete') {
+                // Ekstrak ID asli dari penyimpanan lokal dengan memotong prefix tiruan
+                final String originalId = noteGroup.id.replaceFirst(
+                  RegExp(r'CORRUPTED_\d+_'),
+                  '',
+                );
+                final mockGroupForDelete = NoteGroup(
+                  id: originalId,
+                  groupName: noteGroup.groupName,
+                  icon: '',
+                  notes: [],
+                );
+
+                final bool isConfirmed = await _showConfirmDeleteDialog(
+                  mockGroupForDelete,
+                );
+                if (isConfirmed) {
+                  await _deleteGroupData(mockGroupForDelete);
+                  _loadNotesData();
                 }
-              },
-              onMoveRight: () async {
-                if (index < sectionItems.length - 1) {
-                  setState(() {
-                    final list =
-                        _groupedCategories[noteGroup.sectionName] ?? [];
-                    if (list.isNotEmpty) {
-                      final temp = list[index];
-                      list[index] = list[index + 1];
-                      list[index + 1] = temp;
-                    }
-                  });
-                  final currentList =
-                      _groupedCategories[noteGroup.sectionName] ?? [];
-                  for (int i = 0; i < currentList.length; i++) {
-                    currentList[i].orderIndex = i;
-                    await _saveGroupData(currentList[i]);
-                  }
-                }
-              },
-              popupMenuItems: [
-                const PopupMenuItem(
-                  value: 'edit',
-                  child: Row(
-                    children: [
-                      Icon(Icons.edit, size: 18, color: Colors.teal),
-                      SizedBox(width: 10),
-                      Text('Ubah Nama & Ikon', style: TextStyle(fontSize: 13)),
-                    ],
-                  ),
+              }
+            },
+            content: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  noteGroup.icon, // Menampilkan emoji '⚠️'
+                  style: const TextStyle(fontSize: 32),
                 ),
-                const PopupMenuItem(
-                  value: 'move_section',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.drive_file_move_outlined,
-                        size: 18,
-                        color: Colors.indigo,
-                      ),
-                      SizedBox(width: 10),
-                      Text('Pindahkan Seksi', style: TextStyle(fontSize: 13)),
-                    ],
+                const SizedBox(height: 8),
+                Text(
+                  noteGroup.groupName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: Colors.redAccent,
                   ),
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                PopupMenuItem(
-                  value: 'toggle_visibility',
-                  child: Row(
-                    children: [
-                      Icon(
-                        noteGroup.isHidden
-                            ? Icons.visibility
-                            : Icons.visibility_off,
-                        size: 18,
-                        color: Colors.blueGrey,
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        noteGroup.isHidden
-                            ? 'Tampilkan Grup'
-                            : 'Sembunyikan Grup',
-                        style: const TextStyle(fontSize: 13),
-                      ),
-                    ],
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
                   ),
-                ),
-                const PopupMenuDivider(),
-                const PopupMenuItem(
-                  value: 'delete',
-                  child: Row(
-                    children: [
-                      Icon(Icons.delete_outline, size: 18, color: Colors.red),
-                      SizedBox(width: 10),
-                      Text(
-                        'Hapus Grup',
-                        style: TextStyle(color: Colors.red, fontSize: 13),
-                      ),
-                    ],
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Text(
+                    'Terbaca Enkripsi / Korup',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.redAccent,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ],
-              onPopupSelected: (value) async {
-                if (value == 'edit') {
-                  _showEditGroupDialog(noteGroup);
-                } else if (value == 'move_section') {
-                  _showMoveGroupSectionDialog(noteGroup);
-                } else if (value == 'toggle_visibility') {
-                  await _toggleGroupVisibility(noteGroup);
-                } else if (value == 'delete') {
-                  final bool isConfirmed = await _showConfirmDeleteDialog(
-                    noteGroup,
-                  );
-                  if (isConfirmed) {
-                    _deleteGroupData(noteGroup);
-                  }
+            ),
+          );
+        }
+
+        // RENDERING NORMAL JIKA BERKAS SEHAT
+        return InteractiveGridCard(
+          themeColor: _themeColor,
+          isEditMode: isLayoutEditMode ? true : _isCardEditMode,
+          isHiddenStyle: noteGroup.isHidden,
+          isFirst: index == 0,
+          isLast: index == sectionItems.length - 1,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => NoteDetailScreen(noteGroup: noteGroup),
+              ),
+            ).then((_) => _loadNotesData());
+          },
+          onLongPress: () => setState(() => _isCardEditMode = !_isCardEditMode),
+          onMoveLeft: () async {
+            if (index > 0) {
+              setState(() {
+                final list = _groupedCategories[noteGroup.sectionName] ?? [];
+                if (list.isNotEmpty) {
+                  final temp = list[index];
+                  list[index] = list[index - 1];
+                  list[index - 1] = temp;
                 }
-              },
-              content: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+              });
+              final currentList =
+                  _groupedCategories[noteGroup.sectionName] ?? [];
+              for (int i = 0; i < currentList.length; i++) {
+                currentList[i].orderIndex = i;
+                await _saveGroupData(currentList[i]);
+              }
+            }
+          },
+          onMoveRight: () async {
+            if (index < sectionItems.length - 1) {
+              setState(() {
+                final list = _groupedCategories[noteGroup.sectionName] ?? [];
+                if (list.isNotEmpty) {
+                  final temp = list[index];
+                  list[index] = list[index + 1];
+                  list[index + 1] = temp;
+                }
+              });
+              final currentList =
+                  _groupedCategories[noteGroup.sectionName] ?? [];
+              for (int i = 0; i < currentList.length; i++) {
+                currentList[i].orderIndex = i;
+                await _saveGroupData(currentList[i]);
+              }
+            }
+          },
+          popupMenuItems: [
+            const PopupMenuItem(
+              value: 'edit',
+              child: Row(
                 children: [
-                  Text(
-                    noteGroup.icon.isEmpty ? '📝' : noteGroup.icon,
-                    style: const TextStyle(fontSize: 32),
+                  Icon(Icons.edit, size: 18, color: Colors.teal),
+                  SizedBox(width: 10),
+                  Text('Ubah Nama & Ikon', style: TextStyle(fontSize: 13)),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'move_section',
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.drive_file_move_outlined,
+                    size: 18,
+                    color: Colors.indigo,
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    noteGroup.groupName,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  SizedBox(width: 10),
+                  Text('Pindahkan Seksi', style: TextStyle(fontSize: 13)),
+                ],
+              ),
+            ),
+            PopupMenuItem(
+              value: 'toggle_visibility',
+              child: Row(
+                children: [
+                  Icon(
+                    noteGroup.isHidden
+                        ? Icons.visibility
+                        : Icons.visibility_off,
+                    size: 18,
+                    color: Colors.blueGrey,
                   ),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _themeColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      '${noteGroup.notes.length} Catatan',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: _themeColor,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                  const SizedBox(width: 10),
+                  Text(
+                    noteGroup.isHidden ? 'Tampilkan Grup' : 'Sembunyikan Grup',
+                    style: const TextStyle(fontSize: 13),
                   ),
                 ],
               ),
-            );
+            ),
+            const PopupMenuDivider(),
+            const PopupMenuItem(
+              value: 'delete',
+              child: Row(
+                children: [
+                  Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                  SizedBox(width: 10),
+                  Text(
+                    'Hapus Grup',
+                    style: TextStyle(color: Colors.red, fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          onPopupSelected: (value) async {
+            if (value == 'edit') {
+              _showEditGroupDialog(noteGroup);
+            } else if (value == 'move_section') {
+              _showMoveGroupSectionDialog(noteGroup);
+            } else if (value == 'toggle_visibility') {
+              await _toggleGroupVisibility(noteGroup);
+            } else if (value == 'delete') {
+              final bool isConfirmed = await _showConfirmDeleteDialog(
+                noteGroup,
+              );
+              if (isConfirmed) {
+                _deleteGroupData(noteGroup);
+              }
+            }
           },
+          content: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                noteGroup.icon.isEmpty ? '📝' : noteGroup.icon,
+                style: const TextStyle(fontSize: 32),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                noteGroup.groupName,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _themeColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  '${noteGroup.notes.length} Catatan',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: _themeColor,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
