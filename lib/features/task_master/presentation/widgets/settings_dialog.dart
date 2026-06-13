@@ -4,17 +4,19 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-// Pastikan path import StorageService ini sudah sesuai dengan struktur proyek Anda
-import '../../../../core/services/storage_service.dart';
+import 'package:rutinitasku/core/services/storage_service.dart';
+import 'package:rutinitasku/core/utils/crypto_helper.dart';
 
 class SettingsDialog extends StatefulWidget {
   final String currentBaseDir;
   final Function(String) onSave;
+  final VoidCallback onEncryptionToggled; // <--- TAMBAHAN PARAMETER BARU
 
   const SettingsDialog({
     super.key,
     required this.currentBaseDir,
     required this.onSave,
+    required this.onEncryptionToggled, // <--- WAJIB DIISI
   });
 
   @override
@@ -33,7 +35,6 @@ class _SettingsDialogState extends State<SettingsDialog> {
     _loadEncryptionSettings();
   }
 
-  /// Memuat status enkripsi saat ini dari SharedPreferences
   Future<void> _loadEncryptionSettings() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
@@ -43,7 +44,6 @@ class _SettingsDialogState extends State<SettingsDialog> {
 
   Future<void> _pickDirectory() async {
     String? selectedDirectory = await FilePicker.getDirectoryPath();
-
     if (selectedDirectory != null) {
       setState(() {
         _tempSelection = selectedDirectory;
@@ -51,12 +51,10 @@ class _SettingsDialogState extends State<SettingsDialog> {
     }
   }
 
-  /// Menangani aksi ketika toggle switch enkripsi diubah (aktif/nonaktif)
   Future<void> _handleEncryptionToggle(bool value) async {
     final passwordController = TextEditingController();
     bool obscurePassword = true;
 
-    // Tampilkan modal dialog untuk meminta konfirmasi kata sandi dari pengguna
     bool? confirmed = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -75,8 +73,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
               children: [
                 Text(
                   value
-                      ? 'Masukkan kata sandi untuk mengamankan data berkas catatan (.json) Anda. Jangan sampai lupa!'
-                      : 'Masukkan kata sandi Anda saat ini untuk mengembalikan berkas terenkripsi menjadi teks .json biasa.',
+                      ? 'Masukkan kata sandi untuk mengamankan seluruh data berkas (.json) Anda sekarang juga. Jangan sampai lupa!'
+                      : 'Masukkan kata sandi saat ini untuk mendekripsi kembali semua berkas ke format teks biasa.',
                   style: const TextStyle(fontSize: 13, color: Colors.black87),
                 ),
                 const SizedBox(height: 16),
@@ -86,7 +84,6 @@ class _SettingsDialogState extends State<SettingsDialog> {
                   autofocus: true,
                   decoration: InputDecoration(
                     labelText: 'Kata Sandi',
-                    labelStyle: const TextStyle(fontSize: 14),
                     border: const OutlineInputBorder(),
                     isDense: true,
                     suffixIcon: IconButton(
@@ -115,12 +112,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                     Navigator.pop(ctx, true);
                   }
                 },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.indigo,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
                 child: Text(
                   value ? 'Enkripsi Data' : 'Dekripsi Data',
                   style: const TextStyle(color: Colors.white),
@@ -132,20 +124,20 @@ class _SettingsDialogState extends State<SettingsDialog> {
       ),
     );
 
-    // Jika pengguna menekan tombol konfirmasi/setuju
     if (confirmed == true) {
       final inputPassword = passwordController.text.trim();
 
       if (!mounted) return;
-      // Tampilkan indikator loading (CircularProgressIndicator) selama proses enkripsi/dekripsi massal berlangsung
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (ctx) => const Center(child: CircularProgressIndicator()),
+        builder: (ctx) => const Center(
+          child: CircularProgressIndicator(color: Colors.indigo),
+        ),
       );
 
       try {
-        // Eksekusi migrasi data pada StorageService
+        // Jalankan migrasi menyeluruh untuk semua folder data
         await _storageService.migrateFilesEncryption(value, inputPassword);
 
         if (!mounted) return;
@@ -155,12 +147,14 @@ class _SettingsDialogState extends State<SettingsDialog> {
           _isEncryptionEnabled = value;
         });
 
-        // Berikan feedback sukses kepada pengguna
+        // === PICU TRIGER CALL BACK SEGERA AGAR MEMORI SCREEN UTAMA RE-FRESH ===
+        widget.onEncryptionToggled();
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
               value
-                  ? 'Semua berkas berhasil dienkripsi!'
+                  ? 'Semua berkas data aplikasi berhasil dienkripsi!'
                   : 'Enkripsi dinonaktifkan, berkas kembali normal.',
             ),
             backgroundColor: Colors.teal,
@@ -168,9 +162,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
         );
       } catch (e) {
         if (!mounted) return;
-        Navigator.pop(context); // Tutup dialog loading jika gagal
-
-        // Berikan feedback error (misal password salah saat proses dekripsi)
+        Navigator.pop(context); // Tutup loading jika gagal
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Proses gagal. Kata sandi salah atau berkas rusak.'),
@@ -227,21 +219,16 @@ class _SettingsDialogState extends State<SettingsDialog> {
                       ),
                     ),
                   ),
-
             const SizedBox(height: 12),
             const Divider(),
-
-            // =================================================================
-            // === KOMPONEN BARU: SWITCH TOGGLE UTK FITUR ENKRIPSI DATA ===
-            // =================================================================
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: _isEncryptionEnabled
-                      ? Colors.teal.withAlpha(30)
-                      : Colors.grey.withAlpha(30),
+                      ? Colors.teal.withOpacity(0.1)
+                      : Colors.grey.withOpacity(0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -254,7 +241,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
               ),
               subtitle: const Text(
-                'Gunakan AES-256 untuk mengamankan data catatan.',
+                'Gunakan AES-256 untuk mengamankan seluruh data berkas.',
                 style: TextStyle(fontSize: 11, color: Colors.black54),
               ),
               trailing: Switch(
@@ -263,10 +250,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 onChanged: _handleEncryptionToggle,
               ),
             ),
-
             const Divider(),
             const SizedBox(height: 10),
-
             Row(
               children: [
                 Icon(Icons.info_outline, color: Colors.indigo[700], size: 18),
@@ -319,7 +304,6 @@ class _SettingsDialogState extends State<SettingsDialog> {
     );
   }
 
-  // Helper Widget untuk membuat list informasi folder yang rapi
   Widget _buildFolderInfoItem(String folderName, String description) {
     return Padding(
       padding: const EdgeInsets.only(left: 4.0, bottom: 6.0),

@@ -14,7 +14,7 @@ class StorageService {
   static const String _keyBaseDirDebug = 'ubuntu_base_dir_debug';
   static const String _keyIpHistory = 'sharing_ip_history';
 
-  // BARU: Key untuk konfigurasi keamanan enkripsi
+  // Key untuk konfigurasi keamanan enkripsi
   static const String _keyIsEncrypted = 'is_encrypted';
   static const String _keyEncryptionPassword = 'encryption_password';
 
@@ -340,32 +340,48 @@ class StorageService {
   }
 
   // =========================================================================
-  // === FITUR UTAMA BARU: MIGRASI MASSAL SAAT AMANKAN/DEKRIPSI DATA ===
+  // === FITUR UTAMA BARU: MIGRASI MASSAL UNTUK SEMUA FOLDER DATA APP ===
   // =========================================================================
 
-  /// Melakukan migrasi massal seluruh data file .json (Notes & Prompts)
-  /// jika fitur enkripsi diaktifkan atau dinonaktifkan.
+  /// Melakukan enkripsi atau dekripsi massal secara instan ke seluruh berkas data .json
+  /// di semua modul (mytask, my_checklist, jurnal_aktivitas, prompts, notes)
   Future<void> migrateFilesEncryption(bool turnOn, String password) async {
     final baseDir = await getBaseDirSetting();
+    List<File> allTargetFiles = [];
 
-    // Ambil daftar berkas dari folder Notes dan Prompts
-    final List<File> notesFiles = await getAllNoteGroups(baseDir);
-    final List<File> promptFiles = await getAllPromptGroups(baseDir);
+    // 1. Ambil file dari modul mytask
+    final taskFile = await getTargetJsonFile(baseDir);
+    allTargetFiles.add(taskFile);
 
-    final List<File> allTargetFiles = [...notesFiles, ...promptFiles];
+    // 2. Ambil file dari modul jurnal_aktivitas
+    final jurnalFile = await getJurnalJsonFile(baseDir);
+    allTargetFiles.add(jurnalFile);
 
+    // 3. Ambil seluruh file dari modul my_checklist
+    final checklistFiles = await getAllChecklistGroups(baseDir);
+    allTargetFiles.addAll(checklistFiles);
+
+    // 4. Ambil seluruh file dari modul prompts
+    final promptFiles = await getAllPromptGroups(baseDir);
+    allTargetFiles.addAll(promptFiles);
+
+    // 5. Ambil seluruh file dari modul notes
+    final notesFiles = await getAllNoteGroups(baseDir);
+    allTargetFiles.addAll(notesFiles);
+
+    // 6. Jalankan proses Enkripsi/Dekripsi Massal secara langsung ke Disk Storage
     for (var file in allTargetFiles) {
       if (!await file.exists()) continue;
       String content = await file.readAsString();
 
       if (turnOn) {
-        // PROSES AKTIVASI: Enkripsi data JSON jika belum terenkripsi sebelumnya
+        // PROSES AKTIVASI: Enkripsi data JSON jika file masih berupa teks biasa (tidak mengandung ':')
         if (!content.contains(':')) {
           String encrypted = CryptoHelper.encrypt(content, password);
           await file.writeAsString(encrypted);
         }
       } else {
-        // PROSES DEAKTIVASI: Dekripsi data kembali ke JSON murni
+        // PROSES DEAKTIVASI: Kembalikan file terenkripsi menjadi teks murni biasa
         if (content.contains(':')) {
           String decrypted = CryptoHelper.decrypt(content, password);
           await file.writeAsString(decrypted);
@@ -373,7 +389,7 @@ class StorageService {
       }
     }
 
-    // Perbarui status preferensi sistem secara persisten
+    // 7. Perbarui konfigurasi status keamanan sistem di SharedPreferences
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyIsEncrypted, turnOn);
 

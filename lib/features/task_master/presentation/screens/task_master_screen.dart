@@ -235,6 +235,9 @@ class _HomeScreenState extends State<HomeScreen> {
         onSave: (newDir) {
           _updateUbuntuStorage(newDir);
         },
+        onEncryptionToggled: () {
+          _initStorageAndLoadData();
+        },
       ),
     );
   }

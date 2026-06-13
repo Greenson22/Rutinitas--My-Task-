@@ -67,7 +67,29 @@ class _DrawerMenuState extends State<DrawerMenu> {
                     : widget.isPromptActive
                     ? const PromptScreen()
                     : widget.isNotesActive
-                    ? const NotesScreen() // Ditambahkan agar Notes bisa refresh saat ganti baseDir
+                    ? const NotesScreen()
+                    : const HomeScreen(),
+              ),
+            );
+          }
+        },
+        // PERBAIKAN: Tambahkan parameter required onEncryptionToggled
+        // Picu pushReplacement ke screen aktif agar data langsung reload bersih
+        onEncryptionToggled: () {
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => widget.isDailyActive
+                    ? const DailyScreen()
+                    : widget.isJurnalActive
+                    ? const JurnalAktivitasScreen()
+                    : widget.isDataCenterActive
+                    ? const DataCenterScreen()
+                    : widget.isPromptActive
+                    ? const PromptScreen()
+                    : widget.isNotesActive
+                    ? const NotesScreen()
                     : const HomeScreen(),
               ),
             );
