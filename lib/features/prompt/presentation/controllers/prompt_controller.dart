@@ -113,28 +113,46 @@ class PromptController extends ChangeNotifier {
       final baseDir = await _storageService.getBaseDirSetting();
       final files = await _storageService.getAllPromptGroups(baseDir);
 
-      // Ambil status enkripsi di luar perulangan (loop) untuk mengoptimalkan performa
       bool isEncrypted = await _storageService.isEncryptionEnabled();
       String? password = await _storageService.getEncryptionPassword();
 
       List<PromptGroup> loadedGroups = [];
       for (var file in files) {
-        String content = await file.readAsString();
+        // PENGAMAN INTERNAL: Agar satu file rusak tidak merusak file lainnya
+        try {
+          if (!await file.exists()) continue;
+          String content = await file.readAsString();
 
-        // --- LOGIKA DEKRIPSI BARU UNTUK MENCEGAH FORMAT EXCEPTION (PROMPT SCREEN) ---
-        if (isEncrypted &&
-            password != null &&
-            !content.trim().startsWith('{')) {
-          content = CryptoHelper.decrypt(content, password);
+          if (isEncrypted &&
+              password != null &&
+              !content.trim().startsWith('{')) {
+            content = CryptoHelper.decrypt(content, password);
+          }
+
+          final jsonMap = jsonDecode(content);
+          loadedGroups.add(PromptGroup.fromJson(jsonMap));
+        } catch (fileError) {
+          debugPrint(
+            "Gagal memuat atau mendekripsi berkas prompt ${file.path}: $fileError",
+          );
+
+          // Opsi B: Mengikuti gaya Notes, buat tiruan PromptGroup rusak agar user tahu ada file bermasalah
+          String fileName = file.path.split('/').last.replaceAll('.json', '');
+          loadedGroups.add(
+            PromptGroup(
+              id: "CORRUPTED_${DateTime.now().millisecondsSinceEpoch}_$fileName",
+              title: "$fileName (Rusak / Terenkripsi)",
+              sectionName: "BERKAS RUSAK",
+              icon: "⚠️",
+              lastUpdated: DateTime.now().toIso8601String(),
+              prompts: [],
+            ),
+          );
         }
-        // ----------------------------------------------------------------------------
-
-        final jsonMap = jsonDecode(content);
-        loadedGroups.add(PromptGroup.fromJson(jsonMap));
       }
-      _promptGroups = loadedGroups;
 
-      // PERBAIKAN: Mengurutkan berdasarkan orderIndex, bukan abjad
+      // Sekarang, meskipun ada file yang bermasalah, file yang berhasil di-load tetap masuk ke UI
+      _promptGroups = loadedGroups;
       _promptGroups.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
 
       _isLoading = false;
