@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:rutinitasku/core/services/storage_service.dart';
+import 'package:rutinitasku/core/utils/crypto_helper.dart';
 import '../../models/note_model.dart';
 
 class NoteDetailController {
@@ -365,16 +366,26 @@ class NoteDetailController {
   }
 
   // =========================================================================
-  // FITUR BARU: AMBIL SELURUH DATA GRUP NOTE DARI STORAGE SERVICE
+  // FITUR BARU: AMBIL SELURUH DATA GRUP NOTE DARI STORAGE SERVICE (Mendukung Dekripsi)
   // =========================================================================
   Future<List<NoteGroup>> getAllNoteGroups() async {
     try {
       final baseDir = await _storageService.getBaseDirSetting();
       final files = await _storageService.getAllNoteGroups(baseDir);
 
+      bool isEncrypted = await _storageService.isEncryptionEnabled();
+      String? password = await _storageService.getEncryptionPassword();
+
       List<NoteGroup> loadedGroups = [];
       for (var file in files) {
-        final content = await file.readAsString();
+        if (!await file.exists()) continue;
+
+        String content = await file.readAsString();
+
+        if (isEncrypted && password != null && content.contains(':')) {
+          content = CryptoHelper.decrypt(content, password);
+        }
+
         loadedGroups.add(NoteGroup.fromJson(jsonDecode(content)));
       }
       return loadedGroups;

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:rutinitasku/core/presentation/widgets/drawer_menu.dart';
 import 'package:rutinitasku/core/presentation/widgets/universal_empty_state.dart';
 import 'package:rutinitasku/core/services/storage_service.dart';
+import 'package:rutinitasku/core/utils/crypto_helper.dart';
 import '../../models/note_model.dart';
 import '../../../../core/presentation/widgets/widgets.dart';
 import 'note_detail_screen.dart';
@@ -41,17 +42,39 @@ class _NotesScreenState extends State<NotesScreen> {
     _loadNotesData();
   }
 
-  // PERUBAHAN: Memuat dan mengelompokkan grup note secara dinamis berdasarkan data seksi aslinya
+  // PERUBAHAN: Memuat dan mengelompokkan grup note secara dinamis dengan dukungan dekripsi otomatis
   Future<void> _loadNotesData() async {
     setState(() => _isLoading = true);
     try {
       final baseDir = await _storageService.getBaseDirSetting();
       final files = await _storageService.getAllNoteGroups(baseDir);
+
+      // Ambil status konfigurasi enkripsi saat ini
+      bool isEncrypted = await _storageService.isEncryptionEnabled();
+      String? password = await _storageService.getEncryptionPassword();
+
       List<NoteGroup> loadedGroups = [];
       for (var file in files) {
-        final content = await file.readAsString();
+        if (!await file.exists()) continue;
+
+        String content = await file.readAsString();
+
+        // === LOGIKA DEKRIPSI BARU ===
+        // Jika fitur enkripsi aktif, sandi tersedia, dan file memiliki tanda enkripsi GCM (karakter ':')
+        if (isEncrypted && password != null && content.contains(':')) {
+          try {
+            // Import CryptoHelper di bagian atas file jika belum ada:
+            // import '../../../core/utils/crypto_helper.dart';
+            content = CryptoHelper.decrypt(content, password);
+          } catch (cryptoError) {
+            debugPrint("Gagal mendekripsi berkas ${file.path}: $cryptoError");
+            continue; // Lewati berkas ini jika password salah agar aplikasi tidak crash
+          }
+        }
+
         loadedGroups.add(NoteGroup.fromJson(jsonDecode(content)));
       }
+
       // PERBAIKAN: Mengurutkan list berdasarkan orderIndex secara persisten (bukan acak)
       loadedGroups.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
 
