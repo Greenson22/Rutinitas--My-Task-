@@ -66,6 +66,9 @@ class _NotesScreenState extends State<NotesScreen> {
       });
 
       List<NoteGroup> loadedGroups = [];
+      List<String> autoEncryptedFiles =
+          []; // Penampung nama file yang otomatis terenkripsi
+
       for (var file in files) {
         if (!await file.exists()) continue;
 
@@ -97,6 +100,9 @@ class _NotesScreenState extends State<NotesScreen> {
                   password,
                 );
                 await file.writeAsString(encryptedContent);
+                autoEncryptedFiles.add(
+                  parsedGroup.groupName,
+                ); // Catat nama grup untuk SnackBar
                 debugPrint(
                   "Otomatis mengamankan berkas belum terenkripsi: ${file.path}",
                 );
@@ -159,6 +165,21 @@ class _NotesScreenState extends State<NotesScreen> {
         setState(() {
           _isLoading = false;
         });
+
+        // === PEMICU SNACKBAR OTOMATIS ENKRIPSI BERHASIL ===
+        if (autoEncryptedFiles.isNotEmpty) {
+          ScaffoldMessenger.of(context).clearSnackBars();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Menyelaraskan Keamanan: Berkas [${autoEncryptedFiles.join(", ")}] yang belum terenkripsi kini telah otomatis dienkripsi sesuai pengaturan sistem.',
+              ),
+              backgroundColor: Colors.teal,
+              duration: const Duration(seconds: 4),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
