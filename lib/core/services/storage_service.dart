@@ -60,6 +60,10 @@ class StorageService {
     await prefs.setString(_getBaseDirKey(), value);
   }
 
+  // =========================================================================
+  // === TASK MASTER STORAGE (Mendukung Dekripsi Otomatis) ===
+  // =========================================================================
+
   Future<File> getTargetJsonFile(String baseDirSetting) async {
     final Directory myTaskDir = Directory('$baseDirSetting/mytask');
 
@@ -74,11 +78,29 @@ class StorageService {
     if (!await jsonFile.exists()) {
       await jsonFile.writeAsString(DefaultJson.content);
     }
-    return await jsonFile.readAsString();
+
+    String content = await jsonFile.readAsString();
+
+    // SINKRONISASI DEKRIPSI OTOMATIS
+    bool isEncrypted = await isEncryptionEnabled();
+    String? password = await getEncryptionPassword();
+    if (isEncrypted && password != null && content.contains(':')) {
+      content = CryptoHelper.decrypt(content, password);
+    }
+    return content;
   }
 
   Future<void> saveJsonData(File jsonFile, String jsonContent) async {
-    await jsonFile.writeAsString(jsonContent);
+    String dataToSave = jsonContent;
+
+    // SINKRONISASI ENKRIPSI OTOMATIS
+    bool isEncrypted = await isEncryptionEnabled();
+    String? password = await getEncryptionPassword();
+    if (isEncrypted && password != null && password.isNotEmpty) {
+      dataToSave = CryptoHelper.encrypt(jsonContent, password);
+    }
+
+    await jsonFile.writeAsString(dataToSave);
   }
 
   Future<String> getChecklistDirPath(String baseDirSetting) async {
@@ -117,7 +139,7 @@ class StorageService {
   }
 
   // =========================================================================
-  // === JURNAL AKTIVITAS STORAGE ===
+  // === JURNAL AKTIVITAS STORAGE (Mendukung Dekripsi Otomatis) ===
   // =========================================================================
 
   Future<File> getJurnalJsonFile(String baseDirSetting) async {
@@ -135,7 +157,16 @@ class StorageService {
       const String defaultJurnalContent = '[]';
       await jsonFile.writeAsString(defaultJurnalContent);
     }
-    return await jsonFile.readAsString();
+
+    String content = await jsonFile.readAsString();
+
+    // SINKRONISASI DEKRIPSI OTOMATIS
+    bool isEncrypted = await isEncryptionEnabled();
+    String? password = await getEncryptionPassword();
+    if (isEncrypted && password != null && content.contains(':')) {
+      content = CryptoHelper.decrypt(content, password);
+    }
+    return content;
   }
 
   // =========================================================================
@@ -284,7 +315,7 @@ class StorageService {
   }
 
   // =========================================================================
-  // === NOTES STORAGE (Mendukung Enkripsi Otomatis) ===
+  // === NOTES STORAGE (Mendukung Enkripsi & Dekripsi Otomatis) ===
   // =========================================================================
 
   Future<Directory> getNotesDir(String baseDirSetting) async {

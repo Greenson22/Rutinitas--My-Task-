@@ -63,8 +63,6 @@ class _NotesScreenState extends State<NotesScreen> {
         // Jika fitur enkripsi aktif, sandi tersedia, dan file memiliki tanda enkripsi GCM (karakter ':')
         if (isEncrypted && password != null && content.contains(':')) {
           try {
-            // Import CryptoHelper di bagian atas file jika belum ada:
-            // import '../../../core/utils/crypto_helper.dart';
             content = CryptoHelper.decrypt(content, password);
           } catch (cryptoError) {
             debugPrint("Gagal mendekripsi berkas ${file.path}: $cryptoError");
@@ -658,6 +656,8 @@ class _NotesScreenState extends State<NotesScreen> {
 
     return GroupedSectionLayout<NoteGroup>(
       title: 'Note Groups',
+      // === PERBAIKAN DI SINI ===
+      // Mengisi isNotesActive: true agar DrawerMenu tahu halaman ini yang aktif saat enkripsi di-toggle
       drawer: const DrawerMenu(isNotesActive: true),
       isLoading: _isLoading,
       isEmpty: allRenderedKeys.isEmpty,
