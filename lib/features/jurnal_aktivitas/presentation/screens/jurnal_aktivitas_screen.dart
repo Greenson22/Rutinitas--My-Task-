@@ -3,10 +3,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // TAMBAHAN IMPORT
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/services/storage_service.dart';
 import '../../../../core/presentation/widgets/drawer_menu.dart';
-import '../../../../core/presentation/widgets/universal_empty_state.dart'; // IMPORT BARU
+import '../../../../core/presentation/widgets/universal_empty_state.dart';
 import '../../../task_master/data/models/task_model.dart';
 import '../../data/models/time_log_model.dart';
 import '../widgets/jurnal_statistik_dialog.dart';
@@ -19,8 +19,6 @@ class JurnalAktivitasScreen extends StatefulWidget {
   State<JurnalAktivitasScreen> createState() => _JurnalAktivitasScreenState();
 }
 
-class _PromptScreenState {} // Placeholder state dari source asli, abaikan jika tidak sengaja terbawa
-
 class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
   final StorageService _storageService = StorageService();
   List<TimeLogEntry> _logs = [];
@@ -29,6 +27,9 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
   String _fullJsonPath = '';
   bool _isLoading = true;
   bool _isEditMode = false;
+
+  // STATE BARU: Melacak apakah berkas jurnal terindikasi rusak / gagal didekripsi
+  bool _isJurnalFileCorrupted = false;
 
   @override
   void initState() {
@@ -45,7 +46,8 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
   void _showDecryptionErrorDialog(File jsonFile) {
     showDialog(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible:
+          true, // PERUBAHAN: Dialog sekarang bisa ditutup dengan mengetuk di luar area
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
@@ -59,6 +61,11 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
           'Aplikasi gagal membaca data Jurnal Aktivitas. Berkas ini mungkin dienkripsi oleh sistem dengan kata sandi lain, atau format data di dalamnya rusak.',
         ),
         actions: [
+          // PERUBAHAN: Ditambahkan tombol tutup manual agar user bisa mengakses halaman utama di baliknya
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Tutup', style: TextStyle(color: Colors.grey)),
+          ),
           TextButton(
             onPressed: () async {
               Navigator.pop(ctx);
@@ -98,11 +105,13 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                 ),
               );
               if (confirmNew == true) {
-                setState(() => _isLoading = true);
-
+                setState(() {
+                  _isLoading = true;
+                  _isJurnalFileCorrupted =
+                      false; // Reset status error karena diset baru
+                });
                 // 1. Tulis file JSON kosong baru untuk Array Log
                 await jsonFile.writeAsString(jsonEncode([]));
-
                 // 2. Bersihkan konfigurasi enkripsi agar tidak memicu kegagalan decrypt ulang
                 try {
                   final prefs = await SharedPreferences.getInstance();
@@ -111,7 +120,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                 } catch (err) {
                   debugPrint("Gagal mereset preferensi enkripsi jurnal: $err");
                 }
-
                 _loadData();
               } else {
                 _showDecryptionErrorDialog(jsonFile);
@@ -178,11 +186,14 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                   final parsed = jsonDecode(decrypted);
                   if (parsed is List) {
                     Navigator.pop(ctx);
-                    setState(() => _isLoading = true);
+                    setState(() {
+                      _isLoading = true;
+                      _isJurnalFileCorrupted =
+                          false; // Reset status error karena sukses terbuka
+                    });
                     _logs = parsed
                         .map((e) => TimeLogEntry.fromJson(e))
                         .toList();
-
                     final String todayStr = _getTodayDateString();
                     bool hasTodayLog = _logs.any(
                       (entry) => entry.tanggal == todayStr,
@@ -204,7 +215,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                     } else if (_logs.isEmpty) {
                       _logs.add(TimeLogEntry(tanggal: todayStr, tasks: []));
                     }
-
                     await _loadTaskMasterData();
                     setState(() => _isLoading = false);
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -240,6 +250,11 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
   }
 
   Future<void> _loadData() async {
+    setState(() {
+      _isLoading = true;
+      _isJurnalFileCorrupted =
+          false; // Reset status pelacak error setiap pemuatan ulang
+    });
     File? jsonFile;
     try {
       _baseDir = await _storageService.getBaseDirSetting();
@@ -248,8 +263,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
       String jsonString = await _storageService.loadOrInitializeJurnalJson(
         jsonFile,
       );
-
-      // --- LOGIKA DEKRIPSI BARU UNTUK MENCEGAH FORMAT EXCEPTION ---
       bool isEncrypted = await _storageService.isEncryptionEnabled();
       String? password = await _storageService.getEncryptionPassword();
       if (isEncrypted &&
@@ -257,15 +270,12 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
           !jsonString.trim().startsWith('[')) {
         jsonString = CryptoHelper.decrypt(jsonString, password);
       }
-      // ------------------------------------------------------------
       final List<dynamic> decodedJson = jsonDecode(jsonString);
       List<TimeLogEntry> loadedLogs = decodedJson
           .map((e) => TimeLogEntry.fromJson(e))
           .toList();
-
       final String todayStr = _getTodayDateString();
       bool hasTodayLog = loadedLogs.any((entry) => entry.tanggal == todayStr);
-
       if (!hasTodayLog && loadedLogs.isNotEmpty) {
         final lastLog = loadedLogs.last;
         List<TimeLogTask> copiedTasks = lastLog.tasks.map((task) {
@@ -279,7 +289,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
         }).toList();
         final todayEntry = TimeLogEntry(tanggal: todayStr, tasks: copiedTasks);
         loadedLogs.add(todayEntry);
-
         final String jsonContent = jsonEncode(
           loadedLogs.map((e) => e.toJson()).toList(),
         );
@@ -291,17 +300,22 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
         );
         await _storageService.saveJsonData(jsonFile, jsonContent);
       }
-
       await _loadTaskMasterData();
       setState(() {
         _logs = loadedLogs;
         _isLoading = false;
       });
     } catch (e) {
-      setState(() => _isLoading = false);
+      setState(() {
+        _isLoading = false;
+        _isJurnalFileCorrupted =
+            true; // PERUBAHAN: Tandai bahwa berkas gagal dimuat / corrupt
+      });
       debugPrint("Error loading jurnal data: $e");
       if (jsonFile != null && mounted) {
-        _showDecryptionErrorDialog(jsonFile);
+        _showDecryptionErrorDialog(
+          jsonFile,
+        ); // Panggil otomatis saat halaman dibuka pertama kali dan bermasalah
       }
     }
   }
@@ -311,7 +325,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
       File taskFile = await _storageService.getTargetJsonFile(_baseDir);
       if (await taskFile.exists()) {
         String jsonString = await taskFile.readAsString();
-        // --- LOGIKA DEKRIPSI BARU UNTUK TASK MASTER ---
         bool isEncrypted = await _storageService.isEncryptionEnabled();
         String? password = await _storageService.getEncryptionPassword();
         if (isEncrypted &&
@@ -319,7 +332,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
             !jsonString.trim().startsWith('{')) {
           jsonString = CryptoHelper.decrypt(jsonString, password);
         }
-        // ----------------------------------------------
         final Map<String, dynamic> parsedMap = jsonDecode(jsonString);
         final List<dynamic> catList = parsedMap['categories'] ?? [];
         _allTaskCategories = catList
@@ -794,6 +806,83 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     ).then((_) => setState(() {}));
   }
 
+  // METHOD BARU: Menampilkan status halaman kosong informatif apabila berkas jurnal terkunci/corrupt
+  Widget _buildCorruptedJurnalEmptyState() {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.red[50],
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.gpp_maybe_rounded,
+                size: 72,
+                color: Colors.red[700],
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Berkas Jurnal Terkunci / Rusak',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.red[900],
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Aplikasi gagal memuat data Jurnal Aktivitas dari disk lokal Anda.\nStruktur penyimpanan teks JSON bermasalah atau memerlukan PIN dekripsi enkripsi AES-256 yang tepat untuk membukanya kembali.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey[600],
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 28),
+            ElevatedButton.icon(
+              onPressed: () async {
+                File jsonFile = await _storageService.getJurnalJsonFile(
+                  _baseDir,
+                );
+                _showDecryptionErrorDialog(jsonFile);
+              },
+              icon: const Icon(
+                Icons.lock_open_rounded,
+                color: Colors.white,
+                size: 18,
+              ),
+              label: const Text(
+                'Buka Opsi Pemulihan Jurnal',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.indigo,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final String todayStr = _getTodayDateString();
@@ -803,6 +892,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     final List<TimeLogTask> todayTasks = todayLogIndex != -1
         ? _logs[todayLogIndex].tasks
         : [];
+
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
@@ -836,6 +926,8 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
       drawer: const DrawerMenu(isJurnalActive: true),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
+          : _isJurnalFileCorrupted
+          ? _buildCorruptedJurnalEmptyState() // PERUBAHAN: Menampilkan UI khusus berkas rusak jika true
           : Column(
               children: [
                 Padding(
@@ -1049,11 +1141,13 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                 ),
               ],
             ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showAddActivityDialog,
-        backgroundColor: Colors.indigo[700],
-        child: const Icon(Icons.add, size: 30, color: Colors.white),
-      ),
+      floatingActionButton: _isJurnalFileCorrupted
+          ? null // Sembunyikan FAB jika berkas data rusak
+          : FloatingActionButton(
+              onPressed: _showAddActivityDialog,
+              backgroundColor: Colors.indigo[700],
+              child: const Icon(Icons.add, size: 30, color: Colors.white),
+            ),
     );
   }
 
