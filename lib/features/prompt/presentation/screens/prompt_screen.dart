@@ -549,174 +549,253 @@ class _PromptScreenState extends State<PromptScreen> {
                 );
               },
 
-          gridItemBuilder:
-              (context, promptGroup, index, items, isLayoutEditMode) {
-                if (index >= items.length) return const SizedBox.shrink();
+          gridItemBuilder: (context, promptGroup, index, items, isLayoutEditMode) {
+            if (index >= items.length) return const SizedBox.shrink();
 
-                return InteractiveGridCard(
-                  themeColor: Colors.indigo,
-                  isEditMode: isLayoutEditMode
-                      ? true
-                      : _controller.isCardEditMode,
-                  isHiddenStyle: promptGroup.isHidden,
-                  isFirst: isSearching ? true : (index == 0),
-                  isLast: isSearching ? true : (index == items.length - 1),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) =>
-                            PromptDetailScreen(promptGroup: promptGroup),
+            final bool isCorrupted = promptGroup.id.startsWith("CORRUPTED_");
+
+            // ========================================================
+            // 🔴 KONDISI BARU: JIKA FILE PROMPT TERDETEKSI KORUP / TERENKRIPSI MANUAL
+            // ========================================================
+            if (isCorrupted) {
+              return InteractiveGridCard(
+                themeColor: Colors.redAccent,
+                isEditMode: isLayoutEditMode
+                    ? true
+                    : _controller.isCardEditMode,
+                isHiddenStyle: false,
+                isFirst: isSearching ? true : (index == 0),
+                isLast: isSearching ? true : (index == items.length - 1),
+                onTap: () {
+                  // Disinkronkan dengan aksi Notes: Memicu informasi penanganan manual
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Gunakan menu titik tiga untuk menghapus file rusak ini.',
                       ),
-                    ).then((_) => _controller.loadAllPrompts(context));
-                  },
-                  onLongPress: () {
-                    _controller.toggleCardEditMode();
-                  },
-                  onMoveLeft: () {
-                    if (index > 0) {
-                      _controller.moveGroupOrderHorizontal(items, index, -1);
-                    }
-                  },
-                  onMoveRight: () {
-                    if (index < items.length - 1) {
-                      _controller.moveGroupOrderHorizontal(items, index, 1);
-                    }
-                  },
-                  popupMenuItems: [
-                    const PopupMenuItem(
-                      value: 'edit',
-                      child: Row(
-                        children: [
-                          Icon(Icons.edit, size: 18, color: Colors.teal),
-                          SizedBox(width: 10),
-                          Text(
-                            'Ubah Nama & Ikon',
-                            style: TextStyle(fontSize: 13),
-                          ),
-                        ],
-                      ),
+                      backgroundColor: Colors.redAccent,
                     ),
-                    const PopupMenuItem(
-                      value: 'move_section',
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.drive_file_move_outlined,
-                            size: 18,
-                            color: Colors.indigo,
-                          ),
-                          SizedBox(width: 10),
-                          Text(
-                            'Pindahkan Seksi',
-                            style: TextStyle(fontSize: 13),
-                          ),
-                        ],
-                      ),
+                  );
+                },
+                onLongPress: () {
+                  _controller.toggleCardEditMode();
+                },
+                onMoveLeft: () {},
+                onMoveRight: () {},
+                popupMenuItems: [
+                  const PopupMenuItem(
+                    value: 'delete',
+                    child: Row(
+                      children: [
+                        Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                        SizedBox(width: 10),
+                        Text(
+                          'Hapus Berkas Rusak',
+                          style: TextStyle(color: Colors.red, fontSize: 13),
+                        ),
+                      ],
                     ),
-                    PopupMenuItem(
-                      value: 'toggle_visibility',
-                      child: Row(
-                        children: [
-                          Icon(
-                            promptGroup.isHidden
-                                ? Icons.visibility
-                                : Icons.visibility_off,
-                            size: 18,
-                            color: Colors.blueGrey,
-                          ),
-                          const SizedBox(width: 10),
-                          Text(
-                            promptGroup.isHidden
-                                ? 'Tampilkan Group'
-                                : 'Sembunyikan Group',
-                            style: const TextStyle(fontSize: 13),
-                          ),
-                        ],
-                      ),
+                  ),
+                ],
+                onPopupSelected: (value) async {
+                  if (value == 'delete') {
+                    _showDeleteGroupItemDialog(promptGroup);
+                  }
+                },
+                content: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(
+                      promptGroup.icon, // Akan merender '⚠️' sesuai controller
+                      style: const TextStyle(fontSize: 28),
                     ),
-                    const PopupMenuDivider(),
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.delete_outline,
-                            size: 18,
-                            color: Colors.redAccent,
-                          ),
-                          SizedBox(width: 10),
-                          Text(
-                            'Hapus Group',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.redAccent,
-                            ),
-                          ),
-                        ],
+                    const SizedBox(height: 8),
+                    Text(
+                      promptGroup.title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: Colors.redAccent,
+                      ),
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        'Terbaca Enkripsi / Korup',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.redAccent,
+                        ),
                       ),
                     ),
                   ],
-                  onPopupSelected: (value) async {
-                    if (value == 'edit') {
-                      _showEditGroupDialog(promptGroup);
-                    } else if (value == 'move_section') {
-                      _showMoveSectionDialog(promptGroup);
-                    } else if (value == 'toggle_visibility') {
-                      await _controller.toggleGroupVisibility(
-                        promptGroup,
-                        context,
-                      );
-                    } else if (value == 'delete') {
-                      _showDeleteGroupItemDialog(promptGroup);
-                    }
-                  },
-                  content: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.center,
+                ),
+              );
+            }
+
+            // ========================================================
+            // KONDISI NORMAL (BERKAS AMAN & SEHAT)
+            // ========================================================
+            return InteractiveGridCard(
+              themeColor: Colors.indigo,
+              isEditMode: isLayoutEditMode ? true : _controller.isCardEditMode,
+              isHiddenStyle: promptGroup.isHidden,
+              isFirst: isSearching ? true : (index == 0),
+              isLast: isSearching ? true : (index == items.length - 1),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        PromptDetailScreen(promptGroup: promptGroup),
+                  ),
+                ).then((_) => _controller.loadAllPrompts(context));
+              },
+              onLongPress: () {
+                _controller.toggleCardEditMode();
+              },
+              onMoveLeft: () {
+                if (index > 0) {
+                  _controller.moveGroupOrderHorizontal(items, index, -1);
+                }
+              },
+              onMoveRight: () {
+                if (index < items.length - 1) {
+                  _controller.moveGroupOrderHorizontal(items, index, 1);
+                }
+              },
+              popupMenuItems: [
+                const PopupMenuItem(
+                  value: 'edit',
+                  child: Row(
                     children: [
-                      Text(
-                        promptGroup.icon,
-                        style: const TextStyle(
-                          fontSize: 28,
-                          color: Colors.black,
-                        ),
+                      Icon(Icons.edit, size: 18, color: Colors.teal),
+                      SizedBox(width: 10),
+                      Text('Ubah Nama & Ikon', style: TextStyle(fontSize: 13)),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'move_section',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.drive_file_move_outlined,
+                        size: 18,
+                        color: Colors.indigo,
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        promptGroup.title,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                          color: Colors.black87,
-                        ),
-                        textAlign: TextAlign.center,
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
+                      SizedBox(width: 10),
+                      Text('Pindahkan Seksi', style: TextStyle(fontSize: 13)),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'toggle_visibility',
+                  child: Row(
+                    children: [
+                      Icon(
+                        promptGroup.isHidden
+                            ? Icons.visibility
+                            : Icons.visibility_off,
+                        size: 18,
+                        color: Colors.blueGrey,
                       ),
-                      const SizedBox(height: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.indigo.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          '${promptGroup.prompts.length} Item',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.indigo,
-                          ),
-                        ),
+                      const SizedBox(width: 10),
+                      Text(
+                        promptGroup.isHidden
+                            ? 'Tampilkan Group'
+                            : 'Sembunyikan Group',
+                        style: const TextStyle(fontSize: 13),
                       ),
                     ],
                   ),
-                );
+                ),
+                const PopupMenuDivider(),
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.delete_outline,
+                        size: 18,
+                        color: Colors.redAccent,
+                      ),
+                      SizedBox(width: 10),
+                      Text(
+                        'Hapus Group',
+                        style: TextStyle(fontSize: 13, color: Colors.redAccent),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              onPopupSelected: (value) async {
+                if (value == 'edit') {
+                  _showEditGroupDialog(promptGroup);
+                } else if (value == 'move_section') {
+                  _showMoveSectionDialog(promptGroup);
+                } else if (value == 'toggle_visibility') {
+                  await _controller.toggleGroupVisibility(promptGroup, context);
+                } else if (value == 'delete') {
+                  _showDeleteGroupItemDialog(promptGroup);
+                }
               },
+              content: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Text(
+                    promptGroup.icon,
+                    style: const TextStyle(fontSize: 28, color: Colors.black),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    promptGroup.title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: Colors.black87,
+                    ),
+                    textAlign: TextAlign.center,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.indigo.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '${promptGroup.prompts.length} Item',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.indigo,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
         );
       },
     );

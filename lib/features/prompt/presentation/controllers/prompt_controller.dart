@@ -132,16 +132,14 @@ class PromptController extends ChangeNotifier {
           final jsonMap = jsonDecode(content);
           loadedGroups.add(PromptGroup.fromJson(jsonMap));
         } catch (fileError) {
-          debugPrint(
-            "Gagal memuat atau mendekripsi berkas prompt ${file.path}: $fileError",
-          );
+          debugPrint("Gagal memuat berkas prompt ${file.path}: $fileError");
 
-          // Opsi B: Mengikuti gaya Notes, buat tiruan PromptGroup rusak agar user tahu ada file bermasalah
+          // Membuat tiruan PromptGroup rusak (sama seperti logika di Notes)
           String fileName = file.path.split('/').last.replaceAll('.json', '');
           loadedGroups.add(
             PromptGroup(
               id: "CORRUPTED_${DateTime.now().millisecondsSinceEpoch}_$fileName",
-              title: "$fileName (Rusak / Terenkripsi)",
+              title: fileName, // Menyimpan nama file asli
               sectionName: "BERKAS RUSAK",
               icon: "⚠️",
               lastUpdated: DateTime.now().toIso8601String(),
@@ -151,7 +149,6 @@ class PromptController extends ChangeNotifier {
         }
       }
 
-      // Sekarang, meskipun ada file yang bermasalah, file yang berhasil di-load tetap masuk ke UI
       _promptGroups = loadedGroups;
       _promptGroups.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
 
