@@ -10,10 +10,8 @@ import '../../../../core/presentation/widgets/drawer_menu.dart';
 import '../widgets/settings_dialog.dart';
 import '../widgets/tasks_dialog.dart';
 import '../widgets/add_category_dialog.dart';
-import '../../../../core/presentation/widgets/universal_empty_state.dart'; // <-- DIUBAH: Menggunakan Universal Widget dari Core
+import '../../../../core/presentation/widgets/universal_empty_state.dart';
 import 'package:intl/intl.dart';
-// Perlu dipastikan CryptoHelper sudah di-import.
-// Sesuaikan path import di bawah ini jika lokasi CryptoHelper Anda berbeda.
 import '../../../../core/utils/crypto_helper.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -70,16 +68,13 @@ class _HomeScreenState extends State<HomeScreen> {
       if (await fileJurnal.exists()) {
         String jsonString = await fileJurnal.readAsString();
 
-        // --- LOGIKA DEKRIPSI UNTUK KALKULASI JURNAL ---
         bool isEncrypted = await _storageService.isEncryptionEnabled();
         String? password = await _storageService.getEncryptionPassword();
-
         if (isEncrypted &&
             password != null &&
             !jsonString.trim().startsWith('[')) {
           jsonString = CryptoHelper.decrypt(jsonString, password);
         }
-        // ----------------------------------------------
 
         if (jsonString.trim().isNotEmpty) {
           List<dynamic> decodedJson = jsonDecode(jsonString);
@@ -95,7 +90,6 @@ class _HomeScreenState extends State<HomeScreen> {
           if (todayLogIndex != -1) {
             final List<TimeLogTask> todayTasks = logs[todayLogIndex].tasks;
 
-            // Agregasi seluruh properti durasiMenit pada hari ini
             int totalMenit = todayTasks.fold(
               0,
               (sum, task) => sum + task.durasiMenit,
@@ -125,30 +119,199 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  // --- OPSI DIALOG KUSTOM KETIKA TERJADI DECRYPTION ERROR / BERKAS CORRUPT ---
+  void _showDecryptionErrorDialog(File jsonFile) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: const [
+            Icon(Icons.lock_outline, color: Colors.redAccent),
+            SizedBox(width: 8),
+            Text('Berkas Terkunci / Rusak'),
+          ],
+        ),
+        content: const Text(
+          'Aplikasi gagal membaca data Task Master. Berkas ini mungkin dienkripsi oleh sistem dengan kata sandi lain, atau format data di dalamnya rusak.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              _showManualUnlockDialog(jsonFile);
+            },
+            child: const Text(
+              'Buka Kunci (Input PIN)',
+              style: TextStyle(
+                color: Colors.indigo,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final bool? confirmNew = await showDialog<bool>(
+                context: context,
+                builder: (c) => AlertDialog(
+                  title: const Text('Buat Baru?'),
+                  content: const Text(
+                    'Semua data lama di dalam berkas Task Master ini akan dihapus total dan diganti dengan struktur baru yang kosong. Tindakan ini tidak bisa dibatalkan!',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(c, false),
+                      child: const Text('Batal'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(c, true),
+                      child: const Text(
+                        'Ya, Hapus & Reset',
+                        style: TextStyle(color: Colors.red),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+              if (confirmNew == true) {
+                setState(() => _isLoading = true);
+                await jsonFile.writeAsString(jsonEncode({'categories': []}));
+                _initStorageAndLoadData();
+              } else {
+                _showDecryptionErrorDialog(jsonFile);
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text(
+              'Buat Baru',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showManualUnlockDialog(File jsonFile) {
+    final passController = TextEditingController();
+    bool obscureText = true;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) => AlertDialog(
+          title: const Text('Masukkan Kata Sandi'),
+          content: TextField(
+            controller: passController,
+            obscureText: obscureText,
+            decoration: InputDecoration(
+              labelText: 'Kata Sandi Dekripsi',
+              border: const OutlineInputBorder(),
+              isDense: true,
+              suffixIcon: IconButton(
+                icon: Icon(
+                  obscureText ? Icons.visibility : Icons.visibility_off,
+                  size: 20,
+                ),
+                onPressed: () =>
+                    setModalState(() => obscureText = !obscureText),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _showDecryptionErrorDialog(jsonFile);
+              },
+              child: const Text(
+                'Kembali',
+                style: TextStyle(color: Colors.grey),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final input = passController.text.trim();
+                if (input.isEmpty) return;
+
+                try {
+                  String encryptedContent = await jsonFile.readAsString();
+                  String decrypted = CryptoHelper.decrypt(
+                    encryptedContent,
+                    input,
+                  );
+
+                  final parsed = jsonDecode(decrypted);
+                  if (parsed is Map && parsed.containsKey('categories')) {
+                    Navigator.pop(ctx);
+                    setState(() => _isLoading = true);
+
+                    final List<dynamic> catList = parsed['categories'] ?? [];
+                    _allCategoriesRaw = catList
+                        .map((json) => TaskCategory.fromJson(json))
+                        .toList();
+
+                    await _kalkulasiTotalJurnalHariIni();
+                    _processCategoriesDisplay();
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Buka kunci data sukses!'),
+                        backgroundColor: Colors.teal,
+                      ),
+                    );
+                    return;
+                  }
+                  throw const FormatException();
+                } catch (_) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Kata sandi salah atau struktur data rusak!',
+                      ),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
+              child: const Text(
+                'Buka Data',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _initStorageAndLoadData() async {
     setState(() => _isLoading = true);
+    File? jsonFile;
     try {
       _selectedBaseDir = await _storageService.getBaseDirSetting();
-      File jsonFile = await _storageService.getTargetJsonFile(_selectedBaseDir);
+      jsonFile = await _storageService.getTargetJsonFile(_selectedBaseDir);
       _fullJsonPath = jsonFile.path;
       String jsonString = await _storageService.loadOrInitializeJson(jsonFile);
 
-      // --- LOGIKA DEKRIPSI UNTUK DATA TASK MASTER ---
       bool isEncrypted = await _storageService.isEncryptionEnabled();
       String? password = await _storageService.getEncryptionPassword();
-
       if (isEncrypted &&
           password != null &&
           !jsonString.trim().startsWith('{')) {
         jsonString = CryptoHelper.decrypt(jsonString, password);
       }
-      // ----------------------------------------------
 
       final Map<String, dynamic> parsedMap = jsonDecode(jsonString);
       final List<dynamic> catList = parsedMap['categories'] ?? [];
       List<TaskCategory> loadedCategories = catList
           .map((json) => TaskCategory.fromJson(json))
           .toList();
+
       String todayStr = _getTodayDateString();
       bool isDataChanged = false;
       for (var category in loadedCategories) {
@@ -164,7 +327,6 @@ class _HomeScreenState extends State<HomeScreen> {
         await _saveAllCategoriesToFile(shouldRefresh: false);
       }
 
-      // Ambil data dari jurnal aktivitas setelah struktur kategori siap
       await _kalkulasiTotalJurnalHariIni();
       _processCategoriesDisplay();
     } catch (e) {
@@ -172,6 +334,10 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() => _isLoading = false);
       }
       debugPrint("Error loading data: $e");
+
+      if (jsonFile != null && mounted) {
+        _showDecryptionErrorDialog(jsonFile);
+      }
     }
   }
 
@@ -269,7 +435,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // PEMBARUAN: Modifikasi agar asinkron aman, status context divalidasi, dan memberi feedback jika tugas tidak terikat jurnal
   Future<bool> _incrementTaskCount(TaskItem task) async {
     setState(() {
       task.count += 1;
@@ -278,10 +443,8 @@ class _HomeScreenState extends State<HomeScreen> {
     });
     await _saveAllCategoriesToFile(shouldRefresh: false);
 
-    // Simpan status keterhubungan jurnal
     bool isLinked = await _add30MinutesToJurnal(task.id);
 
-    // Jika tidak ada task jurnal yang terikat, berikan umpan balik yang informatif
     if (!isLinked && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -296,7 +459,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return true;
   }
 
-  // PEMBARUAN: Mengubah return type menjadi Future<bool> dan membungkus jsonDecode dengan try-catch sekunder secara defensif
   Future<bool> _add30MinutesToJurnal(String myTaskId) async {
     try {
       final File jurnalFile = await _storageService.getJurnalJsonFile(
@@ -306,18 +468,14 @@ class _HomeScreenState extends State<HomeScreen> {
         jurnalFile,
       );
 
-      // --- LOGIKA DEKRIPSI UNTUK PROSES UPDATE JURNAL (+30 MENIT) ---
       bool isEncrypted = await _storageService.isEncryptionEnabled();
       String? password = await _storageService.getEncryptionPassword();
-
       if (isEncrypted &&
           password != null &&
           !jsonString.trim().startsWith('[')) {
         jsonString = CryptoHelper.decrypt(jsonString, password);
       }
-      // -------------------------------------------------------------
 
-      // Mengantisipasi format data rusak/parsial pada file json eksternal agar tidak crash
       List<dynamic> decodedJson = [];
       if (jsonString.trim().isNotEmpty) {
         try {
@@ -371,7 +529,6 @@ class _HomeScreenState extends State<HomeScreen> {
           );
           await _storageService.saveJsonData(jurnalFile, updatedJsonContent);
 
-          // REFRESH DATA JAM DI HEADER SETELAH JURNAL UPDATE
           await _kalkulasiTotalJurnalHariIni();
 
           if (mounted) {
@@ -385,10 +542,10 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             );
           }
-          return true; // Berhasil mendeteksi relasi dan memperbarui jurnal
+          return true;
         }
       }
-      return false; // Tidak ada logTask jurnal yang menyimpan ID Tugas Master ini
+      return false;
     } catch (e) {
       debugPrint("Error updating linked jurnal data: $e");
       return false;
@@ -851,7 +1008,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       drawer: const DrawerMenu(),
-      // PEMBARUAN DI BODY: Menggunakan UniversalEmptyState terpusat dari folder core dengan penyesuaian parameter khusus Task Master
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _allCategoriesRaw.isEmpty
