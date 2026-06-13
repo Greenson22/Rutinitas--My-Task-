@@ -5,6 +5,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../../core/services/storage_service.dart';
 import '../../data/models/daily_model.dart';
+// Perlu dipastikan CryptoHelper sudah di-import.
+// Sesuaikan path import di bawah ini jika lokasi CryptoHelper Anda berbeda.
+import '../../../../core/utils/crypto_helper.dart';
 
 class DailyController extends ChangeNotifier {
   final StorageService _storageService = StorageService();
@@ -67,9 +70,22 @@ class DailyController extends ChangeNotifier {
         return nameA.compareTo(nameB);
       });
 
+      // --- KONDISI ENKRIPSI DI AMBIL DI LUAR LOOP ---
+      bool isEncrypted = await _storageService.isEncryptionEnabled();
+      String? password = await _storageService.getEncryptionPassword();
+
       List<ChecklistGroup> loadedGroups = [];
       for (var file in groupFiles) {
         String jsonString = await file.readAsString();
+
+        // --- LOGIKA DEKRIPSI BARU UNTUK MENCEGAH FORMAT EXCEPTION (MY CHECKLIST) ---
+        if (isEncrypted &&
+            password != null &&
+            !jsonString.trim().startsWith('{')) {
+          jsonString = CryptoHelper.decrypt(jsonString, password);
+        }
+        // ---------------------------------------------------------------------------
+
         final Map<String, dynamic> parsedMap = jsonDecode(jsonString);
         loadedGroups.add(ChecklistGroup.fromJson(parsedMap));
       }

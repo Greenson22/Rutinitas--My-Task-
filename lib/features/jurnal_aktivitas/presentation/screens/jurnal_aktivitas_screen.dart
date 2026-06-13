@@ -9,6 +9,9 @@ import '../../../../core/presentation/widgets/universal_empty_state.dart'; // IM
 import '../../../task_master/data/models/task_model.dart';
 import '../../data/models/time_log_model.dart';
 import '../widgets/jurnal_statistik_dialog.dart';
+// Perlu dipastikan CryptoHelper sudah di-import.
+// Sesuaikan path import di bawah ini jika lokasi CryptoHelper Anda berbeda.
+import '../../../../core/utils/crypto_helper.dart';
 
 class JurnalAktivitasScreen extends StatefulWidget {
   const JurnalAktivitasScreen({super.key});
@@ -44,8 +47,22 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
       _baseDir = await _storageService.getBaseDirSetting();
       final File jsonFile = await _storageService.getJurnalJsonFile(_baseDir);
       _fullJsonPath = jsonFile.path;
-      final String jsonString = await _storageService
-          .loadOrInitializeJurnalJson(jsonFile);
+
+      String jsonString = await _storageService.loadOrInitializeJurnalJson(
+        jsonFile,
+      );
+
+      // --- LOGIKA DEKRIPSI BARU UNTUK MENCEGAH FORMAT EXCEPTION ---
+      bool isEncrypted = await _storageService.isEncryptionEnabled();
+      String? password = await _storageService.getEncryptionPassword();
+
+      if (isEncrypted &&
+          password != null &&
+          !jsonString.trim().startsWith('[')) {
+        jsonString = CryptoHelper.decrypt(jsonString, password);
+      }
+      // ------------------------------------------------------------
+
       final List<dynamic> decodedJson = jsonDecode(jsonString);
       List<TimeLogEntry> loadedLogs = decodedJson
           .map((e) => TimeLogEntry.fromJson(e))
@@ -97,6 +114,18 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
       File taskFile = await _storageService.getTargetJsonFile(_baseDir);
       if (await taskFile.exists()) {
         String jsonString = await taskFile.readAsString();
+
+        // --- LOGIKA DEKRIPSI BARU UNTUK TASK MASTER ---
+        bool isEncrypted = await _storageService.isEncryptionEnabled();
+        String? password = await _storageService.getEncryptionPassword();
+
+        if (isEncrypted &&
+            password != null &&
+            !jsonString.trim().startsWith('{')) {
+          jsonString = CryptoHelper.decrypt(jsonString, password);
+        }
+        // ----------------------------------------------
+
         final Map<String, dynamic> parsedMap = jsonDecode(jsonString);
         final List<dynamic> catList = parsedMap['categories'] ?? [];
         _allTaskCategories = catList
