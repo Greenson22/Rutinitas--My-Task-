@@ -6,10 +6,9 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/default_json.dart';
-import '../utils/crypto_helper.dart'; // Pastikan import CryptoHelper sudah benar
+import '../utils/crypto_helper.dart';
 
 class StorageService {
-  // 1. Definisikan key preferensi penyimpanan
   static const String _keyBaseDirRelease = 'ubuntu_base_dir';
   static const String _keyBaseDirDebug = 'ubuntu_base_dir_debug';
   static const String _keyIpHistory = 'sharing_ip_history';
@@ -18,7 +17,6 @@ class StorageService {
   static const String _keyIsEncrypted = 'is_encrypted';
   static const String _keyEncryptionPassword = 'encryption_password';
 
-  // Helper untuk mendapatkan key yang sesuai secara otomatis berdasarkan build mode
   String _getBaseDirKey() {
     return kDebugMode ? _keyBaseDirDebug : _keyBaseDirRelease;
   }
@@ -27,19 +25,16 @@ class StorageService {
   // === HELPER KEAMANAN & STATUS ENKRIPSI ===
   // =========================================================================
 
-  /// Mengambil status aktif/nonaktif enkripsi saat ini
   Future<bool> isEncryptionEnabled() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool(_keyIsEncrypted) ?? false;
   }
 
-  /// Mengambil kunci/kata sandi enkripsi terkonfigurasi
   Future<String?> getEncryptionPassword() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_keyEncryptionPassword);
   }
 
-  // 2. Perbarui fungsi mengambil pengaturan path
   Future<String> getBaseDirSetting() async {
     if (!kIsWeb && Platform.isAndroid) {
       final directory = await getApplicationDocumentsDirectory();
@@ -52,7 +47,6 @@ class StorageService {
     return prefs.getString(_getBaseDirKey()) ?? defaultFolder;
   }
 
-  // 3. Perbarui juga fungsi menyimpan pengaturan path
   Future<void> saveBaseDirSetting(String value) async {
     if (!kIsWeb && Platform.isAndroid) return;
 
@@ -81,7 +75,6 @@ class StorageService {
 
     String content = await jsonFile.readAsString();
 
-    // SINKRONISASI DEKRIPSI OTOMATIS
     bool isEncrypted = await isEncryptionEnabled();
     String? password = await getEncryptionPassword();
     if (isEncrypted && password != null && content.contains(':')) {
@@ -93,7 +86,6 @@ class StorageService {
   Future<void> saveJsonData(File jsonFile, String jsonContent) async {
     String dataToSave = jsonContent;
 
-    // SINKRONISASI ENKRIPSI OTOMATIS
     bool isEncrypted = await isEncryptionEnabled();
     String? password = await getEncryptionPassword();
     if (isEncrypted && password != null && password.isNotEmpty) {
@@ -160,7 +152,6 @@ class StorageService {
 
     String content = await jsonFile.readAsString();
 
-    // SINKRONISASI DEKRIPSI OTOMATIS
     bool isEncrypted = await isEncryptionEnabled();
     String? password = await getEncryptionPassword();
     if (isEncrypted && password != null && content.contains(':')) {
@@ -292,7 +283,6 @@ class StorageService {
     final file = await getSpecificPromptFile(baseDirSetting, id);
     String dataToSave = jsonContent;
 
-    // Cek jika fitur enkripsi aktif, lakukan enkripsi konten JSON sebelum ditulis
     bool isEncrypted = await isEncryptionEnabled();
     String? password = await getEncryptionPassword();
 
@@ -352,7 +342,6 @@ class StorageService {
     final file = await getSpecificNoteFile(baseDirSetting, id);
     String dataToSave = jsonContent;
 
-    // Cek jika fitur enkripsi aktif, lakukan enkripsi konten JSON sebelum ditulis
     bool isEncrypted = await isEncryptionEnabled();
     String? password = await getEncryptionPassword();
 
@@ -371,63 +360,61 @@ class StorageService {
   }
 
   // =========================================================================
-  // === FITUR UTAMA BARU: MIGRASI MASSAL UNTUK SEMUA FOLDER DATA APP ===
+  // === MODIFIKASI MIGRASI MASSAL: PERBAIKAN LOGIKA DETEKSI JSON ===
   // =========================================================================
 
-  /// Melakukan enkripsi atau dekripsi massal secara instan ke seluruh berkas data .json
-  /// di semua modul (mytask, my_checklist, jurnal_aktivitas, prompts, notes)
   Future<void> migrateFilesEncryption(bool turnOn, String password) async {
     final baseDir = await getBaseDirSetting();
-    List<File> allTargetFiles = [];
 
-    // 1. Ambil file dari modul mytask
-    final taskFile = await getTargetJsonFile(baseDir);
-    allTargetFiles.add(taskFile);
-
-    // 2. Ambil file dari modul jurnal_aktivitas
-    final jurnalFile = await getJurnalJsonFile(baseDir);
-    allTargetFiles.add(jurnalFile);
-
-    // 3. Ambil seluruh file dari modul my_checklist
-    final checklistFiles = await getAllChecklistGroups(baseDir);
-    allTargetFiles.addAll(checklistFiles);
-
-    // 4. Ambil seluruh file dari modul prompts
-    final promptFiles = await getAllPromptGroups(baseDir);
-    allTargetFiles.addAll(promptFiles);
-
-    // 5. Ambil seluruh file dari modul notes
-    final notesFiles = await getAllNoteGroups(baseDir);
-    allTargetFiles.addAll(notesFiles);
-
-    // 6. Jalankan proses Enkripsi/Dekripsi Massal secara langsung ke Disk Storage
-    for (var file in allTargetFiles) {
-      if (!await file.exists()) continue;
-      String content = await file.readAsString();
-
-      if (turnOn) {
-        // PROSES AKTIVASI: Enkripsi data JSON jika file masih berupa teks biasa (tidak mengandung ':')
-        if (!content.contains(':')) {
-          String encrypted = CryptoHelper.encrypt(content, password);
-          await file.writeAsString(encrypted);
-        }
-      } else {
-        // PROSES DEAKTIVASI: Kembalikan file terenkripsi menjadi teks murni biasa
-        if (content.contains(':')) {
-          String decrypted = CryptoHelper.decrypt(content, password);
-          await file.writeAsString(decrypted);
-        }
-      }
-    }
-
-    // 7. Perbarui konfigurasi status keamanan sistem di SharedPreferences
+    // Tulis status SharedPreferences di awal agar sinkron dengan threads UI
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyIsEncrypted, turnOn);
-
     if (turnOn) {
       await prefs.setString(_keyEncryptionPassword, password);
     } else {
       await prefs.remove(_keyEncryptionPassword);
+    }
+
+    List<File> allTargetFiles = [];
+
+    // Kumpulkan seluruh file dari berbagai modul
+    allTargetFiles.add(await getTargetJsonFile(baseDir));
+    allTargetFiles.add(await getJurnalJsonFile(baseDir));
+    allTargetFiles.addAll(await getAllChecklistGroups(baseDir));
+    allTargetFiles.addAll(await getAllPromptGroups(baseDir));
+    allTargetFiles.addAll(await getAllNoteGroups(baseDir));
+
+    // Jalankan proses Enkripsi/Dekripsi Massal
+    for (var file in allTargetFiles) {
+      if (!await file.exists()) continue;
+      String content = await file.readAsString();
+
+      // Bersihkan spasi kosong di awal/akhir untuk deteksi yang akurat
+      final trimmedContent = content.trim();
+
+      // PERBAIKAN LOGIKA: Deteksi valid JSON berdasarkan karakter kurung awal '{' atau '['
+      bool isRawJson =
+          trimmedContent.startsWith('{') || trimmedContent.startsWith('[');
+
+      if (turnOn) {
+        // PROSES AKTIVASI: Enkripsi hanya jika file MASIH berupa JSON murni
+        if (isRawJson) {
+          String encrypted = CryptoHelper.encrypt(content, password);
+          await file.writeAsString(encrypted, flush: true);
+        }
+      } else {
+        // PROSES DEAKTIVASI: Dekripsi hanya jika file BUKAN JSON murni (sudah terenkripsi)
+        if (!isRawJson) {
+          try {
+            String decrypted = CryptoHelper.decrypt(content, password);
+            await file.writeAsString(decrypted, flush: true);
+          } catch (e) {
+            debugPrint(
+              "Gagal mendekripsi file saat migrasi: ${file.path}, error: $e",
+            );
+          }
+        }
+      }
     }
   }
 }

@@ -63,8 +63,13 @@ class _NotesScreenState extends State<NotesScreen> {
 
         String content = await file.readAsString();
 
-        // === LOGIKA DEKRIPSI OTOMATIS ===
-        if (isEncrypted && password != null && content.contains(':')) {
+        // === LOGIKA DEKRIPSI OTOMATIS PERBAIKAN ===
+        final trimmedContent = content.trim();
+        bool isRawJson =
+            trimmedContent.startsWith('{') || trimmedContent.startsWith('[');
+
+        // Jika mode enkripsi aktif dan file BUKAN json murni (berarti ciphertext terenkripsi)
+        if (isEncrypted && password != null && !isRawJson) {
           try {
             content = CryptoHelper.decrypt(content, password);
           } catch (cryptoError) {
