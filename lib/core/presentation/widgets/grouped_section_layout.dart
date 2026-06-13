@@ -9,7 +9,7 @@ class GroupedSectionLayout<T> extends StatefulWidget {
   final bool isLoading;
   final bool isEmpty;
   final String emptyMessage;
-  final Widget? emptyStateView; // <-- 1. TAMBAHKAN PROPERTI BARU DI SINI
+  final Widget? emptyStateView;
   final bool isSelectMode;
   final int selectedItemsCount;
   final VoidCallback onClearSelection;
@@ -20,6 +20,8 @@ class GroupedSectionLayout<T> extends StatefulWidget {
   final ValueChanged<String>? onSearchChanged;
   final VoidCallback? onAddPressed;
   final Widget? additionalAction;
+  final Widget?
+  appBarTrailingAction; // <-- PROPERTI BARU: Penampung aksi ikon status enkripsi global
   final List<String> sectionKeys;
   final Map<String, List<T>> groupedItems;
   final Widget Function(
@@ -47,7 +49,7 @@ class GroupedSectionLayout<T> extends StatefulWidget {
     required this.isLoading,
     required this.isEmpty,
     this.emptyMessage = 'Belum ada data.',
-    this.emptyStateView, // <-- 2. DAFTARKAN DI KONSTRUKTOR DI SINI
+    this.emptyStateView,
     required this.isSelectMode,
     required this.selectedItemsCount,
     required this.onClearSelection,
@@ -58,6 +60,7 @@ class GroupedSectionLayout<T> extends StatefulWidget {
     this.onSearchChanged,
     this.onAddPressed,
     this.additionalAction,
+    this.appBarTrailingAction, // <-- MENDAFTARKAN KE KONSTRUKTOR LAYOUT
     required this.sectionKeys,
     required this.groupedItems,
     required this.sectionHeaderBuilder,
@@ -115,7 +118,10 @@ class _GroupedSectionLayoutState<T> extends State<GroupedSectionLayout<T>> {
         enableMultiSelect: widget.enableMultiSelect,
         onMoveMassive: widget.onMoveMassive,
         onDeleteMassive: widget.onDeleteMassive,
-        additionalAction: _internalSearchMode ? widget.additionalAction : null,
+        // LOGIKA DINAMIS: Menyisipkan ikon status enkripsi jika panel pencarian sedang ditutup
+        additionalAction: _internalSearchMode
+            ? widget.additionalAction
+            : widget.appBarTrailingAction,
         searchBarContent: Row(
           children: [
             Expanded(
@@ -154,7 +160,6 @@ class _GroupedSectionLayoutState<T> extends State<GroupedSectionLayout<T>> {
       ),
       drawer: widget.drawer,
       floatingActionButton: widget.floatingActionButton,
-      // 3. LOGIKA EVALUASI EMPTY STATE DIPERBARUI DI SINI
       body: widget.isLoading
           ? const Center(child: CircularProgressIndicator())
           : widget.isEmpty

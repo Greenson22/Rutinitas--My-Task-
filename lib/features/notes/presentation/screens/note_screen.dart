@@ -8,7 +8,7 @@ import 'package:rutinitasku/core/services/storage_service.dart';
 import 'package:rutinitasku/core/utils/crypto_helper.dart';
 import '../../models/note_model.dart';
 import '../../../../core/presentation/widgets/widgets.dart';
-import '../../../task_master/presentation/widgets/settings_dialog.dart';
+import '../../../task_master/presentation/widgets/settings_dialog.dart'; // Pastikan import SettingsDialog tersedia
 import 'note_detail_screen.dart';
 
 class NotesScreen extends StatefulWidget {
@@ -25,11 +25,19 @@ class _NotesScreenState extends State<NotesScreen> {
   bool _isSectionEditMode = false;
   bool _isCardEditMode = false;
 
+  // Variabel untuk menyimpan query pencarian
   String _searchQuery = '';
-  bool _showHiddenSection = false;
 
+  // STATE BARU: Kontrol untuk menampilkan atau menyembunyikan kategori/grup tersembunyi
+  bool _showHiddenSection = false;
+  bool _isGlobalEncryptionEnabled =
+      false; // <-- STATE BARU: Mengontrol visibilitas ikon enkripsi sistem di AppBar
+
+  // PERUBAHAN: Mulai dengan list kosong agar inisialisasi seksi dilakukan secara dinamis dari storage
   List<String> _sectionKeys = [];
   final Map<String, List<NoteGroup>> _groupedCategories = {};
+
+  // STATE BARU: Menampung kategori grup tersembunyi terpisah dari grid utama
   final Map<String, List<NoteGroup>> _hiddenGroupedCategories = {};
 
   @override
@@ -38,60 +46,79 @@ class _NotesScreenState extends State<NotesScreen> {
     _loadNotesData();
   }
 
+  // PERUBAHAN UTAMA: Ditambahkan jeda Future mikro asinkron agar sistem operasi selesai mengamankan file sebelum dibaca
   Future<void> _loadNotesData() async {
     setState(() => _isLoading = true);
     try {
+      // BERIKAN JEDA MIKRO: Menjamin penulisan enkripsi massal dari modal dialog selesai sepenuhnya di disk storage
       await Future.delayed(const Duration(milliseconds: 150));
 
       final baseDir = await _storageService.getBaseDirSetting();
       final files = await _storageService.getAllNoteGroups(baseDir);
 
+      // Ambil status konfigurasi enkripsi saat ini
       bool isEncrypted = await _storageService.isEncryptionEnabled();
       String? password = await _storageService.getEncryptionPassword();
+
+      // Sinkronisasikan status enkripsi sistem untuk kontrol UI ikon AppBar
+      setState(() {
+        _isGlobalEncryptionEnabled = isEncrypted;
+      });
 
       List<NoteGroup> loadedGroups = [];
       for (var file in files) {
         if (!await file.exists()) continue;
 
         String content = await file.readAsString();
+
+        // === LOGIKA DEKRIPSI OTOMATIS PERBAIKAN ===
         final trimmedContent = content.trim();
         bool isRawJson =
             trimmedContent.startsWith('{') || trimmedContent.startsWith('[');
 
+        // Menyiapkan nama file fallback untuk groupName jika file corrupt/terenkripsi
         String fileName = file.path.split('/').last.replaceAll('.json', '');
 
         try {
+          // Jika mode enkripsi aktif dan file BUKAN json murni (berarti ciphertext terenkripsi)
           if (isEncrypted && password != null && !isRawJson) {
             content = CryptoHelper.decrypt(content, password);
           }
+
           loadedGroups.add(NoteGroup.fromJson(jsonDecode(content)));
         } catch (error) {
           debugPrint(
             "Gagal memuat atau mendekripsi berkas ${file.path}: $error",
           );
 
-          // Tetap masukkan sebagai item dengan penanda ID khusus agar muncul di UI
+          // TETAP TAMPILKAN SEBAGAI CARD: Tambahkan mock NoteGroup dengan penanda ID khusus
           loadedGroups.add(
             NoteGroup(
               id: "CORRUPTED_${DateTime.now().millisecondsSinceEpoch}_$fileName",
               groupName: fileName,
               icon: '⚠️',
               notes: [],
-              sectionName: 'Berkas Rusak / Terenkripsi',
+              sectionName:
+                  'Berkas Rusak / Terenkripsi', // Seksi otomatis khusus berkas bermasalah
               isHidden: false,
             ),
           );
         }
       }
 
+      // PERBAIKAN: Mengurutkan list berdasarkan orderIndex secara persisten (bukan acak)
       loadedGroups.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
 
+      // Bersihkan memory state lama sebelum memasukkan data hasil load
       _sectionKeys.clear();
       _groupedCategories.clear();
-      _hiddenGroupedCategories.clear();
+      _hiddenGroupedCategories
+          .clear(); // Bersihkan data penampung tersembunyi lama
 
+      // Distribusikan note groups ke dalam seksinya masing-masing dengan filter isHidden
       for (var group in loadedGroups) {
-        String secName = group.sectionName;
+        String secName =
+            group.sectionName; // Menggunakan properti baru dari model
         if (group.isHidden) {
           if (!_hiddenGroupedCategories.containsKey(secName)) {
             _hiddenGroupedCategories[secName] = [];
@@ -119,6 +146,7 @@ class _NotesScreenState extends State<NotesScreen> {
   }
 
   Future<void> _saveGroupData(NoteGroup group) async {
+    // Lewati penyimpanan otomatis jika ini adalah berkas korup buatan/mock
     if (group.id.startsWith("CORRUPTED_")) return;
     try {
       final baseDir = await _storageService.getBaseDirSetting();
@@ -129,14 +157,18 @@ class _NotesScreenState extends State<NotesScreen> {
     }
   }
 
+  // PEMBARUAN PERMANEN: Fungsi untuk menyimpan urutan seksi baru ke local storage
   Future<void> _saveSectionOrderToStorage() async {
     int globalIndex = 0;
+    // Iterasi disesuaikan dengan urutan seksi (_sectionKeys) yang baru saja ditukar
     for (String sectionKey in _sectionKeys) {
       final groupsInSection = _groupedCategories[sectionKey] ?? [];
       for (var group in groupsInSection) {
         if (group.id.startsWith("CORRUPTED_")) continue;
+        // Atur kembali orderIndex agar grup di seksi atas selalu memiliki bobot lebih kecil
         group.orderIndex = globalIndex;
         globalIndex++;
+        // Tulis perubahan ke dalam disk
         await _saveGroupData(group);
       }
     }
@@ -159,7 +191,7 @@ class _NotesScreenState extends State<NotesScreen> {
     }
   }
 
-  // --- FITUR BARU: Dialog Dekripsi Berkas Secara Manual ---
+  // --- FITUR BARU: Dialog Input Kata Sandi untuk Dekripsi Manual Berkas Rusak ---
   void _showManualDecryptDialog(NoteGroup corruptedGroup) {
     final TextEditingController passwordController = TextEditingController();
     final formKey = GlobalKey<FormState>();
@@ -219,7 +251,7 @@ class _NotesScreenState extends State<NotesScreen> {
 
               try {
                 final baseDir = await _storageService.getBaseDirSetting();
-                // Format ulang nama file asli dengan memotong token prefix ID tiruan
+                // Potong prefix mock ID untuk mendapatkan nama file asli yang berada di penyimpanan
                 final String originalFileName = corruptedGroup.id.replaceFirst(
                   RegExp(r'CORRUPTED_\d+_'),
                   '',
@@ -236,19 +268,19 @@ class _NotesScreenState extends State<NotesScreen> {
 
                 String rawContent = await targetFile.readAsString();
 
-                // Coba lakukan dekripsi manual menggunakan password inputan user
+                // Langkah 1: Coba dekripsi manual data teks menggunakan input kunci dari pengguna
                 String decryptedContent = CryptoHelper.decrypt(
                   rawContent.trim(),
                   inputPassword,
                 );
 
-                // Validasi data terdekripsi dengan mencoba memparsing struktur JSON-nya
+                // Langkah 2: Uji kelayakan parsing JSON untuk memastikan password valid & struktur berkas aman
                 final Map<String, dynamic> parsedJson = jsonDecode(
                   decryptedContent,
                 );
                 NoteGroup decryptedGroup = NoteGroup.fromJson(parsedJson);
 
-                // === LOGIKA PENYESUAIAN DENGAN PENGATURAN GLOBAL SISTEM ===
+                // Langkah 3: Evaluasi kondisi konfigurasi sistem enkripsi global yang sedang aktif saat ini
                 bool isSystemEncryptionEnabled = await _storageService
                     .isEncryptionEnabled();
                 String? systemPassword = await _storageService
@@ -256,35 +288,35 @@ class _NotesScreenState extends State<NotesScreen> {
 
                 String finalContentToSave;
                 if (isSystemEncryptionEnabled && systemPassword != null) {
-                  // Jika enkripsi sistem aktif, enkripsikan ulang berkas menggunakan password sistem baru
+                  // Apabila sistem enkripsi aktif, amankan ulang berkas menggunakan password sistem yang baru
                   finalContentToSave = CryptoHelper.encrypt(
                     _storageService.formatJsonPretty(decryptedGroup.toJson()),
                     systemPassword,
                   );
                 } else {
-                  // Jika enkripsi sistem mati, simpan sebagai JSON murni tanpa enkripsi
+                  // Apabila sistem enkripsi dimatikan di pengaturan, tulis sebagai JSON teks biasa murni
                   finalContentToSave = _storageService.formatJsonPretty(
                     decryptedGroup.toJson(),
                   );
                 }
 
-                // Tulis kembali file yang telah diperbaiki ke disk storage
+                // Tulis balik konten perbaikan yang bersih dan valid ke disk storage lokal
                 await targetFile.writeAsString(finalContentToSave);
 
                 messenger.showSnackBar(
                   SnackBar(
                     content: Text(
-                      'Berkas "${decryptedGroup.groupName}" berhasil didekripsi dan disinkronkan!',
+                      'Berkas "${decryptedGroup.groupName}" berhasil didekripsi dan disinkronkan ke sistem!',
                     ),
                     backgroundColor: Colors.green,
                   ),
                 );
               } catch (e) {
-                debugPrint("Gagal melakukan dekripsi manual: $e");
+                debugPrint("Gagal melakukan dekripsi manual berkas: $e");
                 messenger.showSnackBar(
                   const SnackBar(
                     content: Text(
-                      'Gagal mendekripsi! Password salah atau struktur file di dalam JSON memang rusak.',
+                      'Gagal mendekripsi! Password salah atau struktur biner di dalam JSON memang korup.',
                     ),
                     backgroundColor: Colors.redAccent,
                   ),
@@ -304,6 +336,7 @@ class _NotesScreenState extends State<NotesScreen> {
     );
   }
 
+  // Fungsi helper untuk memicu konfirmasi dialog hapus grup
   Future<bool> _showConfirmDeleteDialog(NoteGroup group) async {
     return await showDialog<bool>(
           context: context,
@@ -344,18 +377,21 @@ class _NotesScreenState extends State<NotesScreen> {
         false;
   }
 
+  // --- TAMBAHAN BARU: Fungsi Pengubah Status Visibilitas Grup Catatan ---
   Future<void> _toggleGroupVisibility(NoteGroup group) async {
     if (group.id.startsWith("CORRUPTED_")) return;
     setState(() {
-      group.isHidden = !group.isHidden;
+      group.isHidden = !group.isHidden; // Balikkan status visibilitas
     });
     await _saveGroupData(group);
-    await _loadNotesData();
+    await _loadNotesData(); // Muat ulang pemisahan struktur data grid
   }
 
+  // --- TAMBAHAN BARU: Dialog Pemindahan Grup Note ke Seksi Lain ---
   void _showMoveGroupSectionDialog(NoteGroup group) {
     if (group.id.startsWith("CORRUPTED_")) return;
     List<String> availableSections = List.from(_sectionKeys);
+    // Tambahkan seksi dari penampung hidden jika belum terdaftar agar opsinya lengkap
     for (var key in _hiddenGroupedCategories.keys) {
       if (!availableSections.contains(key)) {
         availableSections.add(key);
@@ -390,6 +426,7 @@ class _NotesScreenState extends State<NotesScreen> {
                   onTap: isCurrentSection
                       ? null
                       : () async {
+                          // PERBAIKAN: Dapatkan ScaffoldMessenger sebelum dialog di-pop / tree context tidak stabil
                           final messenger = ScaffoldMessenger.of(context);
                           Navigator.pop(context);
                           setState(() {
@@ -399,6 +436,7 @@ class _NotesScreenState extends State<NotesScreen> {
                           });
                           await _saveGroupData(group);
                           await _loadNotesData();
+                          // Tampilkan pesan menggunakan referensi messenger yang aman
                           messenger.showSnackBar(
                             SnackBar(
                               content: Text(
@@ -423,6 +461,7 @@ class _NotesScreenState extends State<NotesScreen> {
     );
   }
 
+  // Fungsi untuk memfilter list kategori berdasarkan query pencarian
   Map<String, List<NoteGroup>> _getFilteredCategories(
     Map<String, List<NoteGroup>> sourceMap,
     List<String> keys,
@@ -439,6 +478,7 @@ class _NotesScreenState extends State<NotesScreen> {
     return filtered;
   }
 
+  // METHOD BARU: Alur Sekuensial Berantai Berurutan (Seksi Baru -> Group Catatan) Khusus Kondisi Kosong
   void _showSequentialAddDialog() {
     final sectionController = TextEditingController();
     final formKey = GlobalKey<FormState>();
@@ -477,6 +517,7 @@ class _NotesScreenState extends State<NotesScreen> {
                   });
                 }
                 Navigator.pop(context);
+                // Langsung berantai membuka pembuatan grup catatan di dalam seksi ini
                 _showAddGroupDialog(newSectionName);
               }
             },
@@ -491,6 +532,7 @@ class _NotesScreenState extends State<NotesScreen> {
     );
   }
 
+  // Dialog khusus untuk menambah Seksi Baru
   void _showAddSectionDialog() {
     final TextEditingController sectionController = TextEditingController();
     showDialog(
@@ -520,6 +562,7 @@ class _NotesScreenState extends State<NotesScreen> {
                   _groupedCategories[newSectionName] = [];
                 });
                 Navigator.pop(context);
+                // Menampilkan notifikasi Snackbar setelah seksi ditambahkan
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
@@ -538,6 +581,7 @@ class _NotesScreenState extends State<NotesScreen> {
     );
   }
 
+  // PERUBAHAN: Memasukkan parameter `sectionName` ke dalam inisialisasi NoteGroup baru
   void _showAddGroupDialog(String sectionName) {
     final TextEditingController groupController = TextEditingController();
     final TextEditingController iconController = TextEditingController(
@@ -619,6 +663,7 @@ class _NotesScreenState extends State<NotesScreen> {
     );
   }
 
+  // Mengubah dialog edit agar mendukung perubahan nama sekaligus ikon emoji
   void _showEditGroupDialog(NoteGroup group) {
     if (group.id.startsWith("CORRUPTED_")) return;
     final TextEditingController nameController = TextEditingController(
@@ -672,6 +717,7 @@ class _NotesScreenState extends State<NotesScreen> {
     );
   }
 
+  // Fungsi untuk Mengubah Nama Seksi
   void _showRenameSectionDialog(String oldSectionName) {
     final TextEditingController renameController = TextEditingController(
       text: oldSectionName,
@@ -718,6 +764,7 @@ class _NotesScreenState extends State<NotesScreen> {
     );
   }
 
+  // Fungsi untuk Menghapus Seksi beserta seluruh isinya
   void _confirmDeleteSection(String sectionName) {
     showDialog(
       context: context,
@@ -745,6 +792,7 @@ class _NotesScreenState extends State<NotesScreen> {
               for (var group in groupsToDelete) {
                 try {
                   final baseDir = await _storageService.getBaseDirSetting();
+                  // Jika mock corrupted, sesuaikan id untuk penghapusan file asli
                   String targetId = group.id;
                   if (targetId.startsWith("CORRUPTED_")) {
                     targetId = targetId.replaceFirst(
@@ -770,6 +818,25 @@ class _NotesScreenState extends State<NotesScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // NEW METHOD: Pemicu refresh instan halaman notes ketika dipanggil dari appBar lokal (opsional)
+  void _openLocalSettings() async {
+    final baseDir = await _storageService.getBaseDirSetting();
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (context) => SettingsDialog(
+        currentBaseDir: baseDir,
+        onSave: (newPath) async {
+          await _storageService.saveBaseDirSetting(newPath);
+          _loadNotesData();
+        },
+        onEncryptionToggled: () {
+          _loadNotesData(); // <--- Paksa refresh instan data grid di sini
+        },
       ),
     );
   }
@@ -804,18 +871,43 @@ class _NotesScreenState extends State<NotesScreen> {
 
     return GroupedSectionLayout<NoteGroup>(
       title: 'Note Groups',
-      drawer: const DrawerMenu(isNotesActive: true),
+      drawer: const DrawerMenu(
+        isNotesActive: true,
+      ), // Menyematkan status aktif modul notes agar pushReplacement di Drawer tersinkronisasi
       isLoading: _isLoading,
       isEmpty: allRenderedKeys.isEmpty,
+
+      // PEMBARUAN UTAMA: Menggunakan widget bersama dengan alur pembuatan berantai sekuensial (Seksi -> Grup)
       emptyStateView: UniversalEmptyState(
         icon: Icons.note_alt_rounded,
         title: 'Folder Catatan Masih Kosong',
         description:
             'Belum ada seksi atau grup penampung catatan yang terdaftar. Yuk, buat Seksi Utama sekaligus Grup Catatan pertama Anda sekarang juga!',
         buttonLabel: 'Buat Seksi & Grup Catatan',
-        themeColor: _themeColor,
+        themeColor: _themeColor, // Indigo
         onPressed: _showSequentialAddDialog,
       ),
+      // === PARAMETER BARU DI SINI ===
+      appBarTrailingAction: _isGlobalEncryptionEnabled
+          ? Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: Tooltip(
+                message: 'Enkripsi AES-256 Aktif',
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.teal.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.lock,
+                    color: Colors.tealAccent,
+                    size: 18,
+                  ),
+                ),
+              ),
+            )
+          : null, // Sesuai instruksi: Jika tidak diaktifkan, icon tidak ada atau kosong (null)
       sectionKeys: allRenderedKeys,
       groupedItems: allRenderedItems,
       isSelectMode: false,
@@ -905,6 +997,7 @@ class _NotesScreenState extends State<NotesScreen> {
         );
       },
       gridItemBuilder: (context, noteGroup, index, sectionItems, isLayoutEditMode) {
+        // Evaluasi apakah berkas tiruan terdeteksi bermasalah / terenkripsi
         final bool isCorrupted = noteGroup.id.startsWith("CORRUPTED_");
 
         if (isCorrupted) {
@@ -915,15 +1008,15 @@ class _NotesScreenState extends State<NotesScreen> {
             isFirst: index == 0,
             isLast: index == sectionItems.length - 1,
             onTap: () {
-              // Menawarkan kemudahan akses langsung memicu dialog dekripsi saat kartu ditekan
+              // Pemicu langsung dialog dekripsi manual ketika kartu rusak diklik
               _showManualDecryptDialog(noteGroup);
             },
             onLongPress: () =>
                 setState(() => _isCardEditMode = !_isCardEditMode),
-            onMoveLeft: () {},
+            onMoveLeft:
+                () {}, // Matikan interaksi perubahan posisi untuk berkas rusak
             onMoveRight: () {},
             popupMenuItems: [
-              // PERUBAHAN DI SINI: Menyediakan menu popup ganda untuk Dekripsi Manual dan Hapus
               const PopupMenuItem(
                 value: 'decrypt',
                 child: Row(
@@ -956,6 +1049,7 @@ class _NotesScreenState extends State<NotesScreen> {
               if (value == 'decrypt') {
                 _showManualDecryptDialog(noteGroup);
               } else if (value == 'delete') {
+                // Ekstrak ID asli dari penyimpanan lokal dengan memotong prefix tiruan
                 final String originalId = noteGroup.id.replaceFirst(
                   RegExp(r'CORRUPTED_\d+_'),
                   '',
@@ -979,7 +1073,10 @@ class _NotesScreenState extends State<NotesScreen> {
             content: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(noteGroup.icon, style: const TextStyle(fontSize: 32)),
+                Text(
+                  noteGroup.icon, // Menampilkan emoji '⚠️'
+                  style: const TextStyle(fontSize: 32),
+                ),
                 const SizedBox(height: 8),
                 Text(
                   noteGroup.groupName,
@@ -1016,6 +1113,7 @@ class _NotesScreenState extends State<NotesScreen> {
           );
         }
 
+        // RENDERING NORMAL JIKA BERKAS SEHAT
         return InteractiveGridCard(
           themeColor: _themeColor,
           isEditMode: isLayoutEditMode ? true : _isCardEditMode,
