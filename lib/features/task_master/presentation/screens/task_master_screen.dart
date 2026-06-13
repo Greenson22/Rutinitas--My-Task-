@@ -12,6 +12,9 @@ import '../widgets/tasks_dialog.dart';
 import '../widgets/add_category_dialog.dart';
 import '../../../../core/presentation/widgets/universal_empty_state.dart'; // <-- DIUBAH: Menggunakan Universal Widget dari Core
 import 'package:intl/intl.dart';
+// Perlu dipastikan CryptoHelper sudah di-import.
+// Sesuaikan path import di bawah ini jika lokasi CryptoHelper Anda berbeda.
+import '../../../../core/utils/crypto_helper.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -66,6 +69,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (await fileJurnal.exists()) {
         String jsonString = await fileJurnal.readAsString();
+
+        // --- LOGIKA DEKRIPSI UNTUK KALKULASI JURNAL ---
+        bool isEncrypted = await _storageService.isEncryptionEnabled();
+        String? password = await _storageService.getEncryptionPassword();
+
+        if (isEncrypted &&
+            password != null &&
+            !jsonString.trim().startsWith('[')) {
+          jsonString = CryptoHelper.decrypt(jsonString, password);
+        }
+        // ----------------------------------------------
+
         if (jsonString.trim().isNotEmpty) {
           List<dynamic> decodedJson = jsonDecode(jsonString);
           List<TimeLogEntry> logs = decodedJson
@@ -117,6 +132,18 @@ class _HomeScreenState extends State<HomeScreen> {
       File jsonFile = await _storageService.getTargetJsonFile(_selectedBaseDir);
       _fullJsonPath = jsonFile.path;
       String jsonString = await _storageService.loadOrInitializeJson(jsonFile);
+
+      // --- LOGIKA DEKRIPSI UNTUK DATA TASK MASTER ---
+      bool isEncrypted = await _storageService.isEncryptionEnabled();
+      String? password = await _storageService.getEncryptionPassword();
+
+      if (isEncrypted &&
+          password != null &&
+          !jsonString.trim().startsWith('{')) {
+        jsonString = CryptoHelper.decrypt(jsonString, password);
+      }
+      // ----------------------------------------------
+
       final Map<String, dynamic> parsedMap = jsonDecode(jsonString);
       final List<dynamic> catList = parsedMap['categories'] ?? [];
       List<TaskCategory> loadedCategories = catList
@@ -278,6 +305,17 @@ class _HomeScreenState extends State<HomeScreen> {
       String jsonString = await _storageService.loadOrInitializeJurnalJson(
         jurnalFile,
       );
+
+      // --- LOGIKA DEKRIPSI UNTUK PROSES UPDATE JURNAL (+30 MENIT) ---
+      bool isEncrypted = await _storageService.isEncryptionEnabled();
+      String? password = await _storageService.getEncryptionPassword();
+
+      if (isEncrypted &&
+          password != null &&
+          !jsonString.trim().startsWith('[')) {
+        jsonString = CryptoHelper.decrypt(jsonString, password);
+      }
+      // -------------------------------------------------------------
 
       // Mengantisipasi format data rusak/parsial pada file json eksternal agar tidak crash
       List<dynamic> decodedJson = [];
