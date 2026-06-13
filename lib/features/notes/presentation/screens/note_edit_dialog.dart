@@ -207,6 +207,9 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
 
   @override
   Widget build(BuildContext context) {
+    // Ambil lebar total layar perangkat agar dialog responsif
+    final double screenWidth = MediaQuery.of(context).size.width;
+
     // Membungkus seluruh hirarki dengan PopScope untuk memantau gesture close/back system
     return PopScope(
       canPop:
@@ -237,383 +240,405 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
           }
           return KeyEventResult.ignored;
         },
-        child: BasePopupDialog(
-          title: Row(
-            children: [
-              Expanded(
-                child: _isEditingTitle
-                    ? TextField(
-                        controller: _titleController,
-                        autofocus: true,
-                        cursorColor: Colors.amberAccent,
-                        cursorWidth: 2.0,
-                        cursorRadius: const Radius.circular(2),
-                        textAlignVertical: TextAlignVertical.center,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        decoration: const InputDecoration(
-                          hintText: 'Judul Catatan...',
-                          hintStyle: TextStyle(
-                            color: Colors.white60,
-                            fontWeight: FontWeight.normal,
-                          ),
-                          border: InputBorder.none,
-                          enabledBorder: UnderlineInputBorder(
-                            borderSide: BorderSide(
-                              color: Colors.white24,
-                              width: 1.0,
-                            ),
-                          ),
-                          focusedBorder: UnderlineInputBorder(
-                            borderSide: BorderSide(
-                              color: Colors.tealAccent,
-                              width: 1.5,
-                            ),
-                          ),
-                          isDense: true,
-                          contentPadding: EdgeInsets.only(bottom: 6.0),
-                        ),
-                      )
-                    : Text(
-                        _titleController.text,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+        // BUNGKUS DENGAN THEME UNTUK MENYUNTIKKAN STRUKTUR THEMEDATA KUSTOM SECARA LOKAL
+        child: Theme(
+          data: Theme.of(context).copyWith(
+            dialogTheme: DialogThemeData(
+              // <--- PERBAIKAN: DialogTheme diubah menjadi DialogThemeData
+              // Mengatur sisa margin jarak aman dari ujung terluar layar desktop / smartphone
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 12.0,
+                vertical: 24.0,
               ),
-              const SizedBox(width: 8),
-
-              // MODIFIKASI: Switch MD hanya muncul saat tipe 'text' DAN sedang dalam MODE EDIT (!_isViewMode)
-              if (_currentType == 'text' && !_isViewMode) ...[
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      'MD',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Transform.scale(
-                      scale: 0.7,
-                      child: Switch(
-                        value: _isMarkdownEnabled,
-                        activeColor: Colors.tealAccent,
-                        activeTrackColor: Colors.teal.shade700,
-                        inactiveThumbColor: Colors.white70,
-                        inactiveTrackColor: Colors.white24,
-                        onChanged: (value) {
-                          setState(() {
-                            _isMarkdownEnabled = value;
-                          });
-                          _triggerChange(); // <--- PICU PERUBAHAN AGAR IKUT DISIMPAN SECARA PERMANEN
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(width: 4),
-              ],
-
-              // Logika Tampilan Tombol berdasarkan View Mode
-              if (_isViewMode) ...[
-                IconButton(
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  icon: const Icon(Icons.edit, color: Colors.white, size: 20),
-                  tooltip: 'Edit Catatan',
-                  onPressed: () {
-                    setState(() {
-                      _isViewMode = false;
-                      _hasChanges =
-                          false; // Reset paksa flag agar perubahan valid dihitung sejak tombol edit ditekan
-                    });
-                  },
-                ),
-              ] else ...[
-                if (_hasChanges) ...[
-                  _isSaving
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.white,
+              // Konfigurasi pembatas melar minimal 92% layar smartphone, maksimal lebar 960px pada PC
+              constraints: BoxConstraints(
+                minWidth: screenWidth * 0.92,
+                maxWidth: 960,
+              ),
+            ),
+          ),
+          child: BasePopupDialog(
+            title: Row(
+              children: [
+                Expanded(
+                  child: _isEditingTitle
+                      ? TextField(
+                          controller: _titleController,
+                          autofocus: true,
+                          cursorColor: Colors.amberAccent,
+                          cursorWidth: 2.0,
+                          cursorRadius: const Radius.circular(2),
+                          textAlignVertical: TextAlignVertical.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          decoration: const InputDecoration(
+                            hintText: 'Judul Catatan...',
+                            hintStyle: TextStyle(
+                              color: Colors.white60,
+                              fontWeight: FontWeight.normal,
                             ),
+                            border: InputBorder.none,
+                            enabledBorder: UnderlineInputBorder(
+                              borderSide: BorderSide(
+                                color: Colors.white24,
+                                width: 1.0,
+                              ),
+                            ),
+                            focusedBorder: UnderlineInputBorder(
+                              borderSide: BorderSide(
+                                color: Colors.tealAccent,
+                                width: 1.5,
+                              ),
+                            ),
+                            isDense: true,
+                            contentPadding: EdgeInsets.only(bottom: 6.0),
                           ),
                         )
-                      : IconButton(
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                          icon: const Icon(
-                            Icons.save,
-                            color: Colors.amberAccent,
-                            size: 20,
+                      : Text(
+                          _titleController.text,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
                           ),
-                          tooltip: 'Simpan Catatan',
-                          onPressed: _executeSaveAction,
                         ),
-                  const SizedBox(width: 10),
+                ),
+                const SizedBox(width: 8),
+
+                // Switch MD hanya muncul saat tipe 'text' DAN sedang dalam MODE EDIT (!_isViewMode)
+                if (_currentType == 'text' && !_isViewMode) ...[
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'MD',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Transform.scale(
+                        scale: 0.7,
+                        child: Switch(
+                          value: _isMarkdownEnabled,
+                          activeColor: Colors.tealAccent,
+                          activeTrackColor: Colors.teal.shade700,
+                          inactiveThumbColor: Colors.white70,
+                          inactiveTrackColor: Colors.white24,
+                          onChanged: (value) {
+                            setState(() {
+                              _isMarkdownEnabled = value;
+                            });
+                            _triggerChange(); // <--- PICU PERUBAHAN AGAR IKUT DISIMPAN SECARA PERMANEN
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 4),
                 ],
-                IconButton(
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  icon: Icon(
-                    _currentType == 'text' ? Icons.list_alt : Icons.table_chart,
-                    color: Colors.tealAccent,
-                    size: 20,
+
+                // Logika Tampilan Tombol berdasarkan View Mode
+                if (_isViewMode) ...[
+                  IconButton(
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    icon: const Icon(Icons.edit, color: Colors.white, size: 20),
+                    tooltip: 'Edit Catatan',
+                    onPressed: () {
+                      setState(() {
+                        _isViewMode = false;
+                        _hasChanges =
+                            false; // Reset paksa flag agar perubahan valid dihitung sejak tombol edit ditekan
+                      });
+                    },
                   ),
-                  tooltip: _currentType == 'text'
-                      ? 'Ubah ke Catatan Berfield (Tabel)'
-                      : 'Ubah ke Catatan Teks',
-                  onPressed: () {
-                    setState(() {
-                      _currentType = _currentType == 'text' ? 'table' : 'text';
-                      _hasChanges = true;
-                    });
-                  },
-                ),
-                const SizedBox(width: 10),
-                IconButton(
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  icon: Icon(
-                    _isEditingTitle ? Icons.check : Icons.edit,
-                    color: Colors.white,
-                    size: 18,
+                ] else ...[
+                  if (_hasChanges) ...[
+                    _isSaving
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
+                            ),
+                          )
+                        : IconButton(
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            icon: const Icon(
+                              Icons.save,
+                              color: Colors.amberAccent,
+                              size: 20,
+                            ),
+                            tooltip: 'Simpan Catatan',
+                            onPressed: _executeSaveAction,
+                          ),
+                    const SizedBox(width: 10),
+                  ],
+                  IconButton(
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    icon: Icon(
+                      _currentType == 'text'
+                          ? Icons.list_alt
+                          : Icons.table_chart,
+                      color: Colors.tealAccent,
+                      size: 20,
+                    ),
+                    tooltip: _currentType == 'text'
+                        ? 'Ubah ke Catatan Berfield (Tabel)'
+                        : 'Ubah ke Catatan Teks',
+                    onPressed: () {
+                      setState(() {
+                        _currentType = _currentType == 'text'
+                            ? 'table'
+                            : 'text';
+                        _hasChanges = true;
+                      });
+                    },
                   ),
-                  tooltip: _isEditingTitle ? 'Selesai' : 'Ubah Judul',
-                  onPressed: () {
-                    setState(() {
-                      if (_isEditingTitle &&
-                          _titleController.text.trim().isEmpty) {
-                        _titleController.text =
-                            _editableNote?.title ?? 'Catatan Baru';
-                      }
-                      _isEditingTitle = !_isEditingTitle;
-                    });
-                  },
-                ),
+                  const SizedBox(width: 10),
+                  IconButton(
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    icon: Icon(
+                      _isEditingTitle ? Icons.check : Icons.edit,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                    tooltip: _isEditingTitle ? 'Selesai' : 'Ubah Judul',
+                    onPressed: () {
+                      setState(() {
+                        if (_isEditingTitle &&
+                            _titleController.text.trim().isEmpty) {
+                          _titleController.text =
+                              _editableNote?.title ?? 'Catatan Baru';
+                        }
+                        _isEditingTitle = !_isEditingTitle;
+                      });
+                    },
+                  ),
+                ],
               ],
-            ],
-          ),
-          themeColor: Colors.indigo,
-          titleColor: Colors.white,
-          content: Container(
-            height: MediaQuery.of(context).size.height * 0.65,
-            color: Colors.grey[100],
-            child: _currentType == 'text'
-                ? Container(
-                    color: Colors.white,
-                    padding: const EdgeInsets.all(16.0),
-                    child: _isViewMode
-                        ? (_isMarkdownEnabled
-                              // ========================================================
-                              // MODE VIEW (MD AKTIF): Tampilkan Render Markdown yang Cantik
-                              // ========================================================
-                              ? Markdown(
-                                  data: _contentController.text.isEmpty
-                                      ? '*Catatan kosong.*'
-                                      : _contentController.text,
-                                  selectable: true,
-                                  styleSheet:
-                                      MarkdownStyleSheet.fromTheme(
-                                        Theme.of(context),
-                                      ).copyWith(
-                                        p: const TextStyle(
-                                          fontSize: 14,
-                                          color: Colors.black87,
-                                          height: 1.5,
-                                        ),
-                                        h1: const TextStyle(
-                                          fontSize: 22,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.indigo,
-                                        ),
-                                        h2: const TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.indigo,
-                                        ),
-                                        h3: const TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.indigo,
-                                        ),
-                                        code: TextStyle(
-                                          backgroundColor: Colors.grey[200],
-                                          color: Colors.red[700],
-                                        ),
-                                        codeblockDecoration: BoxDecoration(
-                                          color: Colors.grey[900],
-                                          borderRadius: BorderRadius.circular(
-                                            8,
+            ),
+            themeColor: Colors.indigo,
+            titleColor: Colors.white,
+            content: Container(
+              height: MediaQuery.of(context).size.height * 0.65,
+              color: Colors.grey[100],
+              child: _currentType == 'text'
+                  ? Container(
+                      color: Colors.white,
+                      padding: const EdgeInsets.all(16.0),
+                      child: _isViewMode
+                          ? (_isMarkdownEnabled
+                                // ========================================================
+                                // MODE VIEW (MD AKTIF): Tampilkan Render Markdown yang Cantik
+                                // ========================================================
+                                ? Markdown(
+                                    data: _contentController.text.isEmpty
+                                        ? '*Catatan kosong.*'
+                                        : _contentController.text,
+                                    selectable: true,
+                                    styleSheet:
+                                        MarkdownStyleSheet.fromTheme(
+                                          Theme.of(context),
+                                        ).copyWith(
+                                          p: const TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.black87,
+                                            height: 1.5,
+                                          ),
+                                          h1: const TextStyle(
+                                            fontSize: 22,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.indigo,
+                                          ),
+                                          h2: const TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.indigo,
+                                          ),
+                                          h3: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.indigo,
+                                          ),
+                                          code: TextStyle(
+                                            backgroundColor: Colors.grey[200],
+                                            color: Colors.red[700],
+                                          ),
+                                          codeblockDecoration: BoxDecoration(
+                                            color: Colors.grey[900],
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
                                           ),
                                         ),
+                                  )
+                                // ========================================================
+                                // MODE VIEW (MD NONAKTIF): Tampilkan Sebagai Teks Biasa (Read Only)
+                                // ========================================================
+                                : TextField(
+                                    controller: _contentController,
+                                    readOnly: true,
+                                    maxLines: null,
+                                    expands: true,
+                                    textAlignVertical: TextAlignVertical.top,
+                                    decoration: InputDecoration(
+                                      hintText: 'Catatan kosong.',
+                                      hintStyle: TextStyle(
+                                        color: Colors.grey[400],
                                       ),
-                                )
-                              // ========================================================
-                              // MODE VIEW (MD NONAKTIF): Tampilkan Sebagai Teks Biasa (Read Only)
-                              // ========================================================
-                              : TextField(
-                                  controller: _contentController,
-                                  readOnly: true,
-                                  maxLines: null,
-                                  expands: true,
-                                  textAlignVertical: TextAlignVertical.top,
-                                  decoration: InputDecoration(
-                                    hintText: 'Catatan kosong.',
-                                    hintStyle: TextStyle(
-                                      color: Colors.grey[400],
+                                      border: InputBorder.none,
+                                      contentPadding: EdgeInsets.zero,
                                     ),
-                                    border: InputBorder.none,
-                                    contentPadding: EdgeInsets.zero,
-                                  ),
-                                ))
-                        // ========================================================
-                        // MODE EDIT: Tampilkan TextField Utama untuk Ketik / Paste
-                        // ========================================================
-                        : TextField(
-                            controller: _contentController,
-                            maxLines: null,
-                            expands: true,
-                            textAlignVertical: TextAlignVertical.top,
-                            style: TextStyle(
-                              fontFamily: _isMarkdownEnabled
-                                  ? 'Courier'
-                                  : null, // Monospace hanya jika MD aktif
-                              fontSize: 14,
-                            ),
-                            decoration: InputDecoration(
-                              hintText: _isMarkdownEnabled
-                                  ? 'Tulis atau paste catatan Anda di sini (Mendukung Markdown)...'
-                                  : 'Tulis catatan Anda di sini...',
-                              hintStyle: TextStyle(color: Colors.grey[400]),
-                              border: InputBorder.none,
-                              contentPadding: EdgeInsets.zero,
-                            ),
-                          ),
-                  )
-                // Menangani tampilan tabel berdasarkan view mode
-                : _isViewMode
-                ? Container(
-                    color: Colors.white,
-                    child: NoteTableDataView(
-                      controller: widget.controller,
-                      currentFieldKeys: _currentFieldKeys,
-                      currentFieldTypes: _currentFieldTypes,
-                      tableRows: _tableRows,
-                      formControllers: _formControllers,
-                      sortColumnIndex: _sortColumnIndex,
-                      isAscending: _isAscending,
-                      onChanged: _triggerChange,
-                      isViewMode: true, // Kirim status view mode ke tabel
-                      onSortChanged: (index, ascending) {
-                        setState(() {
-                          _sortColumnIndex = index;
-                          _isAscending = ascending;
-                        });
-                      },
-                    ),
-                  )
-                : DefaultTabController(
-                    length: 2,
-                    child: Column(
-                      children: [
-                        Container(
-                          color: Colors.white,
-                          child: const TabBar(
-                            labelColor: Colors.indigo,
-                            unselectedLabelColor: Colors.grey,
-                            indicatorColor: Colors.indigo,
-                            tabs: [
-                              Tab(
-                                text: 'Data Tabel',
-                                icon: Icon(Icons.dataset_outlined, size: 18),
+                                  ))
+                          // ========================================================
+                          // MODE EDIT: Tampilkan TextField Utama untuk Ketik / Paste
+                          // ========================================================
+                          : TextField(
+                              controller: _contentController,
+                              maxLines: null,
+                              expands: true,
+                              textAlignVertical: TextAlignVertical.top,
+                              style: TextStyle(
+                                fontFamily: _isMarkdownEnabled
+                                    ? 'Courier'
+                                    : null, // Monospace hanya jika MD aktif
+                                fontSize: 14,
                               ),
-                              Tab(
-                                text: 'Pengaturan Kolom',
-                                icon: Icon(
-                                  Icons.view_column_outlined,
-                                  size: 18,
+                              decoration: InputDecoration(
+                                hintText: _isMarkdownEnabled
+                                    ? 'Tulis atau paste catatan Anda di sini (Mendukung Markdown)...'
+                                    : 'Tulis catatan Anda di sini...',
+                                hintStyle: TextStyle(color: Colors.grey[400]),
+                                border: InputBorder.none,
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                            ),
+                    )
+                  // Menangani tampilan tabel berdasarkan view mode
+                  : _isViewMode
+                  ? Container(
+                      color: Colors.white,
+                      child: NoteTableDataView(
+                        controller: widget.controller,
+                        currentFieldKeys: _currentFieldKeys,
+                        currentFieldTypes: _currentFieldTypes,
+                        tableRows: _tableRows,
+                        formControllers: _formControllers,
+                        sortColumnIndex: _sortColumnIndex,
+                        isAscending: _isAscending,
+                        onChanged: _triggerChange,
+                        isViewMode: true, // Kirim status view mode ke tabel
+                        onSortChanged: (index, ascending) {
+                          setState(() {
+                            _sortColumnIndex = index;
+                            _isAscending = ascending;
+                          });
+                        },
+                      ),
+                    )
+                  : DefaultTabController(
+                      length: 2,
+                      child: Column(
+                        children: [
+                          Container(
+                            color: Colors.white,
+                            child: const TabBar(
+                              labelColor: Colors.indigo,
+                              unselectedLabelColor: Colors.grey,
+                              indicatorColor: Colors.indigo,
+                              tabs: [
+                                Tab(
+                                  text: 'Data Tabel',
+                                  icon: Icon(Icons.dataset_outlined, size: 18),
                                 ),
-                              ),
-                            ],
+                                Tab(
+                                  text: 'Pengaturan Kolom',
+                                  icon: Icon(
+                                    Icons.view_column_outlined,
+                                    size: 18,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                        Expanded(
-                          child: TabBarView(
-                            children: [
-                              NoteTableDataView(
-                                controller: widget.controller,
-                                currentFieldKeys: _currentFieldKeys,
-                                currentFieldTypes: _currentFieldTypes,
-                                tableRows: _tableRows,
-                                formControllers: _formControllers,
-                                sortColumnIndex: _sortColumnIndex,
-                                isAscending: _isAscending,
-                                onChanged: _triggerChange,
-                                isViewMode: false,
-                                onSortChanged: (index, ascending) {
-                                  setState(() {
-                                    _sortColumnIndex = index;
-                                    _isAscending = ascending;
-                                  });
-                                },
-                              ),
-                              NoteColumnSettingsView(
-                                controller: widget.controller,
-                                currentFieldKeys: _currentFieldKeys,
-                                currentFieldTypes: _currentFieldTypes,
-                                tableRows: _tableRows,
-                                formControllers: _formControllers,
-                                onChanged: _triggerChange,
-                              ),
-                            ],
+                          Expanded(
+                            child: TabBarView(
+                              children: [
+                                NoteTableDataView(
+                                  controller: widget.controller,
+                                  currentFieldKeys: _currentFieldKeys,
+                                  currentFieldTypes: _currentFieldTypes,
+                                  tableRows: _tableRows,
+                                  formControllers: _formControllers,
+                                  sortColumnIndex: _sortColumnIndex,
+                                  isAscending: _isAscending,
+                                  onChanged: _triggerChange,
+                                  isViewMode: false,
+                                  onSortChanged: (index, ascending) {
+                                    setState(() {
+                                      _sortColumnIndex = index;
+                                      _isAscending = ascending;
+                                    });
+                                  },
+                                ),
+                                NoteColumnSettingsView(
+                                  controller: widget.controller,
+                                  currentFieldKeys: _currentFieldKeys,
+                                  currentFieldTypes: _currentFieldTypes,
+                                  tableRows: _tableRows,
+                                  formControllers: _formControllers,
+                                  onChanged: _triggerChange,
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-          ),
-          footer: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16.0,
-              vertical: 12.0,
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                ElevatedButton(
-                  onPressed: () async {
-                    if (_hasChanges) {
-                      final shouldPop = await _showExitConfirmationDialog();
-                      if (shouldPop && context.mounted) {
+            footer: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 12.0,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  ElevatedButton(
+                    onPressed: () async {
+                      if (_hasChanges) {
+                        final shouldPop = await _showExitConfirmationDialog();
+                        if (shouldPop && context.mounted) {
+                          Navigator.pop(context);
+                        }
+                      } else {
                         Navigator.pop(context);
                       }
-                    } else {
-                      Navigator.pop(context);
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.grey[400],
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.grey[400],
+                    ),
+                    child: const Text(
+                      'Tutup',
+                      style: TextStyle(color: Colors.white),
+                    ),
                   ),
-                  child: const Text(
-                    'Tutup',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
