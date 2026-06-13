@@ -5,8 +5,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../../core/services/storage_service.dart';
 import '../../data/models/daily_model.dart';
-import '../widgets/daily_checklist_dialog.dart';
-import '../widgets/add_daily_subject_dialog.dart';
+import '../widgets/checklist_detail/daily_checklist_dialog.dart';
+import '../widgets/checklist_detail/add_daily_subject_dialog.dart';
 import '../screens/checklist_detail_screen.dart';
 
 abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
