@@ -2,11 +2,14 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../../core/presentation/widgets/drawer_menu.dart';
-import '../../../../core/presentation/widgets/universal_empty_state.dart';
 import '../../../../core/utils/crypto_helper.dart';
 import '../../data/models/time_log_model.dart';
+import '../controllers/jurnal_aktivitas_controller.dart';
 import '../widgets/jurnal_statistik_dialog.dart';
-import '../controllers/jurnal_aktivitas_controller.dart'; // Import Controller Baru
+// Import sub-widget baru
+import '../widgets/jurnal_empty_state.dart';
+import '../widgets/jurnal_corrupted_state.dart';
+import '../widgets/jurnal_task_item_card.dart';
 
 class JurnalAktivitasScreen extends StatefulWidget {
   const JurnalAktivitasScreen({super.key});
@@ -16,7 +19,6 @@ class JurnalAktivitasScreen extends StatefulWidget {
 }
 
 class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
-  // Inisialisasi controller pembawa state logika bisnis
   final JurnalAktivitasController _controller = JurnalAktivitasController();
 
   @override
@@ -35,7 +37,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     });
   }
 
-  // --- INTERAKSI DIALOG UI ---
+  // --- LOGIKA DIALOG INTERAKSI (PRODUKSI WIDGET POPUP) ---
   void _showDecryptionErrorDialog(File jsonFile) {
     showDialog(
       context: context,
@@ -58,7 +60,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
             child: const Text('Tutup', style: TextStyle(color: Colors.grey)),
           ),
           TextButton(
-            onPressed: () async {
+            onPressed: () {
               Navigator.pop(ctx);
               _showManualUnlockDialog(jsonFile);
             },
@@ -78,7 +80,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                 builder: (c) => AlertDialog(
                   title: const Text('Buat Baru?'),
                   content: const Text(
-                    'Semua data lama di dalam berkas Jurnal Aktivitas ini akan dihapus total dan diganti dengan struktur baru yang kosong. Tindakan ini tidak bisa dibatalkan!',
+                    'Semua data lama di dalam berkas Jurnal Aktivitas ini akan dihapus total. Tindakan ini tidak bisa dibatalkan!',
                   ),
                   actions: [
                     TextButton(
@@ -160,9 +162,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                     encryptedContent,
                     input,
                   );
-
-                  bool success = _controller.handleManualUnlock(decrypted);
-                  if (success) {
+                  if (_controller.handleManualUnlock(decrypted)) {
                     Navigator.pop(ctx);
                     _triggerLoadData();
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -245,9 +245,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                               return ListTile(
                                 dense: true,
                                 title: Text(taskItem.name),
-                                subtitle: Text(
-                                  'Total hitungan: ${taskItem.count}',
-                                ),
                                 trailing: Icon(
                                   isLinkedWithThis
                                       ? Icons.link
@@ -256,9 +253,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                                       ? Colors.teal
                                       : Colors.grey,
                                 ),
-                                tileColor: isLinkedWithThis
-                                    ? Colors.teal.withOpacity(0.05)
-                                    : null,
                                 onTap: () {
                                   setDialogState(() {
                                     _controller.updateTaskLink(
@@ -337,14 +331,12 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
               suffixText: 'mnt',
             ),
             keyboardType: TextInputType.number,
-            validator: (v) {
-              if (v == null || v.trim().isEmpty)
-                return 'Durasi tidak boleh kosong';
-              if (int.tryParse(v.trim()) == null)
-                return 'Masukkan angka yang valid';
-              if (int.parse(v.trim()) < 0) return 'Durasi tidak boleh negatif';
-              return null;
-            },
+            validator: (v) =>
+                (v == null ||
+                    int.tryParse(v.trim()) == null ||
+                    int.parse(v.trim()) < 0)
+                ? 'Masukkan angka valid'
+                : null,
           ),
         ),
         actions: [
@@ -591,80 +583,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     ).then((_) => setState(() {}));
   }
 
-  Widget _buildCorruptedJurnalEmptyState() {
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.red[50],
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.gpp_maybe_rounded,
-                size: 72,
-                color: Colors.red[700],
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Berkas Jurnal Terkunci / Rusak',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.red[900],
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'Aplikasi gagal memuat data Jurnal Aktivitas dari disk lokal Anda.\nStruktur penyimpanan teks JSON bermasalah atau memerlukan PIN dekripsi enkripsi AES-256 yang tepat untuk membukanya kembali.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.grey[600],
-                height: 1.5,
-              ),
-            ),
-            const SizedBox(height: 28),
-            ElevatedButton.icon(
-              onPressed: () async {
-                File jsonFile = await _controller.getJurnalFile();
-                _showDecryptionErrorDialog(jsonFile);
-              },
-              icon: const Icon(
-                Icons.lock_open_rounded,
-                color: Colors.white,
-                size: 18,
-              ),
-              label: const Text(
-                'Buka Opsi Pemulihan Jurnal',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.indigo,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final String todayStr = _controller.getTodayDateString();
@@ -683,16 +601,8 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.analytics_outlined, color: Colors.white),
-            tooltip: 'Lihat Statistik',
             onPressed: () {
-              if (_controller.logs.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Belum ada data untuk dianalisis.'),
-                  ),
-                );
-                return;
-              }
+              if (_controller.logs.isEmpty) return;
               showDialog(
                 context: context,
                 builder: (context) =>
@@ -710,7 +620,12 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
       body: _controller.isLoading
           ? const Center(child: CircularProgressIndicator())
           : _controller.isJurnalFileCorrupted
-          ? _buildCorruptedJurnalEmptyState()
+          ? JurnalCorruptedState(
+              onActionPressed: () async {
+                File jsonFile = await _controller.getJurnalFile();
+                _showDecryptionErrorDialog(jsonFile);
+              },
+            )
           : Column(
               children: [
                 Padding(
@@ -732,205 +647,38 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                 ),
                 Expanded(
                   child: todayTasks.isEmpty
-                      ? UniversalEmptyState(
-                          icon: Icons.edit_calendar_rounded,
-                          title: 'Jurnal Hari Ini Masih Kosong',
-                          description:
-                              'Kamu belum mencatat produktivitas atau kegiatan apa pun hari ini. Yuk, mulai rekam aktivitas pertamamu sekarang juga!',
-                          buttonLabel: 'Catat Aktivitas Sekarang',
-                          themeColor: Colors.indigo,
-                          onPressed: _showAddActivityDialog,
-                        )
+                      ? JurnalEmptyState(onPressed: _showAddActivityDialog)
                       : ListView.builder(
                           itemCount: todayTasks.length,
                           itemBuilder: (context, index) {
                             final task = todayTasks[index];
-                            final bool isLinked = _controller.isTaskTrulyLinked(
-                              task,
-                            );
-                            return Card(
-                              elevation: 2,
-                              margin: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 6,
+                            return JurnalTaskItemCard(
+                              task: task,
+                              index: index,
+                              totalTasks: todayTasks.length,
+                              isEditMode: _controller.isEditMode,
+                              isLinked: _controller.isTaskTrulyLinked(task),
+                              onLongPress: () => setState(
+                                () => _controller.isEditMode =
+                                    !_controller.isEditMode,
                               ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: ListTile(
-                                onLongPress: () {
-                                  setState(() {
-                                    _controller.isEditMode =
-                                        !_controller.isEditMode;
-                                  });
-                                },
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 8,
-                                ),
-                                leading: CircleAvatar(
-                                  backgroundColor: _controller.isEditMode
-                                      ? Colors.amber[50]
-                                      : Colors.teal[50],
-                                  radius: 16,
-                                  child: Icon(
-                                    _controller.isEditMode
-                                        ? Icons.edit_attributes
-                                        : Icons.check_circle_outline,
-                                    color: _controller.isEditMode
-                                        ? Colors.amber[800]
-                                        : Colors.teal,
-                                    size: 18,
+                              onMoveOrder: (direction) {
+                                setState(
+                                  () => _controller.moveTaskOrder(
+                                    todayTasks,
+                                    index,
+                                    direction,
                                   ),
-                                ),
-                                title: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            task.nama,
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: 14,
-                                            ),
-                                          ),
-                                        ),
-                                        if (isLinked)
-                                          Padding(
-                                            padding: const EdgeInsets.only(
-                                              left: 6.0,
-                                            ),
-                                            child: Tooltip(
-                                              message:
-                                                  'Terhubung dengan Task Master',
-                                              triggerMode:
-                                                  TooltipTriggerMode.tap,
-                                              child: const Icon(
-                                                Icons.link,
-                                                size: 16,
-                                                color: Colors.teal,
-                                              ),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                    if (_controller.isEditMode) ...[
-                                      const SizedBox(height: 10),
-                                      Wrap(
-                                        spacing: 8.0,
-                                        runSpacing: 6.0,
-                                        children: [
-                                          _buildMobileEditButton(
-                                            icon: Icons.arrow_upward,
-                                            color: index > 0
-                                                ? Colors.indigo
-                                                : Colors.grey[300]!,
-                                            onPressed: index > 0
-                                                ? () {
-                                                    setState(() {
-                                                      _controller.moveTaskOrder(
-                                                        todayTasks,
-                                                        index,
-                                                        -1,
-                                                      );
-                                                    });
-                                                    _controller.saveData();
-                                                  }
-                                                : null,
-                                          ),
-                                          _buildMobileEditButton(
-                                            icon: Icons.arrow_downward,
-                                            color: index < todayTasks.length - 1
-                                                ? Colors.indigo
-                                                : Colors.grey[300]!,
-                                            onPressed:
-                                                index < todayTasks.length - 1
-                                                ? () {
-                                                    setState(() {
-                                                      _controller.moveTaskOrder(
-                                                        todayTasks,
-                                                        index,
-                                                        1,
-                                                      );
-                                                    });
-                                                    _controller.saveData();
-                                                  }
-                                                : null,
-                                          ),
-                                          _buildMobileEditButton(
-                                            icon: Icons.link,
-                                            color: Colors.teal,
-                                            onPressed: () =>
-                                                _showDialogTaskLink(task),
-                                          ),
-                                          _buildMobileEditButton(
-                                            icon: Icons.edit_note,
-                                            color: Colors.blueGrey,
-                                            onPressed: () =>
-                                                _showEditActivityDialog(task),
-                                          ),
-                                          _buildMobileEditButton(
-                                            icon: Icons.delete_outline,
-                                            color: Colors.redAccent,
-                                            onPressed: () =>
-                                                _hapusAktivitas(task),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                                trailing: _controller.isEditMode
-                                    ? const SizedBox.shrink()
-                                    : Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          InkWell(
-                                            onTap: () =>
-                                                _showTimerEditLiveDialog(task),
-                                            borderRadius: BorderRadius.circular(
-                                              6,
-                                            ),
-                                            child: Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 8,
-                                                    vertical: 4,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color: Colors.amber[50],
-                                                borderRadius:
-                                                    BorderRadius.circular(6),
-                                                border: Border.all(
-                                                  color: Colors.amber.shade200,
-                                                ),
-                                              ),
-                                              child: Text(
-                                                ' ${task.durasiMenit} mnt',
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Colors.amber[900],
-                                                  fontSize: 12,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 4),
-                                          IconButton(
-                                            icon: const Icon(
-                                              Icons.add_circle,
-                                              color: Colors.indigo,
-                                              size: 22,
-                                            ),
-                                            padding: const EdgeInsets.all(4),
-                                            onPressed: () =>
-                                                _addActivityDuration(task),
-                                          ),
-                                        ],
-                                      ),
-                              ),
+                                );
+                                _controller.saveData();
+                              },
+                              onLinkTap: () => _showDialogTaskLink(task),
+                              onEditTap: () => _showEditActivityDialog(task),
+                              onDeleteTap: () => _hapusAktivitas(task),
+                              onEditDurationTap: () =>
+                                  _showTimerEditLiveDialog(task),
+                              onAddDurationTap: () =>
+                                  _addActivityDuration(task),
                             );
                           },
                         ),
@@ -944,35 +692,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
               backgroundColor: Colors.indigo[700],
               child: const Icon(Icons.add, size: 30, color: Colors.white),
             ),
-    );
-  }
-
-  Widget _buildMobileEditButton({
-    required IconData icon,
-    required Color color,
-    required VoidCallback? onPressed,
-  }) {
-    return InkWell(
-      onTap: onPressed,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.all(6),
-        decoration: BoxDecoration(
-          color: onPressed == null ? Colors.grey[100] : color.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: onPressed == null
-                ? Colors.grey[200]!
-                : color.withOpacity(0.2),
-            width: 1,
-          ),
-        ),
-        child: Icon(
-          icon,
-          size: 18,
-          color: onPressed == null ? Colors.grey[400] : color,
-        ),
-      ),
     );
   }
 }
