@@ -1,5 +1,6 @@
 // lib/features/prompt/presentation/controllers/prompt_controller.dart
 import 'dart:convert';
+import 'dart:io' as java_io;
 import 'package:flutter/material.dart';
 import 'package:rutinitasku/core/services/storage_service.dart';
 import '../../data/models/prompt_model.dart';
@@ -1265,6 +1266,97 @@ class PromptController extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
       debugPrint("Gagal mengubah visibilitas prompt group: $e");
+    }
+  }
+
+  // =========================================================================
+  // FITUR BARU: DIALOG INPUT KATA SANDI UNTUK DEKRIPSI MANUAL BERKAS RUSAK
+  // =========================================================================
+  Future<void> handleManualDecrypt(
+    PromptGroup corruptedGroup,
+    String inputPassword,
+    BuildContext context,
+  ) async {
+    _isLoading = true;
+    notifyListeners();
+
+    final messenger = ScaffoldMessenger.of(context);
+
+    try {
+      final baseDir = await _storageService.getBaseDirSetting();
+
+      // Potong prefix mock ID 'CORRUPTED_123456_' untuk mendapatkan nama file asli di disk
+      final String originalFileName = corruptedGroup.id.replaceFirst(
+        RegExp(r'CORRUPTED_\d+_'),
+        '',
+      );
+
+      // Buat referensi file fisik json target
+      final file = java_io.File(
+        '$baseDir/prompts/$originalFileName.json',
+      ); // Sesuaikan sub-folder jika bukan /prompts/
+
+      if (!await file.exists()) {
+        throw Exception("Berkas fisik prompt tidak ditemukan di penyimpanan.");
+      }
+
+      String rawContent = await file.readAsString();
+
+      // Langkah 1: Coba dekripsi biner menggunakan input password dari pengguna
+      String decryptedContent = CryptoHelper.decrypt(
+        rawContent.trim(),
+        inputPassword,
+      );
+
+      // Langkah 2: Validasi kelayakan hasil dekripsi dengan melakukan jsonDecode
+      final Map<String, dynamic> parsedJson = jsonDecode(decryptedContent);
+
+      // Pastikan hasil map dapat dikonversi dengan aman menjadi objek PromptGroup
+      PromptGroup decryptedGroup = PromptGroup.fromJson(parsedJson);
+
+      // Langkah 3: Ambil status konfigurasi enkripsi sistem global yang sedang berjalan saat ini
+      bool isSystemEncryptionEnabled = await _storageService
+          .isEncryptionEnabled();
+      String? systemPassword = await _storageService.getEncryptionPassword();
+
+      String finalContentToSave;
+      if (isSystemEncryptionEnabled && systemPassword != null) {
+        // Jika sistem enkripsi global AKTIF, kunci ulang berkas memakai password sistem yang baru
+        finalContentToSave = CryptoHelper.encrypt(
+          _storageService.formatJsonPretty(decryptedGroup.toJson()),
+          systemPassword,
+        );
+      } else {
+        // Jika sistem enkripsi global MATI, tulis balik sebagai raw JSON mentah biasa
+        finalContentToSave = _storageService.formatJsonPretty(
+          decryptedGroup.toJson(),
+        );
+      }
+
+      // Tulis ulang data perbaikan yang bersih secara persisten ke penyimpanan lokal
+      await file.writeAsString(finalContentToSave);
+
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            'Berkas prompt "${decryptedGroup.title}" berhasil didekripsi dan dipulihkan!',
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      debugPrint("Gagal melakukan dekripsi manual berkas prompt: $e");
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Gagal mendekripsi! Kata sandi salah atau struktur data JSON memang rusak.',
+          ),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } finally {
+      // Muat ulang data grid dari penyimpanan lokal agar UI langsung sinkron dan bersih
+      await loadAllPrompts(context);
     }
   }
 }

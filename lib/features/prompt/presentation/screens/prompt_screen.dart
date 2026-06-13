@@ -5,6 +5,7 @@ import '../../../../core/presentation/widgets/grouped_section_layout.dart';
 import '../../../../core/presentation/widgets/interactive_section_header.dart';
 import '../../../../core/presentation/widgets/interactive_grid_card.dart';
 import '../../../../core/presentation/widgets/universal_empty_state.dart';
+import '../../../../core/utils/crypto_helper.dart'; // Memastikan import CryptoHelper tersedia jika dibutuhkan alternatif
 import '../../data/models/prompt_model.dart';
 import '../controllers/prompt_controller.dart';
 import 'prompt_detail_screen.dart';
@@ -33,6 +34,69 @@ class _PromptScreenState extends State<PromptScreen> {
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  // METHOD BARU: Menampilkan dialog dekripsi manual dengan input password (Persis seperti di Notes)
+  void _showManualDecryptDialog(PromptGroup group) {
+    final passwordController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.lock_open, color: Colors.indigo),
+            SizedBox(width: 8),
+            Text('Dekripsi Manual'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Berkas "${group.title}" terdeteksi menggunakan kata sandi lama atau strukturnya tidak cocok dengan sistem saat ini.',
+              style: const TextStyle(fontSize: 13, color: Colors.black54),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: passwordController,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'Masukkan Password Lama / Spesifik',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.password),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final inputPassword = passwordController.text.trim();
+              if (inputPassword.isEmpty) return;
+
+              Navigator.pop(context); // Tutup dialog input
+
+              // Panggil fungsi penanganan khusus dekripsi manual di controller
+              await _controller.handleManualDecrypt(
+                group,
+                inputPassword,
+                context,
+              );
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
+            child: const Text(
+              'Dekripsi',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // METHOD BARU: Alur Sekuensial Berantai Berurutan (Seksi Baru -> Group Prompt) Khusus Kondisi Kosong
@@ -70,13 +134,11 @@ class _PromptScreenState extends State<PromptScreen> {
                     .trim()
                     .toUpperCase();
 
-                // Daftarkan seksi kosong ke dalam data controller secara lokal
                 if (!_controller.localEmptySections.contains(newSectionName)) {
                   _controller.addSection(newSectionName, context);
                 }
 
                 Navigator.pop(context);
-                // Langsung berantai membuka pembuatan grup prompt di dalam seksi ini
                 _showAddGroupDialog(defaultSection: newSectionName);
               }
             },
@@ -187,7 +249,6 @@ class _PromptScreenState extends State<PromptScreen> {
     final iconController = TextEditingController(text: '🤖');
     final sectionController = TextEditingController(text: defaultSection ?? '');
 
-    // PERBAIKAN UX: Berikan judul dinamis mendeteksi jika ini adalah kelanjutan Langkah 2 dari sekuensial kosong
     final bool isSequentialStep =
         defaultSection != null && _controller.promptGroups.isEmpty;
 
@@ -365,7 +426,6 @@ class _PromptScreenState extends State<PromptScreen> {
         final Map<String, List<PromptGroup>> hiddenSectionsMap = {};
         final bool isSearching = _controller.searchQuery.isNotEmpty;
 
-        // Pisahkan penempatan grup berdasarkan status group.isHidden
         for (var group in _controller.filteredPromptGroups) {
           final secName = group.sectionName.isEmpty
               ? 'GENERAL'
@@ -398,7 +458,6 @@ class _PromptScreenState extends State<PromptScreen> {
 
         final int visibleKeysCount = sectionKeys.length;
 
-        // Jika tombol mata diaktifkan dan ada seksi tersembunyi, gabungkan key seksi tersebut ke paling bawah list
         if (_showHiddenSection && hiddenSectionsMap.isNotEmpty) {
           hiddenSectionsMap.forEach((key, groupsList) {
             if (groupsList.isNotEmpty) {
@@ -424,8 +483,6 @@ class _PromptScreenState extends State<PromptScreen> {
           floatingActionButton: null,
           isLoading: _controller.isLoading,
           isEmpty: sectionKeys.isEmpty,
-
-          // PEMBARUAN UTAMA: Menggunakan alur pembuatan berantai sekuensial (Seksi -> Grup) saat ditekan
           emptyStateView: UniversalEmptyState(
             icon: Icons.psychology_alt_rounded,
             title: 'Kategori Prompt Masih Kosong',
@@ -440,24 +497,21 @@ class _PromptScreenState extends State<PromptScreen> {
               if (isSearching) {
                 _controller.updateSearchQuery('');
               } else {
-                _showSequentialAddDialog(); // DIPANGGIL DI SINI
+                _showSequentialAddDialog();
               }
             },
           ),
-
           isSelectMode: false,
           selectedItemsCount: 0,
           onClearSelection: () {},
           enableSearch: true,
           enableMultiSelect: false,
-
           onSearchChanged: (query) {
             _controller.updateSearchQuery(query);
           },
           onAddPressed: () {
             _showAddSectionDialog();
           },
-
           additionalAction: IconButton(
             icon: Icon(
               _showHiddenSection ? Icons.visibility : Icons.visibility_off,
@@ -472,10 +526,8 @@ class _PromptScreenState extends State<PromptScreen> {
               });
             },
           ),
-
           sectionKeys: sectionKeys,
           groupedItems: sectionsMap,
-
           sectionHeaderBuilder:
               (context, sIndex, sectionName, isLayoutEditMode) {
                 if (sIndex >= visibleKeysCount) {
@@ -548,14 +600,13 @@ class _PromptScreenState extends State<PromptScreen> {
                       _showAddGroupDialog(defaultSection: sectionName),
                 );
               },
-
           gridItemBuilder: (context, promptGroup, index, items, isLayoutEditMode) {
             if (index >= items.length) return const SizedBox.shrink();
 
             final bool isCorrupted = promptGroup.id.startsWith("CORRUPTED_");
 
             // ========================================================
-            // 🔴 KONDISI BARU: JIKA FILE PROMPT TERDETEKSI KORUP / TERENKRIPSI MANUAL
+            // 🔴 INTERAKSI KARTU KORUP (PERSIS SEPERTI DI NOTES)
             // ========================================================
             if (isCorrupted) {
               return InteractiveGridCard(
@@ -567,17 +618,11 @@ class _PromptScreenState extends State<PromptScreen> {
                 isFirst: isSearching ? true : (index == 0),
                 isLast: isSearching ? true : (index == items.length - 1),
                 onTap: () {
-                  // Disinkronkan dengan aksi Notes: Memicu informasi penanganan manual
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Gunakan menu titik tiga untuk menghapus file rusak ini.',
-                      ),
-                      backgroundColor: Colors.redAccent,
-                    ),
-                  );
+                  // 1. DIKETUK: Memicu dialog input password dekripsi manual
+                  _showManualDecryptDialog(promptGroup);
                 },
                 onLongPress: () {
+                  // 2. DITAHAN: Mengaktifkan mode edit/hapus pada kartu grid layout
                   _controller.toggleCardEditMode();
                 },
                 onMoveLeft: () {},
@@ -607,7 +652,7 @@ class _PromptScreenState extends State<PromptScreen> {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Text(
-                      promptGroup.icon, // Akan merender '⚠️' sesuai controller
+                      promptGroup.icon,
                       style: const TextStyle(fontSize: 28),
                     ),
                     const SizedBox(height: 8),
@@ -647,7 +692,7 @@ class _PromptScreenState extends State<PromptScreen> {
             }
 
             // ========================================================
-            // KONDISI NORMAL (BERKAS AMAN & SEHAT)
+            // KONDISI BERKAS NORMAL (SEHAT)
             // ========================================================
             return InteractiveGridCard(
               themeColor: Colors.indigo,
