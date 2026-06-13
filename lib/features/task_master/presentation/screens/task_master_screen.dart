@@ -33,6 +33,9 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isPageEditMode = false;
   bool _showHiddenSection = false;
 
+  // STATE BARU: Melacak apakah berkas terindikasi rusak / gagal didekripsi
+  bool _isFileCorrupted = false;
+
   // STATE: Manajemen Kontrol BaseDetailAppBar
   bool _internalSearchMode = false;
   late TextEditingController _searchController;
@@ -124,7 +127,8 @@ class _HomeScreenState extends State<HomeScreen> {
   void _showDecryptionErrorDialog(File jsonFile) {
     showDialog(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible:
+          true, // PERUBAHAN: Dialog sekarang bisa ditutup dengan mengetuk di luar area
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
@@ -138,6 +142,11 @@ class _HomeScreenState extends State<HomeScreen> {
           'Aplikasi gagal membaca data Task Master. Berkas ini mungkin dienkripsi oleh sistem dengan kata sandi lain, atau format data di dalamnya rusak.',
         ),
         actions: [
+          // PERUBAHAN: Ditambahkan tombol tutup manual agar user bisa mengakses halaman utama dibaliknya
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Tutup', style: TextStyle(color: Colors.grey)),
+          ),
           TextButton(
             onPressed: () async {
               Navigator.pop(ctx);
@@ -178,7 +187,10 @@ class _HomeScreenState extends State<HomeScreen> {
               );
 
               if (confirmNew == true) {
-                setState(() => _isLoading = true);
+                setState(() {
+                  _isLoading = true;
+                  _isFileCorrupted = false; // Reset status error
+                });
 
                 // 1. Tulis file JSON kosong baru
                 await jsonFile.writeAsString(jsonEncode({'categories': []}));
@@ -265,7 +277,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   final parsed = jsonDecode(decrypted);
                   if (parsed is Map && parsed.containsKey('categories')) {
                     Navigator.pop(ctx);
-                    setState(() => _isLoading = true);
+                    setState(() {
+                      _isLoading = true;
+                      _isFileCorrupted =
+                          false; // Reset status error karena sukses terbuka
+                    });
 
                     final List<dynamic> catList = parsed['categories'] ?? [];
                     _allCategoriesRaw = catList
@@ -308,7 +324,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _initStorageAndLoadData() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _isFileCorrupted =
+          false; // Reset status pelacak error setiap inisialisasi ulang
+    });
     File? jsonFile;
     try {
       _selectedBaseDir = await _storageService.getBaseDirSetting();
@@ -349,10 +369,15 @@ class _HomeScreenState extends State<HomeScreen> {
       _processCategoriesDisplay();
     } catch (e) {
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() {
+          _isLoading = false;
+          _isFileCorrupted =
+              true; // PERUBAHAN: Tandai bahwa berkas gagal dimuat / corrupt
+        });
       }
       debugPrint("Error loading data: $e");
 
+      // Dialog ini hanya dipanggil di sini ketika halaman dibuka/gagal pertama kali
       if (jsonFile != null && mounted) {
         _showDecryptionErrorDialog(jsonFile);
       }
@@ -942,6 +967,83 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // METHOD BARU: Menampilkan status halaman kosong informatif apabila berkas terkunci/corrupt
+  Widget _buildCorruptedEmptyState() {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.red[50],
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.gpp_maybe_rounded,
+                size: 72,
+                color: Colors.red[700],
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Berkas Penyimpanan Terkunci / Rusak',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.red[900],
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Aplikasi gagal memuat data Task Master di direktori lokal Anda.\nFormat teks JSON mungkin rusak atau memerlukan PIN dekripsi enkripsi AES-256 yang valid untuk dibuka kembali.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey[600],
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 28),
+            ElevatedButton.icon(
+              onPressed: () async {
+                File jsonFile = await _storageService.getTargetJsonFile(
+                  _selectedBaseDir,
+                );
+                _showDecryptionErrorDialog(jsonFile);
+              },
+              icon: const Icon(
+                Icons.lock_open_rounded,
+                color: Colors.white,
+                size: 18,
+              ),
+              label: const Text(
+                'Buka Opsi Pemulihan',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.indigo,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1028,6 +1130,8 @@ class _HomeScreenState extends State<HomeScreen> {
       drawer: const DrawerMenu(),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
+          : _isFileCorrupted
+          ? _buildCorruptedEmptyState() // PERUBAHAN: Menampilkan UI khusus berkas rusak jika true
           : _allCategoriesRaw.isEmpty
           ? UniversalEmptyState(
               icon: Icons.assignment_turned_in_rounded,
