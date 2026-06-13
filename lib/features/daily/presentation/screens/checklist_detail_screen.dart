@@ -7,6 +7,7 @@ import '../../../../core/presentation/widgets/grouped_section_layout.dart';
 import '../../../../core/presentation/widgets/interactive_grid_card.dart';
 import '../../../../core/presentation/widgets/interactive_section_header.dart';
 import '../../../../core/presentation/widgets/universal_empty_state.dart'; // <-- DIUBAH: Menggunakan Universal Widget dari Core
+import '../widgets/daily_checklist_dialog.dart'; // <-- Tambahkan import ini untuk memanggil Dialog kustom
 
 class ChecklistDetailScreen extends StatefulWidget {
   final ChecklistGroup group;
@@ -23,6 +24,49 @@ class ChecklistDetailScreen extends StatefulWidget {
 }
 
 class _ChecklistDetailScreenState extends ChecklistDetailController {
+  // SOLUSI UTAMA: Meng-override fungsi openMateriChecklist dari Controller untuk menyuntikkan ukuran Dialog melar
+  @override
+  void openMateriChecklist(DailySubject subject) {
+    // Kumpulkan semua kotak materi (DailySubject) dari seluruh seksi yang tersedia untuk parameter dialog
+    List<DailySubject> allAvailableSubjects = [];
+    for (var section in currentGroup.allList) {
+      allAvailableSubjects.addAll(section.items);
+    }
+
+    final double screenWidth = MediaQuery.of(context).size.width;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        // Bungkus dengan Theme kustom lokal agar widget Dialog internal milik BasePopupDialog ikut melebar
+        return Theme(
+          data: Theme.of(context).copyWith(
+            dialogTheme: DialogThemeData(
+              // Jarak tepi luar dialog seminimal mungkin agar area checklist terasa luas
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 12.0,
+                vertical: 24.0,
+              ),
+              // Konfigurasi pembatas melar: 92% layar smartphone, maksimal lebar 960px pada tablet/PC
+              constraints: BoxConstraints(
+                minWidth: screenWidth * 0.92,
+                maxWidth: 960,
+              ),
+            ),
+          ),
+          child: DailyChecklistDialog(
+            subject: subject,
+            allAvailableSubjects: allAvailableSubjects,
+            onDataChanged: () {
+              saveGroupData();
+              setState(() {});
+            },
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Fungsi rekursif untuk menghitung TOTAL seluruh item (termasuk nested list)
