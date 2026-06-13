@@ -1,3 +1,5 @@
+// lib/features/task_master/presentation/screens/task_master_screen.dart
+
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -6,14 +8,17 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/services/storage_service.dart';
 import '../../data/models/task_model.dart';
 import '../../../jurnal_aktivitas/data/models/time_log_model.dart';
-import '../widgets/category_card.dart';
 import '../../../../core/presentation/widgets/drawer_menu.dart';
 import '../widgets/settings_dialog.dart';
 import '../widgets/tasks_dialog.dart';
 import '../widgets/add_category_dialog.dart';
 import '../../../../core/presentation/widgets/universal_empty_state.dart';
-import 'package:intl/intl.dart';
 import '../../../../core/utils/crypto_helper.dart';
+
+// Import widget yang baru saja kita pisahkan
+import '../widgets/task_summary_header.dart';
+import '../widgets/corrupted_empty_state.dart';
+import '../widgets/category_grid.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -33,15 +38,12 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isPageEditMode = false;
   bool _showHiddenSection = false;
 
-  // STATE BARU: Melacak apakah berkas terindikasi rusak / gagal didekripsi
   bool _isFileCorrupted = false;
 
-  // STATE: Manajemen Kontrol BaseDetailAppBar
   bool _internalSearchMode = false;
   late TextEditingController _searchController;
   String _searchQuery = '';
 
-  // STATE BARU: Menyimpan total durasi riil dari jurnal aktivitas hari ini
   String _totalJurnalDurationString = "0j";
 
   @override
@@ -62,7 +64,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
   }
 
-  // METHOD BARU: Membaca berkas jurnal dan menghitung total durasi hari ini
   Future<void> _kalkulasiTotalJurnalHariIni() async {
     try {
       File fileJurnal = await _storageService.getJurnalJsonFile(
@@ -93,7 +94,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
           if (todayLogIndex != -1) {
             final List<TimeLogTask> todayTasks = logs[todayLogIndex].tasks;
-
             int totalMenit = todayTasks.fold(
               0,
               (sum, task) => sum + task.durasiMenit,
@@ -123,12 +123,10 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // --- OPSI DIALOG KUSTOM KETIKA TERJADI DECRYPTION ERROR / BERKAS CORRUPT ---
   void _showDecryptionErrorDialog(File jsonFile) {
     showDialog(
       context: context,
-      barrierDismissible:
-          true, // PERUBAHAN: Dialog sekarang bisa ditutup dengan mengetuk di luar area
+      barrierDismissible: true,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
@@ -142,7 +140,6 @@ class _HomeScreenState extends State<HomeScreen> {
           'Aplikasi gagal membaca data Task Master. Berkas ini mungkin dienkripsi oleh sistem dengan kata sandi lain, atau format data di dalamnya rusak.',
         ),
         actions: [
-          // PERUBAHAN: Ditambahkan tombol tutup manual agar user bisa mengakses halaman utama dibaliknya
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Tutup', style: TextStyle(color: Colors.grey)),
@@ -189,25 +186,19 @@ class _HomeScreenState extends State<HomeScreen> {
               if (confirmNew == true) {
                 setState(() {
                   _isLoading = true;
-                  _isFileCorrupted = false; // Reset status error
+                  _isFileCorrupted = false;
                 });
 
-                // 1. Tulis file JSON kosong baru
                 await jsonFile.writeAsString(jsonEncode({'categories': []}));
 
-                // 2. TAMBAHAN UTAMA: Matikan status enkripsi di Storage agar tidak mencoba
-                // mendekripsi file kosong ini dengan password lama yang salah/korup
                 try {
                   final prefs = await SharedPreferences.getInstance();
                   await prefs.setBool('is_encrypted', false);
-                  await prefs.remove(
-                    'encryption_password',
-                  ); // Hapus password lama dari preferensi
+                  await prefs.remove('encryption_password');
                 } catch (e) {
                   debugPrint("Gagal mereset preferensi enkripsi: $e");
                 }
 
-                // 3. Muat ulang data (sekarang akan sukses karena dibaca sebagai JSON murni)
                 _initStorageAndLoadData();
               } else {
                 _showDecryptionErrorDialog(jsonFile);
@@ -279,8 +270,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     Navigator.pop(ctx);
                     setState(() {
                       _isLoading = true;
-                      _isFileCorrupted =
-                          false; // Reset status error karena sukses terbuka
+                      _isFileCorrupted = false;
                     });
 
                     final List<dynamic> catList = parsed['categories'] ?? [];
@@ -326,8 +316,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _initStorageAndLoadData() async {
     setState(() {
       _isLoading = true;
-      _isFileCorrupted =
-          false; // Reset status pelacak error setiap inisialisasi ulang
+      _isFileCorrupted = false;
     });
     File? jsonFile;
     try {
@@ -371,13 +360,11 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _isFileCorrupted =
-              true; // PERUBAHAN: Tandai bahwa berkas gagal dimuat / corrupt
+          _isFileCorrupted = true;
         });
       }
       debugPrint("Error loading data: $e");
 
-      // Dialog ini hanya dipanggil di sini ketika halaman dibuka/gagal pertama kali
       if (jsonFile != null && mounted) {
         _showDecryptionErrorDialog(jsonFile);
       }
@@ -603,30 +590,19 @@ class _HomeScreenState extends State<HomeScreen> {
         allCategories: _allCategoriesRaw,
         onIncrementTask: _incrementTaskCount,
         onUpdateTargetToday: (task, target) {},
-        onEditTaskDetail:
-            (
-              TaskItem task,
-              String name,
-              int c,
-              int ct,
-              int tc,
-              int tct,
-              String? d,
-              bool active,
-              int type,
-            ) async {
-              setState(() {
-                task.name = name;
-                task.count = c;
-                task.countToday = ct;
-                task.targetCount = tc;
-                task.targetCountToday = tct;
-                task.date = d;
-                task.isActive = active;
-                task.type = type;
-              });
-              await _saveAllCategoriesToFile();
-            },
+        onEditTaskDetail: (task, name, c, ct, tc, tct, d, active, type) async {
+          setState(() {
+            task.name = name;
+            task.count = c;
+            task.countToday = ct;
+            task.targetCount = tc;
+            task.targetCountToday = tct;
+            task.date = d;
+            task.isActive = active;
+            task.type = type;
+          });
+          await _saveAllCategoriesToFile();
+        },
         onDeleteTask: (task) async {
           final bool confirm =
               await showDialog<bool>(
@@ -743,11 +719,8 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                             ],
                             onChanged: (val) {
-                              if (val != null) {
-                                setDialogState(() {
-                                  selectedType = val;
-                                });
-                              }
+                              if (val != null)
+                                setDialogState(() => selectedType = val);
                             },
                           ),
                           const SizedBox(height: 12),
@@ -917,133 +890,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Widget _buildCategoryGrid(
-    List<TaskCategory> categoriesList,
-    BoxConstraints constraints,
-  ) {
-    int crossAxisCount = 2;
-    if (constraints.maxWidth >= 1200) {
-      crossAxisCount = 5;
-    } else if (constraints.maxWidth >= 900) {
-      crossAxisCount = 4;
-    } else if (constraints.maxWidth >= 600) {
-      crossAxisCount = 3;
-    }
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.all(12),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: crossAxisCount,
-        childAspectRatio: _isPageEditMode ? 1.3 : 1.8,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-      ),
-      itemCount: categoriesList.length,
-      itemBuilder: (context, index) {
-        final category = categoriesList[index];
-        return CategoryCard(
-          category: category,
-          isEditMode: _isPageEditMode,
-          onLongPress: () {
-            setState(() {
-              _isPageEditMode = !_isPageEditMode;
-            });
-          },
-          onTap: _isPageEditMode
-              ? () {}
-              : () => _showCategoryTasksDialog(category),
-          onEdit: () => _showEditCategoryDialog(category),
-          onDelete: () => _deleteCategory(category),
-          onToggleVisibility: () => _toggleCategoryVisibility(category),
-          onMoveUp: index > 0
-              ? () => _moveCategoryOrder(categoriesList, index, -1)
-              : null,
-          onMoveDown: index < categoriesList.length - 1
-              ? () => _moveCategoryOrder(categoriesList, index, 1)
-              : null,
-        );
-      },
-    );
-  }
-
-  // METHOD BARU: Menampilkan status halaman kosong informatif apabila berkas terkunci/corrupt
-  Widget _buildCorruptedEmptyState() {
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.red[50],
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.gpp_maybe_rounded,
-                size: 72,
-                color: Colors.red[700],
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Berkas Penyimpanan Terkunci / Rusak',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.red[900],
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'Aplikasi gagal memuat data Task Master di direktori lokal Anda.\nFormat teks JSON mungkin rusak atau memerlukan PIN dekripsi enkripsi AES-256 yang valid untuk dibuka kembali.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.grey[600],
-                height: 1.5,
-              ),
-            ),
-            const SizedBox(height: 28),
-            ElevatedButton.icon(
-              onPressed: () async {
-                File jsonFile = await _storageService.getTargetJsonFile(
-                  _selectedBaseDir,
-                );
-                _showDecryptionErrorDialog(jsonFile);
-              },
-              icon: const Icon(
-                Icons.lock_open_rounded,
-                color: Colors.white,
-                size: 18,
-              ),
-              label: const Text(
-                'Buka Opsi Pemulihan',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.indigo,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1084,11 +930,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 tooltip: _showHiddenSection
                     ? 'Sembunyikan Kategori Nonaktif'
                     : 'Tampilkan Kategori Tersembunyi',
-                onPressed: () {
-                  setState(() {
-                    _showHiddenSection = !_showHiddenSection;
-                  });
-                },
+                onPressed: () =>
+                    setState(() => _showHiddenSection = !_showHiddenSection),
               )
             : null,
         searchBarContent: Row(
@@ -1131,7 +974,14 @@ class _HomeScreenState extends State<HomeScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _isFileCorrupted
-          ? _buildCorruptedEmptyState() // PERUBAHAN: Menampilkan UI khusus berkas rusak jika true
+          ? CorruptedEmptyState(
+              onRecoveryPressed: () async {
+                File jsonFile = await _storageService.getTargetJsonFile(
+                  _selectedBaseDir,
+                );
+                _showDecryptionErrorDialog(jsonFile);
+              },
+            )
           : _allCategoriesRaw.isEmpty
           ? UniversalEmptyState(
               icon: Icons.assignment_turned_in_rounded,
@@ -1147,9 +997,25 @@ class _HomeScreenState extends State<HomeScreen> {
                 return ListView(
                   children: [
                     if (!_isLoading && _allCategoriesRaw.isNotEmpty)
-                      _buildSummaryHeader(),
+                      TaskSummaryHeader(
+                        allCategoriesRaw: _allCategoriesRaw,
+                        visibleCategories: _visibleCategories,
+                        totalJurnalDurationString: _totalJurnalDurationString,
+                      ),
                     if (_visibleCategories.isNotEmpty)
-                      _buildCategoryGrid(_visibleCategories, constraints),
+                      CategoryGrid(
+                        categoriesList: _visibleCategories,
+                        isPageEditMode: _isPageEditMode,
+                        constraints: constraints,
+                        onToggleEditMode: () =>
+                            setState(() => _isPageEditMode = !_isPageEditMode),
+                        onTapCategory: _showCategoryTasksDialog,
+                        onEditCategory: _showEditCategoryDialog,
+                        onDeleteCategory: _deleteCategory,
+                        onToggleVisibility: _toggleCategoryVisibility,
+                        onMoveCategoryOrder: (index, dir) =>
+                            _moveCategoryOrder(_visibleCategories, index, dir),
+                      ),
                     if (_visibleCategories.isEmpty && _hiddenCategories.isEmpty)
                       const Padding(
                         padding: EdgeInsets.all(32.0),
@@ -1165,215 +1031,43 @@ class _HomeScreenState extends State<HomeScreen> {
                           horizontal: 16.0,
                           vertical: 8.0,
                         ),
-                      ),
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.visibility_off_outlined,
-                            color: Colors.blueGrey,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Kategori yang disembunyikan (${_hiddenCategories.length})',
-                            style: const TextStyle(
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.visibility_off_outlined,
                               color: Colors.blueGrey,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
+                              size: 20,
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 8),
+                            Text(
+                              'Kategori yang disembunyikan (${_hiddenCategories.length})',
+                              style: const TextStyle(
+                                color: Colors.blueGrey,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      _buildCategoryGrid(_hiddenCategories, constraints),
+                      CategoryGrid(
+                        categoriesList: _hiddenCategories,
+                        isPageEditMode: _isPageEditMode,
+                        constraints: constraints,
+                        onToggleEditMode: () =>
+                            setState(() => _isPageEditMode = !_isPageEditMode),
+                        onTapCategory: _showCategoryTasksDialog,
+                        onEditCategory: _showEditCategoryDialog,
+                        onDeleteCategory: _deleteCategory,
+                        onToggleVisibility: _toggleCategoryVisibility,
+                        onMoveCategoryOrder: (index, dir) =>
+                            _moveCategoryOrder(_hiddenCategories, index, dir),
+                      ),
                     ],
                   ],
                 );
               },
             ),
-    );
-  }
-
-  Widget _buildSummaryHeader() {
-    int totalCategories = _allCategoriesRaw.length;
-    int visibleCategoriesCount = _visibleCategories.length;
-    int totalTasks = 0;
-    int completedTasksToday = 0;
-    int tasksWithTargetToday = 0;
-
-    for (var category in _allCategoriesRaw) {
-      for (var task in category.tasks) {
-        if (task.isActive) {
-          totalTasks++;
-          if (task.targetCountToday > 0) {
-            tasksWithTargetToday++;
-            if (task.countToday >= task.targetCountToday) {
-              completedTasksToday++;
-            }
-          }
-        }
-      }
-    }
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 16, 12, 4),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.dashboard_customize,
-                color: Colors.indigo[700],
-                size: 22,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Ringkasan Tugas',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.indigo[900],
-                ),
-              ),
-            ],
-          ),
-          const Divider(height: 20, thickness: 1),
-          LayoutBuilder(
-            builder: (context, boxConstraints) {
-              bool isMobile = boxConstraints.maxWidth < 600;
-              Widget buildCard(
-                String title,
-                String mainText,
-                String subText,
-                Color bgColor,
-                Color textColor,
-                Color subTextColor,
-              ) {
-                return Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: bgColor,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        title,
-                        style: TextStyle(
-                          color: subTextColor,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        mainText,
-                        style: TextStyle(
-                          color: textColor,
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      Text(
-                        subText,
-                        style: TextStyle(color: subTextColor, fontSize: 11),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                );
-              }
-
-              final cardKategori = buildCard(
-                'Kategori',
-                '$visibleCategoriesCount Active',
-                'Total: $totalCategories',
-                Colors.blue[50]!,
-                Colors.blue[900]!,
-                Colors.blue[700]!,
-              );
-              final cardTotalTugas = buildCard(
-                'Total Tugas',
-                '$totalTasks Unit',
-                'Di semua kategori',
-                Colors.amber[50]!,
-                Colors.amber[900]!,
-                Colors.amber[800]!,
-              );
-              final cardSelesai = buildCard(
-                'Selesai Hari Ini',
-                '$completedTasksToday / $tasksWithTargetToday',
-                'Target tercapai',
-                Colors.green[50]!,
-                Colors.green[900]!,
-                Colors.green[800]!,
-              );
-
-              final cardJam = buildCard(
-                'Jam Hari Ini',
-                _totalJurnalDurationString,
-                'Durasi pengerjaan',
-                Colors.teal[50]!,
-                Colors.teal[900]!,
-                Colors.teal[800]!,
-              );
-
-              if (isMobile) {
-                return Column(
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(child: cardKategori),
-                        const SizedBox(width: 8),
-                        Expanded(child: cardTotalTugas),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(child: cardSelesai),
-                        const SizedBox(width: 8),
-                        Expanded(child: cardJam),
-                      ],
-                    ),
-                  ],
-                );
-              } else {
-                return Row(
-                  children: [
-                    Expanded(child: cardKategori),
-                    const SizedBox(width: 8),
-                    Expanded(child: cardTotalTugas),
-                    const SizedBox(width: 8),
-                    Expanded(child: cardSelesai),
-                    const SizedBox(width: 8),
-                    Expanded(child: cardJam),
-                  ],
-                );
-              }
-            },
-          ),
-        ],
-      ),
     );
   }
 }
