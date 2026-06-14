@@ -110,10 +110,33 @@ class PromptController extends ChangeNotifier {
       final baseDir = await _storageService.getBaseDirSetting();
       final files = await _storageService.getAllPromptGroups(baseDir);
       List<PromptGroup> loadedGroups = [];
+
       for (var file in files) {
-        final content = await file.readAsString();
-        final jsonMap = jsonDecode(content);
-        loadedGroups.add(PromptGroup.fromJson(jsonMap));
+        if (!await file.exists()) continue;
+        String content = await file.readAsString();
+        String fileName = file.path.split('/').last.replaceAll('.json', '');
+
+        try {
+          final jsonMap = jsonDecode(content);
+          loadedGroups.add(PromptGroup.fromJson(jsonMap));
+        } catch (parseError) {
+          debugPrint(
+            "Gagal memuat atau mendecode berkas prompt ${file.path}: $parseError",
+          );
+
+          // MEKANISME BARU: Masukkan objek mock penanda korup/terkunci ke dalam list utama
+          loadedGroups.add(
+            PromptGroup(
+              id: "CORRUPTED_${DateTime.now().millisecondsSinceEpoch}_$fileName",
+              title: fileName,
+              icon: '⚠️',
+              sectionName:
+                  'BERKAS RUSAK / TERKUNCI', // Seksi pengelompokan card merah
+              isHidden: false,
+              prompts: [],
+            ),
+          );
+        }
       }
       _promptGroups = loadedGroups;
 
@@ -215,6 +238,8 @@ class PromptController extends ChangeNotifier {
       final baseDir = await _storageService.getBaseDirSetting();
       for (int i = 0; i < _promptGroups.length; i++) {
         final group = _promptGroups[i];
+        if (group.id.startsWith("CORRUPTED_")) continue; // Proteksi file rusak
+
         final updatedGroup = PromptGroup(
           id: group.id,
           title: group.title,
@@ -265,6 +290,7 @@ class PromptController extends ChangeNotifier {
       final baseDir = await _storageService.getBaseDirSetting();
       List<PromptGroup> groupsToUpdate = [];
       for (var group in _promptGroups) {
+        if (group.id.startsWith("CORRUPTED_")) continue; // Proteksi file rusak
         final currentSecName = group.sectionName.isEmpty
             ? 'GENERAL'
             : group.sectionName.toUpperCase();
@@ -290,6 +316,7 @@ class PromptController extends ChangeNotifier {
       }
 
       for (var group in _promptGroups) {
+        if (group.id.startsWith("CORRUPTED_")) continue; // Proteksi file rusak
         final currentSecName = group.sectionName.isEmpty
             ? 'GENERAL'
             : group.sectionName.toUpperCase();
@@ -332,6 +359,7 @@ class PromptController extends ChangeNotifier {
 
       final baseDir = await _storageService.getBaseDirSetting();
       for (var group in _promptGroups) {
+        if (group.id.startsWith("CORRUPTED_")) continue; // Proteksi file rusak
         final currentSecName = group.sectionName.isEmpty
             ? 'GENERAL'
             : group.sectionName.toUpperCase();
@@ -425,6 +453,9 @@ class PromptController extends ChangeNotifier {
       final baseDir = await _storageService.getBaseDirSetting();
       for (int i = 0; i < _promptGroups.length; i++) {
         final currentGroup = _promptGroups[i];
+        if (currentGroup.id.startsWith("CORRUPTED_"))
+          continue; // Proteksi file rusak
+
         final updatedGroup = PromptGroup(
           id: currentGroup.id,
           title: currentGroup.title,
@@ -457,6 +488,7 @@ class PromptController extends ChangeNotifier {
     String newIcon,
     BuildContext context,
   ) async {
+    if (group.id.startsWith("CORRUPTED_")) return; // Proteksi file rusak
     _isLoading = true;
     notifyListeners();
     try {
@@ -492,6 +524,7 @@ class PromptController extends ChangeNotifier {
     String targetSection,
     BuildContext context,
   ) async {
+    if (group.id.startsWith("CORRUPTED_")) return; // Proteksi file rusak
     _isLoading = true;
     notifyListeners();
     try {
@@ -528,7 +561,14 @@ class PromptController extends ChangeNotifier {
     notifyListeners();
     try {
       final baseDir = await _storageService.getBaseDirSetting();
-      await _storageService.deletePromptGroup(baseDir, group.id);
+
+      // Mengambil ID asli jika dikirim dari mock data yang berawalan CORRUPTED_
+      String targetId = group.id;
+      if (targetId.startsWith("CORRUPTED_")) {
+        targetId = targetId.replaceFirst(RegExp(r'CORRUPTED_\d+_'), '');
+      }
+
+      await _storageService.deletePromptGroup(baseDir, targetId);
       if (context.mounted) await loadAllPrompts(context);
     } catch (e) {
       _isLoading = false;
@@ -548,6 +588,7 @@ class PromptController extends ChangeNotifier {
     required String content,
     required BuildContext context,
   }) async {
+    if (group.id.startsWith("CORRUPTED_")) return null; // Proteksi file rusak
     _isLoading = true;
     notifyListeners();
     try {
@@ -618,6 +659,7 @@ class PromptController extends ChangeNotifier {
     required String newContent,
     required BuildContext context,
   }) async {
+    if (group.id.startsWith("CORRUPTED_")) return null; // Proteksi file rusak
     _isLoading = true;
     notifyListeners();
     try {
@@ -684,6 +726,7 @@ class PromptController extends ChangeNotifier {
     required String itemId,
     required BuildContext context,
   }) async {
+    if (group.id.startsWith("CORRUPTED_")) return null; // Proteksi file rusak
     _isLoading = true;
     notifyListeners();
     try {
@@ -726,6 +769,9 @@ class PromptController extends ChangeNotifier {
     required bool isCopy,
     required BuildContext context,
   }) async {
+    if (sourceGroup.id.startsWith("CORRUPTED_") ||
+        targetGroup.id.startsWith("CORRUPTED_"))
+      return null;
     _isLoading = true;
     notifyListeners();
     try {
@@ -816,6 +862,7 @@ class PromptController extends ChangeNotifier {
     required PromptGroup group,
     required BuildContext context,
   }) async {
+    if (group.id.startsWith("CORRUPTED_")) return null; // Proteksi file rusak
     if (_selectedPromptIds.isEmpty) return group;
 
     _isLoading = true;
@@ -863,6 +910,9 @@ class PromptController extends ChangeNotifier {
     required PromptGroup targetGroup,
     required BuildContext context,
   }) async {
+    if (sourceGroup.id.startsWith("CORRUPTED_") ||
+        targetGroup.id.startsWith("CORRUPTED_"))
+      return null;
     if (_selectedPromptIds.isEmpty) return sourceGroup;
 
     _isLoading = true;
@@ -947,6 +997,7 @@ class PromptController extends ChangeNotifier {
     required String itemId,
     required BuildContext context,
   }) async {
+    if (group.id.startsWith("CORRUPTED_")) return null; // Proteksi file rusak
     _isLoading = true;
     notifyListeners();
     try {
@@ -1007,6 +1058,7 @@ class PromptController extends ChangeNotifier {
     required String versionId,
     required BuildContext context,
   }) async {
+    if (group.id.startsWith("CORRUPTED_")) return; // Proteksi file rusak
     try {
       final baseDir = await _storageService.getBaseDirSetting();
       final groupIdx = _promptGroups.indexWhere((g) => g.id == group.id);
@@ -1039,6 +1091,7 @@ class PromptController extends ChangeNotifier {
     required String versionName,
     required BuildContext context,
   }) async {
+    if (group.id.startsWith("CORRUPTED_")) return; // Proteksi file rusak
     _isLoading = true;
     notifyListeners();
     try {
@@ -1104,6 +1157,7 @@ class PromptController extends ChangeNotifier {
     required String newVersionName,
     required BuildContext context,
   }) async {
+    if (group.id.startsWith("CORRUPTED_")) return; // Proteksi file rusak
     _isLoading = true;
     notifyListeners();
     try {
@@ -1158,6 +1212,7 @@ class PromptController extends ChangeNotifier {
     required String versionId,
     required BuildContext context,
   }) async {
+    if (group.id.startsWith("CORRUPTED_")) return; // Proteksi file rusak
     _isLoading = true;
     notifyListeners();
     try {
@@ -1217,6 +1272,7 @@ class PromptController extends ChangeNotifier {
     PromptGroup group,
     BuildContext context,
   ) async {
+    if (group.id.startsWith("CORRUPTED_")) return; // Proteksi file rusak
     _isLoading = true;
     notifyListeners();
     try {

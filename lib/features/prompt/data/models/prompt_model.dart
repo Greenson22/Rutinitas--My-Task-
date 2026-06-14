@@ -3,7 +3,8 @@
 class PromptGroup {
   final String id;
   final String title;
-  final String sectionName;
+  String
+  sectionName; // PERUBAHAN: Diubah dari final menjadi dapat diubah (mutable)
   final String icon;
   final String lastUpdated;
   final int orderIndex; // PROPERTI BARU UNTUK MENYIMPAN URUTAN POSISI
@@ -15,40 +16,41 @@ class PromptGroup {
     required this.title,
     required this.sectionName,
     required this.icon,
-    required this.lastUpdated,
+    this.lastUpdated =
+        '', // PERUBAHAN: Diberi default value string kosong untuk mock data
     this.orderIndex = 0, // DEFAULT VALUE
     this.isHidden = false,
     required this.prompts,
   });
 
   factory PromptGroup.fromJson(Map<String, dynamic> json) {
-    var list = json['prompts'] as List? ?? [];
+    var list = json['prompts'] as List? ?? []; //
     List<PromptItem> promptList = list
         .map((i) => PromptItem.fromJson(i))
-        .toList();
+        .toList(); //
 
     return PromptGroup(
-      id: json['id'] ?? '',
-      title: json['title'] ?? '',
-      sectionName: json['section_name'] ?? '',
-      icon: json['icon'] ?? '📝',
-      lastUpdated: json['last_updated'] ?? '',
+      id: json['id'] ?? '', //
+      title: json['title'] ?? '', //
+      sectionName: json['section_name'] ?? '', //
+      icon: json['icon'] ?? '📝', //
+      lastUpdated: json['last_updated'] ?? '', //
       orderIndex: json['order_index'] ?? 0, // AMBIL DATA URUTAN DARI JSON
-      isHidden: json['isHidden'] ?? false,
-      prompts: promptList,
+      isHidden: json['isHidden'] ?? false, //
+      prompts: promptList, //
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
-      'title': title,
-      'section_name': sectionName,
-      'icon': icon,
-      'last_updated': lastUpdated,
+      'id': id, //
+      'title': title, //
+      'section_name': sectionName, //
+      'icon': icon, //
+      'last_updated': lastUpdated, //
       'order_index': orderIndex, // SIMPAN KE JSON
-      'isHidden': isHidden,
-      'prompts': prompts.map((e) => e.toJson()).toList(),
+      'isHidden': isHidden, //
+      'prompts': prompts.map((e) => e.toJson()).toList(), //
     };
   }
 }
@@ -79,14 +81,14 @@ class PromptItem {
       orElse: () => versions.isNotEmpty
           ? versions.first
           : PromptVersion(id: 'v1', versionName: 'v1.0', content: ''),
-    );
+    ); //
   }
 
   factory PromptItem.fromJson(Map<String, dynamic> json) {
-    var versionList = json['versions'] as List? ?? [];
+    var versionList = json['versions'] as List? ?? []; //
     List<PromptVersion> parsedVersions = versionList
         .map((v) => PromptVersion.fromJson(v))
-        .toList();
+        .toList(); //
 
     // Migrasi data lama: jika data lama tidak punya 'versions' tapi punya 'content'
     if (parsedVersions.isEmpty && json['content'] != null) {
@@ -96,29 +98,29 @@ class PromptItem {
           versionName: 'v1.0 (Migrasi)',
           content: json['content'] ?? '',
         ),
-      );
+      ); //
     }
 
     return PromptItem(
-      id: json['id'] ?? '',
-      actAs: json['act_as'] ?? '',
-      description: json['description'],
-      isFavorite: json['is_favorite'] ?? false,
+      id: json['id'] ?? '', //
+      actAs: json['act_as'] ?? '', //
+      description: json['description'], //
+      isFavorite: json['is_favorite'] ?? false, //
       activeVersionId:
           json['active_version_id'] ??
-          (parsedVersions.isNotEmpty ? parsedVersions.first.id : 'v1'),
-      versions: parsedVersions,
+          (parsedVersions.isNotEmpty ? parsedVersions.first.id : 'v1'), //
+      versions: parsedVersions, //
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
-      'act_as': actAs,
-      'description': description,
-      'is_favorite': isFavorite,
-      'active_version_id': activeVersionId,
-      'versions': versions.map((v) => v.toJson()).toList(),
+      'id': id, //
+      'act_as': actAs, //
+      'description': description, //
+      'is_favorite': isFavorite, //
+      'active_version_id': activeVersionId, //
+      'versions': versions.map((v) => v.toJson()).toList(), //
     };
   }
 
@@ -128,12 +130,12 @@ class PromptItem {
     List<PromptVersion>? versions,
   }) {
     return PromptItem(
-      id: id,
-      actAs: actAs,
-      description: description,
-      isFavorite: isFavorite,
-      activeVersionId: activeVersionId ?? this.activeVersionId,
-      versions: versions ?? this.versions,
+      id: id, //
+      actAs: actAs, //
+      description: description, //
+      isFavorite: isFavorite, //
+      activeVersionId: activeVersionId ?? this.activeVersionId, //
+      versions: versions ?? this.versions, //
     );
   }
 }
@@ -152,13 +154,13 @@ class PromptVersion {
 
   factory PromptVersion.fromJson(Map<String, dynamic> json) {
     return PromptVersion(
-      id: json['id'] ?? '',
-      versionName: json['version_name'] ?? '',
-      content: json['content'] ?? '',
+      id: json['id'] ?? '', //
+      versionName: json['version_name'] ?? '', //
+      content: json['content'] ?? '', //
     );
   }
 
   Map<String, dynamic> toJson() {
-    return {'id': id, 'version_name': versionName, 'content': content};
+    return {'id': id, 'version_name': versionName, 'content': content}; //
   }
 }
