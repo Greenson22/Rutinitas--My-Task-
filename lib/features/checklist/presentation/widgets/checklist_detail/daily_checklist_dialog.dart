@@ -9,13 +9,16 @@ import '../../../../../core/presentation/widgets/base_popup_dialog.dart';
 class DailyChecklistDialog extends StatefulWidget {
   final DailySubject subject;
   final VoidCallback onDataChanged;
-  final List<DailySubject> allAvailableSubjects; // <-- Tambahkan parameter ini
+  final List<DailySubject> allAvailableSubjects;
+  final VoidCallback?
+  onCustomClosePressed; // <-- BARU: Parameter callback kustom penutupan dialog
 
   const DailyChecklistDialog({
     super.key,
     required this.subject,
     required this.onDataChanged,
-    required this.allAvailableSubjects, // <-- Tambahkan parameter ini
+    required this.allAvailableSubjects,
+    this.onCustomClosePressed, // <-- BARU
   });
 
   @override
@@ -34,6 +37,14 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
 
   SubSubjectItem? _highlightedItem;
   bool _isNoteModified = false;
+
+  // --- BARU: EKSPOS STATE & FUNGSI KE PUBLIC AGAR BISA DIAKSES GLOBAL KEY ---
+  bool get isNoteModifiedExternal => _isNoteModified;
+
+  void saveManualNoteExternal() {
+    _saveManualNote();
+  }
+  // -------------------------------------------------------------------------
 
   @override
   void initState() {
@@ -113,9 +124,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     widget.onDataChanged();
   }
 
-  // --- MODIFIKASI: Menampilkan Pilihan Target Pemindahan Sub-List & Kotak Checklist Lain ---
   void _showMoveSelectedItemsDialog(List<SubSubjectItem> allFlattened) {
-    // Memastikan item tidak dipindahkan ke dirinya sendiri atau anak turunannya sendiri
     List<SubSubjectItem> validTargets = allFlattened.where((item) {
       if (_selectedItems.contains(item)) return false;
 
@@ -137,7 +146,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
       return !isChildOfSelected;
     }).toList();
 
-    // Dapatkan daftar kotak checklist (materi) lain selain yang sedang dibuka saat ini
     List<DailySubject> otherSubjects = widget.allAvailableSubjects
         .where((s) => s != widget.subject)
         .toList();
@@ -151,7 +159,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
           child: ListView(
             shrinkWrap: true,
             children: [
-              // --- SEKSI 1: PINDAH DI DALAM MATERI INI ---
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
                 child: Text(
@@ -193,7 +200,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
 
               const Divider(height: 24, thickness: 1.5),
 
-              // --- SEKSI 2: PINDAH KE KOTAK CHECKLIST LAIN ---
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
                 child: Text(
@@ -240,7 +246,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     return false;
   }
 
-  // --- FITUR BARU: Eksekutor Pemindahan Item Lintas Kotak Checklist ---
   void _moveSelectedItemsToOtherSubject(DailySubject targetSubject) {
     _saveToHistory();
     setState(() {
@@ -252,18 +257,15 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
       _isEditMode = false;
     });
 
-    // Perbarui status hierarki kotak saat ini
     for (var root in widget.subject.subMateri) {
       root.updateStatusFromChildren();
     }
     _updateSubjectOverallProgress();
 
-    // Perbarui status hierarki kotak tujuan
     for (var root in targetSubject.subMateri) {
       root.updateStatusFromChildren();
     }
 
-    // Hitung ulang progres total kotak tujuan
     int totalTarget = targetSubject.subMateri.length;
     int selesaiTarget = targetSubject.subMateri
         .where((sm) => sm.progress == 'selesai')
@@ -291,7 +293,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     );
   }
 
-  // --- FITUR BARU: Eksekutor Pemindahan Item List ---
   void _moveSelectedItemsToTarget(SubSubjectItem? targetParent) {
     _saveToHistory();
     setState(() {
@@ -1640,7 +1641,14 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                 ],
               ),
               ElevatedButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () {
+                  // Mengalihkan aksi penutupan kustom melalui parameter screen induk jika tersedia
+                  if (widget.onCustomClosePressed != null) {
+                    widget.onCustomClosePressed!();
+                  } else {
+                    Navigator.pop(context);
+                  }
+                },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Color(widget.subject.backgroundColor),
                 ),

@@ -35,12 +35,82 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
 
     final double screenWidth = MediaQuery.of(context).size.width;
 
+    // GlobalKey baru untuk mengakses status internal (_isNoteModified) dari dialog secara langsung
+    final globalDialogKey = GlobalKey<State<DailyChecklistDialog>>();
+
+    // Fungsi lokal untuk menampilkan pop-up konfirmasi simpan/buang perubahan
+    Future<bool> _showExitConfirmationDialog(BuildContext targetCtx) async {
+      final result = await showDialog<String>(
+        context: targetCtx,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.amber),
+              SizedBox(width: 8),
+              Text('Perubahan Belum Disimpan'),
+            ],
+          ),
+          content: const Text(
+            'Apakah Anda ingin menyimpan perubahan pada catatan ini sebelum menutup?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () =>
+                  Navigator.pop(ctx, 'cancel'), // Tetap berada di dialog
+              child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+            ),
+            TextButton(
+              onPressed: () =>
+                  Navigator.pop(ctx, 'discard'), // Keluar dan buang perubahan
+              child: const Text(
+                'Jangan Simpan',
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () =>
+                  Navigator.pop(ctx, 'save'), // Simpan data lalu keluar
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+              child: const Text(
+                'Simpan',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      );
+
+      if (result == 'save') {
+        // Melakukan pemanggilan paksa metode simpan bawaan dialog melalui State Object
+        final stateObj = globalDialogKey.currentState;
+        if (stateObj != null && stateObj.mounted) {
+          // Menggunakan pendekatan dinamik panggilan method privat atau method penolong di state target
+          try {
+            (stateObj as dynamic).saveManualNoteExternal();
+          } catch (_) {
+            try {
+              (stateObj as dynamic)._saveManualNote();
+            } catch (e) {
+              debugPrint("Gagal memanggil fungsi eksekusi simpan otomatis: $e");
+            }
+          }
+        }
+        return true; // Keluar setelah simpan berhasil
+      } else if (result == 'discard') {
+        return true; // Keluar tanpa menyimpan
+      }
+      return false; // Batalkan proses keluar, tetap di dialog edit
+    }
+
     showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         // Bungkus dengan Theme kustom lokal agar widget Dialog internal milik BasePopupDialog ikut melebar
         return Theme(
-          data: Theme.of(context).copyWith(
+          data: Theme.of(dialogContext).copyWith(
             dialogTheme: DialogThemeData(
               // Jarak tepi luar dialog seminimal mungkin agar area checklist terasa luas
               insetPadding: const EdgeInsets.symmetric(
@@ -54,13 +124,75 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
               ),
             ),
           ),
-          child: DailyChecklistDialog(
-            subject: subject,
-            allAvailableSubjects: allAvailableSubjects,
-            onDataChanged: () {
-              saveGroupData();
-              setState(() {});
+          child: PopScope(
+            canPop:
+                false, // Menutup pop otomatis bawaan sistem demi intervensi dialog konfirmasi
+            onPopInvokedWithResult: (didPop, result) async {
+              if (didPop) return;
+
+              // Ambil status riil modifikasi catatan langsung dari state dialog kustom
+              final stateObj = globalDialogKey.currentState;
+              bool hasNoteChanges = false;
+              if (stateObj != null) {
+                try {
+                  hasNoteChanges =
+                      (stateObj as dynamic).isNoteModifiedExternal ?? false;
+                } catch (_) {
+                  try {
+                    hasNoteChanges =
+                        (stateObj as dynamic)._isNoteModified ?? false;
+                  } catch (_) {}
+                }
+              }
+
+              // Pemicu validasi pop-up pengaman jika tipe dialog saat ini adalah catatan berkonten modifikasi
+              if (subject.type == 'note' && hasNoteChanges) {
+                final shouldPop = await _showExitConfirmationDialog(
+                  dialogContext,
+                );
+                if (shouldPop && dialogContext.mounted) {
+                  Navigator.pop(dialogContext);
+                }
+              } else {
+                Navigator.pop(dialogContext);
+              }
             },
+            child: DailyChecklistDialog(
+              key: globalDialogKey, // Pasang instans kunci kontrol state
+              subject: subject,
+              allAvailableSubjects: allAvailableSubjects,
+              onDataChanged: () {
+                saveGroupData();
+                setState(() {});
+              },
+              // Parameter kustom penangan aksi tombol tutup dari internal widget
+              onCustomClosePressed: () async {
+                final stateObj = globalDialogKey.currentState;
+                bool hasNoteChanges = false;
+                if (stateObj != null) {
+                  try {
+                    hasNoteChanges =
+                        (stateObj as dynamic).isNoteModifiedExternal ?? false;
+                  } catch (_) {
+                    try {
+                      hasNoteChanges =
+                          (stateObj as dynamic)._isNoteModified ?? false;
+                    } catch (_) {}
+                  }
+                }
+
+                if (subject.type == 'note' && hasNoteChanges) {
+                  final shouldPop = await _showExitConfirmationDialog(
+                    dialogContext,
+                  );
+                  if (shouldPop && dialogContext.mounted) {
+                    Navigator.pop(dialogContext);
+                  }
+                } else {
+                  Navigator.pop(dialogContext);
+                }
+              },
+            ),
           ),
         );
       },
