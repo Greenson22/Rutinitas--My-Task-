@@ -97,7 +97,7 @@ class PromptController extends ChangeNotifier {
     notifyListeners();
   }
 
-  // MODIFIKASI UTAMA: Memuat berkas dengan alur Enkripsi Otomatis dan Fallback Komprehensif
+  // MODIFIKASI UTAMA: Memuat berkas dengan alur Enkripsi Otomatis dan Validasi Dekripsi yang Ketat
   Future<void> loadAllPrompts(BuildContext context) async {
     _isLoading = true;
     notifyListeners();
@@ -118,24 +118,34 @@ class PromptController extends ChangeNotifier {
       List<String> autoEncryptedFiles = [];
 
       for (var file in files) {
+        String fileName = file.path.split('/').last.replaceAll('.json', '');
         try {
           if (!await file.exists()) continue;
           String content = await file.readAsString();
 
-          final trimmedContent = content.trim();
+          String trimmedContent = content.trim();
           bool isRawJson =
               trimmedContent.startsWith('{') || trimmedContent.startsWith('[');
-          String fileName = file.path.split('/').last.replaceAll('.json', '');
 
           if (isEncrypted && password != null) {
             if (!isRawJson) {
               // Kondisi Normal: File terenkripsi, lakukan dekripsi seperti biasa
-              content = CryptoHelper.decrypt(content, password);
+              final decrypted = CryptoHelper.decrypt(trimmedContent, password);
+
+              // VALIDASI TINGKAT LANJUT: Pastikan teks hasil dekripsi terbukti berformat objek/array JSON yang valid
+              if (decrypted.trim().startsWith('{') ||
+                  decrypted.trim().startsWith('[')) {
+                content = decrypted;
+              } else {
+                throw FormatException(
+                  "Hasil dekripsi bukan struktur biner JSON yang sah.",
+                );
+              }
             } else {
               // === SEKUENS OTOMATIS BERKAS BELUM TERENKRIPSI ===
               try {
                 final PromptGroup parsedGroup = PromptGroup.fromJson(
-                  jsonDecode(content),
+                  jsonDecode(trimmedContent),
                 );
                 final String encryptedContent = CryptoHelper.encrypt(
                   _storageService.formatJsonPretty(parsedGroup.toJson()),
@@ -152,15 +162,21 @@ class PromptController extends ChangeNotifier {
                 );
               }
             }
+          } else {
+            // Jika enkripsi mati di sistem namun berkas di storage terenkripsi, alihkan ke manual decrypt
+            if (!isRawJson) {
+              throw FormatException(
+                "Berkas terenkripsi tetapi enkripsi sistem dinonaktifkan.",
+              );
+            }
           }
 
-          final jsonMap = jsonDecode(content);
+          final jsonMap = jsonDecode(content.trim());
           loadedGroups.add(PromptGroup.fromJson(jsonMap));
         } catch (fileError) {
           debugPrint(
             "Gagal memuat atau mendekripsi berkas prompt ${file.path}: $fileError",
           );
-          String fileName = file.path.split('/').last.replaceAll('.json', '');
 
           // TETAP TAMPILKAN SEBAGAI CARD: Buat tiruan PromptGroup rusak (Sama seperti Notes)
           loadedGroups.add(
@@ -206,17 +222,28 @@ class PromptController extends ChangeNotifier {
     }
   }
 
-  // MODIFIKASI: Interseptor penyimpanan untuk enkripsi global data sebelum disimpan ke disk
-  Future<void> _writeGroupToStorage(String baseDir, PromptGroup group) async {
+  // OPTIMASI UTAMA: Menerima password opsional dari fungsi pemanggil untuk stabilitas data
+  Future<void> _writeGroupToStorage(
+    String baseDir,
+    PromptGroup group, {
+    String? password,
+  }) async {
     if (group.id.startsWith("CORRUPTED_")) return;
 
     bool isEncrypted = await _storageService.isEncryptionEnabled();
-    String? password = await _storageService.getEncryptionPassword();
+    // Jika password tidak dikirim dari luar, lakukan fetch fallback satu kali
+    String? finalPassword =
+        password ?? await _storageService.getEncryptionPassword();
 
     String jsonString = _storageService.formatJsonPretty(group.toJson());
 
-    if (isEncrypted && password != null) {
-      jsonString = CryptoHelper.encrypt(jsonString, password);
+    if (isEncrypted && finalPassword != null) {
+      jsonString = CryptoHelper.encrypt(jsonString, finalPassword);
+    } else if (isEncrypted && finalPassword == null) {
+      debugPrint(
+        "Kebijakan Keamanan: Enkripsi aktif tetapi password null. Penulisan ke storage dibatalkan demi keamanan berkas.",
+      );
+      return;
     }
 
     await _storageService.savePromptGroup(baseDir, group.id, jsonString);
@@ -300,6 +327,9 @@ class PromptController extends ChangeNotifier {
 
     try {
       final baseDir = await _storageService.getBaseDirSetting();
+      // Ambil password di awal sebelum masuk perulangan untuk mencegah inkonsistensi
+      String? currentPassword = await _storageService.getEncryptionPassword();
+
       for (int i = 0; i < _promptGroups.length; i++) {
         final group = _promptGroups[i];
         final updatedGroup = PromptGroup(
@@ -311,7 +341,11 @@ class PromptController extends ChangeNotifier {
           orderIndex: i,
           prompts: group.prompts,
         );
-        await _writeGroupToStorage(baseDir, updatedGroup);
+        await _writeGroupToStorage(
+          baseDir,
+          updatedGroup,
+          password: currentPassword,
+        );
         _promptGroups[i] = updatedGroup;
       }
     } catch (e) {
@@ -340,6 +374,8 @@ class PromptController extends ChangeNotifier {
       }
 
       final baseDir = await _storageService.getBaseDirSetting();
+      String? currentPassword = await _storageService.getEncryptionPassword();
+
       List<PromptGroup> groupsToUpdate = [];
       for (var group in _promptGroups) {
         final currentSecName = group.sectionName.isEmpty
@@ -360,7 +396,11 @@ class PromptController extends ChangeNotifier {
           orderIndex: group.orderIndex,
           prompts: group.prompts,
         );
-        await _writeGroupToStorage(baseDir, updatedGroup);
+        await _writeGroupToStorage(
+          baseDir,
+          updatedGroup,
+          password: currentPassword,
+        );
       }
       _isSectionEditMode = true;
       if (context.mounted) await loadAllPrompts(context);
@@ -413,6 +453,7 @@ class PromptController extends ChangeNotifier {
   }) async {
     try {
       final baseDir = await _storageService.getBaseDirSetting();
+      String? currentPassword = await _storageService.getEncryptionPassword();
       final id = DateTime.now().millisecondsSinceEpoch.toString();
       final targetSection = section.trim().isEmpty ? 'General' : section.trim();
 
@@ -426,7 +467,7 @@ class PromptController extends ChangeNotifier {
         prompts: [],
       );
 
-      await _writeGroupToStorage(baseDir, newGroup);
+      await _writeGroupToStorage(baseDir, newGroup, password: currentPassword);
       _localEmptySections.remove(targetSection.toUpperCase());
       if (context.mounted) await loadAllPrompts(context);
     } catch (e) {
@@ -446,46 +487,54 @@ class PromptController extends ChangeNotifier {
     int targetIndex = index + direction;
     if (targetIndex < 0 || targetIndex >= currentList.length) return;
 
-    final item = currentList.removeAt(index);
-    currentList.insert(targetIndex, item);
+    // 1. Tiru logika Notes: Lakukan swap (tukar posisi) yang aman menggunakan variabel sementara (temp)
+    final temp = currentList[index];
+    currentList[index] = currentList[targetIndex];
+    currentList[targetIndex] = temp;
 
-    final List<PromptGroup> updatedGlobal = [];
-    final Set<String> processedSections = {};
+    List<PromptGroup> updatedSectionList = [];
 
-    for (var g in _promptGroups) {
-      final sec = g.sectionName.toUpperCase();
-      if (!processedSections.contains(sec)) {
-        processedSections.add(sec);
-        if (sec == item.sectionName.toUpperCase()) {
-          updatedGlobal.addAll(currentList);
-        } else {
-          updatedGlobal.addAll(
-            _promptGroups.where((x) => x.sectionName.toUpperCase() == sec),
-          );
-        }
+    // 2. Perbarui indeks urutan (orderIndex) HANYA untuk list di seksi ini saja
+    for (int i = 0; i < currentList.length; i++) {
+      final oldGroup = currentList[i];
+      final updatedGroup = PromptGroup(
+        id: oldGroup.id,
+        title: oldGroup.title,
+        sectionName: oldGroup.sectionName,
+        icon: oldGroup.icon,
+        lastUpdated: oldGroup.lastUpdated,
+        orderIndex: i, // <--- Terapkan urutan indeks baru
+        isHidden: oldGroup.isHidden,
+        prompts: oldGroup.prompts,
+      );
+
+      updatedSectionList.add(updatedGroup);
+
+      // Sinkronisasikan secara spesifik ke List Global tanpa membongkar ulang seluruh susunan
+      int globalIdx = _promptGroups.indexWhere((g) => g.id == updatedGroup.id);
+      if (globalIdx != -1) {
+        _promptGroups[globalIdx] = updatedGroup;
       }
     }
-    _promptGroups = updatedGlobal;
+
+    // Perbarui UI secara instan agar transisi geser mulus
     notifyListeners();
 
+    // 3. Tiru logika Notes: I/O AMAN. HANYA SIMPAN ITEM YANG ADA DI SEKSI INI SAJA!
+    // Ini menghilangkan bottleneck penyimpanan disk massal yang mengunci/merusak file enkripsi.
     try {
       final baseDir = await _storageService.getBaseDirSetting();
-      for (int i = 0; i < _promptGroups.length; i++) {
-        final currentGroup = _promptGroups[i];
-        final updatedGroup = PromptGroup(
-          id: currentGroup.id,
-          title: currentGroup.title,
-          sectionName: currentGroup.sectionName,
-          icon: currentGroup.icon,
-          lastUpdated: currentGroup.lastUpdated,
-          orderIndex: i,
-          prompts: currentGroup.prompts,
+      String? currentPassword = await _storageService.getEncryptionPassword();
+
+      for (var groupToSave in updatedSectionList) {
+        await _writeGroupToStorage(
+          baseDir,
+          groupToSave,
+          password: currentPassword,
         );
-        await _writeGroupToStorage(baseDir, updatedGroup);
-        _promptGroups[i] = updatedGroup;
       }
     } catch (e) {
-      debugPrint("Gagal mengamankan urutan group: $e");
+      debugPrint("Gagal mengamankan urutan group horizontal: $e");
     }
   }
 
@@ -499,6 +548,7 @@ class PromptController extends ChangeNotifier {
     notifyListeners();
     try {
       final baseDir = await _storageService.getBaseDirSetting();
+      String? currentPassword = await _storageService.getEncryptionPassword();
       final updatedGroup = PromptGroup(
         id: group.id,
         title: newTitle.trim(),
@@ -508,7 +558,11 @@ class PromptController extends ChangeNotifier {
         orderIndex: group.orderIndex,
         prompts: group.prompts,
       );
-      await _writeGroupToStorage(baseDir, updatedGroup);
+      await _writeGroupToStorage(
+        baseDir,
+        updatedGroup,
+        password: currentPassword,
+      );
       if (context.mounted) await loadAllPrompts(context);
     } catch (e) {
       _isLoading = false;
@@ -530,6 +584,7 @@ class PromptController extends ChangeNotifier {
     notifyListeners();
     try {
       final baseDir = await _storageService.getBaseDirSetting();
+      String? currentPassword = await _storageService.getEncryptionPassword();
       final updatedGroup = PromptGroup(
         id: group.id,
         title: group.title,
@@ -539,7 +594,11 @@ class PromptController extends ChangeNotifier {
         orderIndex: group.orderIndex,
         prompts: group.prompts,
       );
-      await _writeGroupToStorage(baseDir, updatedGroup);
+      await _writeGroupToStorage(
+        baseDir,
+        updatedGroup,
+        password: currentPassword,
+      );
       _localEmptySections.remove(targetSection.toUpperCase());
       if (context.mounted) await loadAllPrompts(context);
     } catch (e) {
@@ -595,6 +654,7 @@ class PromptController extends ChangeNotifier {
     notifyListeners();
     try {
       final baseDir = await _storageService.getBaseDirSetting();
+      String? currentPassword = await _storageService.getEncryptionPassword();
       final String newItemId = 'item_${DateTime.now().millisecondsSinceEpoch}';
       final String initialVersionId =
           'v_${DateTime.now().millisecondsSinceEpoch}';
@@ -615,7 +675,7 @@ class PromptController extends ChangeNotifier {
       );
 
       group.prompts.add(newPromptItem);
-      await _writeGroupToStorage(baseDir, group);
+      await _writeGroupToStorage(baseDir, group, password: currentPassword);
 
       if (context.mounted) await loadAllPrompts(context);
       _isLoading = false;
@@ -643,6 +703,7 @@ class PromptController extends ChangeNotifier {
     notifyListeners();
     try {
       final baseDir = await _storageService.getBaseDirSetting();
+      String? currentPassword = await _storageService.getEncryptionPassword();
       final index = group.prompts.indexWhere((p) => p.id == itemId);
       if (index != -1) {
         final oldItem = group.prompts[index];
@@ -668,7 +729,7 @@ class PromptController extends ChangeNotifier {
           versions: updatedVersions,
         );
 
-        await _writeGroupToStorage(baseDir, group);
+        await _writeGroupToStorage(baseDir, group, password: currentPassword);
         if (context.mounted) await loadAllPrompts(context);
       }
       _isLoading = false;
@@ -693,8 +754,9 @@ class PromptController extends ChangeNotifier {
     notifyListeners();
     try {
       final baseDir = await _storageService.getBaseDirSetting();
+      String? currentPassword = await _storageService.getEncryptionPassword();
       group.prompts.removeWhere((p) => p.id == itemId);
-      await _writeGroupToStorage(baseDir, group);
+      await _writeGroupToStorage(baseDir, group, password: currentPassword);
       if (context.mounted) await loadAllPrompts(context);
       _isLoading = false;
       notifyListeners();
@@ -720,6 +782,7 @@ class PromptController extends ChangeNotifier {
     notifyListeners();
     try {
       final baseDir = await _storageService.getBaseDirSetting();
+      String? currentPassword = await _storageService.getEncryptionPassword();
       final String newItemId = 'item_${DateTime.now().millisecondsSinceEpoch}';
       final newItem = PromptItem(
         id: newItemId,
@@ -735,13 +798,25 @@ class PromptController extends ChangeNotifier {
         if (!isCopy) {
           sourceGroup.prompts.removeWhere((p) => p.id == item.id);
         }
-        await _writeGroupToStorage(baseDir, sourceGroup);
+        await _writeGroupToStorage(
+          baseDir,
+          sourceGroup,
+          password: currentPassword,
+        );
       } else {
         targetGroup.prompts.add(newItem);
-        await _writeGroupToStorage(baseDir, targetGroup);
+        await _writeGroupToStorage(
+          baseDir,
+          targetGroup,
+          password: currentPassword,
+        );
         if (!isCopy) {
           sourceGroup.prompts.removeWhere((p) => p.id == item.id);
-          await _writeGroupToStorage(baseDir, sourceGroup);
+          await _writeGroupToStorage(
+            baseDir,
+            sourceGroup,
+            password: currentPassword,
+          );
         }
       }
       if (context.mounted) await loadAllPrompts(context);
@@ -767,8 +842,9 @@ class PromptController extends ChangeNotifier {
     notifyListeners();
     try {
       final baseDir = await _storageService.getBaseDirSetting();
+      String? currentPassword = await _storageService.getEncryptionPassword();
       group.prompts.removeWhere((p) => _selectedPromptIds.contains(p.id));
-      await _writeGroupToStorage(baseDir, group);
+      await _writeGroupToStorage(baseDir, group, password: currentPassword);
       _selectedPromptIds.clear();
       if (context.mounted) await loadAllPrompts(context);
       _isLoading = false;
@@ -794,6 +870,7 @@ class PromptController extends ChangeNotifier {
     notifyListeners();
     try {
       final baseDir = await _storageService.getBaseDirSetting();
+      String? currentPassword = await _storageService.getEncryptionPassword();
       final itemsToMove = sourceGroup.prompts
           .where((p) => _selectedPromptIds.contains(p.id))
           .toList();
@@ -811,12 +888,21 @@ class PromptController extends ChangeNotifier {
         }).toList();
 
         targetGroup.prompts.addAll(preparedItems);
-        await _writeGroupToStorage(baseDir, targetGroup);
+        await _writeGroupToStorage(
+          baseDir,
+          targetGroup,
+          password: currentPassword,
+        );
 
         sourceGroup.prompts.removeWhere(
           (p) => _selectedPromptIds.contains(p.id),
         );
-        await _writeGroupToStorage(baseDir, sourceGroup);
+        // BERSIH: Menghilangkan operator ternary redundan yang salah ketik (baseDir : baseDir)
+        await _writeGroupToStorage(
+          baseDir,
+          sourceGroup,
+          password: currentPassword,
+        );
       }
       _selectedPromptIds.clear();
       if (context.mounted) await loadAllPrompts(context);
@@ -842,6 +928,7 @@ class PromptController extends ChangeNotifier {
     notifyListeners();
     try {
       final baseDir = await _storageService.getBaseDirSetting();
+      String? currentPassword = await _storageService.getEncryptionPassword();
       final index = group.prompts.indexWhere((p) => p.id == itemId);
       if (index != -1) {
         final oldItem = group.prompts[index];
@@ -853,7 +940,7 @@ class PromptController extends ChangeNotifier {
           activeVersionId: oldItem.activeVersionId,
           versions: oldItem.versions,
         );
-        await _writeGroupToStorage(baseDir, group);
+        await _writeGroupToStorage(baseDir, group, password: currentPassword);
         if (context.mounted) await loadAllPrompts(context);
       }
       _isLoading = false;
@@ -877,6 +964,7 @@ class PromptController extends ChangeNotifier {
   }) async {
     try {
       final baseDir = await _storageService.getBaseDirSetting();
+      String? currentPassword = await _storageService.getEncryptionPassword();
       final groupIdx = _promptGroups.indexWhere((g) => g.id == group.id);
       if (groupIdx == -1) return;
 
@@ -886,7 +974,11 @@ class PromptController extends ChangeNotifier {
       if (promptIdx == -1) return;
 
       _promptGroups[groupIdx].prompts[promptIdx].activeVersionId = versionId;
-      await _writeGroupToStorage(baseDir, _promptGroups[groupIdx]);
+      await _writeGroupToStorage(
+        baseDir,
+        _promptGroups[groupIdx],
+        password: currentPassword,
+      );
       notifyListeners();
     } catch (e) {
       debugPrint("Gagal ganti versi: $e");
@@ -903,6 +995,7 @@ class PromptController extends ChangeNotifier {
     notifyListeners();
     try {
       final baseDir = await _storageService.getBaseDirSetting();
+      String? currentPassword = await _storageService.getEncryptionPassword();
       final groupIdx = _promptGroups.indexWhere((g) => g.id == group.id);
       if (groupIdx == -1) return;
 
@@ -926,7 +1019,11 @@ class PromptController extends ChangeNotifier {
       currentPrompt.versions.add(newVersion);
       currentPrompt.activeVersionId = newVersionId;
 
-      await _writeGroupToStorage(baseDir, _promptGroups[groupIdx]);
+      await _writeGroupToStorage(
+        baseDir,
+        _promptGroups[groupIdx],
+        password: currentPassword,
+      );
       if (context.mounted) await loadAllPrompts(context);
     } catch (e) {
       _isLoading = false;
@@ -945,6 +1042,7 @@ class PromptController extends ChangeNotifier {
     notifyListeners();
     try {
       final baseDir = await _storageService.getBaseDirSetting();
+      String? currentPassword = await _storageService.getEncryptionPassword();
       final groupIdx = _promptGroups.indexWhere((g) => g.id == group.id);
       if (groupIdx == -1) return;
 
@@ -966,7 +1064,11 @@ class PromptController extends ChangeNotifier {
         content: oldVersion.content,
       );
 
-      await _writeGroupToStorage(baseDir, _promptGroups[groupIdx]);
+      await _writeGroupToStorage(
+        baseDir,
+        _promptGroups[groupIdx],
+        password: currentPassword,
+      );
       if (context.mounted) await loadAllPrompts(context);
     } catch (e) {
       _isLoading = false;
@@ -984,6 +1086,7 @@ class PromptController extends ChangeNotifier {
     notifyListeners();
     try {
       final baseDir = await _storageService.getBaseDirSetting();
+      String? currentPassword = await _storageService.getEncryptionPassword();
       final groupIdx = _promptGroups.indexWhere((g) => g.id == group.id);
       if (groupIdx == -1) return;
 
@@ -1004,7 +1107,11 @@ class PromptController extends ChangeNotifier {
         currentPrompt.activeVersionId = currentPrompt.versions.first.id;
       }
 
-      await _writeGroupToStorage(baseDir, _promptGroups[groupIdx]);
+      await _writeGroupToStorage(
+        baseDir,
+        _promptGroups[groupIdx],
+        password: currentPassword,
+      );
       if (context.mounted) await loadAllPrompts(context);
     } catch (e) {
       _isLoading = false;
@@ -1021,7 +1128,8 @@ class PromptController extends ChangeNotifier {
     try {
       group.isHidden = !group.isHidden;
       final baseDir = await _storageService.getBaseDirSetting();
-      await _writeGroupToStorage(baseDir, group);
+      String? currentPassword = await _storageService.getEncryptionPassword();
+      await _writeGroupToStorage(baseDir, group, password: currentPassword);
       await loadAllPrompts(context);
     } catch (e) {
       _isLoading = false;
@@ -1059,7 +1167,12 @@ class PromptController extends ChangeNotifier {
       final Map<String, dynamic> parsedJson = jsonDecode(decryptedContent);
       PromptGroup decryptedGroup = PromptGroup.fromJson(parsedJson);
 
-      await _writeGroupToStorage(baseDir, decryptedGroup);
+      // Gunakan password induk yang berhasil memvalidasi dekripsi berkas ini
+      await _writeGroupToStorage(
+        baseDir,
+        decryptedGroup,
+        password: inputPassword,
+      );
 
       messenger.showSnackBar(
         SnackBar(
