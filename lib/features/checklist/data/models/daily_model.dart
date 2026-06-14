@@ -43,8 +43,9 @@ class DailySubject {
   bool isDateActive;
   String dateType;
   String? endDate;
+  bool
+  isMarkdownEnabled; // <--- BARU: Menyimpan status aktif/nonaktif format MD Catatan
 
-  // Palet warna standar yang estetis untuk memudahkan pengguna memilih warna kustom
   // Palet warna standar yang estetis untuk memudahkan pengguna memilih warna kustom
   static const List<Map<String, dynamic>> customPalletColor = [
     {'nama': 'Teal', 'bg': 4281166415, 'text': 4294967295},
@@ -91,6 +92,7 @@ class DailySubject {
     this.isDateActive = false,
     this.dateType = 'single',
     this.endDate,
+    this.isMarkdownEnabled = false, // <--- BARU: Default awal diset off (false)
   });
 
   factory DailySubject.fromJson(Map<String, dynamic> json) {
@@ -115,6 +117,9 @@ class DailySubject {
       isDateActive: json['isDateActive'] ?? false,
       dateType: json['dateType'] ?? 'single',
       endDate: json['endDate'],
+      isMarkdownEnabled:
+          json['isMarkdownEnabled'] ??
+          false, // <--- BARU: Mengambil dari JSON storage (jika kosong, default false)
     );
   }
 
@@ -135,6 +140,8 @@ class DailySubject {
       'isDateActive': isDateActive,
       'dateType': dateType,
       'endDate': endDate,
+      'isMarkdownEnabled':
+          isMarkdownEnabled, // <--- BARU: Simpan ke JSON storage
     };
   }
 
@@ -167,18 +174,15 @@ class DailySubject {
       'Desember',
     ];
 
-    // Tentukan warna dasar komponen secara konsisten tanpa mendeteksi isDarkBackground
     Color? colorHari;
     Color? colorTgl;
     Color? colorBln;
 
     if (inHeader) {
-      // Jika di dalam Header Dialog (Gunakan warna pekat agar kontras di header)
       colorHari = Colors.purple[900];
       colorTgl = Colors.pink[800];
       colorBln = Colors.teal[900];
     } else {
-      // Jika di dalam Grid Card Utama (Kunci ke shade standard yang seimbang kecerahannya)
       colorHari = Colors.purple[700];
       colorTgl = Colors.pink[700];
       colorBln = Colors.teal[700];
@@ -219,7 +223,6 @@ class DailySubject {
       return [
         TextSpan(
           text: subject.date,
-          // Mengikuti warna teks judul utama yang sudah adaptif
           style: TextStyle(color: Color(subject.textColor)),
         ),
       ];
@@ -292,21 +295,20 @@ class SubSubjectItem {
   }
 }
 
-// Model untuk Level 1: Checklist Hub (File JSON)
 class ChecklistGroup {
   String id;
   String groupName;
   String icon;
   String sectionCategory;
   List<ChecklistSection> allList;
-  bool isHidden; // <--- TAMBAHKAN INI
+  bool isHidden;
 
   ChecklistGroup({
     required this.id,
     required this.groupName,
     required this.icon,
     this.sectionCategory = "Lainnya",
-    this.isHidden = false, // <--- TAMBAHKAN DEFAULT VALUE FALSE
+    this.isHidden = false,
     required this.allList,
   });
 
@@ -321,7 +323,7 @@ class ChecklistGroup {
       groupName: json['nama_hub'] ?? 'Hub Baru',
       icon: json['ikon'] ?? '📁',
       sectionCategory: json['kategori_seksi'] ?? 'Lainnya',
-      isHidden: json['isHidden'] ?? false, // <--- BACA DARI JSON
+      isHidden: json['isHidden'] ?? false,
       allList: list.map((i) => ChecklistSection.fromJson(i)).toList(),
     );
   }
@@ -332,17 +334,15 @@ class ChecklistGroup {
       'nama_hub': groupName,
       'ikon': icon,
       'kategori_seksi': sectionCategory,
-      'isHidden': isHidden, // <--- SIMPAN KE JSON
+      'isHidden': isHidden,
       'semua_list': allList.map((e) => e.toJson()).toList(),
     };
   }
 }
 
-// Model untuk Level 2: Seksi Dinamis di dalam Hub
 class ChecklistSection {
   String sectionName;
-  List<DailySubject>
-  items; // Mempertahankan DailySubject agar fitur warna, progress, dan tanggal tidak hilang!
+  List<DailySubject> items;
 
   ChecklistSection({required this.sectionName, required this.items});
 

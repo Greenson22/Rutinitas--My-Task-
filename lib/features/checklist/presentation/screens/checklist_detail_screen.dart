@@ -6,8 +6,8 @@ import '../controllers/checklist_detail_controller.dart';
 import '../../../../core/presentation/widgets/grouped_section_layout.dart';
 import '../../../../core/presentation/widgets/interactive_grid_card.dart';
 import '../../../../core/presentation/widgets/interactive_section_header.dart';
-import '../../../../core/presentation/widgets/universal_empty_state.dart'; // <-- DIUBAH: Menggunakan Universal Widget dari Core
-import '../widgets/checklist_detail/checklist_dialog.dart'; // <-- Tambahkan import ini untuk memanggil Dialog kustom
+import '../../../../core/presentation/widgets/universal_empty_state.dart'; // Using Universal Widget from Core
+import '../widgets/checklist_detail/checklist_dialog.dart'; // Import Dialog kustom
 
 class ChecklistDetailScreen extends StatefulWidget {
   final ChecklistGroup group;

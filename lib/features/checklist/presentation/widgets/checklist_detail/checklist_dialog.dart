@@ -40,6 +40,10 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
   SubSubjectItem? _highlightedItem;
   bool _isNoteModified = false;
 
+  // --- STATE BARU: MENGONTROL STATUS FORMAT MARKDOWN & VIEW MODE CATATAN ---
+  bool _isMarkdownEnabled = false;
+  bool _isNoteViewMode = true; // Default menampilkan render preview
+
   bool get isNoteModifiedExternal => _isNoteModified;
   void saveManualNoteExternal() => _saveManualNote();
 
@@ -49,6 +53,10 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     _noteController = TextEditingController(
       text: widget.subject.noteContent ?? '',
     );
+    // AMBIL STATUS DARI EXISTING SUBJECT (Default: false / off jika baru)
+    _isMarkdownEnabled = widget.subject.isMarkdownEnabled;
+    // Otomatis buka mode edit jika isi catatan masih kosong
+    _isNoteViewMode = _noteController.text.isNotEmpty;
   }
 
   @override
@@ -335,7 +343,11 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
   void _saveManualNote() {
     setState(() {
       widget.subject.noteContent = _noteController.text;
+      widget.subject.isMarkdownEnabled =
+          _isMarkdownEnabled; // <--- SINKRONKAN KE DATA MODEL UTAMA
       _isNoteModified = false;
+      _isNoteViewMode =
+          true; // Otomatis kembali ke mode rendering/view setelah menyimpan
     });
     widget.onDataChanged();
     FocusScope.of(context).unfocus();
@@ -524,6 +536,53 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // =========================================================================
+              // FITUR BARU: PANEL TOGGLE SWITCH MARKDOWN & TOMBOL EDIT KHUSUS TIPE CATATAN
+              // =========================================================================
+              if (widget.subject.type == 'note') ...[
+                // Switch MD hanya muncul saat sedang dalam MODE EDIT (!_isNoteViewMode)
+                if (!_isNoteViewMode) ...[
+                  const Text(
+                    'MD',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Transform.scale(
+                    scale: 0.7,
+                    child: Switch(
+                      value: _isMarkdownEnabled,
+                      activeColor: Colors.tealAccent,
+                      inactiveThumbColor: Colors.white70,
+                      onChanged: (value) {
+                        setState(() {
+                          _isMarkdownEnabled = value;
+                          _isNoteModified = true; // Picu status perubahan data
+                        });
+                      },
+                    ),
+                  ),
+                ],
+                // Tombol interaktif untuk merubah View Mode / Edit Mode Catatan
+                IconButton(
+                  icon: Icon(
+                    _isNoteViewMode ? Icons.edit : Icons.chrome_reader_mode,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                  tooltip: _isNoteViewMode
+                      ? 'Edit Catatan'
+                      : 'Pratinjau Catatan',
+                  onPressed: () {
+                    setState(() {
+                      _isNoteViewMode = !_isNoteViewMode;
+                    });
+                  },
+                ),
+              ],
+
               if (widget.subject.type == 'note' && _isNoteModified)
                 IconButton(
                   icon: const Icon(
@@ -653,6 +712,10 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
             child: widget.subject.type == 'note'
                 ? ChecklistNoteView(
                     noteController: _noteController,
+                    isMarkdownEnabled:
+                        _isMarkdownEnabled, // <--- SUNTIKKAN STATUS MD AKTIF
+                    isViewMode:
+                        _isNoteViewMode, // <--- SUNTIKKAN STATUS VIEW/PREVIEW MODE
                     onChanged: (text) {
                       final orig = widget.subject.noteContent ?? '';
                       setState(() => _isNoteModified = text != orig);
