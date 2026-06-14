@@ -444,24 +444,83 @@ class DailyController extends ChangeNotifier {
     }
   }
 
-  // Ubah Urutan Tampilan Map Seksi Utama di UI
-  void moveMainSectionOrder(String sectionName, int direction) {
+  // IMPLEMENTASI BARU: Mengubah Urutan Seksi Utama secara Asinkron & Permanen ke Disk
+  Future<void> moveMainSectionOrder(String sectionName, int direction) async {
     final keys = groupedVisibleGroup.keys.toList();
     int currentIndex = keys.indexOf(sectionName);
     int newIndex = currentIndex + direction;
 
     if (newIndex < 0 || newIndex >= keys.length) return;
 
-    final tempMap = Map<String, List<ChecklistGroup>>.from(groupedVisibleGroup);
-    groupedVisibleGroup.clear();
-
+    // 1. Tukar posisi seksi di list kunci lokal
     final tempKey = keys[currentIndex];
     keys[currentIndex] = keys[newIndex];
     keys[newIndex] = tempKey;
 
+    // 2. Susun ulang `allGroupRaw` berdasarkan urutan seksi yang baru
+    List<ChecklistGroup> reorderedRaw = [];
     for (var key in keys) {
-      groupedVisibleGroup[key] = tempMap[key] ?? [];
+      final groupsInSection = allGroupRaw.where((group) {
+        String kategori = group.sectionCategory.trim().isEmpty
+            ? "Lainnya"
+            : group.sectionCategory;
+        return kategori == key;
+      }).toList();
+      reorderedRaw.addAll(groupsInSection);
     }
-    notifyListeners();
+
+    // 3. Update state di memori lokal secara instan agar UI terasa responsif
+    allGroupRaw = reorderedRaw;
+    _processGroupsDisplay();
+
+    // 4. Sinkronisasikan urutan baru ke penyimpanan fisik dengan memperbarui prefix indeks file
+    try {
+      bool isEncrypted = await _storageService.isEncryptionEnabled();
+      String? password = await _storageService.getEncryptionPassword();
+
+      for (int i = 0; i < allGroupRaw.length; i++) {
+        final currentGroup = allGroupRaw[i];
+        if (currentGroup.id.startsWith("CORRUPTED_")) continue;
+
+        File oldFile = await _storageService.getSpecificGroupFile(
+          selectedBaseDir,
+          currentGroup.id,
+        );
+
+        String cleanId = currentGroup.id;
+        if (cleanId.contains('_hub_')) {
+          cleanId = cleanId.substring(cleanId.indexOf('hub_'));
+        }
+
+        // Terapkan indeks numerik 'i' baru ke nama file agar urutan tersimpan secara alfabetis saat di-load kembali
+        String newId = "${i}_$cleanId";
+        File newFile = await _storageService.getSpecificGroupFile(
+          selectedBaseDir,
+          newId,
+        );
+        currentGroup.id = newId;
+
+        String jsonString = const JsonEncoder.withIndent(
+          '  ',
+        ).convert(currentGroup.toJson());
+        if (isEncrypted && password != null) {
+          jsonString = CryptoHelper.encrypt(jsonString, password);
+        }
+
+        if (await oldFile.exists()) {
+          await newFile.writeAsString(jsonString);
+          if (oldFile.path != newFile.path) {
+            await oldFile.delete();
+          }
+        } else {
+          await newFile.writeAsString(jsonString);
+        }
+      }
+    } catch (e) {
+      debugPrint("Gagal mengamankan urutan seksi baru ke disk: $e");
+    }
+
+    // 5. Jalankan pemrosesan akhir tampilan untuk memastikan data sinkron
+    _processGroupsDisplay();
   }
 }
