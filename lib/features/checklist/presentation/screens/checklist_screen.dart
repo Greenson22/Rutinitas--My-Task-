@@ -1,5 +1,6 @@
 // lib/features/daily/presentation/screens/daily_screen.dart
 
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../../core/presentation/widgets/drawer_menu.dart';
@@ -7,6 +8,7 @@ import '../../../../core/presentation/widgets/grouped_section_layout.dart';
 import '../../../../core/presentation/widgets/interactive_grid_card.dart';
 import '../../../../core/presentation/widgets/interactive_section_header.dart';
 import '../../../../core/presentation/widgets/universal_empty_state.dart'; // Using Universal Widget from Core
+import '../../../../core/utils/crypto_helper.dart'; // Import CryptoHelper untuk Dekripsi Manual
 import '../../data/models/daily_model.dart';
 import '../controllers/daily_controller.dart';
 import 'checklist_detail_screen.dart';
@@ -39,6 +41,140 @@ class _DailyScreenState extends State<DailyScreen> {
     _controller.removeListener(_onControllerNotify);
     _controller.dispose();
     super.dispose();
+  }
+
+  // --- FITUR BARU: Dialog Input Kata Sandi untuk Dekripsi Manual Berkas Rusak ---
+  void _showManualDecryptDialog(ChecklistGroup corruptedGroup) {
+    final TextEditingController passwordController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: const [
+            Icon(Icons.lock_open_rounded, color: Colors.indigo),
+            SizedBox(width: 8),
+            Text('Dekripsi Berkas Checklist'),
+          ],
+        ),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Masukkan password yang sesuai untuk membuka file "${corruptedGroup.groupName}.json":',
+                style: const TextStyle(fontSize: 13, color: Colors.black87),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: passwordController,
+                obscureText: true,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Password Enkripsi Lama',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.key_rounded),
+                ),
+                validator: (value) => value == null || value.isEmpty
+                    ? 'Password tidak boleh kosong'
+                    : null,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (!formKey.currentState!.validate()) return;
+              final messenger = ScaffoldMessenger.of(context);
+              final String inputPassword = passwordController.text;
+              Navigator.pop(context);
+
+              setState(() => _controller.isLoading = true);
+              try {
+                // Potong prefix mock ID untuk mendapatkan nama file asli
+                final String originalFileName = corruptedGroup.id.replaceFirst(
+                  RegExp(r'CORRUPTED_\d+_'),
+                  '',
+                );
+
+                // Konstruksi manual base directory path sesuai standar storage
+                final String basePath =
+                    _controller.selectedBaseDir == 'Documents'
+                    ? '/storage/emulated/0/Documents' // Atau ganti dengan target absolut internal Anda
+                    : _controller.selectedBaseDir;
+
+                final File targetFile = File(
+                  '$basePath/checklist/$originalFileName.json',
+                );
+                if (!await targetFile.exists()) {
+                  throw Exception(
+                    "Berkas fisik tidak ditemukan di penyimpanan.",
+                  );
+                }
+
+                String rawContent = await targetFile.readAsString();
+
+                // Langkah 1: Coba dekripsi manual data teks menggunakan input kunci dari pengguna
+                String decryptedContent = CryptoHelper.decrypt(
+                  rawContent.trim(),
+                  inputPassword,
+                );
+
+                // Langkah 2: Uji kelayakan parsing JSON untuk memastikan password valid & struktur berkas aman
+                final Map<String, dynamic> parsedJson = jsonDecode(
+                  decryptedContent,
+                );
+                ChecklistGroup decryptedGroup = ChecklistGroup.fromJson(
+                  parsedJson,
+                );
+
+                // Langkah 3: Tulis ulang konten perbaikan yang bersih menggunakan fungsi terenkripsi internal controller
+                await _controller.saveGroupDataToFile(decryptedGroup);
+
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Berkas "${decryptedGroup.groupName}" berhasil didekripsi dan disinkronkan ke sistem!',
+                    ),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              } catch (e) {
+                debugPrint(
+                  "Gagal melakukan dekripsi manual berkas checklist: $e",
+                );
+                messenger.showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Gagal mendekripsi! Password salah atau struktur biner di dalam JSON memang korup.',
+                    ),
+                    backgroundColor: Colors.redAccent,
+                  ),
+                );
+              } catch (e) {
+                debugPrint("Gagal memuat ulang: $e");
+              } finally {
+                _controller.loadGroupsData();
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: _themeColor),
+            child: const Text(
+              'Dekripsi',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // METHOD BARU: Alur Berurutan Otomatis (Seksi Utama -> Group Checklist) Khusus Kondisi Kosong
@@ -251,9 +387,15 @@ class _DailyScreenState extends State<DailyScreen> {
         await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Text('Hapus Checklist Group?'),
+            title: Text(
+              group.id.startsWith("CORRUPTED_")
+                  ? 'Hapus Berkas Rusak?'
+                  : 'Hapus Checklist Group?',
+            ),
             content: Text(
-              'Apakah Anda yakin ingin menghapus Group "${group.groupName}" secara permanen beserta seluruh isinya?',
+              group.id.startsWith("CORRUPTED_")
+                  ? 'Apakah Anda yakin ingin menghapus berkas rusak "${group.groupName}" secara permanen?'
+                  : 'Apakah Anda yakin ingin menghapus Group "${group.groupName}" secara permanen beserta seluruh isinya?',
             ),
             actions: [
               TextButton(
@@ -457,6 +599,28 @@ class _DailyScreenState extends State<DailyScreen> {
       onSearchChanged: _controller.updateSearchQuery,
       onAddPressed: _showAddMainSectionDialog,
 
+      // === PARAMETER BARU: MENYUNTIKKAN IKON STATUS ENKRIPSI SISTEM GLOBAL ===
+      appBarTrailingAction: _controller.isGlobalEncryptionEnabled
+          ? Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: Tooltip(
+                message: 'Enkripsi AES-256 Aktif',
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.teal.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.lock,
+                    color: Colors.tealAccent,
+                    size: 18,
+                  ),
+                ),
+              ),
+            )
+          : null,
+
       additionalAction: IconButton(
         icon: Icon(
           _controller.showHiddenSection
@@ -516,6 +680,97 @@ class _DailyScreenState extends State<DailyScreen> {
       },
 
       gridItemBuilder: (context, group, index, sectionItems, isLayoutEditMode) {
+        // === LOGIKA BARU: MENANGANI KARTU APABILA BERKAS TERDETEKSI RUSAK/TERKUNCI ===
+        final bool isCorrupted = group.id.startsWith("CORRUPTED_");
+
+        if (isCorrupted) {
+          return InteractiveGridCard(
+            themeColor: Colors.redAccent,
+            isEditMode: isLayoutEditMode ? true : _controller.isPageEditMode,
+            isHiddenStyle: false,
+            isFirst: index == 0,
+            isLast: index == sectionItems.length - 1,
+            onTap: () => _showManualDecryptDialog(group),
+            onLongPress: _controller.togglePageEditMode,
+            onMoveLeft: () {},
+            onMoveRight: () {},
+            popupMenuItems: [
+              const PopupMenuItem(
+                value: 'decrypt',
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.lock_open_rounded,
+                      size: 18,
+                      color: Colors.indigo,
+                    ),
+                    SizedBox(width: 10),
+                    Text('Dekripsi Manual', style: TextStyle(fontSize: 13)),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'delete',
+                child: Row(
+                  children: [
+                    Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                    SizedBox(width: 10),
+                    Text(
+                      'Hapus Berkas Rusak',
+                      style: TextStyle(color: Colors.red, fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            onPopupSelected: (value) async {
+              if (value == 'decrypt') {
+                _showManualDecryptDialog(group);
+              } else if (value == 'delete') {
+                _deleteGroup(group);
+              }
+            },
+            content: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(group.icon, style: const TextStyle(fontSize: 28)),
+                const SizedBox(height: 8),
+                Text(
+                  group.groupName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: Colors.redAccent,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Text(
+                    'Terkunci / Korup',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.redAccent,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        // === RENDERING KONDISI NORMAL ===
         int totalItems = 0;
         for (var section in group.allList) {
           totalItems += section.items.length;
