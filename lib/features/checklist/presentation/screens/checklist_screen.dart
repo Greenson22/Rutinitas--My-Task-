@@ -604,7 +604,7 @@ class _DailyScreenState extends State<DailyScreen> {
           ? Padding(
               padding: const EdgeInsets.only(right: 8.0),
               child: Tooltip(
-                message: 'Enkripsi AES-256 Aktif',
+                message: 'Enkripsi Aktif',
                 child: Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(

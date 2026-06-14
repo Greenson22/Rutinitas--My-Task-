@@ -1,5 +1,6 @@
 // lib/features/prompt/presentation/screens/prompt_screen.dart
 import 'package:flutter/material.dart';
+import 'package:rutinitasku/core/services/storage_service.dart'; // <--- TAMBAHKAN IMPORT INI
 import '../../../../core/presentation/widgets/drawer_menu.dart';
 import '../../../../core/presentation/widgets/grouped_section_layout.dart';
 import '../../../../core/presentation/widgets/interactive_section_header.dart';
@@ -18,15 +19,30 @@ class PromptScreen extends StatefulWidget {
 
 class _PromptScreenState extends State<PromptScreen> {
   late final PromptController _controller;
+  final StorageService _storageService =
+      StorageService(); // <--- TAMBAHKAN INSTANCE INI
 
   // STATE BARU: Kontrol untuk menampilkan atau menyembunyikan kategori/grup tersembunyi
   bool _showHiddenSection = false;
+  bool _isGlobalEncryptionEnabled =
+      false; // <--- TAMBAHKAN VARIABEL STATE BARU INI
 
   @override
   void initState() {
     super.initState();
     _controller = PromptController();
+    _checkEncryptionStatus(); // <--- PANGGIL METHOD PENGECEKAN DI SINI
     _controller.loadAllPrompts(context);
+  }
+
+  // METHOD BARU: Mengambil konfigurasi status enkripsi master sistem dari storage
+  Future<void> _checkEncryptionStatus() async {
+    bool isEncrypted = await _storageService.isEncryptionEnabled();
+    if (mounted) {
+      setState(() {
+        _isGlobalEncryptionEnabled = isEncrypted;
+      });
+    }
   }
 
   @override
@@ -451,6 +467,28 @@ class _PromptScreenState extends State<PromptScreen> {
               }
             },
           ),
+
+          // === PENYESUAIAN: MENYUNTIKKAN IKON TRAILING ENKRIPSI GLOBAL ===
+          appBarTrailingAction: _isGlobalEncryptionEnabled
+              ? Padding(
+                  padding: const EdgeInsets.only(right: 8.0),
+                  child: Tooltip(
+                    message: 'Enkripsi Aktif',
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.teal.withOpacity(0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.lock,
+                        color: Colors.tealAccent,
+                        size: 18,
+                      ),
+                    ),
+                  ),
+                )
+              : null,
 
           isSelectMode: false,
           selectedItemsCount: 0,
