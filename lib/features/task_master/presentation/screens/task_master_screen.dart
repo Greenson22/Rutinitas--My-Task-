@@ -282,7 +282,8 @@ class _HomeScreenState extends State<HomeScreen> {
         onMoveTaskCategory: (task, source, target) async {
           source.tasks.removeWhere((t) => t.id == task.id);
           target.tasks.add(task);
-          await _controller.saveAllCategoriesToFile(shouldRefresh: true);
+          // Ubah shouldRefresh menjadi false agar tidak memuat ulang file dari disk berturut-turut
+          await _controller.saveAllCategoriesToFile(shouldRefresh: false);
         },
         onReorderTasks: () async {
           await _controller.saveAllCategoriesToFile(shouldRefresh: false);
