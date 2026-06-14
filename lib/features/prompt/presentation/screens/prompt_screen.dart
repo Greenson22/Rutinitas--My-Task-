@@ -5,7 +5,6 @@ import '../../../../core/presentation/widgets/grouped_section_layout.dart';
 import '../../../../core/presentation/widgets/interactive_section_header.dart';
 import '../../../../core/presentation/widgets/interactive_grid_card.dart';
 import '../../../../core/presentation/widgets/universal_empty_state.dart';
-import '../../../../core/utils/crypto_helper.dart';
 import '../../data/models/prompt_model.dart';
 import '../controllers/prompt_controller.dart';
 import 'prompt_detail_screen.dart';
@@ -19,6 +18,8 @@ class PromptScreen extends StatefulWidget {
 
 class _PromptScreenState extends State<PromptScreen> {
   late final PromptController _controller;
+
+  // STATE BARU: Kontrol untuk menampilkan atau menyembunyikan kategori/grup tersembunyi
   bool _showHiddenSection = false;
 
   @override
@@ -34,74 +35,11 @@ class _PromptScreenState extends State<PromptScreen> {
     super.dispose();
   }
 
-  // METHOD BARU: Menampilkan dialog dekripsi manual dengan input password (Persis seperti di Notes & Checklist)
-  void _showManualDecryptDialog(PromptGroup group) {
-    final passwordController = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          // <--- PERBAIKAN: Hapus kata 'const' di sini karena children di dalamnya dinamis
-          children: [
-            const Icon(
-              Icons.lock_open,
-              color: Colors.indigo,
-            ), // <--- Tambahkan const di level individual jika diperlukan
-            const SizedBox(width: 8),
-            Text('Dekripsi Berkas Prompt'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Masukkan kata sandi lama atau spesifik untuk memulihkan file "${group.title}.json":', // <--- Variabel dinamis group.title penyebab error const
-              style: const TextStyle(fontSize: 13, color: Colors.black87),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: passwordController,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'Password Enkripsi Lama',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.password),
-              ),
-            ), // <--- PERBAIKAN: Mengganti kurung siku penutup yang typo pada kode sebelumnya
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final inputPassword = passwordController.text.trim();
-              if (inputPassword.isEmpty) return;
-              Navigator.pop(context);
-              await _controller.handleManualDecrypt(
-                group,
-                inputPassword,
-                context,
-              );
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
-            child: const Text(
-              'Dekripsi',
-              style: TextStyle(color: Colors.white),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
+  // METHOD BARU: Alur Sekuensial Berantai Berurutan (Seksi Baru -> Group Prompt) Khusus Kondisi Kosong
   void _showSequentialAddDialog() {
     final sectionController = TextEditingController();
     final formKey = GlobalKey<FormState>();
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -131,10 +69,14 @@ class _PromptScreenState extends State<PromptScreen> {
                 final newSectionName = sectionController.text
                     .trim()
                     .toUpperCase();
+
+                // Daftarkan seksi kosong ke dalam data controller secara lokal
                 if (!_controller.localEmptySections.contains(newSectionName)) {
                   _controller.addSection(newSectionName, context);
                 }
+
                 Navigator.pop(context);
+                // Langsung berantai membuka pembuatan grup prompt di dalam seksi ini
                 _showAddGroupDialog(defaultSection: newSectionName);
               }
             },
@@ -242,8 +184,10 @@ class _PromptScreenState extends State<PromptScreen> {
 
   void _showAddGroupDialog({String? defaultSection}) {
     final titleController = TextEditingController();
-    final iconController = TextEditingController(text: '💬');
+    final iconController = TextEditingController(text: '🤖');
     final sectionController = TextEditingController(text: defaultSection ?? '');
+
+    // PERBAIKAN UX: Berikan judul dinamis mendeteksi jika ini adalah kelanjutan Langkah 2 dari sekuensial kosong
     final bool isSequentialStep =
         defaultSection != null && _controller.promptGroups.isEmpty;
 
@@ -390,13 +334,9 @@ class _PromptScreenState extends State<PromptScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(
-          group.id.startsWith("CORRUPTED_")
-              ? 'Hapus Berkas Rusak?'
-              : 'Hapus Group "${group.title}"?',
-        ),
+        title: Text('Hapus Group "${group.title}"?'),
         content: const Text(
-          'Tindakan ini akan menghapus berkas ini secara permanen.',
+          'Tindakan ini akan menghapus group ini secara permanen.',
         ),
         actions: [
           TextButton(
@@ -425,10 +365,12 @@ class _PromptScreenState extends State<PromptScreen> {
         final Map<String, List<PromptGroup>> hiddenSectionsMap = {};
         final bool isSearching = _controller.searchQuery.isNotEmpty;
 
+        // Pisahkan penempatan grup berdasarkan status group.isHidden
         for (var group in _controller.filteredPromptGroups) {
           final secName = group.sectionName.isEmpty
               ? 'GENERAL'
               : group.sectionName.toUpperCase();
+
           if (group.isHidden) {
             if (!hiddenSectionsMap.containsKey(secName)) {
               hiddenSectionsMap[secName] = [];
@@ -456,11 +398,13 @@ class _PromptScreenState extends State<PromptScreen> {
 
         final int visibleKeysCount = sectionKeys.length;
 
+        // Jika tombol mata diaktifkan dan ada seksi tersembunyi, gabungkan key seksi tersebut ke paling bawah list
         if (_showHiddenSection && hiddenSectionsMap.isNotEmpty) {
           hiddenSectionsMap.forEach((key, groupsList) {
             if (groupsList.isNotEmpty) {
               String hiddenKey = '${key}_hidden_key';
               sectionKeys.add(hiddenKey);
+
               if (_controller.searchQuery.isEmpty) {
                 sectionsMap[hiddenKey] = groupsList;
               } else {
@@ -480,6 +424,8 @@ class _PromptScreenState extends State<PromptScreen> {
           floatingActionButton: null,
           isLoading: _controller.isLoading,
           isEmpty: sectionKeys.isEmpty,
+
+          // PEMBARUAN UTAMA: Menggunakan alur pembuatan berantai sekuensial (Seksi -> Grup) saat ditekan
           emptyStateView: UniversalEmptyState(
             icon: Icons.psychology_alt_rounded,
             title: 'Kategori Prompt Masih Kosong',
@@ -494,43 +440,23 @@ class _PromptScreenState extends State<PromptScreen> {
               if (isSearching) {
                 _controller.updateSearchQuery('');
               } else {
-                _showSequentialAddDialog();
+                _showSequentialAddDialog(); // DIPANGGIL DI SINI
               }
             },
           ),
+
           isSelectMode: false,
           selectedItemsCount: 0,
           onClearSelection: () {},
           enableSearch: true,
           enableMultiSelect: false,
+
           onSearchChanged: (query) {
             _controller.updateSearchQuery(query);
           },
           onAddPressed: () {
             _showAddSectionDialog();
           },
-
-          // === PARAMETER APPBAR TRAILING ACTION SINKRONISASI GLOBAL (SAMA SEPERTI NOTES & CHECKLIST) ===
-          appBarTrailingAction: _controller.isGlobalEncryptionEnabled
-              ? Padding(
-                  padding: const EdgeInsets.only(right: 8.0),
-                  child: Tooltip(
-                    message: 'Enkripsi AES-256 Aktif',
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Colors.teal.withOpacity(0.2),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.lock,
-                        color: Colors.tealAccent,
-                        size: 18,
-                      ),
-                    ),
-                  ),
-                )
-              : null,
 
           additionalAction: IconButton(
             icon: Icon(
@@ -546,8 +472,10 @@ class _PromptScreenState extends State<PromptScreen> {
               });
             },
           ),
+
           sectionKeys: sectionKeys,
           groupedItems: sectionsMap,
+
           sectionHeaderBuilder:
               (context, sIndex, sectionName, isLayoutEditMode) {
                 if (sIndex >= visibleKeysCount) {
@@ -580,8 +508,10 @@ class _PromptScreenState extends State<PromptScreen> {
                     ],
                   );
                 }
+
                 if (sIndex >= sectionKeys.length)
                   return const SizedBox.shrink();
+
                 return InteractiveSectionHeader(
                   sectionName: sectionName,
                   themeColor: Colors.indigo[900]!,
@@ -618,106 +548,11 @@ class _PromptScreenState extends State<PromptScreen> {
                       _showAddGroupDialog(defaultSection: sectionName),
                 );
               },
+
           gridItemBuilder:
               (context, promptGroup, index, items, isLayoutEditMode) {
                 if (index >= items.length) return const SizedBox.shrink();
 
-                // KONTROL EVALUASI KARTU DATA KORUP
-                final bool isCorrupted = promptGroup.id.startsWith(
-                  "CORRUPTED_",
-                );
-
-                // ========================================================
-                // INTERAKSI KARTU DATA KORUP / TERKUNCI (SAMA SEPERTI NOTES)
-                // ========================================================
-                if (isCorrupted) {
-                  return InteractiveGridCard(
-                    themeColor: Colors.redAccent,
-                    isEditMode: isLayoutEditMode
-                        ? true
-                        : _controller.isCardEditMode,
-                    isHiddenStyle: false,
-                    isFirst: isSearching ? true : (index == 0),
-                    isLast: isSearching ? true : (index == items.length - 1),
-                    onTap: () {
-                      _showManualDecryptDialog(promptGroup);
-                    },
-                    onLongPress: () {
-                      _controller.toggleCardEditMode();
-                    },
-                    onMoveLeft: () {},
-                    onMoveRight: () {},
-                    popupMenuItems: [
-                      const PopupMenuItem(
-                        value: 'delete',
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.delete_outline,
-                              size: 18,
-                              color: Colors.red,
-                            ),
-                            SizedBox(width: 10),
-                            Text(
-                              'Hapus Berkas Rusak',
-                              style: TextStyle(color: Colors.red, fontSize: 13),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                    onPopupSelected: (value) async {
-                      if (value == 'delete') {
-                        _showDeleteGroupItemDialog(promptGroup);
-                      }
-                    },
-                    content: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Text(
-                          promptGroup.icon,
-                          style: const TextStyle(fontSize: 28),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          promptGroup.title,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                            color: Colors.redAccent,
-                          ),
-                          textAlign: TextAlign.center,
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                        ),
-                        const SizedBox(height: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.red.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: const Text(
-                            'Terkunci / Korup',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.redAccent,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                // ========================================================
-                // KONDISI BERKAS NORMAL (SEHAT)
-                // ========================================================
                 return InteractiveGridCard(
                   themeColor: Colors.indigo,
                   isEditMode: isLayoutEditMode
