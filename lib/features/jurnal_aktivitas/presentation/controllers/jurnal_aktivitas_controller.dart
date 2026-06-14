@@ -139,13 +139,30 @@ class JurnalAktivitasController {
 
   Future<void> resetAndCreateNewLog(File jsonFile) async {
     isJurnalFileCorrupted = false;
-    await jsonFile.writeAsString(jsonEncode([]));
+
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('is_encrypted', false);
-      await prefs.remove('encryption_password');
+      // 1. Cek status enkripsi sistem saat ini
+      bool isEncrypted = await _storageService.isEncryptionEnabled();
+      String? password = await _storageService.getEncryptionPassword();
+
+      String rawJson = jsonEncode([]);
+
+      // 2. Jika enkripsi aktif, amankan file baru dengan CryptoHelper.encrypt
+      if (isEncrypted && password != null) {
+        rawJson = CryptoHelper.encrypt(rawJson, password);
+      } else {
+        // Jika tidak terenkripsi, bersihkan preferensi lokal secara menyeluruh
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('is_encrypted', false);
+        await prefs.remove('encryption_password');
+      }
+
+      // 3. Tulis data ke berkas lokal
+      await jsonFile.writeAsString(rawJson);
     } catch (err) {
       debugPrint("Gagal mereset preferensi enkripsi jurnal: $err");
+      isJurnalFileCorrupted =
+          true; // Tandai rusak kembali jika proses gagal di tengah jalan
     }
   }
 
