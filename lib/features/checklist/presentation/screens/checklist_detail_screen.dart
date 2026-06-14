@@ -201,27 +201,33 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
 
   @override
   Widget build(BuildContext context) {
-    // Fungsi rekursif untuk menghitung TOTAL seluruh item (termasuk nested list)
-    int _countTotalItems(List<SubSubjectItem> items) {
-      int count = 0;
+    // Fungsi rekursif menggunakan double agar bisa menghitung nilai pecahan koma
+    double _countTotalItems(List<SubSubjectItem> items) {
+      double count = 0;
       for (var item in items) {
-        count++;
         if (item.subMateri.isNotEmpty) {
+          // Jika memiliki anak (nested list), induk diabaikan dan lanjut menghitung turunannya
           count += _countTotalItems(item.subMateri);
+        } else {
+          // Jika daun akhir (bukan nested list), dihitung sebagai 1 item
+          count += 1.0;
         }
       }
       return count;
     }
 
-    // Fungsi rekursif untuk menghitung seluruh item yang SELESAI (termasuk nested list)
-    int _countFinishedItems(List<SubSubjectItem> items) {
-      int count = 0;
+    // Fungsi rekursif menggunakan double untuk menghitung item selesai
+    double _countFinishedItems(List<SubSubjectItem> items) {
+      double count = 0;
       for (var item in items) {
-        if (item.progress == 'selesai') {
-          count++;
-        }
         if (item.subMateri.isNotEmpty) {
+          // Jika memiliki anak (nested list), telusuri anak-anaknya saja tanpa menghitung induk
           count += _countFinishedItems(item.subMateri);
+        } else {
+          // Hanya hitung item ujung (tanpa anak) yang status progressnya selesai
+          if (item.progress == 'selesai') {
+            count += 1.0;
+          }
         }
       }
       return count;
@@ -325,9 +331,9 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
       },
 
       gridItemBuilder: (context, subject, index, sectionItems, isLayoutEditMode) {
-        // Menggunakan fungsi rekursif agar nested list terhitung secara akurat
-        int totalSub = _countTotalItems(subject.subMateri);
-        int selesaiSub = _countFinishedItems(subject.subMateri);
+        // Menggunakan hitungan double koma
+        double totalSub = _countTotalItems(subject.subMateri);
+        double selesaiSub = _countFinishedItems(subject.subMateri);
         bool isAllDone = totalSub > 0 && totalSub == selesaiSub;
 
         String topListText = "Tidak ada list";
@@ -411,6 +417,14 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                   1,
                 );
 
+                // Format cetak text pembagian angka agar menghilangkan sisa .0 jika bilangan bulat
+                String selesaiText = selesaiSub % 1 == 0
+                    ? selesaiSub.toInt().toString()
+                    : selesaiSub.toStringAsFixed(1);
+                String totalText = totalSub % 1 == 0
+                    ? totalSub.toInt().toString()
+                    : totalSub.toStringAsFixed(1);
+
                 return Container(
                   width: double.infinity,
                   height: 22,
@@ -435,7 +449,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                           child: Text(
                             isAllDone
                                 ? 'Selesai Semua'
-                                : '$selesaiSub / $totalSub List ($percentageText%)',
+                                : '$selesaiText / $totalText List ($percentageText%)',
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 9,
