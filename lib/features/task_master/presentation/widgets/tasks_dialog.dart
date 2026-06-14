@@ -570,163 +570,180 @@ class TasksDialog extends StatelessWidget {
                                       ),
                                       style: const TextStyle(fontSize: 11),
                                     ),
-                                    trailing: PopupMenuButton<String>(
-                                      icon: const Icon(
-                                        Icons.more_vert,
-                                        color: Colors.grey,
-                                      ),
-                                      padding: EdgeInsets.zero,
-                                      onSelected: (value) async {
-                                        if (value == 'edit_detail') {
-                                          _showEditTaskDetailDialog(
-                                            context,
-                                            task,
-                                            setDialogState,
-                                          );
-                                        } else if (value == 'delete_task') {
-                                          bool isDeleted = await onDeleteTask(
-                                            task,
-                                          );
-                                          // POIN 3: Ditambahkan pemeriksaan context.mounted pasca operasi asinkron
-                                          if (context.mounted && isDeleted) {
-                                            setDialogState(() {});
-                                          }
-                                        } else if (value ==
-                                            'trigger_move_menu') {
-                                          final NavigatorState navigator =
-                                              Navigator.of(context);
-                                          final RenderBox overlay =
-                                              navigator.overlay!.context
-                                                      .findRenderObject()
-                                                  as RenderBox;
+                                    trailing: Builder(
+                                      builder: (buttonContext) {
+                                        return PopupMenuButton<String>(
+                                          icon: const Icon(
+                                            Icons.more_vert,
+                                            color: Colors.grey,
+                                          ),
+                                          padding: EdgeInsets.zero,
+                                          onSelected: (value) async {
+                                            if (value == 'edit_detail') {
+                                              _showEditTaskDetailDialog(
+                                                context,
+                                                task,
+                                                setDialogState,
+                                              );
+                                            } else if (value == 'delete_task') {
+                                              bool isDeleted =
+                                                  await onDeleteTask(task);
+                                              if (context.mounted &&
+                                                  isDeleted) {
+                                                setDialogState(() {});
+                                              }
+                                            } else if (value ==
+                                                'trigger_move_menu') {
+                                              // MEMPERBAIKI KALKULASI KOORDINAT BERDASARKAN POSISI BUILDCONTEXT TOMBOL MENU TRICKY
+                                              final RenderBox button =
+                                                  buttonContext
+                                                          .findRenderObject()
+                                                      as RenderBox;
+                                              final RenderBox overlay =
+                                                  Overlay.of(context).context
+                                                          .findRenderObject()
+                                                      as RenderBox;
 
-                                          final RelativeRect position =
-                                              RelativeRect.fromRect(
-                                                Rect.fromPoints(
-                                                  overlay.localToGlobal(
-                                                    Offset.zero,
-                                                  ),
-                                                  overlay.localToGlobal(
-                                                    overlay.size.bottomRight(
-                                                      Offset.zero,
+                                              // Membuat posisi RelativeRect presisi tepat di bawah button pemicu klik
+                                              final RelativeRect position =
+                                                  RelativeRect.fromRect(
+                                                    Rect.fromPoints(
+                                                      button.localToGlobal(
+                                                        Offset.zero,
+                                                        ancestor: overlay,
+                                                      ),
+                                                      button.localToGlobal(
+                                                        button.size.bottomRight(
+                                                          Offset.zero,
+                                                        ),
+                                                        ancestor: overlay,
+                                                      ),
                                                     ),
-                                                  ),
-                                                ),
-                                                Offset.zero & overlay.size,
+                                                    Offset.zero & overlay.size,
+                                                  );
+
+                                              if (!context.mounted) return;
+
+                                              final String?
+                                              selectedTarget = await showMenu<String>(
+                                                context: context,
+                                                position: position,
+                                                items: allCategories
+                                                    .where(
+                                                      (cat) =>
+                                                          cat.name !=
+                                                          category.name,
+                                                    )
+                                                    .map((cat) {
+                                                      return PopupMenuItem<
+                                                        String
+                                                      >(
+                                                        value: cat.name,
+                                                        child: Row(
+                                                          children: [
+                                                            Text(
+                                                              cat.icon,
+                                                              style:
+                                                                  const TextStyle(
+                                                                    fontSize:
+                                                                        14,
+                                                                  ),
+                                                            ),
+                                                            const SizedBox(
+                                                              width: 8,
+                                                            ),
+                                                            Text(
+                                                              cat.name,
+                                                              style:
+                                                                  const TextStyle(
+                                                                    fontSize:
+                                                                        13,
+                                                                  ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      );
+                                                    })
+                                                    .toList(),
                                               );
 
-                                          if (!context.mounted) return;
-
-                                          final String?
-                                          selectedTarget = await showMenu<String>(
-                                            context: context,
-                                            position: position,
-                                            items: allCategories
-                                                .where(
-                                                  (cat) =>
-                                                      cat.name != category.name,
-                                                )
-                                                .map((cat) {
-                                                  return PopupMenuItem<String>(
-                                                    value: cat.name,
-                                                    child: Row(
-                                                      children: [
-                                                        Text(
-                                                          cat.icon,
-                                                          style:
-                                                              const TextStyle(
-                                                                fontSize: 14,
-                                                              ),
-                                                        ),
-                                                        const SizedBox(
-                                                          width: 8,
-                                                        ),
-                                                        Text(
-                                                          cat.name,
-                                                          style:
-                                                              const TextStyle(
-                                                                fontSize: 13,
-                                                              ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  );
-                                                })
-                                                .toList(),
-                                          );
-
-                                          // POIN 3: Memeriksa asinkronisasi menu seleksi kategori
-                                          if (selectedTarget != null &&
-                                              context.mounted) {
-                                            final targetCategory = allCategories
-                                                .firstWhere(
-                                                  (cat) =>
-                                                      cat.name ==
-                                                      selectedTarget,
+                                              if (selectedTarget != null &&
+                                                  context.mounted) {
+                                                final targetCategory =
+                                                    allCategories.firstWhere(
+                                                      (cat) =>
+                                                          cat.name ==
+                                                          selectedTarget,
+                                                    );
+                                                onMoveTaskCategory(
+                                                  task,
+                                                  category,
+                                                  targetCategory,
                                                 );
-                                            onMoveTaskCategory(
-                                              task,
-                                              category,
-                                              targetCategory,
-                                            );
-                                            setDialogState(() {});
-                                          }
-                                        }
+                                                setDialogState(() {});
+                                              }
+                                            }
+                                          },
+                                          itemBuilder: (BuildContext context) => [
+                                            const PopupMenuItem<String>(
+                                              value: 'edit_detail',
+                                              child: ListTile(
+                                                leading: Icon(
+                                                  Icons.edit_note,
+                                                  size: 20,
+                                                ),
+                                                title: Text('Edit Detail'),
+                                                contentPadding: EdgeInsets.zero,
+                                                dense: true,
+                                              ),
+                                            ),
+                                            if (allCategories.length > 1) ...[
+                                              const PopupMenuDivider(),
+                                              const PopupMenuItem<String>(
+                                                value: 'trigger_move_menu',
+                                                child: ListTile(
+                                                  leading: Icon(
+                                                    Icons
+                                                        .drive_file_move_outlined,
+                                                    size: 20,
+                                                    color: Colors.indigo,
+                                                  ),
+                                                  title: Text(
+                                                    'Pindahkan Kategori',
+                                                  ),
+                                                  trailing: Icon(
+                                                    Icons.chevron_right,
+                                                    size: 16,
+                                                    color: Colors.grey,
+                                                  ),
+                                                  contentPadding:
+                                                      EdgeInsets.zero,
+                                                  dense: true,
+                                                ),
+                                              ),
+                                            ],
+                                            const PopupMenuDivider(),
+                                            const PopupMenuItem<String>(
+                                              value: 'delete_task',
+                                              child: ListTile(
+                                                leading: Icon(
+                                                  Icons.delete_outline,
+                                                  color: Colors.red,
+                                                  size: 20,
+                                                ),
+                                                title: Text(
+                                                  'Hapus',
+                                                  style: TextStyle(
+                                                    color: Colors.red,
+                                                  ),
+                                                ),
+                                                contentPadding: EdgeInsets.zero,
+                                                dense: true,
+                                              ),
+                                            ),
+                                          ],
+                                        );
                                       },
-                                      itemBuilder: (BuildContext context) => [
-                                        const PopupMenuItem<String>(
-                                          value: 'edit_detail',
-                                          child: ListTile(
-                                            leading: Icon(
-                                              Icons.edit_note,
-                                              size: 20,
-                                            ),
-                                            title: Text('Edit Detail'),
-                                            contentPadding: EdgeInsets.zero,
-                                            dense: true,
-                                          ),
-                                        ),
-                                        if (allCategories.length > 1) ...[
-                                          const PopupMenuDivider(),
-                                          const PopupMenuItem<String>(
-                                            value: 'trigger_move_menu',
-                                            child: ListTile(
-                                              leading: Icon(
-                                                Icons.drive_file_move_outlined,
-                                                size: 20,
-                                                color: Colors.indigo,
-                                              ),
-                                              title: Text('Pindahkan Kategori'),
-                                              trailing: Icon(
-                                                Icons.chevron_right,
-                                                size: 16,
-                                                color: Colors.grey,
-                                              ),
-                                              contentPadding: EdgeInsets.zero,
-                                              dense: true,
-                                            ),
-                                          ),
-                                        ],
-                                        const PopupMenuDivider(),
-                                        const PopupMenuItem<String>(
-                                          value: 'delete_task',
-                                          child: ListTile(
-                                            leading: Icon(
-                                              Icons.delete_outline,
-                                              color: Colors.red,
-                                              size: 20,
-                                            ),
-                                            title: Text(
-                                              'Hapus',
-                                              style: TextStyle(
-                                                color: Colors.red,
-                                              ),
-                                            ),
-                                            contentPadding: EdgeInsets.zero,
-                                            dense: true,
-                                          ),
-                                        ),
-                                      ],
                                     ),
                                   ),
                                 ),
