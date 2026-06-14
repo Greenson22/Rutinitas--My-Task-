@@ -4,13 +4,10 @@ import 'dart:io' as java_io;
 import 'package:flutter/material.dart';
 import 'package:rutinitasku/core/services/storage_service.dart';
 import '../../data/models/prompt_model.dart';
-// Perlu dipastikan CryptoHelper sudah di-import.
-// Sesuaikan path import di bawah ini jika lokasi CryptoHelper Anda berbeda.
 import '../../../../core/utils/crypto_helper.dart';
 
 class PromptController extends ChangeNotifier {
   final StorageService _storageService = StorageService();
-
   List<PromptGroup> _promptGroups = [];
   bool _isLoading = true;
   bool _isSectionEditMode = false;
@@ -23,35 +20,28 @@ class PromptController extends ChangeNotifier {
   // State tambahan untuk Fitur Pencarian Dinamis
   String _searchQuery = '';
 
+  // STATE BARU: Sinkronisasi ikon status enkripsi global di AppBar lokal
+  bool isGlobalEncryptionEnabled = false;
+
   // Getters
   List<PromptGroup> get promptGroups => _promptGroups;
   bool get isLoading => _isLoading;
   bool get isSectionEditMode => _isSectionEditMode;
   bool get isCardEditMode => _isCardEditMode;
   List<String> get localEmptySections => _localEmptySections;
-
-  // Getter Multi-Select
   bool get isMultiSelectMode => _selectedPromptIds.isNotEmpty;
   Set<String> get selectedPromptIds => _selectedPromptIds;
-
-  // Getter Pencarian
   String get searchQuery => _searchQuery;
-
-  // =========================================================================
-  // LOGIKA FILTER PENCARIAN (DYNAMIC FILTERING)
-  // =========================================================================
 
   List<PromptGroup> get filteredPromptGroups {
     if (_searchQuery.isEmpty) {
       return _promptGroups;
     }
-
     return _promptGroups
         .map((group) {
           final bool matchesGroupTitle = group.title.toLowerCase().contains(
             _searchQuery,
           );
-
           final matchedPrompts = group.prompts.where((prompt) {
             return prompt.actAs.toLowerCase().contains(_searchQuery) ||
                 (prompt.description?.toLowerCase().contains(_searchQuery) ??
@@ -107,40 +97,76 @@ class PromptController extends ChangeNotifier {
     notifyListeners();
   }
 
+  // MODIFIKASI UTAMA: Memuat berkas dengan alur Enkripsi Otomatis dan Fallback Komprehensif
   Future<void> loadAllPrompts(BuildContext context) async {
     _isLoading = true;
     notifyListeners();
     try {
+      // BERIKAN JEDA MIKRO: Menjamin penulisan enkripsi massal selesai di disk storage (Sama seperti Notes)
+      await Future.delayed(const Duration(milliseconds: 150));
+
       final baseDir = await _storageService.getBaseDirSetting();
       final files = await _storageService.getAllPromptGroups(baseDir);
 
       bool isEncrypted = await _storageService.isEncryptionEnabled();
       String? password = await _storageService.getEncryptionPassword();
 
+      // Sinkronisasikan status enkripsi sistem untuk kontrol UI ikon AppBar
+      isGlobalEncryptionEnabled = isEncrypted;
+
       List<PromptGroup> loadedGroups = [];
+      List<String> autoEncryptedFiles = [];
+
       for (var file in files) {
-        // PENGAMAN INTERNAL: Agar satu file rusak tidak merusak file lainnya
         try {
           if (!await file.exists()) continue;
           String content = await file.readAsString();
 
-          if (isEncrypted &&
-              password != null &&
-              !content.trim().startsWith('{')) {
-            content = CryptoHelper.decrypt(content, password);
+          final trimmedContent = content.trim();
+          bool isRawJson =
+              trimmedContent.startsWith('{') || trimmedContent.startsWith('[');
+          String fileName = file.path.split('/').last.replaceAll('.json', '');
+
+          if (isEncrypted && password != null) {
+            if (!isRawJson) {
+              // Kondisi Normal: File terenkripsi, lakukan dekripsi seperti biasa
+              content = CryptoHelper.decrypt(content, password);
+            } else {
+              // === SEKUENS OTOMATIS BERKAS BELUM TERENKRIPSI ===
+              try {
+                final PromptGroup parsedGroup = PromptGroup.fromJson(
+                  jsonDecode(content),
+                );
+                final String encryptedContent = CryptoHelper.encrypt(
+                  _storageService.formatJsonPretty(parsedGroup.toJson()),
+                  password,
+                );
+                await file.writeAsString(encryptedContent);
+                autoEncryptedFiles.add(parsedGroup.title);
+                debugPrint(
+                  "Otomatis mengamankan berkas prompt belum terenkripsi: ${file.path}",
+                );
+              } catch (autoEncryptError) {
+                debugPrint(
+                  "Gagal mengamankan otomatis berkas mentah prompt: $autoEncryptError",
+                );
+              }
+            }
           }
 
           final jsonMap = jsonDecode(content);
           loadedGroups.add(PromptGroup.fromJson(jsonMap));
         } catch (fileError) {
-          debugPrint("Gagal memuat berkas prompt ${file.path}: $fileError");
-
-          // Membuat tiruan PromptGroup rusak (sama seperti logika di Notes)
+          debugPrint(
+            "Gagal memuat atau mendekripsi berkas prompt ${file.path}: $fileError",
+          );
           String fileName = file.path.split('/').last.replaceAll('.json', '');
+
+          // TETAP TAMPILKAN SEBAGAI CARD: Buat tiruan PromptGroup rusak (Sama seperti Notes)
           loadedGroups.add(
             PromptGroup(
               id: "CORRUPTED_${DateTime.now().millisecondsSinceEpoch}_$fileName",
-              title: fileName, // Menyimpan nama file asli
+              title: fileName,
               sectionName: "BERKAS RUSAK",
               icon: "⚠️",
               lastUpdated: DateTime.now().toIso8601String(),
@@ -152,9 +178,23 @@ class PromptController extends ChangeNotifier {
 
       _promptGroups = loadedGroups;
       _promptGroups.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
-
       _isLoading = false;
       notifyListeners();
+
+      // Pemicu notifikasi penyelarasan sukses jika ada
+      if (autoEncryptedFiles.isNotEmpty && context.mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Menyelaraskan Keamanan: Berkas [${autoEncryptedFiles.join(", ")}] telah otomatis dienkripsi sesuai pengaturan sistem.',
+            ),
+            backgroundColor: Colors.teal,
+            duration: const Duration(seconds: 4),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     } catch (e) {
       _isLoading = false;
       notifyListeners();
@@ -164,6 +204,22 @@ class PromptController extends ChangeNotifier {
         ).showSnackBar(SnackBar(content: Text('Gagal memuat data prompt: $e')));
       }
     }
+  }
+
+  // MODIFIKASI: Interseptor penyimpanan untuk enkripsi global data sebelum disimpan ke disk
+  Future<void> _writeGroupToStorage(String baseDir, PromptGroup group) async {
+    if (group.id.startsWith("CORRUPTED_")) return;
+
+    bool isEncrypted = await _storageService.isEncryptionEnabled();
+    String? password = await _storageService.getEncryptionPassword();
+
+    String jsonString = _storageService.formatJsonPretty(group.toJson());
+
+    if (isEncrypted && password != null) {
+      jsonString = CryptoHelper.encrypt(jsonString, password);
+    }
+
+    await _storageService.savePromptGroup(baseDir, group.id, jsonString);
   }
 
   void addSection(String sectionName, BuildContext context) {
@@ -176,7 +232,7 @@ class PromptController extends ChangeNotifier {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Seksi "$cleanName" berhasil dibuat! Tekan tahan judul seksi lalu tekan tombol + untuk menambah group.',
+            'Seksi "$cleanName" berhasil dibuat! Tekan tombol + di kanannya untuk menambah group.',
           ),
           backgroundColor: Colors.indigo,
         ),
@@ -195,7 +251,6 @@ class PromptController extends ChangeNotifier {
       }
       sectionsMap[secName]!.add(group);
     }
-
     for (var sec in _localEmptySections) {
       sectionsMap.putIfAbsent(sec, () => []);
     }
@@ -243,7 +298,6 @@ class PromptController extends ChangeNotifier {
       ),
     );
 
-    // PERBAIKAN: Menulis ulang orderIndex setiap kali seksi digeser
     try {
       final baseDir = await _storageService.getBaseDirSetting();
       for (int i = 0; i < _promptGroups.length; i++) {
@@ -254,18 +308,10 @@ class PromptController extends ChangeNotifier {
           sectionName: group.sectionName,
           icon: group.icon,
           lastUpdated: group.lastUpdated,
-          orderIndex: i, // Memberi urutan index baru sesuai posisinya
+          orderIndex: i,
           prompts: group.prompts,
         );
-
-        final String jsonString = _storageService.formatJsonPretty(
-          updatedGroup.toJson(),
-        );
-        await _storageService.savePromptGroup(
-          baseDir,
-          updatedGroup.id,
-          jsonString,
-        );
+        await _writeGroupToStorage(baseDir, updatedGroup);
         _promptGroups[i] = updatedGroup;
       }
     } catch (e) {
@@ -281,12 +327,10 @@ class PromptController extends ChangeNotifier {
   ) async {
     final String cleanOldName = oldName.trim().toUpperCase();
     final String cleanNewName = newName.trim().toUpperCase();
-
     if (cleanNewName.isEmpty || cleanOldName == cleanNewName) return;
 
     _isLoading = true;
     notifyListeners();
-
     try {
       if (_localEmptySections.contains(cleanOldName)) {
         final int indexSeksi = _localEmptySections.indexOf(cleanOldName);
@@ -316,30 +360,7 @@ class PromptController extends ChangeNotifier {
           orderIndex: group.orderIndex,
           prompts: group.prompts,
         );
-        final String jsonString = _storageService.formatJsonPretty(
-          updatedGroup.toJson(),
-        );
-        await _storageService.savePromptGroup(baseDir, group.id, jsonString);
-      }
-
-      for (var group in _promptGroups) {
-        final currentSecName = group.sectionName.isEmpty
-            ? 'GENERAL'
-            : group.sectionName.toUpperCase();
-        if (currentSecName == cleanOldName) {
-          int idx = _promptGroups.indexOf(group);
-          if (idx != -1) {
-            _promptGroups[idx] = PromptGroup(
-              id: group.id,
-              title: group.title,
-              sectionName: cleanNewName,
-              icon: group.icon,
-              lastUpdated: DateTime.now().toIso8601String(),
-              orderIndex: group.orderIndex,
-              prompts: group.prompts,
-            );
-          }
-        }
+        await _writeGroupToStorage(baseDir, updatedGroup);
       }
       _isSectionEditMode = true;
       if (context.mounted) await loadAllPrompts(context);
@@ -362,7 +383,6 @@ class PromptController extends ChangeNotifier {
       if (_localEmptySections.contains(targetUpper)) {
         _localEmptySections.remove(targetUpper);
       }
-
       final baseDir = await _storageService.getBaseDirSetting();
       for (var group in _promptGroups) {
         final currentSecName = group.sectionName.isEmpty
@@ -400,18 +420,14 @@ class PromptController extends ChangeNotifier {
         id: id,
         title: title.trim(),
         sectionName: targetSection,
-        icon: icon.trim().isEmpty ? '📝' : icon.trim(),
+        icon: icon.trim().isEmpty ? '📁' : icon.trim(),
         lastUpdated: DateTime.now().toIso8601String(),
-        orderIndex: _promptGroups.length, // Letakkan urutan paling akhir
+        orderIndex: _promptGroups.length,
         prompts: [],
       );
 
-      final String jsonString = _storageService.formatJsonPretty(
-        newGroup.toJson(),
-      );
-      await _storageService.savePromptGroup(baseDir, id, jsonString);
+      await _writeGroupToStorage(baseDir, newGroup);
       _localEmptySections.remove(targetSection.toUpperCase());
-
       if (context.mounted) await loadAllPrompts(context);
     } catch (e) {
       if (context.mounted) {
@@ -449,11 +465,9 @@ class PromptController extends ChangeNotifier {
         }
       }
     }
-
     _promptGroups = updatedGlobal;
     notifyListeners();
 
-    // PERBAIKAN: Menyimpan ulang indeks seluruh kotak agar tetap persisten di storage
     try {
       final baseDir = await _storageService.getBaseDirSetting();
       for (int i = 0; i < _promptGroups.length; i++) {
@@ -464,20 +478,11 @@ class PromptController extends ChangeNotifier {
           sectionName: currentGroup.sectionName,
           icon: currentGroup.icon,
           lastUpdated: currentGroup.lastUpdated,
-          orderIndex: i, // Memperbarui urutan kotak
+          orderIndex: i,
           prompts: currentGroup.prompts,
         );
-
-        final String jsonString = _storageService.formatJsonPretty(
-          updatedGroup.toJson(),
-        );
-        await _storageService.savePromptGroup(
-          baseDir,
-          updatedGroup.id,
-          jsonString,
-        );
-
-        _promptGroups[i] = updatedGroup; // Update global state
+        await _writeGroupToStorage(baseDir, updatedGroup);
+        _promptGroups[i] = updatedGroup;
       }
     } catch (e) {
       debugPrint("Gagal mengamankan urutan group: $e");
@@ -498,16 +503,12 @@ class PromptController extends ChangeNotifier {
         id: group.id,
         title: newTitle.trim(),
         sectionName: group.sectionName,
-        icon: newIcon.trim().isEmpty ? '📝' : newIcon.trim(),
+        icon: newIcon.trim().isEmpty ? '📁' : newIcon.trim(),
         lastUpdated: DateTime.now().toIso8601String(),
         orderIndex: group.orderIndex,
         prompts: group.prompts,
       );
-
-      final String jsonString = _storageService.formatJsonPretty(
-        updatedGroup.toJson(),
-      );
-      await _storageService.savePromptGroup(baseDir, group.id, jsonString);
+      await _writeGroupToStorage(baseDir, updatedGroup);
       if (context.mounted) await loadAllPrompts(context);
     } catch (e) {
       _isLoading = false;
@@ -538,11 +539,7 @@ class PromptController extends ChangeNotifier {
         orderIndex: group.orderIndex,
         prompts: group.prompts,
       );
-
-      final String jsonString = _storageService.formatJsonPretty(
-        updatedGroup.toJson(),
-      );
-      await _storageService.savePromptGroup(baseDir, group.id, jsonString);
+      await _writeGroupToStorage(baseDir, updatedGroup);
       _localEmptySections.remove(targetSection.toUpperCase());
       if (context.mounted) await loadAllPrompts(context);
     } catch (e) {
@@ -561,17 +558,11 @@ class PromptController extends ChangeNotifier {
     notifyListeners();
     try {
       final baseDir = await _storageService.getBaseDirSetting();
-
-      // SOLUSI: Cek apakah ini berkas korup/enkripsi tiruan
       String targetId = group.id;
       if (targetId.startsWith("CORRUPTED_")) {
-        // Potong prefix mock ID untuk mendapatkan nama file asli seperti di logika handleManualDecrypt
         targetId = targetId.replaceFirst(RegExp(r'CORRUPTED_\d+_'), '');
       }
-
-      // Hapus menggunakan targetId (nama file) yang sudah bersih
       await _storageService.deletePromptGroup(baseDir, targetId);
-
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -624,28 +615,11 @@ class PromptController extends ChangeNotifier {
       );
 
       group.prompts.add(newPromptItem);
+      await _writeGroupToStorage(baseDir, group);
 
-      final String jsonString = _storageService.formatJsonPretty(
-        group.toJson(),
-      );
-      await _storageService.savePromptGroup(baseDir, group.id, jsonString);
-
-      if (context.mounted) {
-        await loadAllPrompts(context);
-      }
-
+      if (context.mounted) await loadAllPrompts(context);
       _isLoading = false;
       notifyListeners();
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Prompt "${title.trim()}" berhasil ditambahkan!'),
-            backgroundColor: Colors.indigo,
-          ),
-        );
-      }
-
       return _promptGroups.firstWhere(
         (element) => element.id == group.id,
         orElse: () => group,
@@ -653,11 +627,6 @@ class PromptController extends ChangeNotifier {
     } catch (e) {
       _isLoading = false;
       notifyListeners();
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal menambahkan item prompt: $e')),
-        );
-      }
       return null;
     }
   }
@@ -675,10 +644,8 @@ class PromptController extends ChangeNotifier {
     try {
       final baseDir = await _storageService.getBaseDirSetting();
       final index = group.prompts.indexWhere((p) => p.id == itemId);
-
       if (index != -1) {
         final oldItem = group.prompts[index];
-
         final updatedVersions = oldItem.versions.map((v) {
           if (v.id == oldItem.activeVersionId) {
             return PromptVersion(
@@ -701,17 +668,8 @@ class PromptController extends ChangeNotifier {
           versions: updatedVersions,
         );
 
-        final String jsonString = _storageService.formatJsonPretty(
-          group.toJson(),
-        );
-        await _storageService.savePromptGroup(baseDir, group.id, jsonString);
-
-        if (context.mounted) {
-          await loadAllPrompts(context);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Prompt berhasil diperbarui!')),
-          );
-        }
+        await _writeGroupToStorage(baseDir, group);
+        if (context.mounted) await loadAllPrompts(context);
       }
       _isLoading = false;
       notifyListeners();
@@ -722,11 +680,6 @@ class PromptController extends ChangeNotifier {
     } catch (e) {
       _isLoading = false;
       notifyListeners();
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Gagal memperbarui prompt: $e')));
-      }
       return null;
     }
   }
@@ -741,18 +694,8 @@ class PromptController extends ChangeNotifier {
     try {
       final baseDir = await _storageService.getBaseDirSetting();
       group.prompts.removeWhere((p) => p.id == itemId);
-
-      final String jsonString = _storageService.formatJsonPretty(
-        group.toJson(),
-      );
-      await _storageService.savePromptGroup(baseDir, group.id, jsonString);
-
-      if (context.mounted) {
-        await loadAllPrompts(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Prompt berhasil dihapus!')),
-        );
-      }
+      await _writeGroupToStorage(baseDir, group);
+      if (context.mounted) await loadAllPrompts(context);
       _isLoading = false;
       notifyListeners();
       return _promptGroups.firstWhere(
@@ -762,11 +705,6 @@ class PromptController extends ChangeNotifier {
     } catch (e) {
       _isLoading = false;
       notifyListeners();
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Gagal menghapus prompt: $e')));
-      }
       return null;
     }
   }
@@ -783,7 +721,6 @@ class PromptController extends ChangeNotifier {
     try {
       final baseDir = await _storageService.getBaseDirSetting();
       final String newItemId = 'item_${DateTime.now().millisecondsSinceEpoch}';
-
       final newItem = PromptItem(
         id: newItemId,
         actAs: item.actAs,
@@ -798,54 +735,16 @@ class PromptController extends ChangeNotifier {
         if (!isCopy) {
           sourceGroup.prompts.removeWhere((p) => p.id == item.id);
         }
-
-        final String sourceJson = _storageService.formatJsonPretty(
-          sourceGroup.toJson(),
-        );
-        await _storageService.savePromptGroup(
-          baseDir,
-          sourceGroup.id,
-          sourceJson,
-        );
+        await _writeGroupToStorage(baseDir, sourceGroup);
       } else {
         targetGroup.prompts.add(newItem);
-
-        final String targetJson = _storageService.formatJsonPretty(
-          targetGroup.toJson(),
-        );
-        await _storageService.savePromptGroup(
-          baseDir,
-          targetGroup.id,
-          targetJson,
-        );
-
+        await _writeGroupToStorage(baseDir, targetGroup);
         if (!isCopy) {
           sourceGroup.prompts.removeWhere((p) => p.id == item.id);
-
-          final String sourceJson = _storageService.formatJsonPretty(
-            sourceGroup.toJson(),
-          );
-          await _storageService.savePromptGroup(
-            baseDir,
-            sourceGroup.id,
-            sourceJson,
-          );
+          await _writeGroupToStorage(baseDir, sourceGroup);
         }
       }
-
-      if (context.mounted) {
-        await loadAllPrompts(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              isCopy
-                  ? 'Prompt berhasil disalin!'
-                  : 'Prompt berhasil dipindahkan!',
-            ),
-          ),
-        );
-      }
-
+      if (context.mounted) await loadAllPrompts(context);
       _isLoading = false;
       notifyListeners();
       return _promptGroups.firstWhere(
@@ -855,11 +754,6 @@ class PromptController extends ChangeNotifier {
     } catch (e) {
       _isLoading = false;
       notifyListeners();
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Gagal memproses prompt: $e')));
-      }
       return null;
     }
   }
@@ -869,29 +763,14 @@ class PromptController extends ChangeNotifier {
     required BuildContext context,
   }) async {
     if (_selectedPromptIds.isEmpty) return group;
-
     _isLoading = true;
     notifyListeners();
     try {
       final baseDir = await _storageService.getBaseDirSetting();
-
       group.prompts.removeWhere((p) => _selectedPromptIds.contains(p.id));
-
-      final String jsonString = _storageService.formatJsonPretty(
-        group.toJson(),
-      );
-      await _storageService.savePromptGroup(baseDir, group.id, jsonString);
-
+      await _writeGroupToStorage(baseDir, group);
       _selectedPromptIds.clear();
-
-      if (context.mounted) {
-        await loadAllPrompts(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Semua prompt terpilih berhasil dihapus!'),
-          ),
-        );
-      }
+      if (context.mounted) await loadAllPrompts(context);
       _isLoading = false;
       notifyListeners();
       return _promptGroups.firstWhere(
@@ -901,11 +780,6 @@ class PromptController extends ChangeNotifier {
     } catch (e) {
       _isLoading = false;
       notifyListeners();
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal menghapus beberapa prompt: $e')),
-        );
-      }
       return null;
     }
   }
@@ -916,20 +790,15 @@ class PromptController extends ChangeNotifier {
     required BuildContext context,
   }) async {
     if (_selectedPromptIds.isEmpty) return sourceGroup;
-
     _isLoading = true;
     notifyListeners();
-
     try {
       final baseDir = await _storageService.getBaseDirSetting();
-
       final itemsToMove = sourceGroup.prompts
           .where((p) => _selectedPromptIds.contains(p.id))
           .toList();
 
-      if (sourceGroup.id == targetGroup.id) {
-        _selectedPromptIds.clear();
-      } else {
+      if (sourceGroup.id != targetGroup.id) {
         final List<PromptItem> preparedItems = itemsToMove.map((item) {
           return PromptItem(
             id: 'item_${DateTime.now().millisecondsSinceEpoch}_${item.id}',
@@ -942,42 +811,17 @@ class PromptController extends ChangeNotifier {
         }).toList();
 
         targetGroup.prompts.addAll(preparedItems);
-        final String targetJson = _storageService.formatJsonPretty(
-          targetGroup.toJson(),
-        );
-        await _storageService.savePromptGroup(
-          baseDir,
-          targetGroup.id,
-          targetJson,
-        );
+        await _writeGroupToStorage(baseDir, targetGroup);
 
         sourceGroup.prompts.removeWhere(
           (p) => _selectedPromptIds.contains(p.id),
         );
-        final String sourceJson = _storageService.formatJsonPretty(
-          sourceGroup.toJson(),
-        );
-        await _storageService.savePromptGroup(
-          baseDir,
-          sourceGroup.id,
-          sourceJson,
-        );
+        await _writeGroupToStorage(baseDir, sourceGroup);
       }
-
       _selectedPromptIds.clear();
-
-      if (context.mounted) {
-        await loadAllPrompts(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Semua prompt terpilih berhasil dipindahkan!'),
-          ),
-        );
-      }
-
+      if (context.mounted) await loadAllPrompts(context);
       _isLoading = false;
       notifyListeners();
-
       return _promptGroups.firstWhere(
         (g) => g.id == sourceGroup.id,
         orElse: () => sourceGroup,
@@ -985,11 +829,6 @@ class PromptController extends ChangeNotifier {
     } catch (e) {
       _isLoading = false;
       notifyListeners();
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal memindahkan beberapa prompt: $e')),
-        );
-      }
       return null;
     }
   }
@@ -1004,7 +843,6 @@ class PromptController extends ChangeNotifier {
     try {
       final baseDir = await _storageService.getBaseDirSetting();
       final index = group.prompts.indexWhere((p) => p.id == itemId);
-
       if (index != -1) {
         final oldItem = group.prompts[index];
         group.prompts[index] = PromptItem(
@@ -1015,21 +853,8 @@ class PromptController extends ChangeNotifier {
           activeVersionId: oldItem.activeVersionId,
           versions: oldItem.versions,
         );
-
-        final String jsonString = _storageService.formatJsonPretty(
-          group.toJson(),
-        );
-        await _storageService.savePromptGroup(baseDir, group.id, jsonString);
-
-        if (context.mounted) {
-          await loadAllPrompts(context);
-          final String statusText = group.prompts[index].isFavorite
-              ? 'ditambahkan ke favorit'
-              : 'dihapus dari favorit';
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Prompt "${oldItem.actAs}" $statusText!')),
-          );
-        }
+        await _writeGroupToStorage(baseDir, group);
+        if (context.mounted) await loadAllPrompts(context);
       }
       _isLoading = false;
       notifyListeners();
@@ -1040,18 +865,9 @@ class PromptController extends ChangeNotifier {
     } catch (e) {
       _isLoading = false;
       notifyListeners();
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal memperbarui status favorit: $e')),
-        );
-      }
       return null;
     }
   }
-
-  // =========================================================================
-  // SISTEM MANAJEMEN VERSI (VERSION CONTROL MANAGEMENT)
-  // =========================================================================
 
   Future<void> switchPromptVersion({
     required PromptGroup group,
@@ -1070,18 +886,10 @@ class PromptController extends ChangeNotifier {
       if (promptIdx == -1) return;
 
       _promptGroups[groupIdx].prompts[promptIdx].activeVersionId = versionId;
-
-      final String jsonString = _storageService.formatJsonPretty(
-        _promptGroups[groupIdx].toJson(),
-      );
-      await _storageService.savePromptGroup(baseDir, group.id, jsonString);
+      await _writeGroupToStorage(baseDir, _promptGroups[groupIdx]);
       notifyListeners();
     } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Gagal memindahkan versi: $e')));
-      }
+      debugPrint("Gagal ganti versi: $e");
     }
   }
 
@@ -1118,37 +926,14 @@ class PromptController extends ChangeNotifier {
       currentPrompt.versions.add(newVersion);
       currentPrompt.activeVersionId = newVersionId;
 
-      final String jsonString = _storageService.formatJsonPretty(
-        _promptGroups[groupIdx].toJson(),
-      );
-      await _storageService.savePromptGroup(baseDir, group.id, jsonString);
-
-      if (context.mounted) {
-        await loadAllPrompts(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Versi baru "${newVersion.versionName}" berhasil ditambahkan!',
-            ),
-          ),
-        );
-      }
+      await _writeGroupToStorage(baseDir, _promptGroups[groupIdx]);
+      if (context.mounted) await loadAllPrompts(context);
     } catch (e) {
       _isLoading = false;
       notifyListeners();
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Gagal membuat versi baru: $e')));
-      }
     }
   }
 
-  // =========================================================================
-  // FITUR BARU: EDIT & HAPUS VERSI PROMPT
-  // =========================================================================
-
-  /// Mengedit nama versi prompt yang sudah ada tanpa mengubah konten teksnya
   Future<void> editPromptVersionName({
     required PromptGroup group,
     required String itemId,
@@ -1181,29 +966,14 @@ class PromptController extends ChangeNotifier {
         content: oldVersion.content,
       );
 
-      final String jsonString = _storageService.formatJsonPretty(
-        _promptGroups[groupIdx].toJson(),
-      );
-      await _storageService.savePromptGroup(baseDir, group.id, jsonString);
-
-      if (context.mounted) {
-        await loadAllPrompts(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Nama versi berhasil diperbarui!')),
-        );
-      }
+      await _writeGroupToStorage(baseDir, _promptGroups[groupIdx]);
+      if (context.mounted) await loadAllPrompts(context);
     } catch (e) {
       _isLoading = false;
       notifyListeners();
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal mengedit nama versi: $e')),
-        );
-      }
     }
   }
 
-  /// Menghapus versi prompt spesifik dan memindahkan status aktif jika versi aktif dihapus
   Future<void> deletePromptVersion({
     required PromptGroup group,
     required String itemId,
@@ -1223,45 +993,22 @@ class PromptController extends ChangeNotifier {
       if (promptIdx == -1) return;
 
       final currentPrompt = _promptGroups[groupIdx].prompts[promptIdx];
-
       if (currentPrompt.versions.length <= 1) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Tidak dapat menghapus satu-satunya versi!'),
-            ),
-          );
-        }
         _isLoading = false;
         notifyListeners();
         return;
       }
 
       currentPrompt.versions.removeWhere((v) => v.id == versionId);
-
       if (currentPrompt.activeVersionId == versionId) {
         currentPrompt.activeVersionId = currentPrompt.versions.first.id;
       }
 
-      final String jsonString = _storageService.formatJsonPretty(
-        _promptGroups[groupIdx].toJson(),
-      );
-      await _storageService.savePromptGroup(baseDir, group.id, jsonString);
-
-      if (context.mounted) {
-        await loadAllPrompts(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Versi berhasil dihapus!')),
-        );
-      }
+      await _writeGroupToStorage(baseDir, _promptGroups[groupIdx]);
+      if (context.mounted) await loadAllPrompts(context);
     } catch (e) {
       _isLoading = false;
       notifyListeners();
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Gagal menghapus versi: $e')));
-      }
     }
   }
 
@@ -1272,25 +1019,17 @@ class PromptController extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     try {
-      group.isHidden = !group.isHidden; // Balikkan status visibilitas
+      group.isHidden = !group.isHidden;
       final baseDir = await _storageService.getBaseDirSetting();
-      final String jsonString = _storageService.formatJsonPretty(
-        group.toJson(),
-      );
-      await _storageService.savePromptGroup(baseDir, group.id, jsonString);
-
-      // Muat ulang data secara otomatis setelah berhasil disimpan
+      await _writeGroupToStorage(baseDir, group);
       await loadAllPrompts(context);
     } catch (e) {
       _isLoading = false;
       notifyListeners();
-      debugPrint("Gagal mengubah visibilitas prompt group: $e");
     }
   }
 
-  // =========================================================================
-  // FITUR BARU: DIALOG INPUT KATA SANDI UNTUK DEKRIPSI MANUAL BERKAS RUSAK
-  // =========================================================================
+  // LOGIKA DEKRIPSI MANUAL BERKAS PROMPT (PERSIS SEPERTI DI NOTES & CHECKLIST)
   Future<void> handleManualDecrypt(
     PromptGroup corruptedGroup,
     String inputPassword,
@@ -1298,62 +1037,29 @@ class PromptController extends ChangeNotifier {
   ) async {
     _isLoading = true;
     notifyListeners();
-
     final messenger = ScaffoldMessenger.of(context);
-
     try {
       final baseDir = await _storageService.getBaseDirSetting();
-
-      // Potong prefix mock ID 'CORRUPTED_123456_' untuk mendapatkan nama file asli di disk
       final String originalFileName = corruptedGroup.id.replaceFirst(
         RegExp(r'CORRUPTED_\d+_'),
         '',
       );
 
-      // Buat referensi file fisik json target
-      final file = java_io.File(
-        '$baseDir/prompts/$originalFileName.json',
-      ); // Sesuaikan sub-folder jika bukan /prompts/
-
+      final file = java_io.File('$baseDir/prompts/$originalFileName.json');
       if (!await file.exists()) {
         throw Exception("Berkas fisik prompt tidak ditemukan di penyimpanan.");
       }
 
       String rawContent = await file.readAsString();
-
-      // Langkah 1: Coba dekripsi biner menggunakan input password dari pengguna
       String decryptedContent = CryptoHelper.decrypt(
         rawContent.trim(),
         inputPassword,
       );
 
-      // Langkah 2: Validasi kelayakan hasil dekripsi dengan melakukan jsonDecode
       final Map<String, dynamic> parsedJson = jsonDecode(decryptedContent);
-
-      // Pastikan hasil map dapat dikonversi dengan aman menjadi objek PromptGroup
       PromptGroup decryptedGroup = PromptGroup.fromJson(parsedJson);
 
-      // Langkah 3: Ambil status konfigurasi enkripsi sistem global yang sedang berjalan saat ini
-      bool isSystemEncryptionEnabled = await _storageService
-          .isEncryptionEnabled();
-      String? systemPassword = await _storageService.getEncryptionPassword();
-
-      String finalContentToSave;
-      if (isSystemEncryptionEnabled && systemPassword != null) {
-        // Jika sistem enkripsi global AKTIF, kunci ulang berkas memakai password sistem yang baru
-        finalContentToSave = CryptoHelper.encrypt(
-          _storageService.formatJsonPretty(decryptedGroup.toJson()),
-          systemPassword,
-        );
-      } else {
-        // Jika sistem enkripsi global MATI, tulis balik sebagai raw JSON mentah biasa
-        finalContentToSave = _storageService.formatJsonPretty(
-          decryptedGroup.toJson(),
-        );
-      }
-
-      // Tulis ulang data perbaikan yang bersih secara persisten ke penyimpanan lokal
-      await file.writeAsString(finalContentToSave);
+      await _writeGroupToStorage(baseDir, decryptedGroup);
 
       messenger.showSnackBar(
         SnackBar(
@@ -1374,7 +1080,6 @@ class PromptController extends ChangeNotifier {
         ),
       );
     } finally {
-      // Muat ulang data grid dari penyimpanan lokal agar UI langsung sinkron dan bersih
       await loadAllPrompts(context);
     }
   }

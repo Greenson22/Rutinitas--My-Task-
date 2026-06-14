@@ -5,7 +5,7 @@ import '../../../../core/presentation/widgets/grouped_section_layout.dart';
 import '../../../../core/presentation/widgets/interactive_section_header.dart';
 import '../../../../core/presentation/widgets/interactive_grid_card.dart';
 import '../../../../core/presentation/widgets/universal_empty_state.dart';
-import '../../../../core/utils/crypto_helper.dart'; // Memastikan import CryptoHelper tersedia jika dibutuhkan alternatif
+import '../../../../core/utils/crypto_helper.dart';
 import '../../data/models/prompt_model.dart';
 import '../controllers/prompt_controller.dart';
 import 'prompt_detail_screen.dart';
@@ -19,8 +19,6 @@ class PromptScreen extends StatefulWidget {
 
 class _PromptScreenState extends State<PromptScreen> {
   late final PromptController _controller;
-
-  // STATE BARU: Kontrol untuk menampilkan atau menyembunyikan kategori/grup tersembunyi
   bool _showHiddenSection = false;
 
   @override
@@ -36,17 +34,22 @@ class _PromptScreenState extends State<PromptScreen> {
     super.dispose();
   }
 
-  // METHOD BARU: Menampilkan dialog dekripsi manual dengan input password (Persis seperti di Notes)
+  // METHOD BARU: Menampilkan dialog dekripsi manual dengan input password (Persis seperti di Notes & Checklist)
   void _showManualDecryptDialog(PromptGroup group) {
     final passwordController = TextEditingController();
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Row(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          // <--- PERBAIKAN: Hapus kata 'const' di sini karena children di dalamnya dinamis
           children: [
-            Icon(Icons.lock_open, color: Colors.indigo),
-            SizedBox(width: 8),
-            Text('Dekripsi Manual'),
+            const Icon(
+              Icons.lock_open,
+              color: Colors.indigo,
+            ), // <--- Tambahkan const di level individual jika diperlukan
+            const SizedBox(width: 8),
+            Text('Dekripsi Berkas Prompt'),
           ],
         ),
         content: Column(
@@ -54,34 +57,31 @@ class _PromptScreenState extends State<PromptScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Berkas "${group.title}" terdeteksi menggunakan kata sandi lama atau strukturnya tidak cocok dengan sistem saat ini.',
-              style: const TextStyle(fontSize: 13, color: Colors.black54),
+              'Masukkan kata sandi lama atau spesifik untuk memulihkan file "${group.title}.json":', // <--- Variabel dinamis group.title penyebab error const
+              style: const TextStyle(fontSize: 13, color: Colors.black87),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: passwordController,
               obscureText: true,
               decoration: const InputDecoration(
-                labelText: 'Masukkan Password Lama / Spesifik',
+                labelText: 'Password Enkripsi Lama',
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.password),
               ),
-            ),
+            ), // <--- PERBAIKAN: Mengganti kurung siku penutup yang typo pada kode sebelumnya
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Batal'),
+            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
             onPressed: () async {
               final inputPassword = passwordController.text.trim();
               if (inputPassword.isEmpty) return;
-
-              Navigator.pop(context); // Tutup dialog input
-
-              // Panggil fungsi penanganan khusus dekripsi manual di controller
+              Navigator.pop(context);
               await _controller.handleManualDecrypt(
                 group,
                 inputPassword,
@@ -99,11 +99,9 @@ class _PromptScreenState extends State<PromptScreen> {
     );
   }
 
-  // METHOD BARU: Alur Sekuensial Berantai Berurutan (Seksi Baru -> Group Prompt) Khusus Kondisi Kosong
   void _showSequentialAddDialog() {
     final sectionController = TextEditingController();
     final formKey = GlobalKey<FormState>();
-
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -133,11 +131,9 @@ class _PromptScreenState extends State<PromptScreen> {
                 final newSectionName = sectionController.text
                     .trim()
                     .toUpperCase();
-
                 if (!_controller.localEmptySections.contains(newSectionName)) {
                   _controller.addSection(newSectionName, context);
                 }
-
                 Navigator.pop(context);
                 _showAddGroupDialog(defaultSection: newSectionName);
               }
@@ -246,9 +242,8 @@ class _PromptScreenState extends State<PromptScreen> {
 
   void _showAddGroupDialog({String? defaultSection}) {
     final titleController = TextEditingController();
-    final iconController = TextEditingController(text: '🤖');
+    final iconController = TextEditingController(text: '💬');
     final sectionController = TextEditingController(text: defaultSection ?? '');
-
     final bool isSequentialStep =
         defaultSection != null && _controller.promptGroups.isEmpty;
 
@@ -395,9 +390,13 @@ class _PromptScreenState extends State<PromptScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Hapus Group "${group.title}"?'),
+        title: Text(
+          group.id.startsWith("CORRUPTED_")
+              ? 'Hapus Berkas Rusak?'
+              : 'Hapus Group "${group.title}"?',
+        ),
         content: const Text(
-          'Tindakan ini akan menghapus group ini secara permanen.',
+          'Tindakan ini akan menghapus berkas ini secara permanen.',
         ),
         actions: [
           TextButton(
@@ -430,7 +429,6 @@ class _PromptScreenState extends State<PromptScreen> {
           final secName = group.sectionName.isEmpty
               ? 'GENERAL'
               : group.sectionName.toUpperCase();
-
           if (group.isHidden) {
             if (!hiddenSectionsMap.containsKey(secName)) {
               hiddenSectionsMap[secName] = [];
@@ -463,7 +461,6 @@ class _PromptScreenState extends State<PromptScreen> {
             if (groupsList.isNotEmpty) {
               String hiddenKey = '${key}_hidden_key';
               sectionKeys.add(hiddenKey);
-
               if (_controller.searchQuery.isEmpty) {
                 sectionsMap[hiddenKey] = groupsList;
               } else {
@@ -512,6 +509,29 @@ class _PromptScreenState extends State<PromptScreen> {
           onAddPressed: () {
             _showAddSectionDialog();
           },
+
+          // === PARAMETER APPBAR TRAILING ACTION SINKRONISASI GLOBAL (SAMA SEPERTI NOTES & CHECKLIST) ===
+          appBarTrailingAction: _controller.isGlobalEncryptionEnabled
+              ? Padding(
+                  padding: const EdgeInsets.only(right: 8.0),
+                  child: Tooltip(
+                    message: 'Enkripsi AES-256 Aktif',
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.teal.withOpacity(0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.lock,
+                        color: Colors.tealAccent,
+                        size: 18,
+                      ),
+                    ),
+                  ),
+                )
+              : null,
+
           additionalAction: IconButton(
             icon: Icon(
               _showHiddenSection ? Icons.visibility : Icons.visibility_off,
@@ -560,10 +580,8 @@ class _PromptScreenState extends State<PromptScreen> {
                     ],
                   );
                 }
-
                 if (sIndex >= sectionKeys.length)
                   return const SizedBox.shrink();
-
                 return InteractiveSectionHeader(
                   sectionName: sectionName,
                   themeColor: Colors.indigo[900]!,
@@ -600,247 +618,270 @@ class _PromptScreenState extends State<PromptScreen> {
                       _showAddGroupDialog(defaultSection: sectionName),
                 );
               },
-          gridItemBuilder: (context, promptGroup, index, items, isLayoutEditMode) {
-            if (index >= items.length) return const SizedBox.shrink();
+          gridItemBuilder:
+              (context, promptGroup, index, items, isLayoutEditMode) {
+                if (index >= items.length) return const SizedBox.shrink();
 
-            final bool isCorrupted = promptGroup.id.startsWith("CORRUPTED_");
+                // KONTROL EVALUASI KARTU DATA KORUP
+                final bool isCorrupted = promptGroup.id.startsWith(
+                  "CORRUPTED_",
+                );
 
-            // ========================================================
-            // 🔴 INTERAKSI KARTU KORUP (PERSIS SEPERTI DI NOTES)
-            // ========================================================
-            if (isCorrupted) {
-              return InteractiveGridCard(
-                themeColor: Colors.redAccent,
-                isEditMode: isLayoutEditMode
-                    ? true
-                    : _controller.isCardEditMode,
-                isHiddenStyle: false,
-                isFirst: isSearching ? true : (index == 0),
-                isLast: isSearching ? true : (index == items.length - 1),
-                onTap: () {
-                  // 1. DIKETUK: Memicu dialog input password dekripsi manual
-                  _showManualDecryptDialog(promptGroup);
-                },
-                onLongPress: () {
-                  // 2. DITAHAN: Mengaktifkan mode edit/hapus pada kartu grid layout
-                  _controller.toggleCardEditMode();
-                },
-                onMoveLeft: () {},
-                onMoveRight: () {},
-                popupMenuItems: [
-                  const PopupMenuItem(
-                    value: 'delete',
-                    child: Row(
+                // ========================================================
+                // INTERAKSI KARTU DATA KORUP / TERKUNCI (SAMA SEPERTI NOTES)
+                // ========================================================
+                if (isCorrupted) {
+                  return InteractiveGridCard(
+                    themeColor: Colors.redAccent,
+                    isEditMode: isLayoutEditMode
+                        ? true
+                        : _controller.isCardEditMode,
+                    isHiddenStyle: false,
+                    isFirst: isSearching ? true : (index == 0),
+                    isLast: isSearching ? true : (index == items.length - 1),
+                    onTap: () {
+                      _showManualDecryptDialog(promptGroup);
+                    },
+                    onLongPress: () {
+                      _controller.toggleCardEditMode();
+                    },
+                    onMoveLeft: () {},
+                    onMoveRight: () {},
+                    popupMenuItems: [
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.delete_outline,
+                              size: 18,
+                              color: Colors.red,
+                            ),
+                            SizedBox(width: 10),
+                            Text(
+                              'Hapus Berkas Rusak',
+                              style: TextStyle(color: Colors.red, fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    onPopupSelected: (value) async {
+                      if (value == 'delete') {
+                        _showDeleteGroupItemDialog(promptGroup);
+                      }
+                    },
+                    content: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        Icon(Icons.delete_outline, size: 18, color: Colors.red),
-                        SizedBox(width: 10),
                         Text(
-                          'Hapus Berkas Rusak',
-                          style: TextStyle(color: Colors.red, fontSize: 13),
+                          promptGroup.icon,
+                          style: const TextStyle(fontSize: 28),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          promptGroup.title,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: Colors.redAccent,
+                          ),
+                          textAlign: TextAlign.center,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text(
+                            'Terkunci / Korup',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.redAccent,
+                            ),
+                          ),
                         ),
                       ],
                     ),
-                  ),
-                ],
-                onPopupSelected: (value) async {
-                  if (value == 'delete') {
-                    _showDeleteGroupItemDialog(promptGroup);
-                  }
-                },
-                content: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Text(
-                      promptGroup.icon,
-                      style: const TextStyle(fontSize: 28),
+                  );
+                }
+
+                // ========================================================
+                // KONDISI BERKAS NORMAL (SEHAT)
+                // ========================================================
+                return InteractiveGridCard(
+                  themeColor: Colors.indigo,
+                  isEditMode: isLayoutEditMode
+                      ? true
+                      : _controller.isCardEditMode,
+                  isHiddenStyle: promptGroup.isHidden,
+                  isFirst: isSearching ? true : (index == 0),
+                  isLast: isSearching ? true : (index == items.length - 1),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            PromptDetailScreen(promptGroup: promptGroup),
+                      ),
+                    ).then((_) => _controller.loadAllPrompts(context));
+                  },
+                  onLongPress: () {
+                    _controller.toggleCardEditMode();
+                  },
+                  onMoveLeft: () {
+                    if (index > 0) {
+                      _controller.moveGroupOrderHorizontal(items, index, -1);
+                    }
+                  },
+                  onMoveRight: () {
+                    if (index < items.length - 1) {
+                      _controller.moveGroupOrderHorizontal(items, index, 1);
+                    }
+                  },
+                  popupMenuItems: [
+                    const PopupMenuItem(
+                      value: 'edit',
+                      child: Row(
+                        children: [
+                          Icon(Icons.edit, size: 18, color: Colors.teal),
+                          SizedBox(width: 10),
+                          Text(
+                            'Ubah Nama & Ikon',
+                            style: TextStyle(fontSize: 13),
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      promptGroup.title,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        color: Colors.redAccent,
+                    const PopupMenuItem(
+                      value: 'move_section',
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.drive_file_move_outlined,
+                            size: 18,
+                            color: Colors.indigo,
+                          ),
+                          SizedBox(width: 10),
+                          Text(
+                            'Pindahkan Seksi',
+                            style: TextStyle(fontSize: 13),
+                          ),
+                        ],
                       ),
-                      textAlign: TextAlign.center,
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
                     ),
-                    const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
+                    PopupMenuItem(
+                      value: 'toggle_visibility',
+                      child: Row(
+                        children: [
+                          Icon(
+                            promptGroup.isHidden
+                                ? Icons.visibility
+                                : Icons.visibility_off,
+                            size: 18,
+                            color: Colors.blueGrey,
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            promptGroup.isHidden
+                                ? 'Tampilkan Group'
+                                : 'Sembunyikan Group',
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                        ],
                       ),
-                      decoration: BoxDecoration(
-                        color: Colors.red.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: const Text(
-                        'Terbaca Enkripsi / Korup',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.redAccent,
-                        ),
+                    ),
+                    const PopupMenuDivider(),
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.delete_outline,
+                            size: 18,
+                            color: Colors.redAccent,
+                          ),
+                          SizedBox(width: 10),
+                          Text(
+                            'Hapus Group',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.redAccent,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
-                ),
-              );
-            }
-
-            // ========================================================
-            // KONDISI BERKAS NORMAL (SEHAT)
-            // ========================================================
-            return InteractiveGridCard(
-              themeColor: Colors.indigo,
-              isEditMode: isLayoutEditMode ? true : _controller.isCardEditMode,
-              isHiddenStyle: promptGroup.isHidden,
-              isFirst: isSearching ? true : (index == 0),
-              isLast: isSearching ? true : (index == items.length - 1),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        PromptDetailScreen(promptGroup: promptGroup),
-                  ),
-                ).then((_) => _controller.loadAllPrompts(context));
-              },
-              onLongPress: () {
-                _controller.toggleCardEditMode();
-              },
-              onMoveLeft: () {
-                if (index > 0) {
-                  _controller.moveGroupOrderHorizontal(items, index, -1);
-                }
-              },
-              onMoveRight: () {
-                if (index < items.length - 1) {
-                  _controller.moveGroupOrderHorizontal(items, index, 1);
-                }
-              },
-              popupMenuItems: [
-                const PopupMenuItem(
-                  value: 'edit',
-                  child: Row(
+                  onPopupSelected: (value) async {
+                    if (value == 'edit') {
+                      _showEditGroupDialog(promptGroup);
+                    } else if (value == 'move_section') {
+                      _showMoveSectionDialog(promptGroup);
+                    } else if (value == 'toggle_visibility') {
+                      await _controller.toggleGroupVisibility(
+                        promptGroup,
+                        context,
+                      );
+                    } else if (value == 'delete') {
+                      _showDeleteGroupItemDialog(promptGroup);
+                    }
+                  },
+                  content: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Icon(Icons.edit, size: 18, color: Colors.teal),
-                      SizedBox(width: 10),
-                      Text('Ubah Nama & Ikon', style: TextStyle(fontSize: 13)),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'move_section',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.drive_file_move_outlined,
-                        size: 18,
-                        color: Colors.indigo,
-                      ),
-                      SizedBox(width: 10),
-                      Text('Pindahkan Seksi', style: TextStyle(fontSize: 13)),
-                    ],
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 'toggle_visibility',
-                  child: Row(
-                    children: [
-                      Icon(
-                        promptGroup.isHidden
-                            ? Icons.visibility
-                            : Icons.visibility_off,
-                        size: 18,
-                        color: Colors.blueGrey,
-                      ),
-                      const SizedBox(width: 10),
                       Text(
-                        promptGroup.isHidden
-                            ? 'Tampilkan Group'
-                            : 'Sembunyikan Group',
-                        style: const TextStyle(fontSize: 13),
+                        promptGroup.icon,
+                        style: const TextStyle(
+                          fontSize: 28,
+                          color: Colors.black,
+                        ),
                       ),
-                    ],
-                  ),
-                ),
-                const PopupMenuDivider(),
-                const PopupMenuItem(
-                  value: 'delete',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.delete_outline,
-                        size: 18,
-                        color: Colors.redAccent,
-                      ),
-                      SizedBox(width: 10),
+                      const SizedBox(height: 8),
                       Text(
-                        'Hapus Group',
-                        style: TextStyle(fontSize: 13, color: Colors.redAccent),
+                        promptGroup.title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: Colors.black87,
+                        ),
+                        textAlign: TextAlign.center,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.indigo.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          '${promptGroup.prompts.length} Item',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.indigo,
+                          ),
+                        ),
                       ),
                     ],
                   ),
-                ),
-              ],
-              onPopupSelected: (value) async {
-                if (value == 'edit') {
-                  _showEditGroupDialog(promptGroup);
-                } else if (value == 'move_section') {
-                  _showMoveSectionDialog(promptGroup);
-                } else if (value == 'toggle_visibility') {
-                  await _controller.toggleGroupVisibility(promptGroup, context);
-                } else if (value == 'delete') {
-                  _showDeleteGroupItemDialog(promptGroup);
-                }
+                );
               },
-              content: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Text(
-                    promptGroup.icon,
-                    style: const TextStyle(fontSize: 28, color: Colors.black),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    promptGroup.title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: Colors.black87,
-                    ),
-                    textAlign: TextAlign.center,
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                  ),
-                  const SizedBox(height: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.indigo.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      '${promptGroup.prompts.length} Item',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.indigo,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
         );
       },
     );
