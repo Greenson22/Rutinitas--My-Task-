@@ -11,14 +11,14 @@ class DailyChecklistDialog extends StatefulWidget {
   final VoidCallback onDataChanged;
   final List<DailySubject> allAvailableSubjects;
   final VoidCallback?
-  onCustomClosePressed; // <-- BARU: Parameter callback kustom penutupan dialog
+  onCustomClosePressed; // Parameter callback kustom penutupan dialog
 
   const DailyChecklistDialog({
     super.key,
     required this.subject,
     required this.onDataChanged,
     required this.allAvailableSubjects,
-    this.onCustomClosePressed, // <-- BARU
+    this.onCustomClosePressed,
   });
 
   @override
@@ -38,7 +38,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
   SubSubjectItem? _highlightedItem;
   bool _isNoteModified = false;
 
-  // --- BARU: EKSPOS STATE & FUNGSI KE PUBLIC AGAR BISA DIAKSES GLOBAL KEY ---
+  // --- EKSPOS STATE & FUNGSI KE PUBLIC AGAR BISA DIAKSES GLOBAL KEY ---
   bool get isNoteModifiedExternal => _isNoteModified;
 
   void saveManualNoteExternal() {
@@ -963,7 +963,65 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                     : 'Ubah ke Mode Catatan',
                 constraints: const BoxConstraints(),
                 padding: const EdgeInsets.all(4),
-                onPressed: () {
+                // SOLUSI UTAMA: Menyuntikkan dialog konfirmasi perlindungan modifikasi teks data catatan
+                onPressed: () async {
+                  if (widget.subject.type == 'note' && _isNoteModified) {
+                    final String? result = await showDialog<String>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        title: const Row(
+                          children: [
+                            Icon(
+                              Icons.warning_amber_rounded,
+                              color: Colors.amber,
+                            ),
+                            SizedBox(width: 8),
+                            Text('Simpan Catatan Dahulu?'),
+                          ],
+                        ),
+                        content: const Text(
+                          'Anda memiliki perubahan catatan yang belum disimpan. Apakah ingin menyimpan perubahan sebelum berpindah ke Mode Checklist?',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx, 'cancel'),
+                            child: const Text(
+                              'Batal',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx, 'discard'),
+                            child: const Text(
+                              'Jangan Simpan',
+                              style: TextStyle(color: Colors.red),
+                            ),
+                          ),
+                          ElevatedButton(
+                            onPressed: () => Navigator.pop(ctx, 'save'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.teal,
+                            ),
+                            child: const Text(
+                              'Simpan',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+
+                    if (result == 'save') {
+                      _saveManualNote();
+                    } else if (result == 'cancel' || result == null) {
+                      return; // Batalkan aksi, tetap di mode catatan
+                    }
+                  }
+
+                  // Lakukan pergantian mode secara aman
                   setState(() {
                     widget.subject.type = widget.subject.type == 'note'
                         ? 'list'
@@ -1642,7 +1700,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
               ),
               ElevatedButton(
                 onPressed: () {
-                  // Mengalihkan aksi penutupan kustom melalui parameter screen induk jika tersedia
                   if (widget.onCustomClosePressed != null) {
                     widget.onCustomClosePressed!();
                   } else {
