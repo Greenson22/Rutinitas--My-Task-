@@ -1,4 +1,4 @@
-// lib/features/daily/presentation/widgets/checklist_detail/checklist_dialog.dart
+// lib/features/daily/presentation/widgets/checklist_dialog.dart
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -40,9 +40,8 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
   SubSubjectItem? _highlightedItem;
   bool _isNoteModified = false;
 
-  // --- STATE BARU: MENGONTROL STATUS FORMAT MARKDOWN & VIEW MODE CATATAN ---
   bool _isMarkdownEnabled = false;
-  bool _isNoteViewMode = true; // Default menampilkan render preview
+  bool _isNoteViewMode = true;
 
   bool get isNoteModifiedExternal => _isNoteModified;
   void saveManualNoteExternal() => _saveManualNote();
@@ -53,9 +52,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     _noteController = TextEditingController(
       text: widget.subject.noteContent ?? '',
     );
-    // AMBIL STATUS DARI EXISTING SUBJECT (Default: false / off jika baru)
     _isMarkdownEnabled = widget.subject.isMarkdownEnabled;
-    // Otomatis buka mode edit jika isi catatan masih kosong
     _isNoteViewMode = _noteController.text.isNotEmpty;
   }
 
@@ -343,11 +340,9 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
   void _saveManualNote() {
     setState(() {
       widget.subject.noteContent = _noteController.text;
-      widget.subject.isMarkdownEnabled =
-          _isMarkdownEnabled; // <--- SINKRONKAN KE DATA MODEL UTAMA
+      widget.subject.isMarkdownEnabled = _isMarkdownEnabled;
       _isNoteModified = false;
-      _isNoteViewMode =
-          true; // Otomatis kembali ke mode rendering/view setelah menyimpan
+      _isNoteViewMode = true;
     });
     widget.onDataChanged();
     FocusScope.of(context).unfocus();
@@ -360,10 +355,34 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
   }
 
   void _updateSubjectOverallProgress() {
-    int total = widget.subject.subMateri.length;
-    int selesai = widget.subject.subMateri
-        .where((sm) => sm.progress == 'selesai')
-        .length;
+    // Menghitung progress secara rekursif murni agar akurat
+    double countTotal(List<SubSubjectItem> list) {
+      double total = 0;
+      for (var i in list) {
+        if (i.subMateri.isNotEmpty) {
+          total += countTotal(i.subMateri);
+        } else {
+          total += 1.0;
+        }
+      }
+      return total;
+    }
+
+    double countFinished(List<SubSubjectItem> list) {
+      double fin = 0;
+      for (var i in list) {
+        if (i.subMateri.isNotEmpty) {
+          fin += countFinished(i.subMateri);
+        } else {
+          if (i.progress == 'selesai') fin += 1.0;
+        }
+      }
+      return fin;
+    }
+
+    double total = countTotal(widget.subject.subMateri);
+    double selesai = countFinished(widget.subject.subMateri);
+
     if (total == 0) {
       widget.subject.progress = 'belum';
     } else if (selesai == total) {
@@ -536,11 +555,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // =========================================================================
-              // FITUR BARU: PANEL TOGGLE SWITCH MARKDOWN & TOMBOL EDIT KHUSUS TIPE CATATAN
-              // =========================================================================
               if (widget.subject.type == 'note') ...[
-                // Switch MD hanya muncul saat sedang dalam MODE EDIT (!_isNoteViewMode)
                 if (!_isNoteViewMode) ...[
                   const Text(
                     'MD',
@@ -559,13 +574,12 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                       onChanged: (value) {
                         setState(() {
                           _isMarkdownEnabled = value;
-                          _isNoteModified = true; // Picu status perubahan data
+                          _isNoteModified = true;
                         });
                       },
                     ),
                   ),
                 ],
-                // Tombol interaktif untuk merubah View Mode / Edit Mode Catatan
                 IconButton(
                   icon: Icon(
                     _isNoteViewMode ? Icons.edit : Icons.chrome_reader_mode,
@@ -712,10 +726,8 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
             child: widget.subject.type == 'note'
                 ? ChecklistNoteView(
                     noteController: _noteController,
-                    isMarkdownEnabled:
-                        _isMarkdownEnabled, // <--- SUNTIKKAN STATUS MD AKTIF
-                    isViewMode:
-                        _isNoteViewMode, // <--- SUNTIKKAN STATUS VIEW/PREVIEW MODE
+                    isMarkdownEnabled: _isMarkdownEnabled,
+                    isViewMode: _isNoteViewMode,
                     onChanged: (text) {
                       final orig = widget.subject.noteContent ?? '';
                       setState(() => _isNoteModified = text != orig);
@@ -760,10 +772,11 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                                   _isEditMode = !_isEditMode;
                                   _selectedItems.clear();
                                 }),
-                                onCheckStatusChanged: (checked) {
+                                // FIX: Menerima 'target' objek anak yang sesungguhnya diklik
+                                onCheckStatusChanged: (target, checked) {
                                   _saveToHistory();
                                   setState(() {
-                                    item.progress = checked == true
+                                    target.progress = checked == true
                                         ? 'selesai'
                                         : 'belum';
                                     for (var r in widget.subject.subMateri) {
@@ -773,11 +786,12 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                                   _updateSubjectOverallProgress();
                                   widget.onDataChanged();
                                 },
-                                onTapToggleStatus: () {
+                                // FIX: Menerima 'target' objek anak yang sesungguhnya diklik
+                                onTapToggleStatus: (target) {
                                   _saveToHistory();
                                   setState(
-                                    () => item.progress =
-                                        item.progress != 'selesai'
+                                    () => target.progress =
+                                        target.progress != 'selesai'
                                         ? 'selesai'
                                         : 'belum',
                                   );
@@ -832,67 +846,67 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                                 ),
                               ),
                             if (!_hideFinishedItems)
-                              ...List.generate(
-                                widget.subject.subMateri.length,
-                                (index) {
-                                  final item = widget.subject.subMateri[index];
-                                  if (item.progress != 'selesai')
-                                    return const SizedBox.shrink();
-                                  return ChecklistTreeView(
-                                    item: item,
-                                    depth: 0,
-                                    isEditMode: _isEditMode,
-                                    selectedItems: _selectedItems,
-                                    highlightedItem: _highlightedItem,
-                                    isFirst: index == 0,
-                                    isLast:
-                                        index ==
-                                        widget.subject.subMateri.length - 1,
-                                    onSelectItem: (target, add) => setState(
-                                      () => add
-                                          ? _selectedItems.add(target)
-                                          : _selectedItems.remove(target),
-                                    ),
-                                    onMoveOrder: _moveItemOrder,
-                                    onEditName: () => _showEditNameDialog(item),
-                                    onLongPressToggle: () => setState(() {
-                                      _isEditMode = !_isEditMode;
-                                      _selectedItems.clear();
-                                    }),
-                                    onCheckStatusChanged: (checked) {
-                                      _saveToHistory();
-                                      setState(() {
-                                        item.progress = checked == true
-                                            ? 'selesai'
-                                            : 'belum';
-                                        for (var r
-                                            in widget.subject.subMateri) {
-                                          r.updateStatusFromChildren();
-                                        }
-                                      });
-                                      _updateSubjectOverallProgress();
-                                      widget.onDataChanged();
-                                    },
-                                    onTapToggleStatus: () {
-                                      _saveToHistory();
-                                      setState(
-                                        () => item.progress =
-                                            item.progress != 'selesai'
-                                            ? 'selesai'
-                                            : 'belum',
-                                      );
+                              ...List.generate(widget.subject.subMateri.length, (
+                                index,
+                              ) {
+                                final item = widget.subject.subMateri[index];
+                                if (item.progress != 'selesai')
+                                  return const SizedBox.shrink();
+                                return ChecklistTreeView(
+                                  item: item,
+                                  depth: 0,
+                                  isEditMode: _isEditMode,
+                                  selectedItems: _selectedItems,
+                                  highlightedItem: _highlightedItem,
+                                  isFirst: index == 0,
+                                  isLast:
+                                      index ==
+                                      widget.subject.subMateri.length - 1,
+                                  onSelectItem: (target, add) => setState(
+                                    () => add
+                                        ? _selectedItems.add(target)
+                                        : _selectedItems.remove(target),
+                                  ),
+                                  onMoveOrder: _moveItemOrder,
+                                  onEditName: () => _showEditNameDialog(item),
+                                  onLongPressToggle: () => setState(() {
+                                    _isEditMode = !_isEditMode;
+                                    _selectedItems.clear();
+                                  }),
+                                  // FIX: Menerima 'target' objek anak yang sesungguhnya diklik
+                                  onCheckStatusChanged: (target, checked) {
+                                    _saveToHistory();
+                                    setState(() {
+                                      target.progress = checked == true
+                                          ? 'selesai'
+                                          : 'belum';
                                       for (var r in widget.subject.subMateri) {
                                         r.updateStatusFromChildren();
                                       }
-                                      _updateSubjectOverallProgress();
-                                      widget.onDataChanged();
-                                    },
-                                    onAddChild: () => _addChildSubMateri(item),
-                                    onDeleteItem: () =>
-                                        _deleteSingleSubMateri(item),
-                                  );
-                                },
-                              ),
+                                    });
+                                    _updateSubjectOverallProgress();
+                                    widget.onDataChanged();
+                                  },
+                                  // FIX: Menerima 'target' objek anak yang sesungguhnya diklik
+                                  onTapToggleStatus: (target) {
+                                    _saveToHistory();
+                                    setState(
+                                      () => target.progress =
+                                          target.progress != 'selesai'
+                                          ? 'selesai'
+                                          : 'belum',
+                                    );
+                                    for (var r in widget.subject.subMateri) {
+                                      r.updateStatusFromChildren();
+                                    }
+                                    _updateSubjectOverallProgress();
+                                    widget.onDataChanged();
+                                  },
+                                  onAddChild: () => _addChildSubMateri(item),
+                                  onDeleteItem: () =>
+                                      _deleteSingleSubMateri(item),
+                                );
+                              }),
                           ],
                         )),
           ),

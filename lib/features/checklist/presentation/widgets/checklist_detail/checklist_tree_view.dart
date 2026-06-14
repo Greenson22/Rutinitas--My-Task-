@@ -15,8 +15,8 @@ class ChecklistTreeView extends StatelessWidget {
   final Function(SubSubjectItem, int) onMoveOrder;
   final VoidCallback onEditName;
   final VoidCallback onLongPressToggle;
-  final Function(bool?) onCheckStatusChanged;
-  final VoidCallback onTapToggleStatus;
+  final Function(SubSubjectItem, bool?) onCheckStatusChanged; // <-- Diperbarui
+  final Function(SubSubjectItem) onTapToggleStatus; // <-- Diperbarui
   final VoidCallback onAddChild;
   final VoidCallback onDeleteItem;
 
@@ -128,11 +128,15 @@ class ChecklistTreeView extends StatelessWidget {
                           Checkbox(
                             value: isChecked,
                             activeColor: Colors.teal,
-                            onChanged: onCheckStatusChanged,
+                            onChanged: (bool? checked) => onCheckStatusChanged(
+                              item,
+                              checked,
+                            ), // <-- Diperbarui
                           ),
                           Expanded(
                             child: InkWell(
-                              onTap: onTapToggleStatus,
+                              onTap: () =>
+                                  onTapToggleStatus(item), // <-- Diperbarui
                               onLongPress: onLongPressToggle,
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(
@@ -197,14 +201,10 @@ class ChecklistTreeView extends StatelessWidget {
                 onMoveOrder: onMoveOrder,
                 onEditName: onEditName,
                 onLongPressToggle: onLongPressToggle,
-                onCheckStatusChanged: (checked) {
-                  // Meneruskan event perubahan checkbox ke akar dialog utama
-                  onCheckStatusChanged(checked);
-                },
-                onTapToggleStatus: () {
-                  // Meneruskan event tap ke akar dialog utama
-                  onTapToggleStatus();
-                },
+                onCheckStatusChanged:
+                    onCheckStatusChanged, // <-- Diteruskan dengan aman
+                onTapToggleStatus:
+                    onTapToggleStatus, // <-- Diteruskan dengan aman
                 onAddChild: onAddChild,
                 onDeleteItem: onDeleteItem,
               );
