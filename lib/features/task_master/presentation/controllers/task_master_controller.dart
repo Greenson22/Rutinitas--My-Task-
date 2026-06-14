@@ -178,17 +178,36 @@ class TaskMasterController {
     isFileCorrupted = false;
     onUpdate();
 
-    await jsonFile.writeAsString(jsonEncode({'categories': []}));
-
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('is_encrypted', false);
-      await prefs.remove('encryption_password');
-    } catch (e) {
-      debugPrint("Gagal mereset preferensi enkripsi: $e");
-    }
+      // Cek apakah enkripsi saat ini aktif di sistem
+      bool isEncrypted = await storageService.isEncryptionEnabled();
+      String? password = await storageService.getEncryptionPassword();
 
-    await initStorageAndLoadData();
+      String rawJson = jsonEncode({'categories': []});
+
+      // JIKA ENKRIPSI AKTIF, GUNAKAN .encrypt BUKAN .decrypt
+      if (isEncrypted && password != null) {
+        rawJson = CryptoHelper.encrypt(
+          // <--- PERBAIKAN DI SINI
+          rawJson,
+          password,
+        );
+      } else {
+        // Jika tidak terenkripsi, pastikan SharedPreferences dibersihkan
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('is_encrypted', false);
+        await prefs.remove('encryption_password');
+      }
+
+      await jsonFile.writeAsString(rawJson);
+    } catch (e) {
+      debugPrint("Gagal membuat/mengeksekusi file baru: $e");
+      isFileCorrupted =
+          true; // Set ke true jika proses pembuatan file gagal total
+    } finally {
+      // Memastikan data dimuat ulang dan status loading dimatikan apa pun yang terjadi
+      await initStorageAndLoadData();
+    }
   }
 
   void processCategoriesDisplay() {
