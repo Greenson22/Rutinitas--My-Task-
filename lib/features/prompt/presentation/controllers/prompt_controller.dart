@@ -2,6 +2,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:rutinitasku/core/services/storage_service.dart';
+import 'package:rutinitasku/core/utils/crypto_helper.dart'; // <--- MEMASTIKAN IMPORT CRYPTO HELPER TERSEDIA
 import '../../data/models/prompt_model.dart';
 
 class PromptController extends ChangeNotifier {
@@ -103,13 +104,23 @@ class PromptController extends ChangeNotifier {
     notifyListeners();
   }
 
+  // =========================================================================
+  // PERBAIKAN LOGIKA MUAT DATA (MENDUKUNG DEKRIPSI & SINKRONISASI OTOMATIS)
+  // =========================================================================
   Future<void> loadAllPrompts(BuildContext context) async {
     _isLoading = true;
     notifyListeners();
     try {
       final baseDir = await _storageService.getBaseDirSetting();
       final files = await _storageService.getAllPromptGroups(baseDir);
+
+      // Ambil status konfigurasi enkripsi master sistem saat ini
+      bool isEncrypted = await _storageService.isEncryptionEnabled();
+      String? password = await _storageService.getEncryptionPassword();
+
       List<PromptGroup> loadedGroups = [];
+      List<String> autoEncryptedFiles =
+          []; // Penampung nama file untuk SnackNar sinkronisasi
 
       for (var file in files) {
         if (!await file.exists()) continue;
@@ -117,6 +128,39 @@ class PromptController extends ChangeNotifier {
         String fileName = file.path.split('/').last.replaceAll('.json', '');
 
         try {
+          // Cek bentuk fisik biner teks berkas
+          final trimmedContent = content.trim();
+          bool isRawJson =
+              trimmedContent.startsWith('{') || trimmedContent.startsWith('[');
+
+          if (isEncrypted && password != null) {
+            if (!isRawJson) {
+              // KONDISI 1: Enkripsi sistem ON dan berkas berbentuk ciphertext -> Lakukan dekripsi
+              content = CryptoHelper.decrypt(content, password);
+            } else {
+              // KONDISI 2 (MIGRASI/SINKRONISASI OTOMATIS): Enkripsi ON tetapi berkas masih berbentuk JSON polos.
+              // Enkripsikan secara otomatis ke lokal storage agar sejalan dengan setelan global.
+              try {
+                final PromptGroup parsedGroup = PromptGroup.fromJson(
+                  jsonDecode(content),
+                );
+                final String encryptedContent = CryptoHelper.encrypt(
+                  _storageService.formatJsonPretty(parsedGroup.toJson()),
+                  password,
+                );
+                await file.writeAsString(encryptedContent);
+                autoEncryptedFiles.add(parsedGroup.title);
+                debugPrint(
+                  "Otomatis mengamankan berkas prompt mentah: ${file.path}",
+                );
+              } catch (autoEncryptError) {
+                debugPrint(
+                  "Gagal mengamankan otomatis berkas prompt: $autoEncryptError",
+                );
+              }
+            }
+          }
+
           final jsonMap = jsonDecode(content);
           loadedGroups.add(PromptGroup.fromJson(jsonMap));
         } catch (parseError) {
@@ -124,7 +168,7 @@ class PromptController extends ChangeNotifier {
             "Gagal memuat atau mendecode berkas prompt ${file.path}: $parseError",
           );
 
-          // MEKANISME BARU: Masukkan objek mock penanda korup/terkunci ke dalam list utama
+          // MEKANISME CARD MERAH: Masukkan objek mock penanda korup jika benar-benar gagal parse / salah password
           loadedGroups.add(
             PromptGroup(
               id: "CORRUPTED_${DateTime.now().millisecondsSinceEpoch}_$fileName",
@@ -140,11 +184,25 @@ class PromptController extends ChangeNotifier {
       }
       _promptGroups = loadedGroups;
 
-      // PERBAIKAN: Mengurutkan berdasarkan orderIndex, bukan abjad
+      // Mengurutkan berdasarkan orderIndex
       _promptGroups.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
 
       _isLoading = false;
       notifyListeners();
+
+      // Pemicu Notifikasi sinkronisasi otomatis jika ada file JSON lama yang baru saja diamankan
+      if (autoEncryptedFiles.isNotEmpty && context.mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Menyelaraskan Keamanan: Berkas prompt [${autoEncryptedFiles.join(", ")}] telah otomatis dienkripsi sesuai pengaturan master.',
+            ),
+            backgroundColor: Colors.teal,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     } catch (e) {
       _isLoading = false;
       notifyListeners();
@@ -233,12 +291,13 @@ class PromptController extends ChangeNotifier {
       ),
     );
 
-    // PERBAIKAN: Menulis ulang orderIndex setiap kali seksi digeser
+    // Menulis ulang orderIndex setiap kali seksi digeser
     try {
       final baseDir = await _storageService.getBaseDirSetting();
       for (int i = 0; i < _promptGroups.length; i++) {
         final group = _promptGroups[i];
-        if (group.id.startsWith("CORRUPTED_")) continue; // Proteksi file rusak
+        if (group.id.startsWith("CORRUPTED_"))
+          continue; // Guard clause berkas rusak
 
         final updatedGroup = PromptGroup(
           id: group.id,
@@ -290,7 +349,8 @@ class PromptController extends ChangeNotifier {
       final baseDir = await _storageService.getBaseDirSetting();
       List<PromptGroup> groupsToUpdate = [];
       for (var group in _promptGroups) {
-        if (group.id.startsWith("CORRUPTED_")) continue; // Proteksi file rusak
+        if (group.id.startsWith("CORRUPTED_"))
+          continue; // Guard clause berkas rusak
         final currentSecName = group.sectionName.isEmpty
             ? 'GENERAL'
             : group.sectionName.toUpperCase();
@@ -316,7 +376,8 @@ class PromptController extends ChangeNotifier {
       }
 
       for (var group in _promptGroups) {
-        if (group.id.startsWith("CORRUPTED_")) continue; // Proteksi file rusak
+        if (group.id.startsWith("CORRUPTED_"))
+          continue; // Guard clause berkas rusak
         final currentSecName = group.sectionName.isEmpty
             ? 'GENERAL'
             : group.sectionName.toUpperCase();
@@ -359,7 +420,8 @@ class PromptController extends ChangeNotifier {
 
       final baseDir = await _storageService.getBaseDirSetting();
       for (var group in _promptGroups) {
-        if (group.id.startsWith("CORRUPTED_")) continue; // Proteksi file rusak
+        if (group.id.startsWith("CORRUPTED_"))
+          continue; // Guard clause berkas rusak
         final currentSecName = group.sectionName.isEmpty
             ? 'GENERAL'
             : group.sectionName.toUpperCase();
@@ -448,13 +510,13 @@ class PromptController extends ChangeNotifier {
     _promptGroups = updatedGlobal;
     notifyListeners();
 
-    // PERBAIKAN: Menyimpan ulang indeks seluruh kotak agar tetap persisten di storage
+    // Menyimpan ulang indeks seluruh kotak agar tetap persisten di storage
     try {
       final baseDir = await _storageService.getBaseDirSetting();
       for (int i = 0; i < _promptGroups.length; i++) {
         final currentGroup = _promptGroups[i];
         if (currentGroup.id.startsWith("CORRUPTED_"))
-          continue; // Proteksi file rusak
+          continue; // Guard clause berkas rusak
 
         final updatedGroup = PromptGroup(
           id: currentGroup.id,
@@ -488,7 +550,7 @@ class PromptController extends ChangeNotifier {
     String newIcon,
     BuildContext context,
   ) async {
-    if (group.id.startsWith("CORRUPTED_")) return; // Proteksi file rusak
+    if (group.id.startsWith("CORRUPTED_")) return; // Guard clause berkas rusak
     _isLoading = true;
     notifyListeners();
     try {
@@ -524,7 +586,7 @@ class PromptController extends ChangeNotifier {
     String targetSection,
     BuildContext context,
   ) async {
-    if (group.id.startsWith("CORRUPTED_")) return; // Proteksi file rusak
+    if (group.id.startsWith("CORRUPTED_")) return; // Guard clause berkas rusak
     _isLoading = true;
     notifyListeners();
     try {
@@ -588,7 +650,8 @@ class PromptController extends ChangeNotifier {
     required String content,
     required BuildContext context,
   }) async {
-    if (group.id.startsWith("CORRUPTED_")) return null; // Proteksi file rusak
+    if (group.id.startsWith("CORRUPTED_"))
+      return null; // Guard clause berkas rusak
     _isLoading = true;
     notifyListeners();
     try {
@@ -659,7 +722,8 @@ class PromptController extends ChangeNotifier {
     required String newContent,
     required BuildContext context,
   }) async {
-    if (group.id.startsWith("CORRUPTED_")) return null; // Proteksi file rusak
+    if (group.id.startsWith("CORRUPTED_"))
+      return null; // Guard clause berkas rusak
     _isLoading = true;
     notifyListeners();
     try {
@@ -726,7 +790,8 @@ class PromptController extends ChangeNotifier {
     required String itemId,
     required BuildContext context,
   }) async {
-    if (group.id.startsWith("CORRUPTED_")) return null; // Proteksi file rusak
+    if (group.id.startsWith("CORRUPTED_"))
+      return null; // Guard clause berkas rusak
     _isLoading = true;
     notifyListeners();
     try {
@@ -862,7 +927,8 @@ class PromptController extends ChangeNotifier {
     required PromptGroup group,
     required BuildContext context,
   }) async {
-    if (group.id.startsWith("CORRUPTED_")) return null; // Proteksi file rusak
+    if (group.id.startsWith("CORRUPTED_"))
+      return null; // Guard clause berkas rusak
     if (_selectedPromptIds.isEmpty) return group;
 
     _isLoading = true;
@@ -997,7 +1063,8 @@ class PromptController extends ChangeNotifier {
     required String itemId,
     required BuildContext context,
   }) async {
-    if (group.id.startsWith("CORRUPTED_")) return null; // Proteksi file rusak
+    if (group.id.startsWith("CORRUPTED_"))
+      return null; // Guard clause berkas rusak
     _isLoading = true;
     notifyListeners();
     try {
@@ -1058,7 +1125,7 @@ class PromptController extends ChangeNotifier {
     required String versionId,
     required BuildContext context,
   }) async {
-    if (group.id.startsWith("CORRUPTED_")) return; // Proteksi file rusak
+    if (group.id.startsWith("CORRUPTED_")) return; // Guard clause berkas rusak
     try {
       final baseDir = await _storageService.getBaseDirSetting();
       final groupIdx = _promptGroups.indexWhere((g) => g.id == group.id);
@@ -1091,7 +1158,7 @@ class PromptController extends ChangeNotifier {
     required String versionName,
     required BuildContext context,
   }) async {
-    if (group.id.startsWith("CORRUPTED_")) return; // Proteksi file rusak
+    if (group.id.startsWith("CORRUPTED_")) return; // Guard clause berkas rusak
     _isLoading = true;
     notifyListeners();
     try {
@@ -1157,7 +1224,7 @@ class PromptController extends ChangeNotifier {
     required String newVersionName,
     required BuildContext context,
   }) async {
-    if (group.id.startsWith("CORRUPTED_")) return; // Proteksi file rusak
+    if (group.id.startsWith("CORRUPTED_")) return; // Guard clause berkas rusak
     _isLoading = true;
     notifyListeners();
     try {
@@ -1212,7 +1279,7 @@ class PromptController extends ChangeNotifier {
     required String versionId,
     required BuildContext context,
   }) async {
-    if (group.id.startsWith("CORRUPTED_")) return; // Proteksi file rusak
+    if (group.id.startsWith("CORRUPTED_")) return; // Guard clause berkas rusak
     _isLoading = true;
     notifyListeners();
     try {
@@ -1272,7 +1339,7 @@ class PromptController extends ChangeNotifier {
     PromptGroup group,
     BuildContext context,
   ) async {
-    if (group.id.startsWith("CORRUPTED_")) return; // Proteksi file rusak
+    if (group.id.startsWith("CORRUPTED_")) return; // Guard clause berkas rusak
     _isLoading = true;
     notifyListeners();
     try {
