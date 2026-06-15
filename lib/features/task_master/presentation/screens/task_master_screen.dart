@@ -39,9 +39,18 @@ class _HomeScreenState extends State<HomeScreen> {
       },
     );
 
-    _controller.initStorageAndLoadData(
-      onCorrupted: (jsonFile) => _showDecryptionErrorDialog(jsonFile),
-    );
+    // PERBAIKAN: Memberikan jeda mikro asinkron (150ms) setelah frame pertama dirender.
+    // Menghilangkan efek jeda/freeze ketika fitur enkripsi aktif karena memberikan waktu
+    // bagi Flutter untuk menyelesaikan transisi UI sebelum memulai operasi I/O dan dekripsi biner.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.delayed(const Duration(milliseconds: 150), () {
+        if (mounted) {
+          _controller.initStorageAndLoadData(
+            onCorrupted: (jsonFile) => _showDecryptionErrorDialog(jsonFile),
+          );
+        }
+      });
+    });
   }
 
   @override
