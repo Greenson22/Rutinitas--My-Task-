@@ -311,10 +311,12 @@ class NoteDetailController {
     required String currentType,
     required TextEditingController titleController,
     required TextEditingController contentController,
+    required TextEditingController
+    backContentController, // <--- BARU: Menambahkan parameter controller sisi belakang
     required List<String> currentFieldKeys,
     required Map<String, String> currentFieldTypes,
     required List<Map<String, TextEditingController>> tableRows,
-    bool isMarkdownEnabled = false, // <--- BARU: Menerima status md dari dialog
+    bool isMarkdownEnabled = false,
   }) async {
     String finalTitle = titleController.text.trim();
     if (finalTitle.isEmpty) finalTitle = originalTitle;
@@ -334,14 +336,15 @@ class NoteDetailController {
       id: existingNote?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
       title: finalTitle,
       content: currentType == 'text' ? contentController.text.trim() : '',
+      backContent: backContentController.text
+          .trim(), // <--- BARU: Menyimpan konten sisi belakang
       createdAt: existingNote?.createdAt ?? DateTime.now(),
       updatedAt: DateTime.now(),
       type: currentType,
       fieldKeys: currentType == 'table' ? currentFieldKeys : [],
       fieldTypes: currentType == 'table' ? currentFieldTypes : {},
       tableData: currentType == 'table' ? finalTableData : [],
-      isMarkdownEnabled:
-          isMarkdownEnabled, // <--- BARU: Tetapkan status md secara persisten
+      isMarkdownEnabled: isMarkdownEnabled,
     );
 
     if (existingNote == null) {

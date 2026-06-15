@@ -22,29 +22,30 @@ class NoteEditDialog extends StatefulWidget {
   State<NoteEditDialog> createState() => _NoteEditDialogState();
 }
 
-class _NoteEditDialogState extends State<NoteEditDialog> {
+class _NoteEditDialogState extends State<NoteEditDialog>
+    with SingleTickerProviderStateMixin {
   NoteModel? _editableNote;
   late String _originalTitle;
   late String _currentType;
-
   late TextEditingController _titleController;
   late TextEditingController _contentController;
-
+  late TextEditingController
+  _backContentController; // <--- BARU: Controller Sisi Belakang
   late List<String> _currentFieldKeys;
   late Map<String, String> _currentFieldTypes;
   final List<Map<String, TextEditingController>> _tableRows = [];
   final Map<String, TextEditingController> _formControllers = {};
-
   bool _isEditingTitle = false;
   bool _hasChanges = false;
   bool _isSaving = false;
   bool _isViewMode = false; // State untuk mengontrol mode view/edit
-
   int? _sortColumnIndex;
   bool _isAscending = true;
-
-  // STATE BARU: Mengontrol apakah formatting Markdown aktif atau tidak (Default: false)
   bool _isMarkdownEnabled = false;
+
+  // ANIMASI STATE BARU
+  late AnimationController _flipController;
+  bool _isFrontSide = true;
 
   @override
   void initState() {
@@ -54,27 +55,34 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
         ? _editableNote!.title
         : 'Catatan Baru';
     _currentType = _editableNote?.type ?? 'text';
-
-    // Aktifkan view mode jika membuka catatan yang sudah ada
     _isViewMode = _editableNote != null;
-
-    // AMBIL STATUS DARI EXISTING NOTE (Jika catatan baru, otomatis false / off)
     _isMarkdownEnabled = _editableNote?.isMarkdownEnabled ?? false;
 
     _titleController = TextEditingController(text: _originalTitle);
     _contentController = TextEditingController(
       text: _editableNote?.content ?? '',
     );
+    _backContentController = TextEditingController(
+      text: _editableNote?.backContent ?? '',
+    ); // <--- BARU
 
     _currentFieldKeys = List.from(_editableNote?.fieldKeys ?? []);
     _currentFieldTypes = Map.from(_editableNote?.fieldTypes ?? {});
-
     _initializeFormControllers();
     _initializeTableRows();
-
     _isEditingTitle = _editableNote == null;
+
     _titleController.addListener(_triggerChange);
     _contentController.addListener(_triggerChange);
+    _backContentController.addListener(
+      _triggerChange,
+    ); // <--- BARU: Pantau Perubahan Belakang
+
+    // Inisialisasi Kontroler Animasi Flip (Mulus 400ms)
+    _flipController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
   }
 
   void _initializeFormControllers() {
@@ -98,19 +106,31 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
     }
   }
 
-  // Perbaikan: Cegah perubahan state jika widget hanya di-render untuk View Mode
   void _triggerChange() {
     if (_isViewMode) return;
-
     if (!_hasChanges) {
       setState(() => _hasChanges = true);
     }
+  }
+
+  // Fungsi Pemicu Putaran Animasi Sisi Kartu
+  void _toggleFlip() {
+    if (_isFrontSide) {
+      _flipController.forward();
+    } else {
+      _flipController.reverse();
+    }
+    setState(() {
+      _isFrontSide = !_isFrontSide;
+    });
   }
 
   @override
   void dispose() {
     _titleController.dispose();
     _contentController.dispose();
+    _backContentController.dispose(); // <--- BARU
+    _flipController.dispose(); // <--- BARU
     for (var row in _tableRows) {
       row.values.forEach((c) => c.dispose());
     }
@@ -118,25 +138,22 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
     super.dispose();
   }
 
-  // Mengubah return type menjadi Future<bool> untuk mengetahui apakah proses simpan berhasil
   Future<bool> _executeSaveAction() async {
     setState(() => _isSaving = true);
-
     final NoteModel savedNote = await widget.controller.performSave(
       existingNote: _editableNote,
       originalTitle: _originalTitle,
       currentType: _currentType,
       titleController: _titleController,
       contentController: _contentController,
+      backContentController:
+          _backContentController, // <--- BARU: Teruskan Controller Belakang
       currentFieldKeys: _currentFieldKeys,
       currentFieldTypes: _currentFieldTypes,
       tableRows: _tableRows,
-      isMarkdownEnabled:
-          _isMarkdownEnabled, // <--- TERUSKAN PARAMETER TOGGLE MD DI SINI
+      isMarkdownEnabled: _isMarkdownEnabled,
     );
-
     _editableNote = savedNote;
-
     if (mounted) {
       ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -150,15 +167,13 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
       setState(() {
         _hasChanges = false;
         _isSaving = false;
-        _isViewMode =
-            true; // Otomatis kembali ke mode rendering/view setelah menyimpan
+        _isViewMode = true;
       });
       return true;
     }
     return false;
   }
 
-  // Fungsi untuk menampilkan Pop-up Konfirmasi Simpan/Buang Perubahan
   Future<bool> _showExitConfirmationDialog() async {
     final result = await showDialog<String>(
       context: context,
@@ -176,50 +191,40 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
         ),
         actions: [
           TextButton(
-            onPressed: () =>
-                Navigator.pop(ctx, 'cancel'), // Tetap di dialog edit
+            onPressed: () => Navigator.pop(ctx, 'cancel'),
             child: const Text('Batal', style: TextStyle(color: Colors.grey)),
           ),
           TextButton(
-            onPressed: () =>
-                Navigator.pop(ctx, 'discard'), // Keluar tanpa simpan
+            onPressed: () => Navigator.pop(ctx, 'discard'),
             child: const Text(
               'Jangan Simpan',
               style: TextStyle(color: Colors.red),
             ),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, 'save'), // Simpan lalu keluar
+            onPressed: () => Navigator.pop(ctx, 'save'),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
             child: const Text('Simpan', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
     );
-
     if (result == 'save') {
-      return await _executeSaveAction(); // Keluar jika simpan berhasil
+      return await _executeSaveAction();
     } else if (result == 'discard') {
-      return true; // Keluar tanpa menyimpan
+      return true;
     }
-    return false; // Batalkan proses keluar
+    return false;
   }
 
   @override
   Widget build(BuildContext context) {
-    // Ambil lebar total layar perangkat agar dialog responsif
     final double screenWidth = MediaQuery.of(context).size.width;
 
-    // Membungkus seluruh hirarki dengan PopScope untuk memantau gesture close/back system
     return PopScope(
-      canPop:
-          !_hasChanges ||
-          _isSaving, // Langsung pop jika tidak ada perubahan atau sedang loading save
+      canPop: !_hasChanges || _isSaving,
       onPopInvokedWithResult: (didPop, result) async {
-        if (didPop)
-          return; // Jika sudah di-pop oleh sistem, tidak perlu intervensi
-
-        // Tampilkan konfirmasi, jika user memilih simpan/buang (return true), tutup dialog secara manual
+        if (didPop) return;
         final shouldPop = await _showExitConfirmationDialog();
         if (shouldPop && context.mounted) {
           Navigator.pop(context);
@@ -240,17 +245,13 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
           }
           return KeyEventResult.ignored;
         },
-        // BUNGKUS DENGAN THEME UNTUK MENYUNTIKKAN STRUKTUR THEMEDATA KUSTOM SECARA LOKAL
         child: Theme(
           data: Theme.of(context).copyWith(
             dialogTheme: DialogThemeData(
-              // <--- PERBAIKAN: DialogTheme diubah menjadi DialogThemeData
-              // Mengatur sisa margin jarak aman dari ujung terluar layar desktop / smartphone
               insetPadding: const EdgeInsets.symmetric(
                 horizontal: 12.0,
                 vertical: 24.0,
               ),
-              // Konfigurasi pembatas melar minimal 92% layar smartphone, maksimal lebar 960px pada PC
               constraints: BoxConstraints(
                 minWidth: screenWidth * 0.92,
                 maxWidth: 960,
@@ -310,8 +311,26 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
                 ),
                 const SizedBox(width: 8),
 
-                // Switch MD hanya muncul saat tipe 'text' DAN sedang dalam MODE EDIT (!_isViewMode)
-                if (_currentType == 'text' && !_isViewMode) ...[
+                // ========================================================
+                // FITUR BARU: TOMBOL ROTASI / FLIP DUA SISI
+                // ========================================================
+                IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  icon: Icon(
+                    _isFrontSide ? Icons.flip_to_back : Icons.flip_to_front,
+                    color: Colors.amberAccent,
+                    size: 20,
+                  ),
+                  tooltip: _isFrontSide
+                      ? 'Lihat Sisi Belakang'
+                      : 'Lihat Sisi Depan',
+                  onPressed: _toggleFlip,
+                ),
+                const SizedBox(width: 10),
+
+                // Switch MD hanya muncul saat tipe 'text' DAN sedang dalam MODE EDIT DAN berada di SISI DEPAN
+                if (_currentType == 'text' && !_isViewMode && _isFrontSide) ...[
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -335,7 +354,7 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
                             setState(() {
                               _isMarkdownEnabled = value;
                             });
-                            _triggerChange(); // <--- PICU PERUBAHAN AGAR IKUT DISIMPAN SECARA PERMANEN
+                            _triggerChange();
                           },
                         ),
                       ),
@@ -343,7 +362,6 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
                   ),
                   const SizedBox(width: 4),
                 ],
-
                 // Logika Tampilan Tombol berdasarkan View Mode
                 if (_isViewMode) ...[
                   IconButton(
@@ -354,8 +372,7 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
                     onPressed: () {
                       setState(() {
                         _isViewMode = false;
-                        _hasChanges =
-                            false; // Reset paksa flag agar perubahan valid dihitung sejak tombol edit ditekan
+                        _hasChanges = false;
                       });
                     },
                   ),
@@ -385,29 +402,32 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
                           ),
                     const SizedBox(width: 10),
                   ],
-                  IconButton(
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    icon: Icon(
-                      _currentType == 'text'
-                          ? Icons.list_alt
-                          : Icons.table_chart,
-                      color: Colors.tealAccent,
-                      size: 20,
+                  // Ganti tipe data hanya diizinkan di Sisi Depan
+                  if (_isFrontSide) ...[
+                    IconButton(
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      icon: Icon(
+                        _currentType == 'text'
+                            ? Icons.list_alt
+                            : Icons.table_chart,
+                        color: Colors.tealAccent,
+                        size: 20,
+                      ),
+                      tooltip: _currentType == 'text'
+                          ? 'Ubah ke Catatan Berfield (Tabel)'
+                          : 'Ubah ke Catatan Teks',
+                      onPressed: () {
+                        setState(() {
+                          _currentType = _currentType == 'text'
+                              ? 'table'
+                              : 'text';
+                          _hasChanges = true;
+                        });
+                      },
                     ),
-                    tooltip: _currentType == 'text'
-                        ? 'Ubah ke Catatan Berfield (Tabel)'
-                        : 'Ubah ke Catatan Teks',
-                    onPressed: () {
-                      setState(() {
-                        _currentType = _currentType == 'text'
-                            ? 'table'
-                            : 'text';
-                        _hasChanges = true;
-                      });
-                    },
-                  ),
-                  const SizedBox(width: 10),
+                    const SizedBox(width: 10),
+                  ],
                   IconButton(
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
@@ -433,182 +453,39 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
             ),
             themeColor: Colors.indigo,
             titleColor: Colors.white,
-            content: Container(
-              height: MediaQuery.of(context).size.height * 0.65,
-              color: Colors.grey[100],
-              child: _currentType == 'text'
-                  ? Container(
-                      color: Colors.white,
-                      padding: const EdgeInsets.all(16.0),
-                      child: _isViewMode
-                          ? (_isMarkdownEnabled
-                                // ========================================================
-                                // MODE VIEW (MD AKTIF): Tampilkan Render Markdown yang Cantik
-                                // ========================================================
-                                ? Markdown(
-                                    data: _contentController.text.isEmpty
-                                        ? '*Catatan kosong.*'
-                                        : _contentController.text,
-                                    selectable: true,
-                                    styleSheet:
-                                        MarkdownStyleSheet.fromTheme(
-                                          Theme.of(context),
-                                        ).copyWith(
-                                          p: const TextStyle(
-                                            fontSize: 14,
-                                            color: Colors.black87,
-                                            height: 1.5,
-                                          ),
-                                          h1: const TextStyle(
-                                            fontSize: 22,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.indigo,
-                                          ),
-                                          h2: const TextStyle(
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.indigo,
-                                          ),
-                                          h3: const TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.indigo,
-                                          ),
-                                          code: TextStyle(
-                                            backgroundColor: Colors.grey[200],
-                                            color: Colors.red[700],
-                                          ),
-                                          codeblockDecoration: BoxDecoration(
-                                            color: Colors.grey[900],
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                          ),
-                                        ),
-                                  )
-                                // ========================================================
-                                // MODE VIEW (MD NONAKTIF): Tampilkan Sebagai Teks Biasa (Read Only)
-                                // ========================================================
-                                : TextField(
-                                    controller: _contentController,
-                                    readOnly: true,
-                                    maxLines: null,
-                                    expands: true,
-                                    textAlignVertical: TextAlignVertical.top,
-                                    decoration: InputDecoration(
-                                      hintText: 'Catatan kosong.',
-                                      hintStyle: TextStyle(
-                                        color: Colors.grey[400],
-                                      ),
-                                      border: InputBorder.none,
-                                      contentPadding: EdgeInsets.zero,
-                                    ),
-                                  ))
-                          // ========================================================
-                          // MODE EDIT: Tampilkan TextField Utama untuk Ketik / Paste
-                          // ========================================================
-                          : TextField(
-                              controller: _contentController,
-                              maxLines: null,
-                              expands: true,
-                              textAlignVertical: TextAlignVertical.top,
-                              style: TextStyle(
-                                fontFamily: _isMarkdownEnabled
-                                    ? 'Courier'
-                                    : null, // Monospace hanya jika MD aktif
-                                fontSize: 14,
-                              ),
-                              decoration: InputDecoration(
-                                hintText: _isMarkdownEnabled
-                                    ? 'Tulis atau paste catatan Anda di sini (Mendukung Markdown)...'
-                                    : 'Tulis catatan Anda di sini...',
-                                hintStyle: TextStyle(color: Colors.grey[400]),
-                                border: InputBorder.none,
-                                contentPadding: EdgeInsets.zero,
-                              ),
-                            ),
-                    )
-                  // Menangani tampilan tabel berdasarkan view mode
-                  : _isViewMode
-                  ? Container(
-                      color: Colors.white,
-                      child: NoteTableDataView(
-                        controller: widget.controller,
-                        currentFieldKeys: _currentFieldKeys,
-                        currentFieldTypes: _currentFieldTypes,
-                        tableRows: _tableRows,
-                        formControllers: _formControllers,
-                        sortColumnIndex: _sortColumnIndex,
-                        isAscending: _isAscending,
-                        onChanged: _triggerChange,
-                        isViewMode: true, // Kirim status view mode ke tabel
-                        onSortChanged: (index, ascending) {
-                          setState(() {
-                            _sortColumnIndex = index;
-                            _isAscending = ascending;
-                          });
-                        },
-                      ),
-                    )
-                  : DefaultTabController(
-                      length: 2,
-                      child: Column(
-                        children: [
-                          Container(
-                            color: Colors.white,
-                            child: const TabBar(
-                              labelColor: Colors.indigo,
-                              unselectedLabelColor: Colors.grey,
-                              indicatorColor: Colors.indigo,
-                              tabs: [
-                                Tab(
-                                  text: 'Data Tabel',
-                                  icon: Icon(Icons.dataset_outlined, size: 18),
-                                ),
-                                Tab(
-                                  text: 'Pengaturan Kolom',
-                                  icon: Icon(
-                                    Icons.view_column_outlined,
-                                    size: 18,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Expanded(
-                            child: TabBarView(
-                              children: [
-                                NoteTableDataView(
-                                  controller: widget.controller,
-                                  currentFieldKeys: _currentFieldKeys,
-                                  currentFieldTypes: _currentFieldTypes,
-                                  tableRows: _tableRows,
-                                  formControllers: _formControllers,
-                                  sortColumnIndex: _sortColumnIndex,
-                                  isAscending: _isAscending,
-                                  onChanged: _triggerChange,
-                                  isViewMode: false,
-                                  onSortChanged: (index, ascending) {
-                                    setState(() {
-                                      _sortColumnIndex = index;
-                                      _isAscending = ascending;
-                                    });
-                                  },
-                                ),
-                                NoteColumnSettingsView(
-                                  controller: widget.controller,
-                                  currentFieldKeys: _currentFieldKeys,
-                                  currentFieldTypes: _currentFieldTypes,
-                                  tableRows: _tableRows,
-                                  formControllers: _formControllers,
-                                  onChanged: _triggerChange,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+
+            // ========================================================
+            // EKSEKUSI ANIMASI FLIP BERPUTAR 3D PERSPEKTIF
+            // ========================================================
+            content: AnimatedBuilder(
+              animation: _flipController,
+              builder: (context, child) {
+                final double angle =
+                    _flipController.value *
+                    3.141592653589793; // Pi Radian (180 derajat)
+                final bool isBackRendering =
+                    angle >= 1.5707963267948966; // Melewati 90 Derajat
+
+                return Transform(
+                  transform: Matrix4.identity()
+                    ..setEntry(
+                      3,
+                      2,
+                      0.001,
+                    ) // Nilai Perspektif 3D Kedalaman Lubang Layar
+                    ..rotateY(angle), // Pembalikan Horizontal Sumbu Y
+                  alignment: Alignment.center,
+                  child: isBackRendering
+                      ? Transform(
+                          // Balik internal teks sisi belakang agar tidak terrender cermin terbalik
+                          transform: Matrix4.identity()
+                            ..rotateY(3.141592653589793),
+                          alignment: Alignment.center,
+                          child: _buildBackSideContent(),
+                        )
+                      : _buildFrontSideContent(),
+                );
+              },
             ),
             footer: Padding(
               padding: const EdgeInsets.symmetric(
@@ -641,6 +518,265 @@ class _NoteEditDialogState extends State<NoteEditDialog> {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  // =========================================================================
+  // SUB-WIDGET SISI DEPAN (STRUKTUR BAWAAN ASLI)
+  // =========================================================================
+  Widget _buildFrontSideContent() {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.65,
+      color: Colors.grey[100],
+      child: _currentType == 'text'
+          ? Container(
+              color: Colors.white,
+              padding: const EdgeInsets.all(16.0),
+              child: _isViewMode
+                  ? (_isMarkdownEnabled
+                        ? Markdown(
+                            data: _contentController.text.isEmpty
+                                ? '*Catatan kosong.*'
+                                : _contentController.text,
+                            selectable: true,
+                            styleSheet:
+                                MarkdownStyleSheet.fromTheme(
+                                  Theme.of(context),
+                                ).copyWith(
+                                  p: const TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.black87,
+                                    height: 1.5,
+                                  ),
+                                  h1: const TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.indigo,
+                                  ),
+                                  h2: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.indigo,
+                                  ),
+                                  h3: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.indigo,
+                                  ),
+                                  code: TextStyle(
+                                    backgroundColor: Colors.grey[200],
+                                    color: Colors.red[700],
+                                  ),
+                                  codeblockDecoration: BoxDecoration(
+                                    color: Colors.grey[900],
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                          )
+                        : TextField(
+                            controller: _contentController,
+                            readOnly: true,
+                            maxLines: null,
+                            expands: true,
+                            textAlignVertical: TextAlignVertical.top,
+                            decoration: InputDecoration(
+                              hintText: 'Catatan kosong.',
+                              hintStyle: TextStyle(color: Colors.grey[400]),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                          ))
+                  : TextField(
+                      controller: _contentController,
+                      maxLines: null,
+                      expands: true,
+                      textAlignVertical: TextAlignVertical.top,
+                      style: TextStyle(
+                        fontFamily: _isMarkdownEnabled ? 'Courier' : null,
+                        fontSize: 14,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: _isMarkdownEnabled
+                            ? 'Tulis atau paste catatan Anda di sini (Mendukung Markdown)...'
+                            : 'Tulis catatan Anda di sini...',
+                        hintStyle: TextStyle(color: Colors.grey[400]),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+            )
+          : _isViewMode
+          ? Container(
+              color: Colors.white,
+              child: NoteTableDataView(
+                controller: widget.controller,
+                currentFieldKeys: _currentFieldKeys,
+                currentFieldTypes: _currentFieldTypes,
+                tableRows: _tableRows,
+                formControllers: _formControllers,
+                sortColumnIndex: _sortColumnIndex,
+                isAscending: _isAscending,
+                onChanged: _triggerChange,
+                isViewMode: true,
+                onSortChanged: (index, ascending) {
+                  setState(() {
+                    _sortColumnIndex = index;
+                    _isAscending = ascending;
+                  });
+                },
+              ),
+            )
+          : DefaultTabController(
+              length: 2,
+              child: Column(
+                children: [
+                  Container(
+                    color: Colors.white,
+                    child: const TabBar(
+                      labelColor: Colors.indigo,
+                      unselectedLabelColor: Colors.grey,
+                      indicatorColor: Colors.indigo,
+                      tabs: [
+                        Tab(
+                          text: 'Data Tabel',
+                          icon: Icon(Icons.dataset_outlined, size: 18),
+                        ),
+                        Tab(
+                          text: 'Pengaturan Kolom',
+                          icon: Icon(Icons.view_column_outlined, size: 18),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: TabBarView(
+                      children: [
+                        NoteTableDataView(
+                          controller: widget.controller,
+                          currentFieldKeys: _currentFieldKeys,
+                          currentFieldTypes: _currentFieldTypes,
+                          tableRows: _tableRows,
+                          formControllers: _formControllers,
+                          sortColumnIndex: _sortColumnIndex,
+                          isAscending: _isAscending,
+                          onChanged: _triggerChange,
+                          isViewMode: false,
+                          onSortChanged: (index, ascending) {
+                            setState(() {
+                              _sortColumnIndex = index;
+                              _isAscending = ascending;
+                            });
+                          },
+                        ),
+                        NoteColumnSettingsView(
+                          controller: widget.controller,
+                          currentFieldKeys: _currentFieldKeys,
+                          currentFieldTypes: _currentFieldTypes,
+                          tableRows: _tableRows,
+                          formControllers: _formControllers,
+                          onChanged: _triggerChange,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+    );
+  }
+
+  // =========================================================================
+  // SUB-WIDGET SISI BELAKANG (CATATAN BALIK KARTU BARU)
+  // =========================================================================
+  Widget _buildBackSideContent() {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.65,
+      color: Colors
+          .blueGrey[50], // Latar belakang abu biru lembut pembeda dimensi kartu
+      padding: const EdgeInsets.all(16.0),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 6,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.layers_outlined,
+                  color: Colors.indigo,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Catatan Dibalik Lembar Utama',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.indigo[900],
+                    fontSize: 14,
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Text(
+                    'SISI BELAKANG',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.orange,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 20),
+            Expanded(
+              child: TextField(
+                controller: _backContentController,
+                maxLines: null,
+                expands: true,
+                readOnly:
+                    _isViewMode, // Mengunci input ketikan jika berada di dalam View Mode saja
+                textAlignVertical: TextAlignVertical.top,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontStyle: FontStyle.italic,
+                  color: Colors.black87,
+                ),
+                decoration: InputDecoration(
+                  hintText: _isViewMode
+                      ? 'Tidak ada catatan di balik lembar ini.'
+                      : 'Tulis atau tempel informasi pelengkap di balik catatan ini...',
+                  hintStyle: TextStyle(
+                    color: Colors.grey[400],
+                    fontStyle: FontStyle.normal,
+                  ),
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

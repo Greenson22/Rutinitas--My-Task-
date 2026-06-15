@@ -40,14 +40,13 @@ class NoteGroup {
     groupName: json['groupName'],
     icon: json['icon'] ?? '📁',
     notes: (json['notes'] as List)
-        .map((noteJson) => NoteModel.fromJson(noteJson))
+        .map((e) => NoteModel.fromJson(e as Map<String, dynamic>))
         .toList(),
-    // Jika data lama belum punya seksi, otomatis arahkan ke 'Catatan Utama'
+    type: json['type'] ?? 'text',
+    fields: Map<String, String>.from(json['fields'] ?? {}),
     sectionName: json['sectionName'] ?? 'Catatan Utama',
     isHidden: json['isHidden'] ?? false,
-    orderIndex:
-        json['order_index'] ??
-        0, // <--- BARU: Mengambil dari JSON storage (jika kosong, default 0)
+    orderIndex: json['order_index'] ?? 0,
   );
 }
 
@@ -55,6 +54,8 @@ class NoteModel {
   String id;
   String title;
   String content;
+  String
+  backContent; // <--- BARU: Properti untuk menampung data catatan dibaliknya
   DateTime createdAt;
   DateTime updatedAt;
   final String type;
@@ -62,17 +63,19 @@ class NoteModel {
   final Map<String, String> fieldTypes; // BARU
   final List<Map<String, String>> tableData;
   bool
-  isMarkdownEnabled; // <--- BARU: Menyimpan status aktif/nonaktif format MD
+  isMarkdownEnabled; // <--- BARU: Menyimpan state apakah tampilan markdown aktif
 
   NoteModel({
     required this.id,
     required this.title,
     required this.content,
+    this.backContent =
+        '', // <--- BARU: Default berupa string kosong jika tidak diisi
     required this.createdAt,
     required this.updatedAt,
     this.type = 'text',
     this.fieldKeys = const [],
-    this.fieldTypes = const {}, // BARU
+    this.fieldTypes = const {},
     this.tableData = const [],
     this.isMarkdownEnabled = false, // <--- BARU: Default awal diset off (false)
   });
@@ -81,6 +84,8 @@ class NoteModel {
     'id': id,
     'title': title,
     'content': content,
+    'backContent':
+        backContent, // <--- BARU: Simpan data sisi belakang ke JSON storage
     'createdAt': createdAt.toIso8601String(),
     'updatedAt': updatedAt.toIso8601String(),
     'type': type,
@@ -111,6 +116,9 @@ class NoteModel {
       id: json['id'],
       title: json['title'] ?? '',
       content: json['content'] ?? '',
+      backContent:
+          json['backContent'] ??
+          '', // <--- BARU: Parsing data sisi belakang dari JSON
       createdAt: DateTime.parse(json['createdAt']),
       updatedAt: DateTime.parse(json['updatedAt']),
       type: json['type'] ?? 'text',
@@ -119,7 +127,7 @@ class NoteModel {
       tableData: parsedData,
       isMarkdownEnabled:
           json['isMarkdownEnabled'] ??
-          false, // <--- BARU: Ambil dari JSON storage (jika kosong, default false)
+          false, // <--- BARU: Parsing dari JSON storage
     );
   }
 }
