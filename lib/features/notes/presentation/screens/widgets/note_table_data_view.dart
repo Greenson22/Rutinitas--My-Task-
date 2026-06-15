@@ -13,7 +13,7 @@ class NoteTableDataView extends StatefulWidget {
   final bool isAscending;
   final VoidCallback onChanged;
   final Function(int?, bool) onSortChanged;
-  final bool isViewMode; // BARU: Menerima state isViewMode
+  final bool isViewMode;
 
   const NoteTableDataView({
     super.key,
@@ -26,7 +26,7 @@ class NoteTableDataView extends StatefulWidget {
     required this.isAscending,
     required this.onChanged,
     required this.onSortChanged,
-    this.isViewMode = false, // BARU
+    this.isViewMode = false,
   });
 
   @override
@@ -38,14 +38,24 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
   String _insertPosition = 'Paling Bawah';
   int _targetRowIndex = 0;
 
-  // STATE BARU: Melacak baris dan kolom ke berapa yang sedang aktif diedit di dalam tabel data tersimpan
   int? _editingRowIndex;
   String? _editingKey;
 
-  // GLOBAL STATE BARU: Jika ini true, MAKA SEMUA BARIS akan menampilkan tombol aksi modifikasi
   bool _isManageModeGlobal = false;
 
-  // BARU: Fungsi penentu apakah suatu baris memiliki kolom pengingat yang sudah jatuh tempo/lewat waktu
+  // =========================================================================
+  // STATE BARU: UNTUK FITUR PENCARIAN DATA TABEL
+  // =========================================================================
+  bool _isSearchActive = false;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   bool _isRowOverdue(Map<String, TextEditingController> row) {
     for (var key in widget.currentFieldKeys) {
       final type = widget.currentFieldTypes[key];
@@ -53,14 +63,11 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
         final textValue = row[key]?.text.trim() ?? '';
         if (textValue.isNotEmpty && textValue != '-') {
           try {
-            // Memparsing format 'YYYY-MM-DD HH:mm'
             final reminderDate = DateTime.parse(textValue);
             if (DateTime.now().isAfter(reminderDate)) {
-              return true; // Waktu pengingat sudah lewat
+              return true;
             }
-          } catch (_) {
-            // Jika format gagal diparse, lewati
-          }
+          } catch (_) {}
         }
       }
     }
@@ -97,13 +104,11 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
     widget.onChanged();
   }
 
-  // Helper untuk melakukan format DateTime ke String standar 'YYYY-MM-DD HH:mm'
   String _formatDateTime(DateTime dateTime) {
     return "${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')} "
         "${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}";
   }
 
-  // Helper Widget untuk membuat Opsi Durasi Cepat pada Pengingat berbasis startTime yang ditentukan
   Widget _buildDurationOption({
     required BuildContext dialogContext,
     required TextEditingController controller,
@@ -122,7 +127,6 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
         );
 
         setState(() {
-          // Format ke standar YYYY-MM-DD HH:mm agar sinkron dengan sistem overdue bawaan
           controller.text = _formatDateTime(calculatedDate);
           if (!isFormInput) {
             _editingRowIndex = null;
@@ -130,7 +134,7 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
           }
         });
         widget.onChanged();
-        Navigator.pop(dialogContext); // Tutup Dialog Utama pengingat
+        Navigator.pop(dialogContext);
       },
     );
   }
@@ -160,8 +164,7 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
           ? const Icon(Icons.calendar_today, size: 16, color: Colors.indigo)
           : type == 'Time'
           ? const Icon(Icons.access_time, size: 16, color: Colors.indigo)
-          : type ==
-                'Pengingat' // BARU: Ikon untuk field Pengingat
+          : type == 'Pengingat'
           ? const Icon(
               Icons.notifications_active,
               size: 16,
@@ -177,7 +180,6 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
       if (!isCurrentEditing) {
         return InkWell(
           onTap: () {
-            // Jika sedang dalam mode kelola global, matikan input ketikan teks biar fokus pindah baris
             if (_isManageModeGlobal) return;
             setState(() {
               _editingRowIndex = rowIndex;
@@ -241,11 +243,7 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
       inputFormatters: type == 'Numerik'
           ? [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))]
           : null,
-      readOnly:
-          type == 'Date' ||
-          type == 'Time' ||
-          type ==
-              'Pengingat', // BARU: Pengingat diset readOnly agar diisi via Picker
+      readOnly: type == 'Date' || type == 'Time' || type == 'Pengingat',
       decoration: inputDecoration,
       style: const TextStyle(fontSize: 13),
       autofocus: !isFormInput,
@@ -285,7 +283,6 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
             widget.onChanged();
           }
         } else if (type == 'Pengingat') {
-          // State awal waktu hitung dasar (default: waktu sekarang)
           DateTime reminderBaseTime = DateTime.now();
           final customDaysController = TextEditingController();
 
@@ -311,21 +308,20 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // OPSI 1: Pilih Manual Tanggal dan Waktu Langsung Berdasarkan Pilihan
                           ListTile(
                             leading: const Icon(
                               Icons.edit_calendar,
                               color: Colors.teal,
                             ),
                             title: const Text(
-                              'Pilih Tanggal & Waktu Manual',
+                              'Pilihan Tanggal & Waktu Manual',
                               style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
                             onTap: () async {
-                              Navigator.pop(ctx); // Tutup dialog utama
+                              Navigator.pop(ctx);
 
                               DateTime? pickedDate = await showDatePicker(
                                 context: context,
@@ -360,8 +356,6 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                             },
                           ),
                           const Divider(),
-
-                          // BAGIAN KUSTOMISASI: WAKTU MULAI PERHITUNGAN (Default: Sekarang)
                           const Text(
                             'Waktu Mulai Perhitungan:',
                             style: TextStyle(
@@ -431,8 +425,6 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                           ),
                           const SizedBox(height: 12),
                           const Divider(),
-
-                          // OPSI: Tambah Hari Kustom via Field Input Angka
                           const Text(
                             'Tambah Hari Kustom:',
                             style: TextStyle(
@@ -493,8 +485,7 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                                 },
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.teal,
-                                  visualDensity: VisualDensity
-                                      .compact, // FIXED: Menggantikan properti dense yang undefined
+                                  visualDensity: VisualDensity.compact,
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 12,
                                   ),
@@ -511,8 +502,6 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                           ),
                           const SizedBox(height: 8),
                           const Divider(),
-
-                          // OPSI: Pilihan Durasi Cepat (Otomatis berdasarkan waktu awal kalkulasi)
                           const Padding(
                             padding: EdgeInsets.symmetric(vertical: 4.0),
                             child: Align(
@@ -601,6 +590,20 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
 
   @override
   Widget build(BuildContext context) {
+    // =========================================================================
+    // LOGIKA FILTER: MENYARING BARIS BERDASARKAN QUERY PENCARIAN
+    // =========================================================================
+    final List<MapEntry<int, Map<String, TextEditingController>>>
+    filteredRows = widget.tableRows.asMap().entries.where((entry) {
+      if (_searchQuery.isEmpty) return true;
+      final row = entry.value;
+      // Periksa apakah ada nilai teks di kolom mana pun pada baris ini yang mengandung kata kunci pencarian
+      return widget.currentFieldKeys.any((key) {
+        final textValue = row[key]?.text.toLowerCase() ?? '';
+        return textValue.contains(_searchQuery.toLowerCase());
+      });
+    }).toList();
+
     return Padding(
       padding: const EdgeInsets.all(12.0),
       child: Column(
@@ -839,83 +842,188 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                       ),
               ),
               const SizedBox(height: 8),
+            ],
 
-              // Header Pengelola Global
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Daftar Data Tersimpan:',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                      color: Colors.black54,
-                    ),
-                  ),
-                  InkWell(
-                    onTap: () {
-                      setState(() {
-                        _isManageModeGlobal = !_isManageModeGlobal;
-                        if (_isManageModeGlobal) {
-                          _editingRowIndex = null;
-                          _editingKey = null;
-                        }
-                      });
-                    },
-                    borderRadius: BorderRadius.circular(6),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: _isManageModeGlobal
-                              ? Colors.teal
-                              : Colors.grey.shade300,
-                        ),
-                        borderRadius: BorderRadius.circular(6),
-                        color: _isManageModeGlobal
-                            ? Colors.teal.withOpacity(0.08)
-                            : Colors.grey.shade50,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            _isManageModeGlobal
-                                ? Icons.check_circle_outline
-                                : Icons.settings_outlined,
-                            size: 14,
-                            color: _isManageModeGlobal
-                                ? Colors.teal
-                                : Colors.indigo,
+            // =========================================================================
+            // STRUKTUR HEADER BARU: MENYEDIAKAN AREA DAN TOMBOL AKTIVASI SEARCH
+            // =========================================================================
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: _isSearchActive
+                      ? SizedBox(
+                          height: 36,
+                          child: TextField(
+                            controller: _searchController,
+                            autofocus: true,
+                            style: const TextStyle(fontSize: 13),
+                            decoration: InputDecoration(
+                              isDense: true,
+                              hintText: 'Cari data di tabel...',
+                              prefixIcon: const Icon(
+                                Icons.search,
+                                size: 16,
+                                color: Colors.indigo,
+                              ),
+                              suffixIcon: IconButton(
+                                icon: const Icon(
+                                  Icons.clear,
+                                  size: 16,
+                                  color: Colors.grey,
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    _searchController.clear();
+                                    _searchQuery = '';
+                                  });
+                                },
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 8,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: const BorderSide(
+                                  color: Colors.indigo,
+                                ),
+                              ),
+                            ),
+                            onChanged: (value) {
+                              setState(() {
+                                _searchQuery = value;
+                              });
+                            },
                           ),
-                          const SizedBox(width: 4),
-                          Text(
-                            _isManageModeGlobal ? 'Selesai' : 'Kelola Urutan',
-                            style: TextStyle(
-                              fontSize: 12,
+                        )
+                      : const Text(
+                          'Daftar Data Tersimpan:',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                            color: Colors.black54,
+                          ),
+                        ),
+                ),
+                const SizedBox(width: 8),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // TOMBOL SEARCH UTAMA
+                    InkWell(
+                      onTap: () {
+                        setState(() {
+                          _isSearchActive = !_isSearchActive;
+                          if (!_isSearchActive) {
+                            _searchController.clear();
+                            _searchQuery = '';
+                          }
+                        });
+                      },
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                            color: _isSearchActive
+                                ? Colors.indigo
+                                : Colors.grey.shade300,
+                          ),
+                          borderRadius: BorderRadius.circular(6),
+                          color: _isSearchActive
+                              ? Colors.indigo.withOpacity(0.08)
+                              : Colors.grey.shade50,
+                        ),
+                        child: Icon(
+                          _isSearchActive ? Icons.search_off : Icons.search,
+                          size: 14,
+                          color: Colors.indigo,
+                        ),
+                      ),
+                    ),
+                    if (!widget.isViewMode) ...[
+                      const SizedBox(width: 6),
+                      InkWell(
+                        onTap: () {
+                          setState(() {
+                            _isManageModeGlobal = !_isManageModeGlobal;
+                            if (_isManageModeGlobal) {
+                              _editingRowIndex = null;
+                              _editingKey = null;
+                            }
+                          });
+                        },
+                        borderRadius: BorderRadius.circular(6),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            border: Border.all(
                               color: _isManageModeGlobal
                                   ? Colors.teal
-                                  : Colors.indigo,
-                              fontWeight: FontWeight.bold,
+                                  : Colors.grey.shade300,
                             ),
+                            borderRadius: BorderRadius.circular(6),
+                            color: _isManageModeGlobal
+                                ? Colors.teal.withOpacity(0.08)
+                                : Colors.grey.shade50,
                           ),
-                        ],
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                _isManageModeGlobal
+                                    ? Icons.check_circle_outline
+                                    : Icons.settings_outlined,
+                                size: 14,
+                                color: _isManageModeGlobal
+                                    ? Colors.teal
+                                    : Colors.indigo,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                _isManageModeGlobal
+                                    ? 'Selesai'
+                                    : 'Kelola Urutan',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: _isManageModeGlobal
+                                      ? Colors.teal
+                                      : Colors.indigo,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-            ],
+                    ],
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
             Expanded(
               child: widget.tableRows.isEmpty
                   ? const Center(
                       child: Text(
                         'Tabel masih kosong.',
                         style: TextStyle(color: Colors.grey),
+                      ),
+                    )
+                  : filteredRows.isEmpty
+                  ? const Center(
+                      child: Text(
+                        'Data tidak ditemukan.',
+                        style: TextStyle(
+                          color: Colors.grey,
+                          fontStyle: FontStyle.italic,
+                        ),
                       ),
                     )
                   : Container(
@@ -999,34 +1107,29 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                                         ),
                                       ),
                                   ],
-                                  rows: widget.tableRows.asMap().entries.map((
-                                    entry,
-                                  ) {
-                                    int index = entry.key;
-                                    var row = entry.value;
+                                  // MENGGUNAKAN LIST BARIS HASIL FILTER
+                                  rows: filteredRows.map((filteredEntry) {
+                                    int index = filteredEntry.key;
+                                    var row = filteredEntry.value;
 
-                                    // BARU: Cek apakah baris ini memiliki pengingat yang lewat waktu/jatuh tempo
                                     final bool isOverdue = _isRowOverdue(row);
 
                                     return DataRow(
-                                      // BARU: Mengubah warna latar belakang baris menjadi merah muda jika sudah lewat/jatuh tempo
-                                      color: MaterialStateProperty.resolveWith<Color?>((
-                                        Set<MaterialState> states,
-                                      ) {
-                                        if (isOverdue) {
-                                          return Colors
-                                              .red
-                                              .shade50; // Latar belakang merah lembut
-                                        }
-                                        return null; // Gunakan warna default bawaan sistem
-                                      }),
+                                      color:
+                                          MaterialStateProperty.resolveWith<
+                                            Color?
+                                          >((Set<MaterialState> states) {
+                                            if (isOverdue) {
+                                              return Colors.red.shade50;
+                                            }
+                                            return null;
+                                          }),
                                       cells: [
                                         DataCell(
                                           Text(
                                             '${index + 1}',
                                             style: TextStyle(
                                               fontWeight: FontWeight.bold,
-                                              // Jika lewat, warnai teks angka penunjuk nomornya menjadi merah tua
                                               color: isOverdue
                                                   ? Colors.red.shade900
                                                   : Colors.black87,
@@ -1060,7 +1163,6 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                                                     mainAxisSize:
                                                         MainAxisSize.min,
                                                     children: [
-                                                      // 1. Tombol Pindah Naik
                                                       IconButton(
                                                         icon: const Icon(
                                                           Icons
@@ -1090,7 +1192,6 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                                                             'Pindah Ke Atas',
                                                       ),
                                                       const SizedBox(width: 12),
-                                                      // 2. Tombol Pindah Turun
                                                       IconButton(
                                                         icon: const Icon(
                                                           Icons
@@ -1125,7 +1226,6 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                                                             'Pindah Ke Bawah',
                                                       ),
                                                       const SizedBox(width: 12),
-                                                      // 3. Tombol Hapus Baris
                                                       IconButton(
                                                         icon: const Icon(
                                                           Icons.delete_outline,
