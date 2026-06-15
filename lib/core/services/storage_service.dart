@@ -17,8 +17,27 @@ class StorageService {
   static const String _keyIsEncrypted = 'is_encrypted';
   static const String _keyEncryptionPassword = 'encryption_password';
 
+  // Key baru untuk menyimpan informasi restore terakhir secara persisten
+  static const String _keyLastRestoreInfo = 'last_restore_info';
+
   String _getBaseDirKey() {
     return kDebugMode ? _keyBaseDirDebug : _keyBaseDirRelease;
+  }
+
+  // =========================================================================
+  // === HELPER STATUS RESTORE TERAKHIR (PERSISTEN) ===
+  // =========================================================================
+
+  /// Menyimpan data status restore terakhir ke dalam SharedPreferences
+  Future<void> saveLastRestoreInfo(String jsonString) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyLastRestoreInfo, jsonString);
+  }
+
+  /// Mengambil data status restore terakhir dari SharedPreferences
+  Future<String?> getLastRestoreInfo() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyLastRestoreInfo);
   }
 
   // =========================================================================

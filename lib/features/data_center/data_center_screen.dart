@@ -1,3 +1,4 @@
+import 'dart:convert'; // DITAMBAHKAN untuk memproses serialisasi JSON string
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:rutinitasku/features/data_center/backup/backup_tab.dart';
@@ -34,6 +35,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
   void initState() {
     super.initState();
     _loadBaseDirectory();
+    _loadLastRestoreInfo(); // DITAMBAHKAN: Ambil data restore terakhir dari lokal disk saat inisialisasi awal
   }
 
   void _loadBaseDirectory() async {
@@ -44,6 +46,25 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
       });
       // Memperbarui tab sharing melalui GlobalKey jika sudah terpasang
       _sharingTabKey.currentState?.refreshServerBackups();
+    }
+  }
+
+  // DITAMBAHKAN: Mengambil data status restore persisten dari StorageService
+  void _loadLastRestoreInfo() async {
+    try {
+      String? savedInfo = await _storageService.getLastRestoreInfo();
+      if (savedInfo != null && savedInfo.isNotEmpty) {
+        Map<String, dynamic> decoded = jsonDecode(savedInfo);
+        if (mounted) {
+          setState(() {
+            _lastRestoreInfo = decoded.map(
+              (key, value) => MapEntry(key, value.toString()),
+            );
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Gagal memuat status riwayat restore terakhir: $e");
     }
   }
 
@@ -113,18 +134,24 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
       final String timeString =
           "${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year} ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
 
+      final infoData = {
+        'source':
+            fileName.startsWith('server_backup') ||
+                fileName.startsWith('client_backup')
+            ? 'Server Sharing'
+            : 'Penyimpanan Lokal',
+        'time': timeString,
+        'file': fileName,
+      };
+
       setState(() {
-        _lastRestoreInfo = {
-          'source':
-              fileName.startsWith('server_backup') ||
-                  fileName.startsWith('client_backup')
-              ? 'Server Sharing'
-              : 'Penyimpanan Lokal',
-          'time': timeString,
-          'file': fileName,
-        };
+        _lastRestoreInfo = infoData;
       });
 
+      // MODIFIKASI: Mengamankan status banner ke memori permanen lokal HP/Device
+      await _storageService.saveLastRestoreInfo(jsonEncode(infoData));
+
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
