@@ -32,7 +32,16 @@ class _PromptScreenState extends State<PromptScreen> {
     super.initState();
     _controller = PromptController();
     _checkEncryptionStatus(); // <--- PANGGIL METHOD PENGECEKAN DI SINI
-    _controller.loadAllPrompts(context);
+
+    // PERBAIKAN 1: Berikan jeda mikro asinkron (150ms) setelah frame utama dirender.
+    // Menghilangkan lag saat pertama kali masuk halaman karena memisahkan beban rendering transisi dengan dekripsi I/O.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.delayed(const Duration(milliseconds: 150), () {
+        if (mounted) {
+          _controller.loadAllPrompts(context);
+        }
+      });
+    });
   }
 
   // METHOD BARU: Mengambil konfigurasi status enkripsi master sistem dari storage
@@ -705,7 +714,15 @@ class _PromptScreenState extends State<PromptScreen> {
                     builder: (context) =>
                         PromptDetailScreen(promptGroup: promptGroup),
                   ),
-                ).then((_) => _controller.loadAllPrompts(context));
+                ).then((_) {
+                  // PERBAIKAN 2: Berikan jeda mikro asinkron (150ms) saat keluar dari halaman detail.
+                  // Ini menjamin animasi penutupan halaman (pop) selesai dengan mulus sebelum data dienkripsi ulang.
+                  Future.delayed(const Duration(milliseconds: 150), () {
+                    if (mounted) {
+                      _controller.loadAllPrompts(context);
+                    }
+                  });
+                });
               },
               onLongPress: () {
                 _controller.toggleCardEditMode();
