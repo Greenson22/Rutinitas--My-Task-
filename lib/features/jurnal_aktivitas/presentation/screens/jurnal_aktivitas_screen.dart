@@ -5,8 +5,7 @@ import '../../../../core/presentation/widgets/drawer_menu.dart';
 import '../../../../core/utils/crypto_helper.dart';
 import '../../data/models/time_log_model.dart';
 import '../controllers/jurnal_aktivitas_controller.dart';
-import '../widgets/jurnal_statistik_dialog.dart';
-// Import sub-widget baru
+import '../widgets/jurnal_statistik_dialog.dart'; // Import sub-widget baru
 import '../widgets/jurnal_empty_state.dart';
 import '../widgets/jurnal_corrupted_state.dart';
 import '../widgets/jurnal_task_item_card.dart';
@@ -24,7 +23,17 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
   @override
   void initState() {
     super.initState();
-    _triggerLoadData();
+
+    // OPTIMASI: Membungkus pemicu pemuatan data ke dalam post frame callback dan
+    // memberikan jeda Future mikro (150ms). Langkah ini memisahkan beban CPU
+    // antara rendering animasi perpindahan halaman dengan proses komputasi dekripsi biner storage harian.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.delayed(const Duration(milliseconds: 150), () {
+        if (mounted) {
+          _triggerLoadData();
+        }
+      });
+    });
   }
 
   void _triggerLoadData() {
@@ -205,7 +214,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     final List<TimeLogTask> todayTasks = todayLogIndex != -1
         ? _controller.logs[todayLogIndex].tasks
         : [];
-
     showDialog(
       context: context,
       builder: (context) {
