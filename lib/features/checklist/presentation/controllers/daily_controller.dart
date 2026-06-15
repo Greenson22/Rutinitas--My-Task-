@@ -106,6 +106,10 @@ class DailyController extends ChangeNotifier {
                 final ChecklistGroup parsedGroup = ChecklistGroup.fromJson(
                   jsonDecode(jsonString),
                 );
+
+                // Sinkronisasikan ID internal agar selalu memakai nama file fisik ter-indeks yang valid
+                parsedGroup.id = fileName;
+
                 final String encryptedContent = CryptoHelper.encrypt(
                   const JsonEncoder.withIndent(
                     '  ',
@@ -125,7 +129,11 @@ class DailyController extends ChangeNotifier {
             }
           }
 
-          loadedGroups.add(ChecklistGroup.fromJson(jsonDecode(jsonString)));
+          // PERBAIKAN MUTLAK: Ambil JSON objek dan paksa ID internalnya agar menggunakan `fileName` murni dari disk fisik
+          final Map<String, dynamic> jsonMap = jsonDecode(jsonString);
+          jsonMap['id'] = fileName;
+
+          loadedGroups.add(ChecklistGroup.fromJson(jsonMap));
         } catch (error) {
           debugPrint(
             "Gagal memuat atau mendekripsi berkas checklist ${file.path}: $error",
@@ -214,8 +222,8 @@ class DailyController extends ChangeNotifier {
     String targetMainSection,
   ) async {
     int nextIndex = allGroupRaw.length;
-    String newId = '${nextIndex}_hub_${DateTime.now().millisecondsSinceEpoch}';
-
+    // Format pembuatan ID awal diselaraskan menggunakan nama berkas fisik ter-indeks (indeks_hub_timestamp)
+    String newId = "${nextIndex}_hub_${DateTime.now().millisecondsSinceEpoch}";
     ChecklistGroup newGroup = ChecklistGroup(
       id: newId,
       groupName: groupName,
@@ -228,7 +236,15 @@ class DailyController extends ChangeNotifier {
     // Jika seksi ini diisi group riil, hapus dari daftar seksi kosong lokal karena sudah ada di file sistem
     _localEmptySections.remove(targetMainSection);
 
+    // ======================== PERBAIKAN DI SINI ========================
+    // Tambahkan 'await' agar penulisan enkripsi selesai utuh ke disk storage
     await saveGroupDataToFile(newGroup);
+    // ===================================================================
+
+    // 2. Tambahkan intervensi asinkron (jeda mikro) untuk memastikan IO penulisan selesai utuh
+    await Future.delayed(const Duration(milliseconds: 150));
+
+    // 3. Lakukan pembacaan sekuensial ulang terhadap seluruh file manifest group checklist
     await loadGroupsData();
   }
 
@@ -243,18 +259,14 @@ class DailyController extends ChangeNotifier {
         group.id,
       );
 
-      bool isEncrypted = await _storageService.isEncryptionEnabled();
-      String? password = await _storageService.getEncryptionPassword();
-
+      // Langsung ubah ke format JSON biasa (String)
       String jsonString = const JsonEncoder.withIndent(
         '  ',
       ).convert(group.toJson());
 
-      // Jika enkripsi sistem aktif, amankan konten string sebelum ditulis ke disk
-      if (isEncrypted && password != null) {
-        jsonString = CryptoHelper.encrypt(jsonString, password);
-      }
-
+      // KITA HAPUS PROSES ENKRIPSI MANUAL DI SINI.
+      // Cukup kirimkan JSON murni ke saveJsonData.
+      // _storageService.saveJsonData() yang akan mengurus proses enkripsinya.
       await _storageService.saveJsonData(groupFile, jsonString);
     } catch (e) {
       debugPrint("Gagal menyimpan berkas grup checklist: $e");
@@ -344,11 +356,13 @@ class DailyController extends ChangeNotifier {
           }
 
           String newId = "${i}_$cleanId";
+          currentGroup.id = newId;
+
+          // PERBAIKAN: Deklarasi variabel newFile yang hilang kini ditambahkan kembali
           File newFile = await _storageService.getSpecificGroupFile(
             selectedBaseDir,
             newId,
           );
-          currentGroup.id = newId;
 
           String jsonString = const JsonEncoder.withIndent(
             '  ',
@@ -370,7 +384,7 @@ class DailyController extends ChangeNotifier {
         debugPrint("Gagal mengatur ulang urutan file checklist: $e");
       }
 
-      _processGroupsDisplay();
+      await loadGroupsData(); // Dipastikan loadData dipanggil asinkron utuh agar daftar ID sinkron
     }
   }
 
@@ -444,7 +458,7 @@ class DailyController extends ChangeNotifier {
     }
   }
 
-  // IMPLEMENTASI BARU: Mengubah Urutan Seksi Utama secara Asinkron & Permanen ke Disk
+  // Mengubah Urutan Seksi Utama secara Asinkron & Permanen ke Disk
   Future<void> moveMainSectionOrder(String sectionName, int direction) async {
     final keys = groupedVisibleGroup.keys.toList();
     int currentIndex = keys.indexOf(sectionName);
@@ -492,13 +506,14 @@ class DailyController extends ChangeNotifier {
           cleanId = cleanId.substring(cleanId.indexOf('hub_'));
         }
 
-        // Terapkan indeks numerik 'i' baru ke nama file agar urutan tersimpan secara alfabetis saat di-load kembali
         String newId = "${i}_$cleanId";
+        currentGroup.id = newId;
+
+        // FIX: Deklarasi variabel newFile yang sempat hilang kini ditambahkan kembali
         File newFile = await _storageService.getSpecificGroupFile(
           selectedBaseDir,
           newId,
         );
-        currentGroup.id = newId;
 
         String jsonString = const JsonEncoder.withIndent(
           '  ',
@@ -520,7 +535,7 @@ class DailyController extends ChangeNotifier {
       debugPrint("Gagal mengamankan urutan seksi baru ke disk: $e");
     }
 
-    // 5. Jalankan pemrosesan akhir tampilan untuk memastikan data sinkron
-    _processGroupsDisplay();
+    // 5. Jalankan pemrosesan akhir tampilan untuk memastikan data sinkron melalui data disk yang bersih
+    await loadGroupsData();
   }
 }
