@@ -468,7 +468,9 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
         false;
   }
 
+  // Update pada dialog pemindah item
   void _showMoveSelectedItemsDialog(List<SubSubjectItem> allFlattened) {
+    // 1. Filter target internal (SubSubjectItem lain di dalam list saat ini)
     List<SubSubjectItem> validTargets = allFlattened.where((item) {
       if (_selectedItems.contains(item)) return false;
       return !_selectedItems.any((selected) {
@@ -487,47 +489,174 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Pindahkan Item ke...'),
+        title: const Text('Pindahkan Item Terpilih ke...'),
         content: SizedBox(
           width: double.maxFinite,
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              ListTile(
-                leading: const Icon(
-                  Icons.label_important,
-                  color: Colors.indigo,
-                ),
-                title: const Text(
-                  'Daftar Utama (Root List)',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  _moveSelectedItemsToTarget(null);
-                },
-              ),
-              ...validTargets.map(
-                (target) => ListTile(
-                  leading: const Icon(
-                    Icons.subdirectory_arrow_right,
-                    color: Colors.teal,
+          child: SingleChildScrollView(
+            // Dibungkus ScrollView agar aman jika data banyak
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ================= SEKSI 1: PINDAH INTERNAL LIST INI =================
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8.0),
+                  child: Text(
+                    'Pindah Posisi (Internal List Saat Ini):',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.indigo,
+                      fontSize: 13,
+                    ),
                   ),
-                  title: Text(target.subjectName),
+                ),
+                ListTile(
+                  leading: const Icon(
+                    Icons.label_important,
+                    color: Colors.indigo,
+                  ),
+                  title: const Text(
+                    'Daftar Utama (Root List)',
+                    style: TextStyle(fontSize: 14),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
-                    _moveSelectedItemsToTarget(target);
+                    _moveSelectedItemsToTarget(targetParent: null);
                   },
                 ),
-              ),
-            ],
+                ...validTargets.map(
+                  (target) => ListTile(
+                    leading: const Icon(
+                      Icons.subdirectory_arrow_right,
+                      color: Colors.teal,
+                      size: 20,
+                    ),
+                    title: Text(
+                      target.subjectName,
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _moveSelectedItemsToTarget(targetParent: target);
+                    },
+                  ),
+                ),
+                const Divider(height: 24),
+
+                // ================= SEKSI 2: PINDAH KE LIST LAIN =================
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8.0),
+                  child: Text(
+                    'Pindahkan ke Kotak List Lain:',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.teal,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                // Filter agar kotak list saat ini tidak muncul kembali di pilihan luar
+                ...widget.allAvailableSubjects
+                    .where((sub) => sub != widget.subject)
+                    .map(
+                      (targetSubject) => ListTile(
+                        leading: Text(
+                          targetSubject.icon,
+                          style: const TextStyle(fontSize: 18),
+                        ),
+                        title: Text(
+                          targetSubject.subjectName,
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                        trailing: const Icon(
+                          Icons.arrow_forward_ios,
+                          size: 14,
+                          color: Colors.grey,
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          _moveSelectedItemsToOtherSubject(targetSubject);
+                        },
+                      ),
+                    ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  void _moveSelectedItemsToTarget(SubSubjectItem? targetParent) {
+  // METHOD BARU: Untuk mengeksekusi perpindahan item keluar dari DailySubject saat ini menuju target baru
+  void _moveSelectedItemsToOtherSubject(DailySubject targetSubject) {
+    _saveToHistory();
+    setState(() {
+      // 1. Ambil item-item terpilih dan hapus dari struktur pohon list saat ini
+      for (var item in _selectedItems) {
+        _deleteItemFromTree(widget.subject.subMateri, item);
+      }
+
+      // 2. Masukkan item-item tersebut ke root list dari DailySubject tujuan
+      targetSubject.subMateri.addAll(_selectedItems);
+
+      // 3. Bersihkan sisa pilihan di UI & matikan mode edit
+      _selectedItems.clear();
+      _isEditMode = false;
+    });
+
+    // 4. Rekalkulasi progress untuk kedua belah pihak (asal dan tujuan)
+    for (var root in widget.subject.subMateri) {
+      root.updateStatusFromChildren();
+    }
+    _updateSubjectOverallProgress();
+
+    // Trigger progress update untuk targetSubject eksternal
+    double countTotal(List<SubSubjectItem> list) {
+      double total = 0;
+      for (var i in list) {
+        total += i.subMateri.isNotEmpty ? countTotal(i.subMateri) : 1.0;
+      }
+      return total;
+    }
+
+    double countFinished(List<SubSubjectItem> list) {
+      double fin = 0;
+      for (var i in list) {
+        fin += i.subMateri.isNotEmpty
+            ? countFinished(i.subMateri)
+            : (i.progress == 'selesai' ? 1.0 : 0.0);
+      }
+      return fin;
+    }
+
+    double t = countTotal(targetSubject.subMateri);
+    double s = countFinished(targetSubject.subMateri);
+    if (t == 0)
+      targetSubject.progress = 'belum';
+    else if (s == t)
+      targetSubject.progress = 'selesai';
+    else if (s > 0)
+      targetSubject.progress = 'sementara';
+    else
+      targetSubject.progress = 'belum';
+
+    // 5. Simpan perubahan secara permanen melalui callback kontroler utama
+    widget.onDataChanged();
+
+    // Beri feedback notifikasi sukses kepada pengguna
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Berhasil memindahkan item ke kotak "${targetSubject.subjectName}"',
+        ),
+        backgroundColor: Colors.green,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  // Update minor parameter opsional named pada fungsi bawaan lama agar fleksibel
+  void _moveSelectedItemsToTarget({SubSubjectItem? targetParent}) {
     _saveToHistory();
     setState(() {
       for (var item in _selectedItems) {
