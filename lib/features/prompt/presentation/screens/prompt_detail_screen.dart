@@ -24,11 +24,11 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
   @override
   void initState() {
     super.initState();
+    // Langsung gunakan data group yang dioper dari halaman utama
     _currentGroup = widget.promptGroup;
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _controller.loadAllPrompts(context);
-    });
+    // Solusi A: Panggilan _controller.loadAllPrompts(context) di sini telah dihapus
+    // untuk mencegah lag akibat operasi I/O storage massal saat halaman pertama kali dibuka.
   }
 
   @override
