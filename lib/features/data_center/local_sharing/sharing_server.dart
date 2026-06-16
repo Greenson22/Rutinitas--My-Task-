@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:archive/archive_io.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_web_socket/shelf_web_socket.dart';
+import 'package:qr_flutter/qr_flutter.dart'; // DITAMBAHKAN
 import '../../../core/services/storage_service.dart';
 
 class SharingServer {
@@ -329,143 +330,176 @@ class SharingServer {
                   ),
                 ],
               ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.indigo.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.indigo.shade100),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Masukkan IP ini di perangkat Penerima:',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.black54,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          localIp,
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.indigo.shade900,
-                            fontFamily: 'monospace',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: adaClient
-                          ? Colors.green.shade50
-                          : Colors.amber.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: adaClient
-                            ? Colors.green.shade200
-                            : Colors.amber.shade200,
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment
+                      .center, // Pusatkan kontainer untuk estetika QR
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.indigo.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.indigo.shade100),
                       ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          adaClient
-                              ? Icons.gpp_good_rounded
-                              : Icons.hourglass_empty_rounded,
-                          color: adaClient
-                              ? Colors.green[800]
-                              : Colors.amber[800],
-                          size: 20,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            adaClient
-                                ? 'Client Terhubung Aktif'
-                                : 'Menunggu Perangkat...',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          const Text(
+                            'Scan QR Code atau ketik IP di perangkat Penerima:',
                             style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: adaClient
-                                  ? Colors.green[900]
-                                  : Colors.amber[900],
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.black54,
                             ),
+                            textAlign: TextAlign.center,
                           ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: adaClient
-                                ? Colors.green[700]
-                                : Colors.amber[700],
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            '${clientActiveList.length}',
-                            style: const TextStyle(
+                          const SizedBox(height: 10),
+                          // PERBAIKAN: Membungkus QrImageView dengan SizedBox berukuran pasti (160x160) untuk mengatasi error Intrinsic Dimensions
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
                               color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.indigo.shade100),
+                            ),
+                            child: SizedBox(
+                              width: 160.0,
+                              height: 160.0,
+                              child: QrImageView(
+                                data: localIp,
+                                version: QrVersions.auto,
+                                size: 160.0,
+                                gapless: false,
+                                errorStateBuilder: (cxt, err) {
+                                  return const Center(
+                                    child: Text(
+                                      'Gagal memuat QR Code',
+                                      style: TextStyle(color: Colors.red),
+                                    ),
+                                  );
+                                },
+                              ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    adaClient
-                        ? 'Silakan tekan tombol di bawah jika Anda ingin mendistribusikan data lokal ke perangkat yang terhubung.'
-                        : 'Server siap menerima koneksi pipa baru secara lokal dari aplikasi client.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      height: 1.4,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: adaClient ? () => sendDataToServer() : null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.teal[700],
-                        foregroundColor: Colors.white,
-                        disabledBackgroundColor: Colors.grey[200],
-                        disabledForegroundColor: Colors.grey[400],
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                      ),
-                      icon: const Icon(Icons.send_and_archive),
-                      label: const Text(
-                        'Kirim Data Ke Client',
-                        style: TextStyle(fontWeight: FontWeight.bold),
+                          const SizedBox(height: 10),
+                          Text(
+                            localIp,
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.indigo.shade900,
+                              fontFamily: 'monospace',
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 16),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: adaClient
+                            ? Colors.green.shade50
+                            : Colors.amber.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: adaClient
+                              ? Colors.green.shade200
+                              : Colors.amber.shade200,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            adaClient
+                                ? Icons.gpp_good_rounded
+                                : Icons.hourglass_empty_rounded,
+                            color: adaClient
+                                ? Colors.green[800]
+                                : Colors.amber[800],
+                            size: 20,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              adaClient
+                                  ? 'Client Terhubung Aktif'
+                                  : 'Menunggu Perangkat...',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: adaClient
+                                    ? Colors.green[900]
+                                    : Colors.amber[900],
+                              ),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: adaClient
+                                  ? Colors.green[700]
+                                  : Colors.amber[700],
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              '${clientActiveList.length}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      adaClient
+                          ? 'Silakan tekan tombol di bawah jika Anda ingin mendistribusikan data lokal ke perangkat yang terhubung.'
+                          : 'Server siap menerima koneksi pipa baru secara lokal dari aplikasi client.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.4,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: adaClient ? () => sendDataToServer() : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.teal[700],
+                          foregroundColor: Colors.white,
+                          disabledBackgroundColor: Colors.grey[200],
+                          disabledForegroundColor: Colors.grey[400],
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                        ),
+                        icon: const Icon(Icons.send_and_archive),
+                        label: const Text(
+                          'Kirim Data Ke Client',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               actions: [
                 TextButton(
