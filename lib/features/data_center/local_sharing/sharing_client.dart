@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:archive/archive_io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:mobile_scanner/mobile_scanner.dart'; // DITAMBAHKAN
 import '../../../core/services/storage_service.dart';
 
 class SharingClient {
@@ -33,12 +34,42 @@ class SharingClient {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                TextField(
-                  controller: ipController,
-                  decoration: const InputDecoration(
-                    labelText: 'Alamat IP Server Pengirim',
-                    hintText: 'Contoh: 192.168.1.5',
-                  ),
+                // MODIFIKASI: Menggunakan Row agar ada tombol scan barcode di sebelah kanan input text
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: ipController,
+                        decoration: const InputDecoration(
+                          labelText: 'Alamat IP Server Pengirim',
+                          hintText: 'Contoh: 192.168.1.5',
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(
+                        Icons.qr_code_scanner_rounded,
+                        color: Colors.indigo,
+                      ),
+                      tooltip: 'Scan QR / Barcode IP',
+                      onPressed: () async {
+                        // Buka halaman scanner dan tunggu hasilnya
+                        final String? scannedIp = await Navigator.push<String>(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const QRScannerScreen(),
+                          ),
+                        );
+
+                        // Jika hasil scan tidak null, masukkan ke dalam controller dan update state dialog
+                        if (scannedIp != null && scannedIp.trim().isNotEmpty) {
+                          setDialogState(() {
+                            ipController.text = scannedIp.trim();
+                          });
+                        }
+                      },
+                    ),
+                  ],
                 ),
                 if (ipHistory.isNotEmpty) ...[
                   const SizedBox(height: 16),
@@ -512,5 +543,70 @@ class SharingClient {
         ),
       );
     }
+  }
+}
+
+// PERBAIKAN TOTAL: Menggunakan basis UI Stateful sederhana sesuai struktur BarcodeCapture versi terbaru Anda
+class QRScannerScreen extends StatefulWidget {
+  const QRScannerScreen({super.key});
+
+  @override
+  State<QRScannerScreen> createState() => _QRScannerScreenState();
+}
+
+class _QRScannerScreenState extends State<QRScannerScreen> {
+  final MobileScannerController controller = MobileScannerController();
+  bool _isTorchOn = false;
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Scan QR Code Server'),
+        backgroundColor: Colors.indigo,
+        actions: [
+          // Kontrol Senter Manual berbasis State Lokal (Bebas dari error kompilasi properti)
+          IconButton(
+            icon: Icon(
+              _isTorchOn ? Icons.flash_on : Icons.flash_off,
+              color: _isTorchOn ? Colors.yellow : Colors.grey,
+            ),
+            onPressed: () {
+              controller.toggleTorch();
+              setState(() {
+                _isTorchOn = !_isTorchOn;
+              });
+            },
+          ),
+          // Kontrol Pembalik Kamera
+          IconButton(
+            icon: const Icon(Icons.flip_camera_ios_rounded),
+            onPressed: () => controller.switchCamera(),
+          ),
+        ],
+      ),
+      backgroundColor: Colors.black,
+      body: MobileScanner(
+        controller: controller,
+        // DITERAPKAN: Menggunakan pencocokan model BarcodeCapture persis seperti dokumentasi resmi Anda
+        onDetect: (BarcodeCapture capture) {
+          final Barcode? barcode = capture.barcodes.firstOrNull;
+          if (barcode != null) {
+            final String? code = barcode.rawValue;
+            if (code != null && code.trim().isNotEmpty) {
+              controller
+                  .stop(); // Hentikan engine kamera sebelum berpindah layar
+              Navigator.pop(context, code.trim());
+            }
+          }
+        },
+      ),
+    );
   }
 }
