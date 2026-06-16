@@ -119,7 +119,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
               ),
               // Konfigurasi pembatas melar: 92% layar smartphone, maksimal lebar 960px pada tablet/PC
               constraints: BoxConstraints(
-                minWidth: screenWidth * 0.92,
+                minWidth: (screenWidth * 0.92).clamp(0.0, 960.0),
                 maxWidth: 960,
               ),
             ),
