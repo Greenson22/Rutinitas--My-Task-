@@ -349,6 +349,22 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
           }
         }
 
+        // --- PEMPROSESAN LOGIKA PRATINJAU TEKS CATATAN ---
+        String notePreviewText = "Catatan kosong...";
+        if (subject.noteContent != null &&
+            subject.noteContent!.trim().isNotEmpty) {
+          // Memisahkan teks berdasarkan spasi/whitespace berlebih
+          List<String> words = subject.noteContent!.trim().split(
+            RegExp(r'\s+'),
+          );
+          if (words.length > 4) {
+            // Mengambil 4 kata pertama dan menambahkan akhiran titik-titik
+            notePreviewText = '${words.take(4).join(' ')}...';
+          } else {
+            notePreviewText = words.join(' ');
+          }
+        }
+
         Widget cardContent = Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -377,99 +393,137 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
               ),
             ],
             const SizedBox(height: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-              decoration: BoxDecoration(
-                color: Color(subject.backgroundColor).withOpacity(0.12),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Flexible(
-                    child: Text(
-                      isAllDone ? '🎉 Semua Selesai!' : '📌 $topListText',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Color(subject.backgroundColor),
-                      ),
-                      overflow: TextOverflow.ellipsis,
+
+            // --- PENGKONDISIAN UTAMA BERDASARKAN TIPE SUBJECT ---
+            if (subject.type == 'note') ...[
+              // TAMPILAN JIKA BERUPA CATATAN (NOTE)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Color(subject.backgroundColor).withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.push_pin, // Ikon paku (push pin)
+                      size: 13,
+                      color: Colors.redAccent,
                     ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 6),
-            LayoutBuilder(
-              builder: (context, barConstraints) {
-                double progressPercent = totalSub > 0
-                    ? selesaiSub / totalSub
-                    : 0.0;
-                Color solidProgressBarColor = progressPercent <= 0.33
-                    ? Colors.red[700]!
-                    : (progressPercent <= 0.75
-                          ? Colors.orange[700]!
-                          : Colors.green[700]!);
-
-                // Hitung persentase dengan format 1 angka di belakang koma
-                String percentageText = (progressPercent * 100).toStringAsFixed(
-                  1,
-                );
-
-                // Format cetak text pembagian angka agar menghilangkan sisa .0 jika bilangan bulat
-                String selesaiText = selesaiSub % 1 == 0
-                    ? selesaiSub.toInt().toString()
-                    : selesaiSub.toStringAsFixed(1);
-                String totalText = totalSub % 1 == 0
-                    ? totalSub.toInt().toString()
-                    : totalSub.toStringAsFixed(1);
-
-                return Container(
-                  width: double.infinity,
-                  height: 22,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[200],
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                      color: Color(subject.backgroundColor),
-                      width: 1.2,
-                    ),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(5),
-                    child: Stack(
-                      children: [
-                        Container(
-                          width: barConstraints.maxWidth * progressPercent,
-                          height: double.infinity,
-                          color: solidProgressBarColor,
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(
+                        notePreviewText,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(subject.backgroundColor),
+                          fontStyle: FontStyle.italic,
                         ),
-                        Center(
-                          child: Text(
-                            isAllDone
-                                ? 'Selesai Semua'
-                                : '$selesaiText / $totalText List ($percentageText%)',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold,
-                              shadows: [
-                                Shadow(
-                                  offset: Offset(0.5, 0.5),
-                                  blurRadius: 1.0,
-                                  color: Colors.black87,
-                                ),
-                              ],
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Menyembunyikan progress bar dengan memberikan spacer kosong seukuran tingginya (22px)
+              const SizedBox(height: 22),
+            ] else ...[
+              // TAMPILAN NORMAL JIKA BERUPA LIST DAFTAR TUGAS
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Color(subject.backgroundColor).withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        isAllDone ? '🎉 Semua Selesai!' : '📌 $topListText',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(subject.backgroundColor),
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 6),
+              LayoutBuilder(
+                builder: (context, barConstraints) {
+                  double progressPercent = totalSub > 0
+                      ? selesaiSub / totalSub
+                      : 0.0;
+                  Color solidProgressBarColor = progressPercent <= 0.33
+                      ? Colors.red[700]!
+                      : (progressPercent <= 0.75
+                            ? Colors.orange[700]!
+                            : Colors.green[700]!);
+
+                  // Hitung persentase dengan format 1 angka di belakang koma
+                  String percentageText = (progressPercent * 100)
+                      .toStringAsFixed(1);
+
+                  // Format cetak text pembagian angka agar menghilangkan sisa .0 jika bilangan bulat
+                  String selesaiText = selesaiSub % 1 == 0
+                      ? selesaiSub.toInt().toString()
+                      : selesaiSub.toStringAsFixed(1);
+                  String totalText = totalSub % 1 == 0
+                      ? totalSub.toInt().toString()
+                      : totalSub.toStringAsFixed(1);
+
+                  return Container(
+                    width: double.infinity,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: Color(subject.backgroundColor),
+                        width: 1.2,
+                      ),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(5),
+                      child: Stack(
+                        children: [
+                          Container(
+                            width: barConstraints.maxWidth * progressPercent,
+                            height: double.infinity,
+                            color: solidProgressBarColor,
+                          ),
+                          Center(
+                            child: Text(
+                              isAllDone
+                                  ? 'Selesai Semua'
+                                  : '$selesaiText / $totalText List ($percentageText%)',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                                shadows: [
+                                  Shadow(
+                                    offset: Offset(0.5, 0.5),
+                                    blurRadius: 1.0,
+                                    color: Colors.black87,
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                );
-              },
-            ),
+                  );
+                },
+              ),
+            ],
           ],
         );
 
