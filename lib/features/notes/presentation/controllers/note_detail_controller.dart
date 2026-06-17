@@ -453,4 +453,22 @@ class NoteDetailController {
     onStateChanged();
     await saveCurrentGroup();
   }
+
+  void moveFieldKey({
+    required StateSetter setDialogState,
+    required List<String> currentFieldKeys,
+    required Function() triggerChange,
+    required int oldIndex,
+    required int newIndex,
+  }) {
+    setDialogState(() {
+      // Penyesuaian indeks bawaan dari ReorderableListView
+      if (oldIndex < newIndex) {
+        newIndex -= 1;
+      }
+      final String item = currentFieldKeys.removeAt(oldIndex);
+      currentFieldKeys.insert(newIndex, item);
+      triggerChange();
+    });
+  }
 }

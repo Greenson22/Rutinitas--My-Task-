@@ -153,7 +153,7 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Definisikan Struktur Kolom Tabel:',
+            'Definisikan & Atur Urutan Struktur Kolom Tabel:',
             style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo),
           ),
           const SizedBox(height: 8),
@@ -165,22 +165,34 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                       style: TextStyle(color: Colors.grey),
                     ),
                   )
-                : ListView.builder(
+                : ReorderableListView.builder(
                     itemCount: widget.currentFieldKeys.length,
+                    onReorder: (oldIndex, newIndex) {
+                      widget.controller.moveFieldKey(
+                        setDialogState: setState,
+                        currentFieldKeys: widget.currentFieldKeys,
+                        triggerChange: widget.onChanged,
+                        oldIndex: oldIndex,
+                        newIndex: newIndex,
+                      );
+                    },
                     itemBuilder: (ctx, idx) {
                       final key = widget.currentFieldKeys[idx];
                       final type = widget.currentFieldTypes[key] ?? 'String';
 
                       return Card(
+                        key: ValueKey(
+                          key,
+                        ), // CRITICAL: Harus unik untuk ReorderableListView
                         margin: const EdgeInsets.only(bottom: 10),
-                        elevation: 0, // Desain flat modern
+                        elevation: 0,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                           side: BorderSide(color: Colors.grey.shade200),
                         ),
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
+                            horizontal: 12,
                             vertical: 12,
                           ),
                           decoration: BoxDecoration(
@@ -189,6 +201,15 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                           ),
                           child: Row(
                             children: [
+                              // Ikon Indikator Geser / Drag Handle
+                              const Padding(
+                                padding: EdgeInsets.only(right: 8.0),
+                                child: Icon(
+                                  Icons.drag_indicator_rounded,
+                                  color: Colors.grey,
+                                ),
+                              ),
+
                               // SISI KIRI: Detail Kolom (Nama & Dropdown Tipe)
                               Expanded(
                                 child: Column(
@@ -243,7 +264,6 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                                             onChanged: (String? newType) {
                                               if (newType != null &&
                                                   newType != type) {
-                                                // FIXED: Menggunakan updateFieldType sesuai controller Anda
                                                 widget.controller
                                                     .updateFieldType(
                                                       setDialogState: setState,
@@ -266,7 +286,7 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                                 ),
                               ),
 
-                              // SISI KANAN: Tombol Aksi Bersih
+                              // SISI KANAN: Tombol Aksi
                               Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
