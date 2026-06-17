@@ -187,11 +187,7 @@ class TaskMasterController {
 
       // JIKA ENKRIPSI AKTIF, GUNAKAN .encrypt BUKAN .decrypt
       if (isEncrypted && password != null) {
-        rawJson = CryptoHelper.encrypt(
-          // <--- PERBAIKAN DI SINI
-          rawJson,
-          password,
-        );
+        rawJson = CryptoHelper.encrypt(rawJson, password);
       } else {
         // Jika tidak terenkripsi, pastikan SharedPreferences dibersihkan
         final prefs = await SharedPreferences.getInstance();
@@ -324,11 +320,16 @@ class TaskMasterController {
     return true;
   }
 
+  // MODIFIKASI: Mengubah metode agar memuat interval waktu kustom dari SharedPreferences secara dinamis
   Future<bool> _add30MinutesToJurnal(
     String myTaskId,
     BuildContext context,
   ) async {
     try {
+      // Ambil nilai penambahan waktu default murni dari SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      final int minutesToAdd = prefs.getInt('default_increment_minutes') ?? 30;
+
       final File JurnalFile = await storageService.getJurnalJsonFile(
         selectedBaseDir,
       );
@@ -383,7 +384,8 @@ class TaskMasterController {
         String updatedJurnalTaskName = "";
         for (var logTask in loadedLogs[todayIndex].tasks) {
           if (logTask.linkedTaskIds.contains(myTaskId)) {
-            logTask.durasiMenit += 30;
+            // Gunakan variabel minutesToAdd yang dinamis untuk menggantikan nilai konstan 30
+            logTask.durasiMenit += minutesToAdd;
             isUpdated = true;
             updatedJurnalTaskName = logTask.nama;
             break;
@@ -398,10 +400,11 @@ class TaskMasterController {
           await kalkulasiTotalJurnalHariIni();
 
           if (context.mounted) {
+            // Memperbarui informasi SnackBar agar menyesuaikan isi menit dinamis
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
-                  'Terhubung! "$updatedJurnalTaskName" di Jurnal +30 mnt.',
+                  'Terhubung! "$updatedJurnalTaskName" di Jurnal +$minutesToAdd mnt.',
                 ),
                 duration: const Duration(seconds: 2),
                 backgroundColor: Colors.teal[800],
