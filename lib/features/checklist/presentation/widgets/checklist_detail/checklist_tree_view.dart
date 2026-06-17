@@ -13,12 +13,13 @@ class ChecklistTreeView extends StatelessWidget {
   final bool isLast;
   final Function(SubSubjectItem, bool) onSelectItem;
   final Function(SubSubjectItem, int) onMoveOrder;
-  final VoidCallback onEditName;
+  final Function(SubSubjectItem) onEditName; // <-- DIPERBARUI dari VoidCallback
   final VoidCallback onLongPressToggle;
-  final Function(SubSubjectItem, bool?) onCheckStatusChanged; // <-- Diperbarui
-  final Function(SubSubjectItem) onTapToggleStatus; // <-- Diperbarui
-  final VoidCallback onAddChild;
-  final VoidCallback onDeleteItem;
+  final Function(SubSubjectItem, bool?) onCheckStatusChanged;
+  final Function(SubSubjectItem) onTapToggleStatus;
+  final Function(SubSubjectItem) onAddChild; // <-- DIPERBARUI dari VoidCallback
+  final Function(SubSubjectItem)
+  onDeleteItem; // <-- DIPERBARUI dari VoidCallback
 
   const ChecklistTreeView({
     super.key,
@@ -89,7 +90,7 @@ class ChecklistTreeView extends StatelessWidget {
               Expanded(
                 child: isEditMode
                     ? InkWell(
-                        onTap: onEditName,
+                        onTap: () => onEditName(item), // <-- DIPERBARUI
                         onLongPress: onLongPressToggle,
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
@@ -128,15 +129,12 @@ class ChecklistTreeView extends StatelessWidget {
                           Checkbox(
                             value: isChecked,
                             activeColor: Colors.teal,
-                            onChanged: (bool? checked) => onCheckStatusChanged(
-                              item,
-                              checked,
-                            ), // <-- Diperbarui
+                            onChanged: (bool? checked) =>
+                                onCheckStatusChanged(item, checked),
                           ),
                           Expanded(
                             child: InkWell(
-                              onTap: () =>
-                                  onTapToggleStatus(item), // <-- Diperbarui
+                              onTap: () => onTapToggleStatus(item),
                               onLongPress: onLongPressToggle,
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(
@@ -167,7 +165,7 @@ class ChecklistTreeView extends StatelessWidget {
                     color: Colors.teal,
                     size: 18,
                   ),
-                  onPressed: onAddChild,
+                  onPressed: () => onAddChild(item), // <-- DIPERBARUI
                   constraints: const BoxConstraints(),
                   padding: const EdgeInsets.all(4),
                 ),
@@ -177,7 +175,7 @@ class ChecklistTreeView extends StatelessWidget {
                     color: Colors.redAccent,
                     size: 18,
                   ),
-                  onPressed: onDeleteItem,
+                  onPressed: () => onDeleteItem(item), // <-- DIPERBARUI
                   constraints: const BoxConstraints(),
                   padding: const EdgeInsets.all(4),
                 ),
@@ -199,14 +197,15 @@ class ChecklistTreeView extends StatelessWidget {
                 isLast: index == item.subMateri.length - 1,
                 onSelectItem: onSelectItem,
                 onMoveOrder: onMoveOrder,
-                onEditName: onEditName,
+                onEditName:
+                    onEditName, // <-- Teruskan fungsi pointer dengan aman
                 onLongPressToggle: onLongPressToggle,
-                onCheckStatusChanged:
-                    onCheckStatusChanged, // <-- Diteruskan dengan aman
-                onTapToggleStatus:
-                    onTapToggleStatus, // <-- Diteruskan dengan aman
-                onAddChild: onAddChild,
-                onDeleteItem: onDeleteItem,
+                onCheckStatusChanged: onCheckStatusChanged,
+                onTapToggleStatus: onTapToggleStatus,
+                onAddChild:
+                    onAddChild, // <-- Teruskan fungsi pointer dengan aman
+                onDeleteItem:
+                    onDeleteItem, // <-- Teruskan fungsi pointer dengan aman
               );
             }),
           ),

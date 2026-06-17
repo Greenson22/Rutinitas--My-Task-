@@ -946,7 +946,9 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                                       : _selectedItems.remove(target),
                                 ),
                                 onMoveOrder: _moveItemOrder,
-                                onEditName: () => _showEditNameDialog(item),
+                                onEditName: (targetItem) => _showEditNameDialog(
+                                  targetItem,
+                                ), // <-- DIPERBARUI: Mengirim referensi child yang tepat
                                 onLongPressToggle: () => setState(() {
                                   _isEditMode = !_isEditMode;
                                   _selectedItems.clear();
@@ -978,9 +980,13 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                                   _updateSubjectOverallProgress();
                                   widget.onDataChanged();
                                 },
-                                onAddChild: () => _addChildSubMateri(item),
-                                onDeleteItem: () =>
-                                    _deleteSingleSubMateri(item),
+                                onAddChild: (targetItem) => _addChildSubMateri(
+                                  targetItem,
+                                ), // <-- DIPERBARUI: Mengirim referensi child yang tepat
+                                onDeleteItem: (targetItem) =>
+                                    _deleteSingleSubMateri(
+                                      targetItem,
+                                    ), // <-- DIPERBARUI: Mengirim referensi child yang tepat
                               );
                             }),
                             if (!_hideFinishedItems &&
@@ -1045,7 +1051,10 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                                           : _selectedItems.remove(target),
                                     ),
                                     onMoveOrder: _moveItemOrder,
-                                    onEditName: () => _showEditNameDialog(item),
+                                    onEditName: (targetItem) =>
+                                        _showEditNameDialog(
+                                          targetItem,
+                                        ), // <-- DIPERBARUI
                                     onLongPressToggle: () => setState(() {
                                       _isEditMode = !_isEditMode;
                                       _selectedItems.clear();
@@ -1078,9 +1087,14 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                                       _updateSubjectOverallProgress();
                                       widget.onDataChanged();
                                     },
-                                    onAddChild: () => _addChildSubMateri(item),
-                                    onDeleteItem: () =>
-                                        _deleteSingleSubMateri(item),
+                                    onAddChild: (targetItem) =>
+                                        _addChildSubMateri(
+                                          targetItem,
+                                        ), // <-- DIPERBARUI
+                                    onDeleteItem: (targetItem) =>
+                                        _deleteSingleSubMateri(
+                                          targetItem,
+                                        ), // <-- DIPERBARUI
                                   );
                                 },
                               ),
