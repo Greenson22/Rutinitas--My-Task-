@@ -105,6 +105,8 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
 
     void markDoneRecursive(List<SubSubjectItem> list) {
       for (var item in list) {
+        if (item.isDisabled)
+          continue; // Jangan tandai selesai jika dinonaktifkan
         item.progress = 'selesai';
         item.finishedDate = formattedDate;
         if (item.subMateri.isNotEmpty) markDoneRecursive(item.subMateri);
@@ -431,6 +433,25 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     } else {
       widget.subject.progress = 'belum';
     }
+  }
+
+  // === FITUR BARU: Penangan aktivasi/nonaktivasi manual list harian ===
+  void _handleToggleDisableItem(SubSubjectItem item) {
+    _saveToHistory();
+    setState(() {
+      item.isDisabled = !item.isDisabled;
+      // Jika dinonaktifkan, bersihkan status progress agar tidak mengacaukan perhitungan global
+      if (item.isDisabled) {
+        item.progress = 'belum';
+        item.currentValue = 0;
+        item.finishedDate = null;
+      }
+      for (var r in widget.subject.subMateri) {
+        r.updateStatusFromChildren();
+      }
+    });
+    _updateSubjectOverallProgress();
+    widget.onDataChanged();
   }
 
   void _getAllItemsFlattened(
@@ -1170,9 +1191,8 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                                       : _selectedItems.remove(target),
                                 ),
                                 onMoveOrder: _moveItemOrder,
-                                onEditName: (targetItem) => _showEditNameDialog(
-                                  targetItem,
-                                ), // <-- Mengirim referensi child yang tepat
+                                onEditName: (targetItem) =>
+                                    _showEditNameDialog(targetItem),
                                 onLongPressToggle: () => setState(() {
                                   _isEditMode = !_isEditMode;
                                   _selectedItems.clear();
@@ -1182,7 +1202,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                                   setState(() {
                                     if (target.itemType == 'progress') {
                                       if (checked == false) {
-                                        // FITUR BARU: Reset hitungan progres kembali menjadi 0 harian jika di-uncheck
+                                        // Reset hitungan progres kembali menjadi 0 harian jika di-uncheck
                                         target.currentValue = 0;
                                         target.progress = 'belum';
                                         target.finishedDate = null;
@@ -1217,17 +1237,15 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                                   _updateSubjectOverallProgress();
                                   widget.onDataChanged();
                                 },
-                                onAddChild: (targetItem) => _addChildSubMateri(
-                                  targetItem,
-                                ), // <-- Mengirim referensi child yang tepat
+                                onAddChild: (targetItem) =>
+                                    _addChildSubMateri(targetItem),
                                 onDeleteItem: (targetItem) =>
-                                    _deleteSingleSubMateri(
-                                      targetItem,
-                                    ), // <-- Mengirim referensi child yang tepat
-                                onToggleItemType:
-                                    _handleToggleItemType, // <-- SUNTIKKAN SINKRONISASI TIPE PROGRESS BARU
+                                    _deleteSingleSubMateri(targetItem),
+                                onToggleItemType: _handleToggleItemType,
                                 onUpdateProgressValue:
-                                    _showUpdateProgressValueDialog, // <-- SUNTIKKAN SINKRONISASI INPUT ANGKA BARU
+                                    _showUpdateProgressValueDialog,
+                                onToggleDisable:
+                                    _handleToggleDisableItem, // <-- SUNTIKKAN CALLBACK BARU
                               );
                             }),
                             if (!_hideFinishedItems &&
@@ -1293,9 +1311,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                                   ),
                                   onMoveOrder: _moveItemOrder,
                                   onEditName: (targetItem) =>
-                                      _showEditNameDialog(
-                                        targetItem,
-                                      ), // <-- DIPERBARUI
+                                      _showEditNameDialog(targetItem),
                                   onLongPressToggle: () => setState(() {
                                     _isEditMode = !_isEditMode;
                                     _selectedItems.clear();
@@ -1305,7 +1321,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                                     setState(() {
                                       if (target.itemType == 'progress') {
                                         if (checked == false) {
-                                          // FITUR BARU: Reset hitungan progres kembali menjadi 0 harian jika di-uncheck
+                                          // Reset hitungan progres kembali menjadi 0 harian jika di-uncheck
                                           target.currentValue = 0;
                                           target.progress = 'belum';
                                           target.finishedDate = null;
@@ -1341,17 +1357,14 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                                     widget.onDataChanged();
                                   },
                                   onAddChild: (targetItem) =>
-                                      _addChildSubMateri(
-                                        targetItem,
-                                      ), // <-- DIPERBARUI
+                                      _addChildSubMateri(targetItem),
                                   onDeleteItem: (targetItem) =>
-                                      _deleteSingleSubMateri(
-                                        targetItem,
-                                      ), // <-- DIPERBARUI
-                                  onToggleItemType:
-                                      _handleToggleItemType, // <-- SUNTIKKAN SINKRONISASI TIPE PROGRESS BARU
+                                      _deleteSingleSubMateri(targetItem),
+                                  onToggleItemType: _handleToggleItemType,
                                   onUpdateProgressValue:
-                                      _showUpdateProgressValueDialog, // <-- SUNTIKKAN SINKRONISASI INPUT ANGKA BARU
+                                      _showUpdateProgressValueDialog,
+                                  onToggleDisable:
+                                      _handleToggleDisableItem, // <-- SUNTIKKAN CALLBACK BARU
                                 );
                               }),
                           ],
@@ -1451,10 +1464,12 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                       _saveToHistory();
                       void resetRecursive(List<SubSubjectItem> list) {
                         for (var item in list) {
-                          item.progress = 'belum';
-                          item.finishedDate = null;
-                          item.currentValue =
-                              0; // Reset hitungan progres angka ke 0 harian
+                          // PERBAIKAN MUTLAK: Lewati (Jangan di-reset) jika item berstatus dinonaktifkan
+                          if (!item.isDisabled) {
+                            item.progress = 'belum';
+                            item.finishedDate = null;
+                            item.currentValue = 0;
+                          }
                           resetRecursive(item.subMateri);
                         }
                       }

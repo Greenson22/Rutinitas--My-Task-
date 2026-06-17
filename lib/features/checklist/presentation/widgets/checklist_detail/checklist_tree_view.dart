@@ -24,6 +24,9 @@ class ChecklistTreeView extends StatelessWidget {
   final Function(SubSubjectItem)? onToggleItemType;
   final Function(SubSubjectItem)? onUpdateProgressValue;
 
+  // === CALLBACK BARU: Penangan aktivasi/nonaktivasi manual list ===
+  final Function(SubSubjectItem)? onToggleDisable;
+
   const ChecklistTreeView({
     super.key,
     required this.item,
@@ -43,6 +46,7 @@ class ChecklistTreeView extends StatelessWidget {
     required this.onDeleteItem,
     this.onToggleItemType,
     this.onUpdateProgressValue,
+    this.onToggleDisable,
   });
 
   // Fungsi pembantu untuk memformat angka dengan separator titik ribuan Indonesia
@@ -128,14 +132,40 @@ class ChecklistTreeView extends StatelessWidget {
                               Expanded(
                                 child: Text(
                                   item.subjectName,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 14,
-                                    color: Colors.black87,
+                                    color: item.isDisabled
+                                        ? Colors.red.shade400
+                                        : Colors.black87,
+                                    decoration: item.isDisabled
+                                        ? TextDecoration.lineThrough
+                                        : null,
                                   ),
                                 ),
                               ),
+                              // === TOMBOL DI MODE EDIT: Mengubah Status Aktif/Nonaktif List ===
+                              IconButton(
+                                icon: Icon(
+                                  item.isDisabled
+                                      ? Icons.block_flipped
+                                      : Icons.check_circle_outline,
+                                  color: item.isDisabled
+                                      ? Colors.red
+                                      : Colors.grey,
+                                  size: 18,
+                                ),
+                                tooltip: item.isDisabled
+                                    ? 'Aktifkan Kembali'
+                                    : 'Nonaktifkan List',
+                                constraints: const BoxConstraints(),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                ),
+                                onPressed: () => onToggleDisable?.call(item),
+                              ),
                               if (item.subMateri.isEmpty &&
-                                  onToggleItemType != null)
+                                  onToggleItemType != null &&
+                                  !item.isDisabled)
                                 IconButton(
                                   icon: Icon(
                                     item.itemType == 'progress'
@@ -163,29 +193,46 @@ class ChecklistTreeView extends StatelessWidget {
                       )
                     : Row(
                         children: [
-                          Checkbox(
-                            value: isChecked,
-                            activeColor: item.itemType == 'progress'
-                                ? Colors.deepOrange
-                                : Colors.teal,
-                            // DIPERBARUI: Mengizinkan klik uncheck khusus pada tipe progress yang sudah berstatus selesai/tercentang
-                            onChanged: item.itemType == 'progress'
-                                ? (isChecked
-                                      ? (bool? checked) =>
-                                            onCheckStatusChanged(item, checked)
-                                      : null) // Tetap dikunci (null) jika target belum terpenuhi
-                                : (bool? checked) =>
-                                      onCheckStatusChanged(item, checked),
-                          ),
+                          // === RENDERING KONDISI NORMAL: Tanda Kali (X) jika dinonaktifkan, Checkbox jika normal ===
+                          item.isDisabled
+                              ? const Padding(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: 14.0,
+                                  ),
+                                  child: Icon(
+                                    Icons.close_rounded, // Gambar Kali / X
+                                    color: Colors.red,
+                                    size: 20,
+                                  ),
+                                )
+                              : Checkbox(
+                                  value: isChecked,
+                                  activeColor: item.itemType == 'progress'
+                                      ? Colors.deepOrange
+                                      : Colors.teal,
+                                  onChanged: item.itemType == 'progress'
+                                      ? (isChecked
+                                            ? (bool? checked) =>
+                                                  onCheckStatusChanged(
+                                                    item,
+                                                    checked,
+                                                  )
+                                            : null)
+                                      : (bool? checked) =>
+                                            onCheckStatusChanged(item, checked),
+                                ),
                           Expanded(
                             child: InkWell(
-                              onTap: () {
-                                if (item.itemType == 'progress') {
-                                  onUpdateProgressValue?.call(item);
-                                } else {
-                                  onTapToggleStatus(item);
-                                }
-                              },
+                              // Mengunci jembatan aksi klik jika elemen berstatus dinonaktifkan
+                              onTap: item.isDisabled
+                                  ? null
+                                  : () {
+                                      if (item.itemType == 'progress') {
+                                        onUpdateProgressValue?.call(item);
+                                      } else {
+                                        onTapToggleStatus(item);
+                                      }
+                                    },
                               onLongPress: onLongPressToggle,
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(
@@ -195,12 +242,19 @@ class ChecklistTreeView extends StatelessWidget {
                                   item.subjectName,
                                   style: TextStyle(
                                     fontSize: 14,
-                                    decoration: isChecked
+                                    decoration: item.isDisabled || isChecked
                                         ? TextDecoration.lineThrough
                                         : null,
-                                    color: isChecked
-                                        ? Colors.grey
-                                        : Colors.black87,
+                                    color: item.isDisabled
+                                        ? Colors
+                                              .red
+                                              .shade300 // Merah pudar jika dinonaktifkan
+                                        : (isChecked
+                                              ? Colors.grey
+                                              : Colors.black87),
+                                    fontStyle: item.isDisabled
+                                        ? FontStyle.italic
+                                        : null,
                                   ),
                                 ),
                               ),
@@ -208,7 +262,8 @@ class ChecklistTreeView extends StatelessWidget {
                           ),
                           // TAMPILAN INDIKATOR ANGKA PROGRES DENGAN FORMAT TITIK RIBUAN
                           if (item.itemType == 'progress' &&
-                              item.subMateri.isEmpty)
+                              item.subMateri.isEmpty &&
+                              !item.isDisabled)
                             Padding(
                               padding: const EdgeInsets.only(right: 4.0),
                               child: TextButton.icon(
@@ -298,6 +353,8 @@ class ChecklistTreeView extends StatelessWidget {
                 onDeleteItem: onDeleteItem,
                 onToggleItemType: onToggleItemType,
                 onUpdateProgressValue: onUpdateProgressValue,
+                onToggleDisable:
+                    onToggleDisable, // Rekursi untuk meneruskan callback ke cabang anak
               );
             }),
           ),

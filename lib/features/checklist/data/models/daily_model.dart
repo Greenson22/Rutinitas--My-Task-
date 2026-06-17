@@ -92,7 +92,7 @@ class DailySubject {
     this.isDateActive = false,
     this.dateType = 'single',
     this.endDate,
-    this.isMarkdownEnabled = false, // <--- BARU: Default awal diset off (false)
+    this.isMarkdownEnabled = false,
   });
 
   factory DailySubject.fromJson(Map<String, dynamic> json) {
@@ -117,9 +117,7 @@ class DailySubject {
       isDateActive: json['isDateActive'] ?? false,
       dateType: json['dateType'] ?? 'single',
       endDate: json['endDate'],
-      isMarkdownEnabled:
-          json['isMarkdownEnabled'] ??
-          false, // <--- BARU: Mengambil dari JSON storage (jika kosong, default false)
+      isMarkdownEnabled: json['isMarkdownEnabled'] ?? false,
     );
   }
 
@@ -140,8 +138,7 @@ class DailySubject {
       'isDateActive': isDateActive,
       'dateType': dateType,
       'endDate': endDate,
-      'isMarkdownEnabled':
-          isMarkdownEnabled, // <--- BARU: Simpan ke JSON storage
+      'isMarkdownEnabled': isMarkdownEnabled,
     };
   }
 
@@ -236,12 +233,14 @@ class SubSubjectItem {
   String? finishedDate;
   List<SubSubjectItem> subMateri;
 
-  // =========================================================================
-  // PROPERTI BARU: Pendukung jenis tipe data Progress List ber-target angka
-  // =========================================================================
   String itemType; // 'normal' atau 'progress'
   int currentValue;
   int targetValue;
+
+  // =========================================================================
+  // PROPERTI BARU: Menyimpan status aktif/nonaktif elemen list harian harian
+  // =========================================================================
+  bool isDisabled;
 
   SubSubjectItem({
     required this.subjectName,
@@ -251,6 +250,7 @@ class SubSubjectItem {
     this.itemType = 'normal',
     this.currentValue = 0,
     this.targetValue = 0,
+    this.isDisabled = false, // Default awal: Aktif (false)
   }) : this.subMateri = subMateri ?? [];
 
   SubSubjectItem clone() {
@@ -262,6 +262,7 @@ class SubSubjectItem {
       itemType: this.itemType,
       currentValue: this.currentValue,
       targetValue: this.targetValue,
+      isDisabled: this.isDisabled, // <--- BARU: Salin status kustom
     );
   }
 
@@ -279,6 +280,8 @@ class SubSubjectItem {
       itemType: json['itemType'] ?? 'normal',
       currentValue: json['currentValue'] ?? 0,
       targetValue: json['targetValue'] ?? 0,
+      isDisabled:
+          json['isDisabled'] ?? false, // <--- BARU: Ekstrak dari JSON storage
     );
   }
 
@@ -291,12 +294,15 @@ class SubSubjectItem {
       'itemType': itemType,
       'currentValue': currentValue,
       'targetValue': targetValue,
+      'isDisabled': isDisabled, // <--- BARU: Simpan ke JSON storage
     };
   }
 
   void updateStatusFromChildren() {
+    // === ANTISIPASI: Jika item ini berstatus Dinonaktifkan, hentikan update kalkulasi ===
+    if (isDisabled) return;
+
     if (subMateri.isEmpty) {
-      // Validasi penentu otomatis status penyelesaian khusus jenis elemen Progress List
       if (itemType == 'progress' && targetValue > 0) {
         progress = currentValue >= targetValue ? 'selesai' : 'belum';
       }
@@ -307,8 +313,14 @@ class SubSubjectItem {
       child.updateStatusFromChildren();
     }
 
-    int total = subMateri.length;
-    int finish = subMateri.where((sm) => sm.progress == 'selesai').length;
+    // === FILTER UTAMA: Hanya hitung anak-anak yang berstatus AKTIF (tidak disabled) ===
+    final activeChildren = subMateri.where((sm) => !sm.isDisabled).toList();
+
+    // Jika semua anak dinonaktifkan, biarkan status progress induk apa adanya atau default
+    if (activeChildren.isEmpty) return;
+
+    int total = activeChildren.length;
+    int finish = activeChildren.where((sm) => sm.progress == 'selesai').length;
 
     if (finish == total) {
       progress = 'selesai';
