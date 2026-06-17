@@ -25,17 +25,18 @@ class NoteColumnSettingsView extends StatefulWidget {
 }
 
 class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
-  // BARU: Menambahkan 'Pengingat' ke dalam opsi tipe data kolom yang tersedia
+  // State baru untuk mengontrol kemunculan aksi secara massal
+  bool _isManageMode = false;
+
   final List<String> _availableTypes = [
     'String',
     'Numerik',
     'Date',
     'Time',
-    'Pengingat', // BARU: Tipe pengingat dengan deteksi lewat waktu
+    'Pengingat',
     'Boolean',
   ];
 
-  // Dialog pop-up untuk mengubah nama kolom yang ada
   void _showRenameFieldDialog(String oldKey) {
     final renameController = TextEditingController(text: oldKey);
     showDialog(
@@ -56,7 +57,6 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
             onPressed: () {
               final String newKey = renameController.text.trim();
               if (newKey.isNotEmpty && newKey != oldKey) {
-                // DISESUAIKAN: Menggunakan renameFieldKey sesuai controller Anda
                 widget.controller.renameFieldKey(
                   setDialogState: setState,
                   currentFieldKeys: widget.currentFieldKeys,
@@ -80,7 +80,6 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
   void _showAddFieldDialog() {
     final keyController = TextEditingController();
     String selectedType = 'String';
-
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -123,7 +122,6 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
               onPressed: () {
                 final key = keyController.text.trim();
                 if (key.isNotEmpty) {
-                  // DISESUAIKAN: Menggunakan addFieldKey sesuai controller Anda
                   widget.controller.addFieldKey(
                     setDialogState: setState,
                     currentFieldKeys: widget.currentFieldKeys,
@@ -152,9 +150,62 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Definisikan & Atur Urutan Struktur Kolom Tabel:',
-            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo),
+          // HEADER BARU: Menyertakan tombol pemicu aktivasi aksi pengelolaan massal
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Struktur Kolom Tabel:',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.indigo,
+                ),
+              ),
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    _isManageMode = !_isManageMode;
+                  });
+                },
+                borderRadius: BorderRadius.circular(6),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: _isManageMode ? Colors.teal : Colors.grey.shade300,
+                    ),
+                    borderRadius: BorderRadius.circular(6),
+                    color: _isManageMode
+                        ? Colors.teal.withOpacity(0.08)
+                        : Colors.grey.shade50,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        _isManageMode
+                            ? Icons.check_circle_outline
+                            : Icons.settings_outlined,
+                        size: 14,
+                        color: _isManageMode ? Colors.teal : Colors.indigo,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        _isManageMode ? 'Selesai' : 'Kelola Kolom',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: _isManageMode ? Colors.teal : Colors.indigo,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 8),
           Expanded(
@@ -166,6 +217,8 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                     ),
                   )
                 : ReorderableListView.builder(
+                    // Fungsionalitas reorder hanya aktif saat mode kelola dihidupkan
+                    buildDefaultDragHandles: _isManageMode,
                     itemCount: widget.currentFieldKeys.length,
                     onReorder: (oldIndex, newIndex) {
                       widget.controller.moveFieldKey(
@@ -179,11 +232,8 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                     itemBuilder: (ctx, idx) {
                       final key = widget.currentFieldKeys[idx];
                       final type = widget.currentFieldTypes[key] ?? 'String';
-
                       return Card(
-                        key: ValueKey(
-                          key,
-                        ), // CRITICAL: Harus unik untuk ReorderableListView
+                        key: ValueKey(key),
                         margin: const EdgeInsets.only(bottom: 10),
                         elevation: 0,
                         shape: RoundedRectangleBorder(
@@ -201,15 +251,15 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                           ),
                           child: Row(
                             children: [
-                              // Ikon Indikator Geser / Drag Handle
-                              const Padding(
-                                padding: EdgeInsets.only(right: 8.0),
-                                child: Icon(
-                                  Icons.drag_indicator_rounded,
-                                  color: Colors.grey,
+                              // Drag Handle: Hanya tampil jika dalam mode kelola
+                              if (_isManageMode)
+                                const Padding(
+                                  padding: EdgeInsets.only(right: 8.0),
+                                  child: Icon(
+                                    Icons.drag_indicator_rounded,
+                                    color: Colors.grey,
+                                  ),
                                 ),
-                              ),
-
                               // SISI KIRI: Detail Kolom (Nama & Dropdown Tipe)
                               Expanded(
                                 child: Column(
@@ -261,23 +311,29 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                                                   ),
                                                 )
                                                 .toList(),
-                                            onChanged: (String? newType) {
-                                              if (newType != null &&
-                                                  newType != type) {
-                                                widget.controller
-                                                    .updateFieldType(
-                                                      setDialogState: setState,
-                                                      currentFieldTypes: widget
-                                                          .currentFieldTypes,
-                                                      tableRows:
-                                                          widget.tableRows,
-                                                      triggerChange:
-                                                          widget.onChanged,
-                                                      key: key,
-                                                      newType: newType,
-                                                    );
-                                              }
-                                            },
+                                            // Pengubahan tipe dinonaktifkan sementara saat mengelola posisi agar tidak bentrok
+                                            onChanged: _isManageMode
+                                                ? null
+                                                : (String? newType) {
+                                                    if (newType != null &&
+                                                        newType != type) {
+                                                      widget.controller
+                                                          .updateFieldType(
+                                                            setDialogState:
+                                                                setState,
+                                                            currentFieldTypes:
+                                                                widget
+                                                                    .currentFieldTypes,
+                                                            tableRows: widget
+                                                                .tableRows,
+                                                            triggerChange:
+                                                                widget
+                                                                    .onChanged,
+                                                            key: key,
+                                                            newType: newType,
+                                                          );
+                                                    }
+                                                  },
                                           ),
                                         ),
                                       ],
@@ -285,60 +341,61 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                                   ],
                                 ),
                               ),
-
-                              // SISI KANAN: Tombol Aksi
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  // Tombol Edit Nama Kolom
-                                  Material(
-                                    color: Colors.indigo.withOpacity(0.08),
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: InkWell(
-                                      onTap: () => _showRenameFieldDialog(key),
+                              // SISI KANAN: Tombol Aksi (Hanya muncul jika _isManageMode bernilai true)
+                              if (_isManageMode)
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    // Tombol Edit Nama Kolom
+                                    Material(
+                                      color: Colors.indigo.withOpacity(0.08),
                                       borderRadius: BorderRadius.circular(8),
-                                      child: const Padding(
-                                        padding: EdgeInsets.all(8.0),
-                                        child: Icon(
-                                          Icons.edit_rounded,
-                                          size: 18,
-                                          color: Colors.indigo,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  // Tombol Hapus Kolom
-                                  Material(
-                                    color: Colors.red.withOpacity(0.08),
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: InkWell(
-                                      onTap: () =>
-                                          widget.controller.removeFieldKey(
-                                            setDialogState: setState,
-                                            currentFieldKeys:
-                                                widget.currentFieldKeys,
-                                            currentFieldTypes:
-                                                widget.currentFieldTypes,
-                                            formControllers:
-                                                widget.formControllers,
-                                            tableRows: widget.tableRows,
-                                            triggerChange: widget.onChanged,
-                                            key: key,
+                                      child: InkWell(
+                                        onTap: () =>
+                                            _showRenameFieldDialog(key),
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: const Padding(
+                                          padding: EdgeInsets.all(8.0),
+                                          child: Icon(
+                                            Icons.edit_rounded,
+                                            size: 18,
+                                            color: Colors.indigo,
                                           ),
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: const Padding(
-                                        padding: EdgeInsets.all(8.0),
-                                        child: Icon(
-                                          Icons.delete_outline_rounded,
-                                          size: 18,
-                                          color: Colors.redAccent,
                                         ),
                                       ),
                                     ),
-                                  ),
-                                ],
-                              ),
+                                    const SizedBox(width: 8),
+                                    // Tombol Hapus Kolom
+                                    Material(
+                                      color: Colors.red.withOpacity(0.08),
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: InkWell(
+                                        onTap: () =>
+                                            widget.controller.removeFieldKey(
+                                              setDialogState: setState,
+                                              currentFieldKeys:
+                                                  widget.currentFieldKeys,
+                                              currentFieldTypes:
+                                                  widget.currentFieldTypes,
+                                              formControllers:
+                                                  widget.formControllers,
+                                              tableRows: widget.tableRows,
+                                              triggerChange: widget.onChanged,
+                                              key: key,
+                                            ),
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: const Padding(
+                                          padding: EdgeInsets.all(8.0),
+                                          child: Icon(
+                                            Icons.delete_outline_rounded,
+                                            size: 18,
+                                            color: Colors.redAccent,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                             ],
                           ),
                         ),
@@ -347,18 +404,20 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                   ),
           ),
           const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _showAddFieldDialog,
-              icon: const Icon(Icons.add, color: Colors.white, size: 18),
-              label: const Text(
-                'Tambah Kolom Baru',
-                style: TextStyle(color: Colors.white),
+          // Sembunyikan tombol tambah kolom jika sedang masuk ke mode kelola agar fokus
+          if (!_isManageMode)
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _showAddFieldDialog,
+                icon: const Icon(Icons.add, color: Colors.white, size: 18),
+                label: const Text(
+                  'Tambah Kolom Baru',
+                  style: TextStyle(color: Colors.white),
+                ),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
               ),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
             ),
-          ),
         ],
       ),
     );
