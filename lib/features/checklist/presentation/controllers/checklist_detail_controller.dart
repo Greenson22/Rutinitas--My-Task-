@@ -51,6 +51,117 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
     }
   }
 
+  // =========================================================================
+  // FITUR BARU: Memindahkan DailySubject ke Berkas Grup Lain dengan Konfirmasi
+  // =========================================================================
+  Future<void> moveChecklistToAnotherGroup({
+    required List<DailySubject> currentSectionItems,
+    required DailySubject subject,
+    required ChecklistGroup targetGroup,
+  }) async {
+    final bool confirm =
+        await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Row(
+              children: [
+                Icon(Icons.drive_file_move_rounded, color: Colors.teal),
+                SizedBox(width: 8),
+                Text('Konfirmasi Pindah Grup'),
+              ],
+            ),
+            content: Text(
+              'Apakah Anda yakin ingin memindahkan item "${subject.subjectName}" keluar dari grup saat ini menuju grup "${targetGroup.groupName}"?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text(
+                  'Batal',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+                child: const Text(
+                  'Ya, Pindahkan',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (!confirm) return;
+
+    try {
+      // 1. Tentukan target penempatan seksi di dalam grup tujuan.
+      String targetSectionName = defaultSectionName;
+      if (targetGroup.allList.isNotEmpty) {
+        targetSectionName = targetGroup.allList.first.sectionName;
+      } else {
+        targetGroup.allList.add(
+          ChecklistSection(sectionName: targetSectionName, items: []),
+        );
+      }
+
+      // 2. Sesuaikan penanda nama seksi internal pada model subjek
+      subject.section = targetSectionName;
+
+      // 3. Masukkan subjek ke dalam manifest struktur seksi grup target
+      targetGroup.allList
+          .firstWhere((sec) => sec.sectionName == targetSectionName)
+          .items
+          .add(subject);
+
+      // 4. Konstruksi penyimpanan fisik ke disk file JSON grup tujuan secara independen
+      final String targetJsonString = const JsonEncoder.withIndent(
+        '  ',
+      ).convert(targetGroup.toJson());
+      File targetJsonFile = await storageService.getSpecificGroupFile(
+        widget.baseDir,
+        targetGroup.id,
+      );
+      await storageService.saveJsonData(targetJsonFile, targetJsonString);
+
+      // 5. Jika sukses menulis file eksternal, barulah hapus subjek dari grup saat ini secara lokal
+      setState(() {
+        currentSectionItems.remove(subject);
+      });
+
+      // 6. Tulis ulang perubahan grup saat ini ke penyimpanan disk lokal
+      await saveGroupData();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Berhasil memindahkan "${subject.subjectName}" ke grup "${targetGroup.groupName}"!',
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint("Gagal memindahkan checklist antar grup: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Gagal memindahkan item akibat kesalahan penyimpanan file sistem.',
+            ),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
+  }
+
   void openMateriChecklist(DailySubject subject) {
     // Kumpulkan semua kotak materi (DailySubject) dari seluruh seksi yang tersedia
     List<DailySubject> allAvailableSubjects = [];

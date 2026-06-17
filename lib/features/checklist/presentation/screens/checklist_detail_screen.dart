@@ -1,5 +1,7 @@
 // lib/features/daily/presentation/screens/checklist_detail_screen.dart
 
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../data/models/daily_model.dart';
 import '../controllers/checklist_detail_controller.dart';
@@ -13,10 +15,14 @@ class ChecklistDetailScreen extends StatefulWidget {
   final ChecklistGroup group;
   final String baseDir;
 
+  // Parameter opsional penampung manifes seluruh subjek grup untuk sinkronisasi instan
+  final List<ChecklistGroup>? allAvailableGroups;
+
   const ChecklistDetailScreen({
     super.key,
     required this.group,
     required this.baseDir,
+    this.allAvailableGroups,
   });
 
   @override
@@ -24,6 +30,42 @@ class ChecklistDetailScreen extends StatefulWidget {
 }
 
 class _ChecklistDetailScreenState extends ChecklistDetailController {
+  List<ChecklistGroup> _loadedAllGroups = [];
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.allAvailableGroups != null) {
+      _loadedAllGroups = widget.allAvailableGroups!;
+    } else {
+      _loadExtendedGroupsManifest();
+    }
+  }
+
+  // Fungsi fail-safe untuk memuat daftar seluruh berkas grup checklist eksternal dari disk
+  Future<void> _loadExtendedGroupsManifest() async {
+    try {
+      List<File> files = await storageService.getAllChecklistGroups(
+        widget.baseDir,
+      );
+      List<ChecklistGroup> groups = [];
+      for (var f in files) {
+        if (!await f.exists()) continue;
+        String content = await f.readAsString();
+        String fName = f.path.split('/').last.replaceAll('.json', '');
+        final trimmed = content.trim();
+        if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+          final map = jsonDecode(trimmed);
+          map['id'] = fName;
+          groups.add(ChecklistGroup.fromJson(map));
+        }
+      }
+      setState(() => _loadedAllGroups = groups);
+    } catch (e) {
+      debugPrint("Gagal memuat manifest grup eksternal: $e");
+    }
+  }
+
   // SOLUSI UTAMA: Meng-override fungsi openMateriChecklist dari Controller untuk menyuntikkan ukuran Dialog melar
   @override
   void openMateriChecklist(DailySubject subject) {
@@ -581,7 +623,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                 .where((sec) => !sec.items.contains(subject))
                 .map(
                   (sec) => PopupMenuItem<String>(
-                    value: sec.sectionName,
+                    value: 'INTERNAL_MOVE:${sec.sectionName}',
                     child: Row(
                       children: [
                         const Icon(
@@ -592,7 +634,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            'Pindah ke ${sec.sectionName}',
+                            'Pindah ke Seksi: ${sec.sectionName}',
                             style: const TextStyle(fontSize: 13),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -601,7 +643,51 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                     ),
                   ),
                 ),
-            if (currentGroup.allList.length > 1) const PopupMenuDivider(),
+
+            // =========================================================================
+            // MENU BARU: PINDAHKAN KARTU CHECKLIST INI KE GRUP LAINNYA
+            // =========================================================================
+            if (_loadedAllGroups
+                .where(
+                  (g) =>
+                      g.id != currentGroup.id && !g.id.startsWith("CORRUPTED_"),
+                )
+                .isNotEmpty) ...[
+              const PopupMenuDivider(),
+              ..._loadedAllGroups
+                  .where(
+                    (g) =>
+                        g.id != currentGroup.id &&
+                        !g.id.startsWith("CORRUPTED_"),
+                  )
+                  .map(
+                    (targetGroup) => PopupMenuItem<String>(
+                      value: 'EXTERNAL_GROUP_MOVE:${targetGroup.id}',
+                      child: Row(
+                        children: [
+                          Text(
+                            targetGroup.icon,
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Pindahkan ke Grup: ${targetGroup.groupName}',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: Colors.indigo,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+            ],
+
+            if (currentGroup.allList.length > 1 || _loadedAllGroups.length > 1)
+              const PopupMenuDivider(),
             const PopupMenuItem<String>(
               value: 'DELETE_ACTION',
               child: Row(
@@ -625,14 +711,36 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
             if (value == 'DELETE_ACTION') {
               // Lempar List ASLI ke controller agar bisa dihapus dari data utama
               deleteItemFromSection(originalSection.items, subject);
-            } else {
+            }
+            // Intervensi Aksi Perpindahan Eksternal Antar Berkas Grup Checklist
+            else if (value.startsWith('EXTERNAL_GROUP_MOVE:')) {
+              final String targetGroupId = value.replaceFirst(
+                'EXTERNAL_GROUP_MOVE:',
+                '',
+              );
+              final targetGroupObj = _loadedAllGroups.firstWhere(
+                (g) => g.id == targetGroupId,
+              );
+
+              moveChecklistToAnotherGroup(
+                currentSectionItems: originalSection.items,
+                subject: subject,
+                targetGroup: targetGroupObj,
+              );
+            }
+            // Penanganan Aksi Mutasi Seksi Internal Bawaan
+            else if (value.startsWith('INTERNAL_MOVE:')) {
+              final String targetSectionName = value.replaceFirst(
+                'INTERNAL_MOVE:',
+                '',
+              );
               setState(() {
                 // Hapus dari seksi asli
                 originalSection.items.remove(subject);
 
                 // Tambahkan ke seksi tujuan
                 currentGroup.allList
-                    .firstWhere((sec) => sec.sectionName == value)
+                    .firstWhere((sec) => sec.sectionName == targetSectionName)
                     .items
                     .add(subject);
               });

@@ -789,6 +789,8 @@ class _DailyScreenState extends State<DailyScreen> {
                 builder: (context) => ChecklistDetailScreen(
                   group: group,
                   baseDir: _controller.selectedBaseDir,
+                  allAvailableGroups: _controller
+                      .allGroupRaw, // <-- MENERUSKAN DAFTAR SELURUH GRUP UNTUK SINKRONISASI INSTAN
                 ),
               ),
             ).then((_) => _controller.loadGroupsData());
