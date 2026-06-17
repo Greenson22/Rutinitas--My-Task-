@@ -152,6 +152,7 @@ class TaskMasterController {
         await saveAllCategoriesToFile(shouldRefresh: false);
       }
 
+      // SINKRONISASI: Memastikan kalkulasi jam pengerjaan jurnal dipanggil saat inisialisasi data
       await kalkulasiTotalJurnalHariIni();
       processCategoriesDisplay();
     } catch (e) {
@@ -179,17 +180,14 @@ class TaskMasterController {
     onUpdate();
 
     try {
-      // Cek apakah enkripsi saat ini aktif di sistem
       bool isEncrypted = await storageService.isEncryptionEnabled();
       String? password = await storageService.getEncryptionPassword();
 
       String rawJson = jsonEncode({'categories': []});
 
-      // JIKA ENKRIPSI AKTIF, GUNAKAN .encrypt BUKAN .decrypt
       if (isEncrypted && password != null) {
         rawJson = CryptoHelper.encrypt(rawJson, password);
       } else {
-        // Jika tidak terenkripsi, pastikan SharedPreferences dibersihkan
         final prefs = await SharedPreferences.getInstance();
         await prefs.setBool('is_encrypted', false);
         await prefs.remove('encryption_password');
@@ -198,10 +196,8 @@ class TaskMasterController {
       await jsonFile.writeAsString(rawJson);
     } catch (e) {
       debugPrint("Gagal membuat/mengeksekusi file baru: $e");
-      isFileCorrupted =
-          true; // Set ke true jika proses pembuatan file gagal total
+      isFileCorrupted = true;
     } finally {
-      // Memastikan data dimuat ulang dan status loading dimatikan apa pun yang terjadi
       await initStorageAndLoadData();
     }
   }
@@ -320,13 +316,11 @@ class TaskMasterController {
     return true;
   }
 
-  // MODIFIKASI: Mengubah metode agar memuat interval waktu kustom dari SharedPreferences secara dinamis
   Future<bool> _add30MinutesToJurnal(
     String myTaskId,
     BuildContext context,
   ) async {
     try {
-      // Ambil nilai penambahan waktu default murni dari SharedPreferences
       final prefs = await SharedPreferences.getInstance();
       final int minutesToAdd = prefs.getInt('default_increment_minutes') ?? 30;
 
@@ -384,7 +378,6 @@ class TaskMasterController {
         String updatedJurnalTaskName = "";
         for (var logTask in loadedLogs[todayIndex].tasks) {
           if (logTask.linkedTaskIds.contains(myTaskId)) {
-            // Gunakan variabel minutesToAdd yang dinamis untuk menggantikan nilai konstan 30
             logTask.durasiMenit += minutesToAdd;
             isUpdated = true;
             updatedJurnalTaskName = logTask.nama;
@@ -397,10 +390,10 @@ class TaskMasterController {
           );
           await storageService.saveJsonData(JurnalFile, updatedJsonContent);
 
+          // SINKRONISASI: Memperbarui card total jam hari ini seketika setelah increment sukses dilakukan
           await kalkulasiTotalJurnalHariIni();
 
           if (context.mounted) {
-            // Memperbarui informasi SnackBar agar menyesuaikan isi menit dinamis
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
