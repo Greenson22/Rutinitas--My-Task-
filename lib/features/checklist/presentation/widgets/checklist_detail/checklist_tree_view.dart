@@ -20,7 +20,7 @@ class ChecklistTreeView extends StatelessWidget {
   final Function(SubSubjectItem) onAddChild;
   final Function(SubSubjectItem) onDeleteItem;
 
-  // FITUR BARU: Callback untuk kustomisasi Progress angka harian
+  // Callback untuk kustomisasi Progress angka harian
   final Function(SubSubjectItem)? onToggleItemType;
   final Function(SubSubjectItem)? onUpdateProgressValue;
 
@@ -44,6 +44,14 @@ class ChecklistTreeView extends StatelessWidget {
     this.onToggleItemType,
     this.onUpdateProgressValue,
   });
+
+  // Fungsi pembantu untuk memformat angka dengan separator titik ribuan Indonesia
+  String _formatNumber(int number) {
+    return number.toString().replaceAllWithRegExp(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      '.',
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -126,7 +134,6 @@ class ChecklistTreeView extends StatelessWidget {
                                   ),
                                 ),
                               ),
-                              // Tombol ganti tipe list (Khusus ujung ranting/daun list yang tidak punya anak)
                               if (item.subMateri.isEmpty &&
                                   onToggleItemType != null)
                                 IconButton(
@@ -156,7 +163,6 @@ class ChecklistTreeView extends StatelessWidget {
                       )
                     : Row(
                         children: [
-                          // Jika bertipe progress, checkbox otomatis tercentang/dikunci dari kalkulasi target angka
                           Checkbox(
                             value: isChecked,
                             activeColor: item.itemType == 'progress'
@@ -169,7 +175,13 @@ class ChecklistTreeView extends StatelessWidget {
                           ),
                           Expanded(
                             child: InkWell(
-                              onTap: () => onTapToggleStatus(item),
+                              onTap: () {
+                                if (item.itemType == 'progress') {
+                                  onUpdateProgressValue?.call(item);
+                                } else {
+                                  onTapToggleStatus(item);
+                                }
+                              },
                               onLongPress: onLongPressToggle,
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(
@@ -190,7 +202,7 @@ class ChecklistTreeView extends StatelessWidget {
                               ),
                             ),
                           ),
-                          // TAMPILAN ELEMEN ANGKA PROGRES (Jika tipe progress diaktifkan)
+                          // TAMPILAN INDIKATOR ANGKA PROGRES DENGAN FORMAT TITIK RIBUAN
                           if (item.itemType == 'progress' &&
                               item.subMateri.isEmpty)
                             Padding(
@@ -202,7 +214,7 @@ class ChecklistTreeView extends StatelessWidget {
                                       : Colors.deepOrange.withOpacity(0.1),
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 8,
-                                    vertical: 2,
+                                    vertical: 4,
                                   ),
                                   minimumSize: Size.zero,
                                   tapTargetSize:
@@ -219,7 +231,7 @@ class ChecklistTreeView extends StatelessWidget {
                                       : Colors.deepOrange,
                                 ),
                                 label: Text(
-                                  '${item.currentValue} / ${item.targetValue}',
+                                  '${_formatNumber(item.currentValue)} / ${_formatNumber(item.targetValue)}',
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
@@ -228,9 +240,8 @@ class ChecklistTreeView extends StatelessWidget {
                                         : Colors.deepOrange[800],
                                   ),
                                 ),
-                                onPressed: isChecked
-                                    ? null
-                                    : () => onUpdateProgressValue?.call(item),
+                                onPressed: () =>
+                                    onUpdateProgressValue?.call(item),
                               ),
                             ),
                         ],
@@ -281,13 +292,19 @@ class ChecklistTreeView extends StatelessWidget {
                 onTapToggleStatus: onTapToggleStatus,
                 onAddChild: onAddChild,
                 onDeleteItem: onDeleteItem,
-                onToggleItemType: onToggleItemType, // Meneruskan callback tipe
-                onUpdateProgressValue:
-                    onUpdateProgressValue, // Meneruskan callback nilai angka
+                onToggleItemType: onToggleItemType,
+                onUpdateProgressValue: onUpdateProgressValue,
               );
             }),
           ),
       ],
     );
+  }
+}
+
+// Ekstensi sederhana untuk memformat RegExp string pengganti titik tanpa membutuhkan package tambahan
+extension on String {
+  String replaceAllWithRegExp(RegExp regExp, String replacement) {
+    return this.replaceAllMapped(regExp, (match) => replacement);
   }
 }

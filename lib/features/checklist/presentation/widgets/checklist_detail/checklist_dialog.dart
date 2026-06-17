@@ -754,6 +754,13 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
 
   void _showUpdateProgressValueDialog(SubSubjectItem item) {
     final valueController = TextEditingController();
+
+    // Helper format angka untuk dialog
+    String formatDialogNum(int num) => num.toString().replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (match) => '.',
+    );
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -767,7 +774,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Progres saat ini: ${item.currentValue} / ${item.targetValue}',
+              'Progres saat ini: ${formatDialogNum(item.currentValue)} / ${formatDialogNum(item.targetValue)}',
               style: const TextStyle(color: Colors.grey),
             ),
             const SizedBox(height: 12),
@@ -794,15 +801,18 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
               if (addValue != null && addValue > 0) {
                 _saveToHistory();
                 setState(() {
-                  item.currentValue = (item.currentValue + addValue).clamp(
-                    0,
-                    item.targetValue,
-                  );
+                  // PERBAIKAN: Hapus clamp batas atas targetValue agar angka saat ini bisa melampaui target
+                  item.currentValue = item.currentValue + addValue;
+
                   if (item.currentValue >= item.targetValue) {
                     item.progress = 'selesai';
                     item.finishedDate =
                         "${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}";
+                  } else {
+                    item.progress = 'belum';
+                    item.finishedDate = null;
                   }
+
                   for (var r in widget.subject.subMateri) {
                     r.updateStatusFromChildren();
                   }
