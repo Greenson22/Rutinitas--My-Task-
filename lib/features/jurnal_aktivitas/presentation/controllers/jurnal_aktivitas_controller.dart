@@ -248,9 +248,23 @@ class JurnalAktivitasController {
     }
   }
 
-  // OPTIMASI: Mengganti fungsi penambahan 30 menit menjadi dinamis berdasarkan parameter input
+  // PERBAIKAN: Memastikan penambahan waktu dilakukan pada hari ini (atau log yang tepat)
   void addActivityDuration(TimeLogTask task, int minutes) {
-    for (var logEntry in logs) {
+    final String todayStr = getTodayDateString();
+
+    // 1. Coba cari di log hari ini terlebih dahulu agar aman dan akurat
+    int todayIdx = logs.indexWhere((entry) => entry.tanggal == todayStr);
+
+    if (todayIdx != -1) {
+      int taskIdx = logs[todayIdx].tasks.indexWhere((t) => t.id == task.id);
+      if (taskIdx != -1) {
+        logs[todayIdx].tasks[taskIdx].durasiMenit += minutes;
+        return; // Selesai, langsung keluar dari fungsi
+      }
+    }
+
+    // 2. Fallback: Jika tidak ketemu di hari ini, cari dari urutan paling baru (reversed)
+    for (var logEntry in logs.reversed) {
       int idx = logEntry.tasks.indexWhere((t) => t.id == task.id);
       if (idx != -1) {
         logEntry.tasks[idx].durasiMenit += minutes;
