@@ -291,13 +291,16 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     );
   }
 
+  // MODIFIKASI: Memakai durasi default menit yang dinamis dari controller
   void _addActivityDuration(TimeLogTask task, {VoidCallback? onDone}) async {
+    final int minutesToAdd = _controller.defaultIncrementMinutes;
+
     final bool? konfirmasi = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Tambah Waktu?'),
         content: Text(
-          'Apakah Anda yakin ingin menambah durasi "${task.nama}" sebanyak 30 menit?',
+          'Apakah Anda yakin ingin menambah durasi "${task.nama}" sebanyak $minutesToAdd menit?',
         ),
         actions: [
           TextButton(
@@ -314,10 +317,73 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     );
     if (konfirmasi != true) return;
     setState(() {
-      _controller.addActivityDuration30Minutes(task);
+      _controller.addActivityDuration(task, minutesToAdd);
     });
     await _controller.saveData();
     if (onDone != null) onDone();
+  }
+
+  // DIALOG BARU: Mengubah interval/default menit tambah waktu secara bebas
+  void _showSettingsDefaultTimeDialog() {
+    final TextEditingController durationController = TextEditingController(
+      text: _controller.defaultIncrementMinutes.toString(),
+    );
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Atur Default Tambah Waktu'),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: durationController,
+            decoration: const InputDecoration(
+              labelText: 'Default Menit (Tombol +)',
+              border: OutlineInputBorder(),
+              suffixText: 'mnt',
+            ),
+            keyboardType: TextInputType.number,
+            validator: (v) {
+              if (v == null ||
+                  int.tryParse(v.trim()) == null ||
+                  int.parse(v.trim()) <= 0) {
+                return 'Masukkan angka menit yang valid (> 0)';
+              }
+              return null;
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (formKey.currentState!.validate()) {
+                final int newMinutes = int.parse(
+                  durationController.text.trim(),
+                );
+                await _controller.updateDefaultIncrement(newMinutes);
+                Navigator.pop(context);
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Default waktu berhasil diubah menjadi $newMinutes menit!',
+                    ),
+                    backgroundColor: Colors.teal,
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showTimerEditLiveDialog(TimeLogTask task, {VoidCallback? onDone}) {
@@ -607,6 +673,12 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
         title: const Text('Jurnal Aktivitas'),
         backgroundColor: Colors.indigo[700],
         actions: [
+          // TOMBOL BARU: Mengonfigurasi limit penambahan default menit
+          IconButton(
+            icon: const Icon(Icons.timer_outlined, color: Colors.white),
+            tooltip: 'Atur Default Waktu',
+            onPressed: _showSettingsDefaultTimeDialog,
+          ),
           IconButton(
             icon: const Icon(Icons.analytics_outlined, color: Colors.white),
             onPressed: () {

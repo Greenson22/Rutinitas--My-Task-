@@ -21,6 +21,9 @@ class JurnalAktivitasController {
   bool isEditMode = false;
   bool isJurnalFileCorrupted = false;
 
+  // Pengaturan waktu default dinamis (dalam menit)
+  int defaultIncrementMinutes = 30;
+
   String getTodayDateString() {
     final now = DateTime.now();
     return "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
@@ -37,6 +40,10 @@ class JurnalAktivitasController {
 
     File? jsonFile;
     try {
+      // Muat durasi default yang disimpan user dari SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      defaultIncrementMinutes = prefs.getInt('default_increment_minutes') ?? 30;
+
       baseDir = await _storageService.getBaseDirSetting();
       jsonFile = await _storageService.getJurnalJsonFile(baseDir);
       fullJsonPath = jsonFile.path;
@@ -97,7 +104,7 @@ class JurnalAktivitasController {
       onNotify();
       debugPrint("Error loading jurnal data: $e");
       if (jsonFile != null) {
-        throw jsonFile; // Lemparkan berkas ke UI untuk memicu dialog error
+        throw jsonFile;
       }
     }
   }
@@ -137,32 +144,34 @@ class JurnalAktivitasController {
     }
   }
 
+  // Menyimpan preferensi durasi penambahan waktu baru dari user
+  Future<void> updateDefaultIncrement(int newMinutes) async {
+    defaultIncrementMinutes = newMinutes;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('default_increment_minutes', newMinutes);
+  }
+
   Future<void> resetAndCreateNewLog(File jsonFile) async {
     isJurnalFileCorrupted = false;
 
     try {
-      // 1. Cek status enkripsi sistem saat ini
       bool isEncrypted = await _storageService.isEncryptionEnabled();
       String? password = await _storageService.getEncryptionPassword();
 
       String rawJson = jsonEncode([]);
 
-      // 2. Jika enkripsi aktif, amankan file baru dengan CryptoHelper.encrypt
       if (isEncrypted && password != null) {
         rawJson = CryptoHelper.encrypt(rawJson, password);
       } else {
-        // Jika tidak terenkripsi, bersihkan preferensi lokal secara menyeluruh
         final prefs = await SharedPreferences.getInstance();
         await prefs.setBool('is_encrypted', false);
         await prefs.remove('encryption_password');
       }
 
-      // 3. Tulis data ke berkas lokal
       await jsonFile.writeAsString(rawJson);
     } catch (err) {
       debugPrint("Gagal mereset preferensi enkripsi jurnal: $err");
-      isJurnalFileCorrupted =
-          true; // Tandai rusak kembali jika proses gagal di tengah jalan
+      isJurnalFileCorrupted = true;
     }
   }
 
@@ -239,11 +248,12 @@ class JurnalAktivitasController {
     }
   }
 
-  void addActivityDuration30Minutes(TimeLogTask task) {
+  // OPTIMASI: Mengganti fungsi penambahan 30 menit menjadi dinamis berdasarkan parameter input
+  void addActivityDuration(TimeLogTask task, int minutes) {
     for (var logEntry in logs) {
       int idx = logEntry.tasks.indexWhere((t) => t.id == task.id);
       if (idx != -1) {
-        logEntry.tasks[idx].durasiMenit += 30;
+        logEntry.tasks[idx].durasiMenit += minutes;
         break;
       }
     }
