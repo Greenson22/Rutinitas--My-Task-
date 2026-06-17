@@ -25,6 +25,11 @@ class BaseDetailListScreen<T> extends StatefulWidget {
   final List<PopupMenuEntry<String>> Function(T item)? itemMenuBuilder;
   final Function(String value, T item)? onItemMenuSelected;
 
+  // =========================================================================
+  // FITUR BARU: DAFTARKAN PARAMATER ACTION TAMBAHAN UNTUK APPBAR
+  // =========================================================================
+  final Widget? additionalAction;
+
   const BaseDetailListScreen({
     super.key,
     required this.pageTitle,
@@ -44,6 +49,7 @@ class BaseDetailListScreen<T> extends StatefulWidget {
     this.onMoveMassive,
     this.itemMenuBuilder,
     this.onItemMenuSelected,
+    this.additionalAction, // <-- Masukkan ke dalam konstruktor utama
   });
 
   @override
@@ -158,6 +164,10 @@ class _BaseDetailListScreenState<T> extends State<BaseDetailListScreen<T>> {
                 }
               }
             : null,
+        // =========================================================================
+        // PERBAIKAN UTAMA: Hubungkan parameter aksi kustom ke bodi BaseDetailAppBar
+        // =========================================================================
+        additionalAction: widget.additionalAction,
         searchBarContent: Row(
           children: [
             Expanded(
@@ -304,7 +314,6 @@ class _BaseDetailListScreenState<T> extends State<BaseDetailListScreen<T>> {
                                         ],
                                       ),
                                       const SizedBox(height: 4),
-                                      // Bagian teks subtitle diganti dengan pemanggilan langsung widget eksternal
                                       widget.itemSubtitle(item),
                                     ],
                                   ),

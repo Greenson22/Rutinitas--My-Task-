@@ -10,6 +10,8 @@ import 'note_edit_dialog.dart'; // Import file dialog baru
 
 class NoteDetailScreen extends StatefulWidget {
   final NoteGroup noteGroup;
+
+  // FIX: Mengubah sintaksis penulisan konstruktor yang salah agar valid di Dart
   const NoteDetailScreen({super.key, required this.noteGroup});
 
   @override
@@ -18,6 +20,8 @@ class NoteDetailScreen extends StatefulWidget {
 
 class _NoteDetailScreenState extends State<NoteDetailScreen> {
   late NoteDetailController _controller;
+  // STATE BARU: Menyimpan jenis pengurutan aktif ('manual', 'az', 'za')
+  String _currentSortType = 'manual';
 
   @override
   void initState() {
@@ -35,6 +39,31 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       builder: (dialogContext) =>
           NoteEditDialog(controller: _controller, existingNote: existingNote),
     );
+  }
+
+  // =========================================================================
+  // FITUR BARU: LOGIKA PROSES PENGURUTAN ITEM PROMPT
+  // =========================================================================
+  void _handleSort(String sortType) {
+    setState(() {
+      _currentSortType = sortType;
+      if (sortType == 'az') {
+        _controller.currentGroup.notes.sort(
+          (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
+        );
+      } else if (sortType == 'za') {
+        _controller.currentGroup.notes.sort(
+          (a, b) => b.title.toLowerCase().compareTo(a.title.toLowerCase()),
+        );
+      } else {
+        // Mode Manual: Dikembalikan ke urutan default berdasarkan waktu pembuatan (createdAt)
+        _controller.currentGroup.notes.sort(
+          (a, b) => a.createdAt.compareTo(b.createdAt),
+        );
+      }
+    });
+    // Simpan susunan urutan baru ke penyimpanan lokal secara persisten
+    _controller.saveCurrentGroup();
   }
 
   // =========================================================================
@@ -205,6 +234,85 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       enableFavoriteSort: false,
       itemTitle: (note) => note.title,
 
+      // =========================================================================
+      // PERBAIKAN UTAMA: Menggunakan parameter 'additionalAction'
+      // =========================================================================
+      additionalAction: PopupMenuButton<String>(
+        icon: const Icon(Icons.sort_rounded, color: Colors.white),
+        tooltip: 'Urutkan Prompt',
+        onSelected: _handleSort,
+        itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+          PopupMenuItem<String>(
+            value: 'manual',
+            child: Row(
+              children: [
+                Icon(
+                  Icons.tune_rounded,
+                  color: _currentSortType == 'manual'
+                      ? Colors.indigo
+                      : Colors.grey,
+                  size: 18,
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  'Urutan Manual (Waktu)',
+                  style: TextStyle(
+                    fontWeight: _currentSortType == 'manual'
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          PopupMenuItem<String>(
+            value: 'az',
+            child: Row(
+              children: [
+                Icon(
+                  Icons.sort_by_alpha_rounded,
+                  color: _currentSortType == 'az' ? Colors.indigo : Colors.grey,
+                  size: 18,
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  'Abjad: A ➔ Z',
+                  style: TextStyle(
+                    fontWeight: _currentSortType == 'az'
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          PopupMenuItem<String>(
+            value: 'za',
+            child: Row(
+              children: [
+                Icon(
+                  Icons.sort_by_alpha_rounded,
+                  color: _currentSortType == 'za' ? Colors.indigo : Colors.grey,
+                  size: 18,
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  'Abjad: Z ➔ A',
+                  style: TextStyle(
+                    fontWeight: _currentSortType == 'za'
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+
       // 1. Mengembalikan Layout Widget Custom dengan Warna Berbeda
       itemSubtitle: (note) {
         String created = _controller.formatDate(note.createdAt);
@@ -273,19 +381,16 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           ),
         ),
       ],
-      // PERUBAHAN: Menjadikan method ini asinkron untuk menunggu konfirmasi dialog
       onItemMenuSelected: (value, note) async {
         if (value == 'edit') {
           _showNoteDialog(existingNote: note);
         } else if (value == 'delete') {
-          // Memanggil utilitas konfirmasi yang ada di controller Anda
           final bool confirm = await _controller.showConfirmDialog(
             title: 'Hapus Catatan',
             content:
                 'Apakah Anda yakin ingin menghapus catatan "${note.title}" secara permanen?',
           );
 
-          // Eksekusi penghapusan hanya jika user memilih "Hapus" (true)
           if (confirm) {
             _controller.deleteNote(note);
           }
@@ -295,7 +400,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         await _controller.deleteMassiveNotes(selectedItems);
       },
       onMoveMassive: (selectedItems) {
-        _showMoveMassiveDialog(selectedItems); // <--- DIHUBUNGKAN DI SINI
+        _showMoveMassiveDialog(selectedItems);
       },
     );
   }
