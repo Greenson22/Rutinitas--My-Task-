@@ -337,6 +337,9 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
     double _countTotalItems(List<SubSubjectItem> items) {
       double count = 0;
       for (var item in items) {
+        // === PERBAIKAN: Lewati penghitungan jika item DINONAKTIFKAN ===
+        if (item.isDisabled) continue;
+
         if (item.subMateri.isNotEmpty) {
           // Jika memiliki anak (nested list), induk diabaikan dan lanjut menghitung turunannya
           count += _countTotalItems(item.subMateri);
@@ -352,6 +355,9 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
     double _countFinishedItems(List<SubSubjectItem> items) {
       double count = 0;
       for (var item in items) {
+        // === PERBAIKAN: Lewati penghitungan jika item DINONAKTIFKAN ===
+        if (item.isDisabled) continue;
+
         if (item.subMateri.isNotEmpty) {
           // Jika memiliki anak (nested list), telusuri anak-anaknya saja tanpa menghitung induk
           count += _countFinishedItems(item.subMateri);
@@ -470,8 +476,9 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
 
         String topListText = "Tidak ada list";
         if (subject.subMateri.isNotEmpty) {
+          // Cari item pertama yang belum selesai dan TIDAK dinonaktifkan
           final firstUnfinishedItem = subject.subMateri.firstWhere(
-            (sm) => sm.progress != 'selesai',
+            (sm) => sm.progress != 'selesai' && !sm.isDisabled,
             orElse: () => SubSubjectItem(subjectName: '', progress: 'selesai'),
           );
           if (firstUnfinishedItem.subjectName.isNotEmpty) {
