@@ -168,8 +168,12 @@ class ChecklistTreeView extends StatelessWidget {
                             activeColor: item.itemType == 'progress'
                                 ? Colors.deepOrange
                                 : Colors.teal,
+                            // DIPERBARUI: Mengizinkan klik uncheck khusus pada tipe progress yang sudah berstatus selesai/tercentang
                             onChanged: item.itemType == 'progress'
-                                ? null
+                                ? (isChecked
+                                      ? (bool? checked) =>
+                                            onCheckStatusChanged(item, checked)
+                                      : null) // Tetap dikunci (null) jika target belum terpenuhi
                                 : (bool? checked) =>
                                       onCheckStatusChanged(item, checked),
                           ),

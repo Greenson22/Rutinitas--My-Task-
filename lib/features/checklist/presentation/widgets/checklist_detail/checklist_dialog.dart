@@ -1180,9 +1180,18 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                                 onCheckStatusChanged: (target, checked) {
                                   _saveToHistory();
                                   setState(() {
-                                    target.progress = checked == true
-                                        ? 'selesai'
-                                        : 'belum';
+                                    if (target.itemType == 'progress') {
+                                      if (checked == false) {
+                                        // FITUR BARU: Reset hitungan progres kembali menjadi 0 harian jika di-uncheck
+                                        target.currentValue = 0;
+                                        target.progress = 'belum';
+                                        target.finishedDate = null;
+                                      }
+                                    } else {
+                                      target.progress = checked == true
+                                          ? 'selesai'
+                                          : 'belum';
+                                    }
                                     for (var r in widget.subject.subMateri) {
                                       r.updateStatusFromChildren();
                                     }
@@ -1294,9 +1303,18 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                                   onCheckStatusChanged: (target, checked) {
                                     _saveToHistory();
                                     setState(() {
-                                      target.progress = checked == true
-                                          ? 'selesai'
-                                          : 'belum';
+                                      if (target.itemType == 'progress') {
+                                        if (checked == false) {
+                                          // FITUR BARU: Reset hitungan progres kembali menjadi 0 harian jika di-uncheck
+                                          target.currentValue = 0;
+                                          target.progress = 'belum';
+                                          target.finishedDate = null;
+                                        }
+                                      } else {
+                                        target.progress = checked == true
+                                            ? 'selesai'
+                                            : 'belum';
+                                      }
                                       for (var r in widget.subject.subMateri) {
                                         r.updateStatusFromChildren();
                                       }
