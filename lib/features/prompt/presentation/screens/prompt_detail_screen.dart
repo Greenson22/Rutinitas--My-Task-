@@ -52,371 +52,8 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
     );
   }
 
-  void _copyToClipboard(String text) {
-    Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Isi prompt berhasil disalin ke clipboard!'),
-        duration: Duration(seconds: 1),
-      ),
-    );
-  }
-
-  // =========================================================================
-  // MANAJEMEN VERSI PROMPT (PILIH, TAMBAH, EDIT, HAPUS)
-  // =========================================================================
-
-  /// Menampilkan dialog untuk memilih versi aktif atau menavigasi ke pembuatan/perubahan versi
-  void _openVersionSelectorDialog(PromptItem item) {
-    showDialog(
-      context: context,
-      builder: (ctx) => BasePopupDialog(
-        themeColor: Colors.indigo,
-        titleColor: Colors.white,
-        title: Row(
-          children: const [
-            Icon(Icons.history, color: Colors.white, size: 24),
-            SizedBox(width: 8),
-            Text(
-              'Pilih Versi Prompt',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Flexible(
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: item.versions.length,
-                itemBuilder: (context, idx) {
-                  final version = item.versions[idx];
-                  final isScalarActive = version.id == item.activeVersionId;
-
-                  return ListTile(
-                    dense: true,
-                    title: Text(
-                      version.versionName,
-                      style: TextStyle(
-                        fontWeight: isScalarActive
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                        color: isScalarActive ? Colors.indigo : Colors.black87,
-                      ),
-                    ),
-                    subtitle: Text(
-                      version.content,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (isScalarActive)
-                          const Padding(
-                            padding: EdgeInsets.only(right: 8.0),
-                            child: Icon(
-                              Icons.check_circle_rounded,
-                              color: Colors.indigo,
-                              size: 20,
-                            ),
-                          ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.edit,
-                            size: 18,
-                            color: Colors.teal,
-                          ),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                          onPressed: () {
-                            Navigator.pop(ctx);
-                            _openEditVersionDialog(item, version);
-                          },
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.delete,
-                            size: 18,
-                            color: Colors.redAccent,
-                          ),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                          onPressed: () {
-                            Navigator.pop(ctx);
-                            _showDeleteVersionDialog(item, version);
-                          },
-                        ),
-                      ],
-                    ),
-                    onTap: () async {
-                      Navigator.pop(ctx);
-                      await _controller.switchPromptVersion(
-                        group: _currentGroup,
-                        itemId: item.id,
-                        versionId: version.id,
-                        context: context,
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
-            const Divider(height: 1),
-            ListTile(
-              dense: true,
-              leading: const Icon(Icons.add_rounded, color: Colors.teal),
-              title: const Text(
-                'Buat Versi Baru...',
-                style: TextStyle(
-                  color: Colors.teal,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              onTap: () {
-                Navigator.pop(ctx);
-                _openCreateVersionDialog(item);
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Menampilkan dialog input nama untuk membuat salinan instruksi versi baru
-  void _openCreateVersionDialog(PromptItem item) {
-    final versionNameController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-
-    showDialog(
-      context: context,
-      builder: (ctx) => BasePopupDialog(
-        themeColor: Colors.teal,
-        titleColor: Colors.white,
-        title: Row(
-          children: const [
-            Icon(
-              Icons.create_new_folder_rounded,
-              color: Colors.white,
-              size: 24,
-            ),
-            SizedBox(width: 8),
-            Text(
-              'Buat Versi Baru',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-        content: Form(
-          key: formKey,
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: TextFormField(
-              controller: versionNameController,
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'Nama Versi',
-                hintText: 'Misal: v2.0 - Optimasi GPT4',
-                border: OutlineInputBorder(),
-                isDense: true,
-              ),
-              validator: (v) =>
-                  v!.trim().isEmpty ? 'Nama versi tidak boleh kosong' : null,
-            ),
-          ),
-        ),
-        footer: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  _openVersionSelectorDialog(item);
-                },
-                child: const Text(
-                  'Batal',
-                  style: TextStyle(color: Colors.grey),
-                ),
-              ),
-              const SizedBox(width: 8),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
-                onPressed: () async {
-                  if (formKey.currentState!.validate()) {
-                    Navigator.pop(ctx);
-                    await _controller.createNewPromptVersion(
-                      group: _currentGroup,
-                      itemId: item.id,
-                      versionName: versionNameController.text,
-                      context: context,
-                    );
-                  }
-                },
-                child: const Text(
-                  'Buat',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Menampilkan dialog untuk mengubah nama versi prompt
-  void _openEditVersionDialog(PromptItem item, PromptVersion version) {
-    final versionNameController = TextEditingController(
-      text: version.versionName,
-    );
-    final formKey = GlobalKey<FormState>();
-
-    showDialog(
-      context: context,
-      builder: (ctx) => BasePopupDialog(
-        themeColor: Colors.teal,
-        titleColor: Colors.white,
-        title: Row(
-          children: const [
-            Icon(Icons.edit_rounded, color: Colors.white, size: 24),
-            SizedBox(width: 8),
-            Text(
-              'Edit Nama Versi',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-        content: Form(
-          key: formKey,
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: TextFormField(
-              controller: versionNameController,
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'Nama Versi',
-                border: OutlineInputBorder(),
-                isDense: true,
-              ),
-              validator: (v) =>
-                  v!.trim().isEmpty ? 'Nama versi tidak boleh kosong' : null,
-            ),
-          ),
-        ),
-        footer: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  _openVersionSelectorDialog(item);
-                },
-                child: const Text(
-                  'Batal',
-                  style: TextStyle(color: Colors.grey),
-                ),
-              ),
-              const SizedBox(width: 8),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
-                onPressed: () async {
-                  if (formKey.currentState!.validate()) {
-                    Navigator.pop(ctx);
-                    await _controller.editPromptVersionName(
-                      group: _currentGroup,
-                      itemId: item.id,
-                      versionId: version.id,
-                      newVersionName: versionNameController.text,
-                      context: context,
-                    );
-                  }
-                },
-                child: const Text(
-                  'Simpan',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Menampilkan dialog konfirmasi penghapusan versi prompt
-  void _showDeleteVersionDialog(PromptItem item, PromptVersion version) {
-    if (item.versions.length <= 1) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Anda tidak bisa menghapus satu-satunya versi!'),
-        ),
-      );
-      _openVersionSelectorDialog(item);
-      return;
-    }
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Hapus Versi?'),
-        content: Text(
-          'Apakah Anda yakin ingin menghapus versi "${version.versionName}"? Tindakan ini permanen.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _openVersionSelectorDialog(item);
-            },
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () async {
-              Navigator.pop(ctx);
-              await _controller.deletePromptVersion(
-                group: _currentGroup,
-                itemId: item.id,
-                versionId: version.id,
-                context: context,
-              );
-            },
-            child: const Text('Hapus', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ========= FITUR EDIT, HAPUS, MOVE/COPY DIALOG =========
   void _openEditPromptDialog(PromptItem item) {
-    final actAsController = TextEditingController(text: item.actAs);
+    final titleController = TextEditingController(text: item.actAs);
     final descController = TextEditingController(text: item.description ?? '');
     final contentController = TextEditingController(
       text: item.activeVersion.content,
@@ -430,59 +67,47 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
         titleColor: Colors.white,
         title: Row(
           children: const [
-            Icon(Icons.edit_note_rounded, color: Colors.white, size: 24),
+            Icon(Icons.edit_note, color: Colors.white, size: 22),
             SizedBox(width: 8),
-            Text(
-              'Edit Item Prompt',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            Text('Edit Data Prompt', style: TextStyle(color: Colors.white)),
           ],
         ),
-        content: Form(
-          key: formKey,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
+        content: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Form(
+            key: formKey,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextFormField(
-                  controller: actAsController,
+                  controller: titleController,
                   decoration: const InputDecoration(
-                    labelText: 'Act As / Judul',
-                    hintText: 'Misal: Ahli SEO, Kode Reviewer',
+                    labelText: 'Bertindak Sebagai (Act As)',
                     border: OutlineInputBorder(),
-                    isDense: true,
                   ),
-                  validator: (v) =>
-                      v!.trim().isEmpty ? 'Judul tidak boleh kosong' : null,
+                  validator: (val) => val == null || val.trim().isEmpty
+                      ? 'Judul act as wajib diisi'
+                      : null,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: descController,
+                  maxLines: 2,
                   decoration: const InputDecoration(
-                    labelText: 'Deskripsi Singkat (Opsional)',
-                    hintText: 'Keterangan singkat guna/fungsi prompt',
+                    labelText: 'Deskripsi Singkat',
                     border: OutlineInputBorder(),
-                    isDense: true,
                   ),
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: contentController,
                   maxLines: 5,
-                  minLines: 3,
-                  decoration: InputDecoration(
-                    labelText: 'Isi Prompt (${item.activeVersion.versionName})',
-                    hintText: 'Masukkan instruksi detail AI...',
-                    border: const OutlineInputBorder(),
-                    alignLabelWithHint: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Isi Perintah Konten Utama Prompt',
+                    border: OutlineInputBorder(),
                   ),
-                  validator: (v) => v!.trim().isEmpty
-                      ? 'Isi prompt tidak boleh kosong'
+                  validator: (val) => val == null || val.trim().isEmpty
+                      ? 'Isi prompt wajib diisi'
                       : null,
                 ),
               ],
@@ -490,7 +115,7 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
           ),
         ),
         footer: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.all(12.0),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
@@ -503,40 +128,28 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
               ),
               const SizedBox(width: 8),
               ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.indigo,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
                 onPressed: () async {
                   if (formKey.currentState!.validate()) {
-                    Navigator.pop(ctx);
                     final res = await _controller.editPromptItem(
                       group: _currentGroup,
                       itemId: item.id,
-                      newActAs: actAsController.text,
+                      newActAs: titleController.text,
                       newDescription: descController.text,
                       newContent: contentController.text,
                       context: context,
                     );
-                    if (res != null) {
+                    if (res != null && mounted) {
                       setState(() {
                         _currentGroup = res;
                       });
                     }
+                    if (context.mounted) Navigator.pop(ctx);
                   }
                 },
                 child: const Text(
                   'Simpan',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(color: Colors.white),
                 ),
               ),
             ],
@@ -550,27 +163,29 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Hapus Prompt "${item.actAs}"?'),
-        content: const Text('Tindakan ini permanen.'),
+        title: const Text('Hapus Prompt'),
+        content: Text(
+          'Apakah Anda yakin ingin menghapus prompt "${item.actAs}" secara permanen?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Batal'),
+            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () async {
-              Navigator.pop(ctx);
               final res = await _controller.deletePromptItem(
                 group: _currentGroup,
                 itemId: item.id,
                 context: context,
               );
-              if (res != null) {
+              if (res != null && mounted) {
                 setState(() {
                   _currentGroup = res;
                 });
               }
+              if (context.mounted) Navigator.pop(ctx);
             },
             child: const Text('Hapus', style: TextStyle(color: Colors.white)),
           ),
@@ -579,13 +194,377 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
     );
   }
 
-  void _showDeleteMassiveDialog(List<PromptItem> selectedItems) {
+  void _showMoveOrCopyDialog(PromptItem item) {
+    showDialog(
+      context: context,
+      builder: (ctx) => FutureBuilder<List<PromptGroup>>(
+        future: _controller.promptGroups.isEmpty
+            ? (() async {
+                await _controller.loadAllPrompts(context);
+                return _controller.promptGroups;
+              })()
+            : Future.value(_controller.promptGroups),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final groups = snapshot.data!;
+          return BasePopupDialog(
+            title: Text('Salin / Pindahkan "${item.actAs}"'),
+            themeColor: Colors.indigo,
+            titleColor: Colors.white,
+            content: SizedBox(
+              width: double.maxFinite,
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: groups.length,
+                itemBuilder: (context, idx) {
+                  final targetG = groups[idx];
+                  if (targetG.id.startsWith("CORRUPTED_")) {
+                    return const SizedBox.shrink();
+                  }
+                  return ListTile(
+                    dense: true,
+                    leading: Text(
+                      targetG.icon,
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                    title: Text(
+                      targetG.title,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    subtitle: Text(
+                      targetG.sectionName,
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.teal,
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          onPressed: () async {
+                            Navigator.pop(ctx);
+                            final res = await _controller.moveOrCopyPromptItem(
+                              sourceGroup: _currentGroup,
+                              targetGroup: targetG,
+                              item: item,
+                              isCopy: true,
+                              context: context,
+                            );
+                            if (res != null && mounted) {
+                              setState(() {
+                                _currentGroup = res;
+                              });
+                            }
+                          },
+                          child: const Text(
+                            'Salin',
+                            style: TextStyle(color: Colors.white, fontSize: 11),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.indigo,
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          onPressed: () async {
+                            Navigator.pop(ctx);
+                            final res = await _controller.moveOrCopyPromptItem(
+                              sourceGroup: _currentGroup,
+                              targetGroup: targetG,
+                              item: item,
+                              isCopy: false,
+                              context: context,
+                            );
+                            if (res != null && mounted) {
+                              setState(() {
+                                _currentGroup = res;
+                              });
+                            }
+                          },
+                          child: const Text(
+                            'Pindah',
+                            style: TextStyle(color: Colors.white, fontSize: 11),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _showMassMoveDialog(List<PromptItem> selectedItems) {
+    showDialog(
+      context: context,
+      builder: (ctx) => BasePopupDialog(
+        title: Text('Pindahkan ${selectedItems.length} Prompt'),
+        themeColor: Colors.indigo,
+        titleColor: Colors.white,
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: _controller.promptGroups.length,
+            itemBuilder: (context, idx) {
+              final targetG = _controller.promptGroups[idx];
+              if (targetG.id == _currentGroup.id ||
+                  targetG.id.startsWith("CORRUPTED_")) {
+                return const SizedBox.shrink();
+              }
+              return ListTile(
+                dense: true,
+                leading: Text(
+                  targetG.icon,
+                  style: const TextStyle(fontSize: 16),
+                ),
+                title: Text(
+                  targetG.title,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                subtitle: Text(
+                  targetG.sectionName,
+                  style: const TextStyle(fontSize: 11),
+                ),
+                trailing: const Icon(Icons.chevron_right, color: Colors.indigo),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  // Masukkan ID item terpilih ke state controller secara masal
+                  _controller.clearSelectedPrompts();
+                  for (var item in selectedItems) {
+                    _controller.toggleSelectPromptItem(item.id);
+                  }
+                  final res = await _controller.moveSelectedPromptItems(
+                    sourceGroup: _currentGroup,
+                    targetGroup: targetG,
+                    context: context,
+                  );
+                  if (res != null && mounted) {
+                    setState(() {
+                      _currentGroup = res;
+                    });
+                  }
+                },
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openVersionSelectorDialog(PromptItem item) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (dialogCtx, setModalState) {
+            return BasePopupDialog(
+              themeColor: Colors.indigo,
+              titleColor: Colors.white,
+              title: Row(
+                children: [
+                  const Icon(
+                    Icons.history_toggle_off_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Versi: ${item.actAs}',
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                  ),
+                ],
+              ),
+              content: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: item.versions.length,
+                        itemBuilder: (c, idx) {
+                          final version = item.versions[idx];
+                          final bool isActive =
+                              item.activeVersionId == version.id;
+                          return Card(
+                            elevation: 0,
+                            color: isActive
+                                ? Colors.indigo.withOpacity(0.06)
+                                : Colors.grey.shade50,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              side: BorderSide(
+                                color: isActive
+                                    ? Colors.indigo.withOpacity(0.3)
+                                    : Colors.grey.shade200,
+                              ),
+                            ),
+                            child: ListTile(
+                              dense: true,
+                              title: Text(
+                                version.versionName,
+                                style: TextStyle(
+                                  fontWeight: isActive
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                  color: isActive
+                                      ? Colors.indigo
+                                      : Colors.black87,
+                                ),
+                              ),
+                              subtitle: Text(
+                                version.content,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 11),
+                              ),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.edit_outlined,
+                                      size: 16,
+                                      color: Colors.indigo,
+                                    ),
+                                    onPressed: () {
+                                      _openEditVersionNameDialog(
+                                        item,
+                                        version,
+                                        () {
+                                          setModalState(() {});
+                                          setState(() {});
+                                        },
+                                      );
+                                    },
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.delete_outline,
+                                      size: 16,
+                                      color: Colors.redAccent,
+                                    ),
+                                    onPressed: item.versions.length <= 1
+                                        ? null
+                                        : () async {
+                                            await _controller
+                                                .deletePromptVersion(
+                                                  group: _currentGroup,
+                                                  itemId: item.id,
+                                                  versionId: version.id,
+                                                  context: context,
+                                                );
+                                            setModalState(() {});
+                                            setState(() {});
+                                          },
+                                  ),
+                                  if (!isActive)
+                                    ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.indigo,
+                                        visualDensity: VisualDensity.compact,
+                                      ),
+                                      onPressed: () async {
+                                        await _controller.switchPromptVersion(
+                                          group: _currentGroup,
+                                          itemId: item.id,
+                                          versionId: version.id,
+                                          context: context,
+                                        );
+                                        setModalState(() {});
+                                        setState(() {});
+                                      },
+                                      child: const Text(
+                                        'Gunakan',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    )
+                                  else
+                                    const Icon(
+                                      Icons.check_circle,
+                                      color: Colors.teal,
+                                      size: 20,
+                                    ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.teal,
+                        ),
+                        icon: const Icon(
+                          Icons.add,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                        label: const Text(
+                          'Buat Duplikat Versi Baru',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                        onPressed: () {
+                          _openCreateNewVersionDialog(item, () {
+                            setModalState(() {});
+                            setState(() {});
+                          });
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _openEditVersionNameDialog(
+    PromptItem item,
+    PromptVersion version,
+    VoidCallback onUpdated,
+  ) {
+    final nameController = TextEditingController(text: version.versionName);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Hapus Item Terpilih?'),
-        content: Text(
-          'Apakah Anda yakin ingin menghapus ${selectedItems.length} prompt ini secara permanen?',
+        title: const Text('Ubah Nama Versi'),
+        content: TextField(
+          controller: nameController,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Tag Penanda Versi'),
         ),
         actions: [
           TextButton(
@@ -593,311 +572,100 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
             child: const Text('Batal'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () async {
-              Navigator.pop(ctx);
-
-              _controller.clearSelectedPrompts();
-              for (var item in selectedItems) {
-                _controller.toggleSelectPromptItem(item.id);
-              }
-
-              final res = await _controller.deleteSelectedPromptItems(
-                group: _currentGroup,
-                context: context,
-              );
-              if (res != null) {
-                setState(() {
-                  _currentGroup = res;
-                });
+              if (nameController.text.trim().isNotEmpty) {
+                await _controller.editPromptVersionName(
+                  group: _currentGroup,
+                  itemId: item.id,
+                  versionId: version.id,
+                  newVersionName: nameController.text,
+                  context: context,
+                );
+                Navigator.pop(ctx);
+                onUpdated();
               }
             },
-            child: const Text(
-              'Hapus Semua',
-              style: TextStyle(color: Colors.white),
-            ),
+            child: const Text('Simpan'),
           ),
         ],
       ),
     );
   }
 
-  void _showMoveOrCopyDialog(PromptItem item) {
-    final otherGroups = _controller.promptGroups
-        .where((g) => g.id != _currentGroup.id)
-        .toList();
-    if (otherGroups.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Tidak ada grup prompt lain yang tersedia.'),
-        ),
-      );
-      return;
-    }
+  void _openCreateNewVersionDialog(PromptItem item, VoidCallback onUpdated) {
+    final nameController = TextEditingController();
     showDialog(
       context: context,
-      builder: (ctx) => BasePopupDialog(
-        title: const Text(
-          'Pindahkan / Salin Prompt',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Buat Versi Baru'),
+        content: TextField(
+          controller: nameController,
+          autofocus: true,
+          decoration: InputDecoration(
+            labelText: 'Nama Versi Baru',
+            hintText: 'Misal: v${item.versions.length + 1}.0 (Optimasi)',
           ),
         ),
-        themeColor: Colors.indigo,
-        titleColor: Colors.white,
-        content: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Pilih Grup Target:',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-              ),
-              const SizedBox(height: 6),
-              Flexible(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: otherGroups.length,
-                  itemBuilder: (c, idx) {
-                    final targetG = otherGroups[idx];
-                    return ListTile(
-                      dense: true,
-                      leading: Text(
-                        targetG.icon,
-                        style: const TextStyle(fontSize: 18),
-                      ),
-                      title: Text(
-                        targetG.title,
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                      subtitle: Text(
-                        targetG.sectionName,
-                        style: const TextStyle(fontSize: 11),
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.teal,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                              ),
-                            ),
-                            onPressed: () async {
-                              Navigator.pop(ctx);
-                              final res = await _controller
-                                  .moveOrCopyPromptItem(
-                                    sourceGroup: _currentGroup,
-                                    targetGroup: targetG,
-                                    item: item,
-                                    isCopy: true,
-                                    context: context,
-                                  );
-                              if (res != null) {
-                                setState(() {
-                                  _currentGroup = res;
-                                });
-                              }
-                            },
-                            child: const Text(
-                              'Salin',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.indigo,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                              ),
-                            ),
-                            onPressed: () async {
-                              Navigator.pop(ctx);
-                              final res = await _controller
-                                  .moveOrCopyPromptItem(
-                                    sourceGroup: _currentGroup,
-                                    targetGroup: targetG,
-                                    item: item,
-                                    isCopy: false,
-                                    context: context,
-                                  );
-                              if (res != null) {
-                                setState(() {
-                                  _currentGroup = res;
-                                });
-                              }
-                            },
-                            child: const Text(
-                              'Pindah',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal'),
           ),
-        ),
-      ),
-    );
-  }
-
-  void _showMoveMassiveDialog(List<PromptItem> selectedItems) {
-    final otherGroups = _controller.promptGroups
-        .where((g) => g.id != _currentGroup.id)
-        .toList();
-    if (otherGroups.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Tidak ada grup prompt lain yang tersedia.'),
-        ),
-      );
-      return;
-    }
-    showDialog(
-      context: context,
-      builder: (ctx) => BasePopupDialog(
-        title: Text(
-          'Pindahkan ${selectedItems.length} Prompt Terpilih',
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
+          ElevatedButton(
+            onPressed: () async {
+              await _controller.createNewPromptVersion(
+                group: _currentGroup,
+                itemId: item.id,
+                versionName: nameController.text,
+                context: context,
+              );
+              Navigator.pop(ctx);
+              onUpdated();
+            },
+            child: const Text('Duplikat'),
           ),
-        ),
-        themeColor: Colors.indigo,
-        titleColor: Colors.white,
-        content: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Pilih Grup Target Pemindahan:',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-              ),
-              const SizedBox(height: 6),
-              Flexible(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: otherGroups.length,
-                  itemBuilder: (c, idx) {
-                    final targetG = otherGroups[idx];
-                    return ListTile(
-                      dense: true,
-                      leading: Text(
-                        targetG.icon,
-                        style: const TextStyle(fontSize: 18),
-                      ),
-                      title: Text(
-                        targetG.title,
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                      subtitle: Text(
-                        targetG.sectionName,
-                        style: const TextStyle(fontSize: 11),
-                      ),
-                      trailing: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.indigo,
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                        ),
-                        onPressed: () async {
-                          Navigator.pop(ctx);
-
-                          _controller.clearSelectedPrompts();
-                          for (var item in selectedItems) {
-                            _controller.toggleSelectPromptItem(item.id);
-                          }
-
-                          final res = await _controller.moveSelectedPromptItems(
-                            sourceGroup: _currentGroup,
-                            targetGroup: targetG,
-                            context: context,
-                          );
-                          if (res != null) {
-                            setState(() {
-                              _currentGroup = res;
-                            });
-                          }
-                        },
-                        child: const Text(
-                          'Pindah Ke Sini',
-                          style: TextStyle(color: Colors.white, fontSize: 12),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
+        ],
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: _controller,
-      builder: (context, _) {
-        final PromptGroup updatedGroup = _controller.promptGroups.firstWhere(
-          (g) => g.id == _currentGroup.id,
-          orElse: () => _currentGroup,
-        );
-        _currentGroup = updatedGroup;
-
-        // ================= TANGANI KEADAAN AWAL KOSONG DI SINI =================
-        if (_currentGroup.prompts.isEmpty) {
-          return Scaffold(
-            backgroundColor: const Color(
-              0xFFF5F6FA,
-            ), // Menyelaraskan latar belakang
-            appBar: AppBar(
-              title: Text(
-                _currentGroup.title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              leading: IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
-                onPressed: () => Navigator.pop(context),
-              ),
-              backgroundColor: Colors.indigo,
-              elevation: 2,
+    // ================= TANGANI KEADAAN AWAL KOSONG DI SINI =================
+    if (_currentGroup.prompts.isEmpty) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF5F6FA),
+        appBar: AppBar(
+          title: Text(
+            _currentGroup.title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
             ),
-            body: UniversalEmptyState(
-              icon: Icons.post_add_rounded,
-              title: 'Belum Ada Item Prompt',
-              description:
-                  'Grup ini masih kosong dari daftar instruksi AI. Tekan tombol di bawah untuk melahirkan template perintah AI (Act As) pertama Anda!',
-              buttonLabel: 'Tambah Prompt Baru',
-              themeColor: Colors.indigo,
-              onPressed: _openAddPromptDialog,
-            ),
-          );
-        }
+          ),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => Navigator.pop(context),
+          ),
+          backgroundColor: const Color(0xFF3F51B5),
+          elevation: 2,
+        ),
+        body: UniversalEmptyState(
+          icon: Icons.playlist_add_rounded,
+          title: 'Grup Prompt Kosong',
+          description:
+              'Grup ini belum memiliki item perintah kecerdasan buatan AI.\nSilakan ketuk tombol di bawah untuk menyusun instruksi pertamamu!',
+          buttonLabel: 'Tambah Item Prompt Baru',
+          themeColor: const Color(0xFF3F51B5),
+          onPressed: _openAddPromptDialog,
+        ),
+      );
+    }
 
+    return ListBehaviorBuilder(
+      controller: _controller,
+      builder: (context) {
         // ================= TAMPILKAN LIST UTAMA JIKA DATA TERSEDIA =================
         return BaseDetailListScreen<PromptItem>(
           pageTitle: _currentGroup.title,
@@ -906,8 +674,97 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
           enableMultiSelect: true,
           enableAddButton: true,
           enableFavoriteSort: true,
-
           itemTitle: (item) => item.actAs,
+
+          // =========================================================================
+          // FITUR BARU: UTILITY SORT DROPDOWN PADA KANAN APPBAR
+          // =========================================================================
+          additionalAction: PopupMenuButton<String>(
+            icon: const Icon(Icons.sort_rounded, color: Colors.white),
+            tooltip: 'Urutkan Prompt',
+            onSelected: (String sortType) {
+              _controller.sortPromptItems(
+                group: _currentGroup,
+                sortType: sortType,
+                context: context,
+              );
+              setState(() {});
+            },
+            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+              PopupMenuItem<String>(
+                value: 'manual',
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.tune_rounded,
+                      color: _controller.currentSortType == 'manual'
+                          ? Colors.indigo
+                          : Colors.grey,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Urutan Manual',
+                      style: TextStyle(
+                        fontWeight: _controller.currentSortType == 'manual'
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              PopupMenuItem<String>(
+                value: 'az',
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.sort_by_alpha_rounded,
+                      color: _controller.currentSortType == 'az'
+                          ? Colors.indigo
+                          : Colors.grey,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Abjad: A ➔ Z',
+                      style: TextStyle(
+                        fontWeight: _controller.currentSortType == 'az'
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              PopupMenuItem<String>(
+                value: 'za',
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.sort_by_alpha_rounded,
+                      color: _controller.currentSortType == 'za'
+                          ? Colors.indigo
+                          : Colors.grey,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Abjad: Z ➔ A',
+                      style: TextStyle(
+                        fontWeight: _controller.currentSortType == 'za'
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
 
           itemSubtitle: (item) {
             final hasDesc =
@@ -970,23 +827,43 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
             );
           },
 
+          // Penyatuan String untuk Pencarian Komponen Bawaan
           itemSearchString: (item) =>
-              (item.description != null) ? item.description! : '',
+              '${item.actAs} ${item.description ?? ''} ${item.activeVersion.content}',
           itemIsFavorite: (item) => item.isFavorite,
-
           onAddPressed: _openAddPromptDialog,
-          onItemTap: (item) => _copyToClipboard(item.activeVersion.content),
-          onDeleteMassive: _showDeleteMassiveDialog,
-          onMoveMassive: _showMoveMassiveDialog,
+
+          // Aksi Klik Menyalin Konten Prompt Utama Langsung ke Clipboard OS
+          onItemTap: (item) async {
+            final scaffoldMessenger = ScaffoldMessenger.of(context);
+            await Clipboard.setData(
+              ClipboardData(text: item.activeVersion.content),
+            );
+            scaffoldMessenger.clearSnackBars();
+            scaffoldMessenger.showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Berhasil menyalin instruksi "${item.actAs}" ke papan klip!',
+                ),
+                backgroundColor: Colors.teal,
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 1),
+              ),
+            );
+          },
 
           itemMenuBuilder: (item) => [
             const PopupMenuItem(
               value: 'manage_versions',
               child: Row(
                 children: [
-                  Icon(Icons.history, size: 20, color: Colors.indigo),
+                  Icon(
+                    Icons.history_toggle_off_rounded,
+                    size: 18,
+                    color: Colors.indigo,
+                  ),
                   SizedBox(width: 10),
-                  Text('Pilih / Tambah Versi', style: TextStyle(fontSize: 13)),
+                  Text('Kelola Riwayat Versi', style: TextStyle(fontSize: 13)),
                 ],
               ),
             ),
@@ -994,9 +871,13 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
               value: 'edit',
               child: Row(
                 children: [
-                  Icon(Icons.edit_note_rounded, size: 20, color: Colors.teal),
+                  Icon(
+                    Icons.mode_edit_outline_outlined,
+                    size: 18,
+                    color: Colors.teal,
+                  ),
                   SizedBox(width: 10),
-                  Text('Edit Prompt', style: TextStyle(fontSize: 13)),
+                  Text('Ubah Detail Informasi', style: TextStyle(fontSize: 13)),
                 ],
               ),
             ),
@@ -1005,15 +886,15 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
               child: Row(
                 children: [
                   Icon(
-                    item.isFavorite
-                        ? Icons.star_rounded
-                        : Icons.star_border_rounded,
-                    size: 20,
+                    item.isFavorite ? Icons.star_border_rounded : Icons.star,
+                    size: 18,
                     color: Colors.amber,
                   ),
                   const SizedBox(width: 10),
                   Text(
-                    item.isFavorite ? 'Hapus Favorit' : 'Jadikan Favorit',
+                    item.isFavorite
+                        ? 'Hilangkan dari Favorit'
+                        : 'Jadikan Prompt Favorit',
                     style: const TextStyle(fontSize: 13),
                   ),
                 ],
@@ -1025,11 +906,11 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                 children: [
                   Icon(
                     Icons.drive_file_move_outlined,
-                    size: 20,
+                    size: 18,
                     color: Colors.blueGrey,
                   ),
                   SizedBox(width: 10),
-                  Text('Pindah / Salin', style: TextStyle(fontSize: 13)),
+                  Text('Salin / Pindah Box', style: TextStyle(fontSize: 13)),
                 ],
               ),
             ),
@@ -1075,8 +956,48 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
               _showDeleteSingleDialog(item);
             }
           },
+
+          onDeleteMassive: (selectedItems) async {
+            // Pasang list terpilih ke controller untuk bulk actions
+            _controller.clearSelectedPrompts();
+            for (var item in selectedItems) {
+              _controller.toggleSelectPromptItem(item.id);
+            }
+            final res = await _controller.deleteSelectedPromptItems(
+              group: _currentGroup,
+              context: context,
+            );
+            if (res != null && mounted) {
+              setState(() {
+                _currentGroup = res;
+              });
+            }
+          },
+          onMoveMassive: (selectedItems) {
+            _showMassMoveDialog(selectedItems);
+          },
         );
       },
+    );
+  }
+}
+
+// Widget Pembantu untuk Mematikan Ketergantungan Eksternal ListenableBuilder yang Berbeda Nama di Projek Anda
+class ListBehaviorBuilder extends StatelessWidget {
+  final PromptController controller;
+  final WidgetBuilder builder;
+
+  const ListBehaviorBuilder({
+    super.key,
+    required this.controller,
+    required this.builder,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (ctx, _) => builder(context),
     );
   }
 }

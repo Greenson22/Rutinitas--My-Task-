@@ -20,6 +20,9 @@ class PromptController extends ChangeNotifier {
   // State tambahan untuk Fitur Pencarian Dinamis
   String _searchQuery = '';
 
+  // STATE BARU: Menyimpan jenis pengurutan aktif ('manual', 'az', 'za')
+  String currentSortType = 'manual';
+
   // Getters
   List<PromptGroup> get promptGroups => _promptGroups;
   bool get isLoading => _isLoading;
@@ -949,7 +952,7 @@ class PromptController extends ChangeNotifier {
         await loadAllPrompts(context);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Semua prompt terpilih berhasil dihapus!'),
+            content: Text('All prompt terpilih berhasil dihapus!'),
           ),
         );
       }
@@ -1034,7 +1037,7 @@ class PromptController extends ChangeNotifier {
         await loadAllPrompts(context);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Semua prompt terpilih berhasil dipindahkan!'),
+            content: Text('All prompt terpilih berhasil dipindahkan!'),
           ),
         );
       }
@@ -1356,6 +1359,42 @@ class PromptController extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
       debugPrint("Gagal mengubah visibilitas prompt group: $e");
+    }
+  }
+
+  // =========================================================================
+  // FITUR BARU: LOGIKA PROSES PENGURUTAN ITEM PROMPT
+  // =========================================================================
+  void sortPromptItems({
+    required PromptGroup group,
+    required String sortType,
+    required BuildContext context,
+  }) async {
+    currentSortType = sortType;
+
+    if (sortType == 'az') {
+      group.prompts.sort(
+        (a, b) => a.actAs.toLowerCase().compareTo(b.actAs.toLowerCase()),
+      );
+    } else if (sortType == 'za') {
+      group.prompts.sort(
+        (a, b) => b.actAs.toLowerCase().compareTo(a.actAs.toLowerCase()),
+      );
+    } else {
+      // Mode Manual: Diurutkan kembali berdasarkan ID/Waktu pembuatan item prompt
+      group.prompts.sort((a, b) => a.id.compareTo(b.id));
+    }
+
+    notifyListeners();
+
+    try {
+      final baseDir = await _storageService.getBaseDirSetting();
+      final String jsonString = _storageService.formatJsonPretty(
+        group.toJson(),
+      );
+      await _storageService.savePromptGroup(baseDir, group.id, jsonString);
+    } catch (e) {
+      debugPrint("Gagal menyimpan urutan prompt group: $e");
     }
   }
 }
