@@ -230,7 +230,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     );
   }
 
-  // Tambahan Fitur Baru: Dialog untuk mengubah Judul Utama Checklist (DailySubject)
   void _showEditSubjectNameDialog() {
     final editController = TextEditingController(
       text: widget.subject.subjectName,
@@ -259,7 +258,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                 setState(() {
                   widget.subject.subjectName = newName;
                 });
-                widget.onDataChanged(); // Memicu auto-save data utama
+                widget.onDataChanged();
               }
               Navigator.pop(context);
             },
@@ -400,6 +399,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     double countTotal(List<SubSubjectItem> list) {
       double total = 0;
       for (var i in list) {
+        if (i.isDisabled) continue;
         if (i.subMateri.isNotEmpty) {
           total += countTotal(i.subMateri);
         } else {
@@ -412,6 +412,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     double countFinished(List<SubSubjectItem> list) {
       double fin = 0;
       for (var i in list) {
+        if (i.isDisabled) continue;
         if (i.subMateri.isNotEmpty) {
           fin += countFinished(i.subMateri);
         } else {
@@ -435,12 +436,10 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     }
   }
 
-  // === FITUR BARU: Penangan aktivasi/nonaktivasi manual list harian ===
   void _handleToggleDisableItem(SubSubjectItem item) {
     _saveToHistory();
     setState(() {
       item.isDisabled = !item.isDisabled;
-      // Jika dinonaktifkan, bersihkan status progress agar tidak mengacaukan perhitungan global
       if (item.isDisabled) {
         item.progress = 'belum';
         item.currentValue = 0;
@@ -489,9 +488,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
         false;
   }
 
-  // Update pada dialog pemindah item
   void _showMoveSelectedItemsDialog(List<SubSubjectItem> allFlattened) {
-    // 1. Filter target internal (SubSubjectItem lain di dalam list saat ini)
     List<SubSubjectItem> validTargets = allFlattened.where((item) {
       if (_selectedItems.contains(item)) return false;
       return !_selectedItems.any((selected) {
@@ -514,12 +511,10 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
         content: SizedBox(
           width: double.maxFinite,
           child: SingleChildScrollView(
-            // Dibungkus ScrollView agar aman jika data banyak
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ================= SEKSI 1: PINDAH INTERNAL LIST INI =================
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 8.0),
                   child: Text(
@@ -563,8 +558,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                   ),
                 ),
                 const Divider(height: 24),
-
-                // ================= SEKSI 2: PINDAH KE LIST LAIN =================
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 8.0),
                   child: Text(
@@ -576,7 +569,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                     ),
                   ),
                 ),
-                // Filter agar kotak list saat ini tidak muncul kembali di pilihan luar
                 ...widget.allAvailableSubjects
                     .where((sub) => sub != widget.subject)
                     .map(
@@ -608,30 +600,22 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     );
   }
 
-  // METHOD BARU: Untuk mengeksekusi perpindahan item keluar dari DailySubject saat ini menuju target baru
   void _moveSelectedItemsToOtherSubject(DailySubject targetSubject) {
     _saveToHistory();
     setState(() {
-      // 1. Ambil item-item terpilih dan hapus dari struktur pohon list saat ini
       for (var item in _selectedItems) {
         _deleteItemFromTree(widget.subject.subMateri, item);
       }
-
-      // 2. Masukkan item-item tersebut ke root list dari DailySubject tujuan
       targetSubject.subMateri.addAll(_selectedItems);
-
-      // 3. Bersihkan sisa pilihan di UI & matikan mode edit
       _selectedItems.clear();
       _isEditMode = false;
     });
 
-    // 4. Rekalkulasi progress untuk kedua belah pihak (asal dan tujuan)
     for (var root in widget.subject.subMateri) {
       root.updateStatusFromChildren();
     }
     _updateSubjectOverallProgress();
 
-    // Trigger progress update untuk targetSubject eksternal
     double countTotal(List<SubSubjectItem> list) {
       double total = 0;
       for (var i in list) {
@@ -661,10 +645,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     else
       targetSubject.progress = 'belum';
 
-    // 5. Simpan perubahan secara permanen melalui callback kontroler utama
     widget.onDataChanged();
-
-    // Beri feedback notifikasi sukses kepada pengguna
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -676,7 +657,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     );
   }
 
-  // Update minor parameter opsional named pada fungsi bawaan lama agar fleksibel
   void _moveSelectedItemsToTarget({SubSubjectItem? targetParent}) {
     _saveToHistory();
     setState(() {
@@ -698,13 +678,9 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     widget.onDataChanged();
   }
 
-  // =========================================================================
-  // FITUR BARU: Penangan Konfigurasi Pengubahan Tipe dan Penambahan Nilai Angka
-  // =========================================================================
   void _handleToggleItemType(SubSubjectItem item) {
     if (item.itemType == 'normal') {
       final targetController = TextEditingController();
-
       showDialog(
         context: context,
         builder: (context) => StatefulBuilder(
@@ -721,26 +697,18 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                 controller: targetController,
                 keyboardType: TextInputType.number,
                 autofocus: true,
-                // Menggunakan format input standar digit angka murni
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 decoration: const InputDecoration(
                   labelText: 'Target Nilai (Misal: 10, 1.000, 1.000.000)',
                   border: OutlineInputBorder(),
                 ),
                 onChanged: (val) {
-                  // FORMATTER REAL-TIME: Otomatis menambahkan titik setiap 3 digit angka saat diketik
                   if (val.isEmpty) return;
-
-                  // Hapus semua titik lama terlebih dahulu agar kalkulasi string murni bersih
                   String cleanText = val.replaceAll('.', '');
-
-                  // Bentuk ulang string format dengan menambahkan separator titik Indonesia
                   String formattedText = cleanText.replaceAllMapped(
                     RegExp(r'\B(?=(\d{3})+(?!\d))'),
                     (match) => '.',
                   );
-
-                  // Set teks baru dan atur posisi kursor teks agar selalu berada di paling kanan ujung input
                   targetController.value = TextEditingValue(
                     text: formattedText,
                     selection: TextSelection.collapsed(
@@ -756,7 +724,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                 ),
                 ElevatedButton(
                   onPressed: () {
-                    // DEKODER: Hapus karakter tanda titik sebelum melakukan parsing data string ke Integer murni
                     final String rawText = targetController.text
                         .replaceAll('.', '')
                         .trim();
@@ -807,8 +774,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
 
   void _showUpdateProgressValueDialog(SubSubjectItem item) {
     final valueController = TextEditingController();
-
-    // Helper format angka ribuan (dengan tanda titik) untuk teks informasi dialog
     String formatDialogNum(int num) => num.toString().replaceAllMapped(
       RegExp(r'\B(?=(\d{3})+(?!\d))'),
       (match) => '.',
@@ -839,26 +804,18 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                   controller: valueController,
                   keyboardType: TextInputType.number,
                   autofocus: true,
-                  // Membatasi agar input keyboard hanya menerima angka saja
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   decoration: const InputDecoration(
                     labelText: 'Jumlah Angka Tambahan (Misal: 1.000)',
                     border: OutlineInputBorder(),
                   ),
                   onChanged: (val) {
-                    // FORMATTER REAL-TIME: Otomatis menambahkan tanda titik saat pengguna mengetik harian
                     if (val.isEmpty) return;
-
-                    // Hapus tanda titik lama terlebih dahulu agar kalkulasi teks bersih
                     String cleanText = val.replaceAll('.', '');
-
-                    // Bentuk ulang teks dengan menyisipkan pemisah titik ribuan Indonesia
                     String formattedText = cleanText.replaceAllMapped(
                       RegExp(r'\B(?=(\d{3})+(?!\d))'),
                       (match) => '.',
                     );
-
-                    // Pasang teks hasil format dan kunci kursor agar tetap di ujung paling kanan
                     valueController.value = TextEditingValue(
                       text: formattedText,
                       selection: TextSelection.collapsed(
@@ -879,7 +836,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
               ),
               ElevatedButton(
                 onPressed: () {
-                  // DEKODER: Bersihkan karakter tanda titik pembantu sebelum melakukan parsing ke Integer murni
                   final String rawText = valueController.text
                       .replaceAll('.', '')
                       .trim();
@@ -888,9 +844,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                   if (addValue != null && addValue > 0) {
                     _saveToHistory();
                     setState(() {
-                      // Menambahkan nilai angka baru tanpa batasan clamp nilai target
                       item.currentValue = item.currentValue + addValue;
-
                       if (item.currentValue >= item.targetValue) {
                         item.progress = 'selesai';
                         item.finishedDate =
@@ -899,7 +853,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                         item.progress = 'belum';
                         item.finishedDate = null;
                       }
-
                       for (var r in widget.subject.subMateri) {
                         r.updateStatusFromChildren();
                       }
@@ -945,8 +898,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
         children: [
           Expanded(
             child: InkWell(
-              onTap:
-                  _showEditSubjectNameDialog, // Memicu dialog ubah judul saat diklik
+              onTap: _showEditSubjectNameDialog,
               borderRadius: BorderRadius.circular(4),
               child: Padding(
                 padding: const EdgeInsets.symmetric(
@@ -1020,7 +972,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                   },
                 ),
               ],
-
               if (widget.subject.type == 'note' && _isNoteModified)
                 IconButton(
                   icon: const Icon(
@@ -1202,7 +1153,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                                   setState(() {
                                     if (target.itemType == 'progress') {
                                       if (checked == false) {
-                                        // Reset hitungan progres kembali menjadi 0 harian jika di-uncheck
                                         target.currentValue = 0;
                                         target.progress = 'belum';
                                         target.finishedDate = null;
@@ -1244,8 +1194,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                                 onToggleItemType: _handleToggleItemType,
                                 onUpdateProgressValue:
                                     _showUpdateProgressValueDialog,
-                                onToggleDisable:
-                                    _handleToggleDisableItem, // <-- SUNTIKKAN CALLBACK BARU
+                                onToggleDisable: _handleToggleDisableItem,
                               );
                             }),
                             if (!_hideFinishedItems &&
@@ -1288,85 +1237,85 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                                 ),
                               ),
                             if (!_hideFinishedItems)
-                              ...List.generate(widget.subject.subMateri.length, (
-                                index,
-                              ) {
-                                final item = widget.subject.subMateri[index];
-                                if (item.progress != 'selesai')
-                                  return const SizedBox.shrink();
-                                return ChecklistTreeView(
-                                  item: item,
-                                  depth: 0,
-                                  isEditMode: _isEditMode,
-                                  selectedItems: _selectedItems,
-                                  highlightedItem: _highlightedItem,
-                                  isFirst: index == 0,
-                                  isLast:
-                                      index ==
-                                      widget.subject.subMateri.length - 1,
-                                  onSelectItem: (target, add) => setState(
-                                    () => add
-                                        ? _selectedItems.add(target)
-                                        : _selectedItems.remove(target),
-                                  ),
-                                  onMoveOrder: _moveItemOrder,
-                                  onEditName: (targetItem) =>
-                                      _showEditNameDialog(targetItem),
-                                  onLongPressToggle: () => setState(() {
-                                    _isEditMode = !_isEditMode;
-                                    _selectedItems.clear();
-                                  }),
-                                  onCheckStatusChanged: (target, checked) {
-                                    _saveToHistory();
-                                    setState(() {
-                                      if (target.itemType == 'progress') {
-                                        if (checked == false) {
-                                          // Reset hitungan progres kembali menjadi 0 harian jika di-uncheck
-                                          target.currentValue = 0;
-                                          target.progress = 'belum';
-                                          target.finishedDate = null;
+                              ...List.generate(
+                                widget.subject.subMateri.length,
+                                (index) {
+                                  final item = widget.subject.subMateri[index];
+                                  if (item.progress != 'selesai')
+                                    return const SizedBox.shrink();
+                                  return ChecklistTreeView(
+                                    item: item,
+                                    depth: 0,
+                                    isEditMode: _isEditMode,
+                                    selectedItems: _selectedItems,
+                                    highlightedItem: _highlightedItem,
+                                    isFirst: index == 0,
+                                    isLast:
+                                        index ==
+                                        widget.subject.subMateri.length - 1,
+                                    onSelectItem: (target, add) => setState(
+                                      () => add
+                                          ? _selectedItems.add(target)
+                                          : _selectedItems.remove(target),
+                                    ),
+                                    onMoveOrder: _moveItemOrder,
+                                    onEditName: (targetItem) =>
+                                        _showEditNameDialog(targetItem),
+                                    onLongPressToggle: () => setState(() {
+                                      _isEditMode = !_isEditMode;
+                                      _selectedItems.clear();
+                                    }),
+                                    onCheckStatusChanged: (target, checked) {
+                                      _saveToHistory();
+                                      setState(() {
+                                        if (target.itemType == 'progress') {
+                                          if (checked == false) {
+                                            target.currentValue = 0;
+                                            target.progress = 'belum';
+                                            target.finishedDate = null;
+                                          }
+                                        } else {
+                                          target.progress = checked == true
+                                              ? 'selesai'
+                                              : 'belum';
                                         }
-                                      } else {
-                                        target.progress = checked == true
-                                            ? 'selesai'
-                                            : 'belum';
+                                        for (var r
+                                            in widget.subject.subMateri) {
+                                          r.updateStatusFromChildren();
+                                        }
+                                      });
+                                      _updateSubjectOverallProgress();
+                                      widget.onDataChanged();
+                                    },
+                                    onTapToggleStatus: (target) {
+                                      if (target.itemType == 'progress') {
+                                        _showUpdateProgressValueDialog(target);
+                                        return;
                                       }
+                                      _saveToHistory();
+                                      setState(
+                                        () => target.progress =
+                                            target.progress != 'selesai'
+                                            ? 'selesai'
+                                            : 'belum',
+                                      );
                                       for (var r in widget.subject.subMateri) {
                                         r.updateStatusFromChildren();
                                       }
-                                    });
-                                    _updateSubjectOverallProgress();
-                                    widget.onDataChanged();
-                                  },
-                                  onTapToggleStatus: (target) {
-                                    if (target.itemType == 'progress') {
-                                      _showUpdateProgressValueDialog(target);
-                                      return;
-                                    }
-                                    _saveToHistory();
-                                    setState(
-                                      () => target.progress =
-                                          target.progress != 'selesai'
-                                          ? 'selesai'
-                                          : 'belum',
-                                    );
-                                    for (var r in widget.subject.subMateri) {
-                                      r.updateStatusFromChildren();
-                                    }
-                                    _updateSubjectOverallProgress();
-                                    widget.onDataChanged();
-                                  },
-                                  onAddChild: (targetItem) =>
-                                      _addChildSubMateri(targetItem),
-                                  onDeleteItem: (targetItem) =>
-                                      _deleteSingleSubMateri(targetItem),
-                                  onToggleItemType: _handleToggleItemType,
-                                  onUpdateProgressValue:
-                                      _showUpdateProgressValueDialog,
-                                  onToggleDisable:
-                                      _handleToggleDisableItem, // <-- SUNTIKKAN CALLBACK BARU
-                                );
-                              }),
+                                      _updateSubjectOverallProgress();
+                                      widget.onDataChanged();
+                                    },
+                                    onAddChild: (targetItem) =>
+                                        _addChildSubMateri(targetItem),
+                                    onDeleteItem: (targetItem) =>
+                                        _deleteSingleSubMateri(targetItem),
+                                    onToggleItemType: _handleToggleItemType,
+                                    onUpdateProgressValue:
+                                        _showUpdateProgressValueDialog,
+                                    onToggleDisable: _handleToggleDisableItem,
+                                  );
+                                },
+                              ),
                           ],
                         )),
           ),
@@ -1454,17 +1403,24 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                       icon: const Icon(Icons.redo, color: Colors.blueGrey),
                       onPressed: _redoStack.isEmpty ? null : _executeRedo,
                     ),
-                  TextButton.icon(
-                    onPressed: () async {
+
+                  // =========================================================================
+                  // MODIFIKASI UTAMA: Mengganti TextButton dengan InkWell / GestureDetector
+                  // Pendukung Deteksi Tap Biasa (Reset Aman) dan Long Press (Reset Total)
+                  // =========================================================================
+                  InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: () async {
                       final confirm = await _showConfirmDialog(
                         title: 'Reset Progress',
-                        content: 'Reset semua progress menjadi Belum Selesai?',
+                        content:
+                            'Reset semua progress menjadi Belum Selesai? (List nonaktif akan diabaikan)',
                       );
                       if (!confirm) return;
                       _saveToHistory();
                       void resetRecursive(List<SubSubjectItem> list) {
                         for (var item in list) {
-                          // PERBAIKAN MUTLAK: Lewati (Jangan di-reset) jika item berstatus dinonaktifkan
+                          // Klik biasa: Lewati reset jika status item dinonaktifkan (tanda silang X)
                           if (!item.isDisabled) {
                             item.progress = 'belum';
                             item.finishedDate = null;
@@ -1478,14 +1434,62 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                       _updateSubjectOverallProgress();
                       widget.onDataChanged();
                     },
-                    icon: const Icon(
-                      Icons.refresh,
-                      color: Colors.red,
-                      size: 18,
-                    ),
-                    label: const Text(
-                      'Reset',
-                      style: TextStyle(color: Colors.red),
+                    onLongPress: () async {
+                      final confirm = await _showConfirmDialog(
+                        title: '🔥 Reset Total Checklist',
+                        content:
+                            'Apakah Anda yakin ingin mereset seluruh progress DAN mengaktifkan kembali semua list yang dinonaktifkan (tanda silang)?',
+                      );
+                      if (!confirm) return;
+                      _saveToHistory();
+                      void forceResetAllRecursive(List<SubSubjectItem> list) {
+                        for (var item in list) {
+                          // Klik dan tahan: Paksa reset semua progress dan kembalikan status isDisabled menjadi aktif (false)
+                          item.isDisabled = false;
+                          item.progress = 'belum';
+                          item.finishedDate = null;
+                          item.currentValue = 0;
+                          forceResetAllRecursive(item.subMateri);
+                        }
+                      }
+
+                      setState(
+                        () => forceResetAllRecursive(widget.subject.subMateri),
+                      );
+                      _updateSubjectOverallProgress();
+                      widget.onDataChanged();
+
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              '🔥 Seluruh list dan status dinonaktifkan berhasil di-reset total!',
+                            ),
+                            backgroundColor: Colors.deepOrange,
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12.0,
+                        vertical: 8.0,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          Icon(Icons.refresh, color: Colors.red, size: 18),
+                          SizedBox(width: 4),
+                          Text(
+                            'Reset',
+                            style: TextStyle(
+                              color: Colors.red,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
