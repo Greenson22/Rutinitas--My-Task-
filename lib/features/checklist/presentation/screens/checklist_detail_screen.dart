@@ -66,6 +66,96 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
     }
   }
 
+  // FITUR BARU: Menampilkan Dialog khusus untuk memilih kelompok Grup Tujuan Pemindahan Card Checklist
+  void _showTargetGroupSelectionDialog({
+    required ChecklistSection originalSection,
+    required DailySubject subject,
+  }) {
+    // Saring grup yang valid (bukan grup aktif saat ini, dan bukan berkas korup)
+    final List<ChecklistGroup> validTargetGroups = _loadedAllGroups
+        .where((g) => g.id != currentGroup.id && !g.id.startsWith("CORRUPTED_"))
+        .toList();
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.folder_shared_rounded, color: Colors.indigo),
+              SizedBox(width: 8),
+              Text(
+                'Pilih Grup Tujuan',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          content: validTargetGroups.isEmpty
+              ? const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16.0),
+                  child: Text(
+                    'Tidak ada kelompok grup checklist lain yang tersedia.',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                )
+              : SizedBox(
+                  width: double.maxFinite,
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: validTargetGroups.length,
+                    separatorBuilder: (context, index) =>
+                        const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final targetGroupObj = validTargetGroups[index];
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.indigo.withOpacity(0.1),
+                          child: Text(
+                            targetGroupObj.icon,
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                        ),
+                        title: Text(
+                          targetGroupObj.groupName,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        trailing: const Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          size: 14,
+                          color: Colors.grey,
+                        ),
+                        onTap: () {
+                          Navigator.pop(
+                            dialogCtx,
+                          ); // Tutup dialog pilihan daftar grup
+                          // Jalankan fungsi mutasi data ke controller utama
+                          moveChecklistToAnotherGroup(
+                            currentSectionItems: originalSection.items,
+                            subject: subject,
+                            targetGroup: targetGroupObj,
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   // SOLUSI UTAMA: Meng-override fungsi openMateriChecklist dari Controller untuk menyuntikkan ukuran Dialog melar
   @override
   void openMateriChecklist(DailySubject subject) {
@@ -645,7 +735,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                 ),
 
             // =========================================================================
-            // MENU BARU: PINDAHKAN KARTU CHECKLIST INI KE GRUP LAINNYA
+            // OPSI TUNGGAL BARU: MENU PINDAHKAN KARTU CHECKLIST INI KE GRUP LAINNYA
             // =========================================================================
             if (_loadedAllGroups
                 .where(
@@ -654,36 +744,23 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                 )
                 .isNotEmpty) ...[
               const PopupMenuDivider(),
-              ..._loadedAllGroups
-                  .where(
-                    (g) =>
-                        g.id != currentGroup.id &&
-                        !g.id.startsWith("CORRUPTED_"),
-                  )
-                  .map(
-                    (targetGroup) => PopupMenuItem<String>(
-                      value: 'EXTERNAL_GROUP_MOVE:${targetGroup.id}',
-                      child: Row(
-                        children: [
-                          Text(
-                            targetGroup.icon,
-                            style: const TextStyle(fontSize: 14),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'Pindahkan ke Grup: ${targetGroup.groupName}',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: Colors.indigo,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
+              const PopupMenuItem<String>(
+                value: 'CHOOSE_EXTERNAL_GROUP_DIALOG',
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.folder_shared_outlined,
+                      size: 18,
+                      color: Colors.indigo,
                     ),
-                  ),
+                    SizedBox(width: 10),
+                    Text(
+                      'Pindahkan ke Grup Lain',
+                      style: TextStyle(fontSize: 13, color: Colors.indigo),
+                    ),
+                  ],
+                ),
+              ),
             ],
 
             if (currentGroup.allList.length > 1 || _loadedAllGroups.length > 1)
@@ -712,20 +789,11 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
               // Lempar List ASLI ke controller agar bisa dihapus dari data utama
               deleteItemFromSection(originalSection.items, subject);
             }
-            // Intervensi Aksi Perpindahan Eksternal Antar Berkas Grup Checklist
-            else if (value.startsWith('EXTERNAL_GROUP_MOVE:')) {
-              final String targetGroupId = value.replaceFirst(
-                'EXTERNAL_GROUP_MOVE:',
-                '',
-              );
-              final targetGroupObj = _loadedAllGroups.firstWhere(
-                (g) => g.id == targetGroupId,
-              );
-
-              moveChecklistToAnotherGroup(
-                currentSectionItems: originalSection.items,
+            // Memicu pembukaan Dialog Daftar pilihan kelompok Grup Checklist Target
+            else if (value == 'CHOOSE_EXTERNAL_GROUP_DIALOG') {
+              _showTargetGroupSelectionDialog(
+                originalSection: originalSection,
                 subject: subject,
-                targetGroup: targetGroupObj,
               );
             }
             // Penanganan Aksi Mutasi Seksi Internal Bawaan
