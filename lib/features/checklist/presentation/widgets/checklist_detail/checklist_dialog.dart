@@ -683,58 +683,90 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
   void _handleToggleItemType(SubSubjectItem item) {
     if (item.itemType == 'normal') {
       final targetController = TextEditingController();
+
       showDialog(
         context: context,
-        builder: (context) => AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: const Text(
-            'Set Target Angka Progres',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          content: TextField(
-            controller: targetController,
-            keyboardType: TextInputType.number,
-            autofocus: true,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            decoration: const InputDecoration(
-              labelText: 'Target Nilai (Misal: 10, 50, 100)',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Batal'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final int? target = int.tryParse(targetController.text.trim());
-                if (target != null && target > 0) {
-                  setState(() {
-                    item.itemType = 'progress';
-                    item.targetValue = target;
-                    item.currentValue = 0;
-                    item.progress = 'belum';
-                  });
-                  for (var r in widget.subject.subMateri) {
-                    r.updateStatusFromChildren();
-                  }
-                  _updateSubjectOverallProgress();
-                  widget.onDataChanged();
-                  Navigator.pop(context);
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.deepOrange,
+        builder: (context) => StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
               ),
-              child: const Text(
-                'Set Target',
-                style: TextStyle(color: Colors.white),
+              title: const Text(
+                'Set Target Angka Progres',
+                style: TextStyle(fontWeight: FontWeight.bold),
               ),
-            ),
-          ],
+              content: TextField(
+                controller: targetController,
+                keyboardType: TextInputType.number,
+                autofocus: true,
+                // Menggunakan format input standar digit angka murni
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: const InputDecoration(
+                  labelText: 'Target Nilai (Misal: 10, 1.000, 1.000.000)',
+                  border: OutlineInputBorder(),
+                ),
+                onChanged: (val) {
+                  // FORMATTER REAL-TIME: Otomatis menambahkan titik setiap 3 digit angka saat diketik
+                  if (val.isEmpty) return;
+
+                  // Hapus semua titik lama terlebih dahulu agar kalkulasi string murni bersih
+                  String cleanText = val.replaceAll('.', '');
+
+                  // Bentuk ulang string format dengan menambahkan separator titik Indonesia
+                  String formattedText = cleanText.replaceAllMapped(
+                    RegExp(r'\B(?=(\d{3})+(?!\d))'),
+                    (match) => '.',
+                  );
+
+                  // Set teks baru dan atur posisi kursor teks agar selalu berada di paling kanan ujung input
+                  targetController.value = TextEditingValue(
+                    text: formattedText,
+                    selection: TextSelection.collapsed(
+                      offset: formattedText.length,
+                    ),
+                  );
+                },
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Batal'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    // DEKODER: Hapus karakter tanda titik sebelum melakukan parsing data string ke Integer murni
+                    final String rawText = targetController.text
+                        .replaceAll('.', '')
+                        .trim();
+                    final int? target = int.tryParse(rawText);
+
+                    if (target != null && target > 0) {
+                      setState(() {
+                        item.itemType = 'progress';
+                        item.targetValue = target;
+                        item.currentValue = 0;
+                        item.progress = 'belum';
+                      });
+                      for (var r in widget.subject.subMateri) {
+                        r.updateStatusFromChildren();
+                      }
+                      _updateSubjectOverallProgress();
+                      widget.onDataChanged();
+                      Navigator.pop(context);
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepOrange,
+                  ),
+                  child: const Text(
+                    'Set Target',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       );
     } else {
@@ -755,7 +787,7 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
   void _showUpdateProgressValueDialog(SubSubjectItem item) {
     final valueController = TextEditingController();
 
-    // Helper format angka untuk dialog
+    // Helper format angka ribuan (dengan tanda titik) untuk teks informasi dialog
     String formatDialogNum(int num) => num.toString().replaceAllMapped(
       RegExp(r'\B(?=(\d{3})+(?!\d))'),
       (match) => '.',
@@ -763,69 +795,108 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          'Input Angka Progres untuk "${item.subjectName}"',
-          style: const TextStyle(fontSize: 16),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Progres saat ini: ${formatDialogNum(item.currentValue)} / ${formatDialogNum(item.targetValue)}',
-              style: const TextStyle(color: Colors.grey),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: valueController,
-              keyboardType: TextInputType.number,
-              autofocus: true,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: const InputDecoration(
-                labelText: 'Jumlah Angka Tambahan',
-                border: OutlineInputBorder(),
+            title: Text(
+              'Input Angka Progres untuk "${item.subjectName}"',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Progres saat ini: ${formatDialogNum(item.currentValue)} / ${formatDialogNum(item.targetValue)}',
+                  style: const TextStyle(color: Colors.grey, fontSize: 13),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: valueController,
+                  keyboardType: TextInputType.number,
+                  autofocus: true,
+                  // Membatasi agar input keyboard hanya menerima angka saja
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  decoration: const InputDecoration(
+                    labelText: 'Jumlah Angka Tambahan (Misal: 1.000)',
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (val) {
+                    // FORMATTER REAL-TIME: Otomatis menambahkan tanda titik saat pengguna mengetik harian
+                    if (val.isEmpty) return;
+
+                    // Hapus tanda titik lama terlebih dahulu agar kalkulasi teks bersih
+                    String cleanText = val.replaceAll('.', '');
+
+                    // Bentuk ulang teks dengan menyisipkan pemisah titik ribuan Indonesia
+                    String formattedText = cleanText.replaceAllMapped(
+                      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+                      (match) => '.',
+                    );
+
+                    // Pasang teks hasil format dan kunci kursor agar tetap di ujung paling kanan
+                    valueController.value = TextEditingValue(
+                      text: formattedText,
+                      selection: TextSelection.collapsed(
+                        offset: formattedText.length,
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text(
+                  'Batal',
+                  style: TextStyle(color: Colors.grey),
+                ),
               ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final int? addValue = int.tryParse(valueController.text.trim());
-              if (addValue != null && addValue > 0) {
-                _saveToHistory();
-                setState(() {
-                  // PERBAIKAN: Hapus clamp batas atas targetValue agar angka saat ini bisa melampaui target
-                  item.currentValue = item.currentValue + addValue;
+              ElevatedButton(
+                onPressed: () {
+                  // DEKODER: Bersihkan karakter tanda titik pembantu sebelum melakukan parsing ke Integer murni
+                  final String rawText = valueController.text
+                      .replaceAll('.', '')
+                      .trim();
+                  final int? addValue = int.tryParse(rawText);
 
-                  if (item.currentValue >= item.targetValue) {
-                    item.progress = 'selesai';
-                    item.finishedDate =
-                        "${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}";
-                  } else {
-                    item.progress = 'belum';
-                    item.finishedDate = null;
-                  }
+                  if (addValue != null && addValue > 0) {
+                    _saveToHistory();
+                    setState(() {
+                      // Menambahkan nilai angka baru tanpa batasan clamp nilai target
+                      item.currentValue = item.currentValue + addValue;
 
-                  for (var r in widget.subject.subMateri) {
-                    r.updateStatusFromChildren();
+                      if (item.currentValue >= item.targetValue) {
+                        item.progress = 'selesai';
+                        item.finishedDate =
+                            "${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}";
+                      } else {
+                        item.progress = 'belum';
+                        item.finishedDate = null;
+                      }
+
+                      for (var r in widget.subject.subMateri) {
+                        r.updateStatusFromChildren();
+                      }
+                    });
+                    _updateSubjectOverallProgress();
+                    widget.onDataChanged();
+                    Navigator.pop(context);
                   }
-                });
-                _updateSubjectOverallProgress();
-                widget.onDataChanged();
-                Navigator.pop(context);
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
-            child: const Text('Tambah', style: TextStyle(color: Colors.white)),
-          ),
-        ],
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+                child: const Text(
+                  'Tambah',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
