@@ -13,13 +13,16 @@ class ChecklistTreeView extends StatelessWidget {
   final bool isLast;
   final Function(SubSubjectItem, bool) onSelectItem;
   final Function(SubSubjectItem, int) onMoveOrder;
-  final Function(SubSubjectItem) onEditName; // <-- DIPERBARUI dari VoidCallback
+  final Function(SubSubjectItem) onEditName;
   final VoidCallback onLongPressToggle;
   final Function(SubSubjectItem, bool?) onCheckStatusChanged;
   final Function(SubSubjectItem) onTapToggleStatus;
-  final Function(SubSubjectItem) onAddChild; // <-- DIPERBARUI dari VoidCallback
-  final Function(SubSubjectItem)
-  onDeleteItem; // <-- DIPERBARUI dari VoidCallback
+  final Function(SubSubjectItem) onAddChild;
+  final Function(SubSubjectItem) onDeleteItem;
+
+  // FITUR BARU: Callback untuk kustomisasi Progress angka harian
+  final Function(SubSubjectItem)? onToggleItemType;
+  final Function(SubSubjectItem)? onUpdateProgressValue;
 
   const ChecklistTreeView({
     super.key,
@@ -38,6 +41,8 @@ class ChecklistTreeView extends StatelessWidget {
     required this.onTapToggleStatus,
     required this.onAddChild,
     required this.onDeleteItem,
+    this.onToggleItemType,
+    this.onUpdateProgressValue,
   });
 
   @override
@@ -90,7 +95,7 @@ class ChecklistTreeView extends StatelessWidget {
               Expanded(
                 child: isEditMode
                     ? InkWell(
-                        onTap: () => onEditName(item), // <-- DIPERBARUI
+                        onTap: () => onEditName(item),
                         onLongPress: onLongPressToggle,
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
@@ -104,6 +109,12 @@ class ChecklistTreeView extends StatelessWidget {
                                   Icons.account_tree_outlined,
                                   size: 16,
                                   color: Colors.indigo,
+                                )
+                              else if (item.itemType == 'progress')
+                                const Icon(
+                                  Icons.bar_chart_rounded,
+                                  size: 16,
+                                  color: Colors.deepOrange,
                                 ),
                               const SizedBox(width: 4),
                               Expanded(
@@ -115,6 +126,25 @@ class ChecklistTreeView extends StatelessWidget {
                                   ),
                                 ),
                               ),
+                              // Tombol ganti tipe list (Khusus ujung ranting/daun list yang tidak punya anak)
+                              if (item.subMateri.isEmpty &&
+                                  onToggleItemType != null)
+                                IconButton(
+                                  icon: Icon(
+                                    item.itemType == 'progress'
+                                        ? Icons.toggle_on_rounded
+                                        : Icons.toggle_off_outlined,
+                                    color: item.itemType == 'progress'
+                                        ? Colors.deepOrange
+                                        : Colors.grey,
+                                  ),
+                                  tooltip: 'Ubah ke Tipe Progress',
+                                  constraints: const BoxConstraints(),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                  ),
+                                  onPressed: () => onToggleItemType!(item),
+                                ),
                               const Icon(
                                 Icons.edit_note,
                                 color: Colors.blueGrey,
@@ -126,11 +156,16 @@ class ChecklistTreeView extends StatelessWidget {
                       )
                     : Row(
                         children: [
+                          // Jika bertipe progress, checkbox otomatis tercentang/dikunci dari kalkulasi target angka
                           Checkbox(
                             value: isChecked,
-                            activeColor: Colors.teal,
-                            onChanged: (bool? checked) =>
-                                onCheckStatusChanged(item, checked),
+                            activeColor: item.itemType == 'progress'
+                                ? Colors.deepOrange
+                                : Colors.teal,
+                            onChanged: item.itemType == 'progress'
+                                ? null
+                                : (bool? checked) =>
+                                      onCheckStatusChanged(item, checked),
                           ),
                           Expanded(
                             child: InkWell(
@@ -155,6 +190,49 @@ class ChecklistTreeView extends StatelessWidget {
                               ),
                             ),
                           ),
+                          // TAMPILAN ELEMEN ANGKA PROGRES (Jika tipe progress diaktifkan)
+                          if (item.itemType == 'progress' &&
+                              item.subMateri.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 4.0),
+                              child: TextButton.icon(
+                                style: TextButton.styleFrom(
+                                  backgroundColor: isChecked
+                                      ? Colors.grey[200]
+                                      : Colors.deepOrange.withOpacity(0.1),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
+                                  minimumSize: Size.zero,
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                ),
+                                icon: Icon(
+                                  Icons.add_circle_outline_rounded,
+                                  size: 14,
+                                  color: isChecked
+                                      ? Colors.grey
+                                      : Colors.deepOrange,
+                                ),
+                                label: Text(
+                                  '${item.currentValue} / ${item.targetValue}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: isChecked
+                                        ? Colors.grey
+                                        : Colors.deepOrange[800],
+                                  ),
+                                ),
+                                onPressed: isChecked
+                                    ? null
+                                    : () => onUpdateProgressValue?.call(item),
+                              ),
+                            ),
                         ],
                       ),
               ),
@@ -165,7 +243,7 @@ class ChecklistTreeView extends StatelessWidget {
                     color: Colors.teal,
                     size: 18,
                   ),
-                  onPressed: () => onAddChild(item), // <-- DIPERBARUI
+                  onPressed: () => onAddChild(item),
                   constraints: const BoxConstraints(),
                   padding: const EdgeInsets.all(4),
                 ),
@@ -175,7 +253,7 @@ class ChecklistTreeView extends StatelessWidget {
                     color: Colors.redAccent,
                     size: 18,
                   ),
-                  onPressed: () => onDeleteItem(item), // <-- DIPERBARUI
+                  onPressed: () => onDeleteItem(item),
                   constraints: const BoxConstraints(),
                   padding: const EdgeInsets.all(4),
                 ),
@@ -197,15 +275,15 @@ class ChecklistTreeView extends StatelessWidget {
                 isLast: index == item.subMateri.length - 1,
                 onSelectItem: onSelectItem,
                 onMoveOrder: onMoveOrder,
-                onEditName:
-                    onEditName, // <-- Teruskan fungsi pointer dengan aman
+                onEditName: onEditName,
                 onLongPressToggle: onLongPressToggle,
                 onCheckStatusChanged: onCheckStatusChanged,
                 onTapToggleStatus: onTapToggleStatus,
-                onAddChild:
-                    onAddChild, // <-- Teruskan fungsi pointer dengan aman
-                onDeleteItem:
-                    onDeleteItem, // <-- Teruskan fungsi pointer dengan aman
+                onAddChild: onAddChild,
+                onDeleteItem: onDeleteItem,
+                onToggleItemType: onToggleItemType, // Meneruskan callback tipe
+                onUpdateProgressValue:
+                    onUpdateProgressValue, // Meneruskan callback nilai angka
               );
             }),
           ),

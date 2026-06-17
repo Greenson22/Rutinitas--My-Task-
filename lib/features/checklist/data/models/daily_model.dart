@@ -236,11 +236,21 @@ class SubSubjectItem {
   String? finishedDate;
   List<SubSubjectItem> subMateri;
 
+  // =========================================================================
+  // PROPERTI BARU: Pendukung jenis tipe data Progress List ber-target angka
+  // =========================================================================
+  String itemType; // 'normal' atau 'progress'
+  int currentValue;
+  int targetValue;
+
   SubSubjectItem({
     required this.subjectName,
     required this.progress,
     this.finishedDate,
     List<SubSubjectItem>? subMateri,
+    this.itemType = 'normal',
+    this.currentValue = 0,
+    this.targetValue = 0,
   }) : this.subMateri = subMateri ?? [];
 
   SubSubjectItem clone() {
@@ -249,6 +259,9 @@ class SubSubjectItem {
       progress: this.progress,
       finishedDate: this.finishedDate,
       subMateri: this.subMateri.map((child) => child.clone()).toList(),
+      itemType: this.itemType,
+      currentValue: this.currentValue,
+      targetValue: this.targetValue,
     );
   }
 
@@ -263,6 +276,9 @@ class SubSubjectItem {
       progress: json['progress'] ?? 'belum',
       finishedDate: json['finishedDate'],
       subMateri: parsedSub,
+      itemType: json['itemType'] ?? 'normal',
+      currentValue: json['currentValue'] ?? 0,
+      targetValue: json['targetValue'] ?? 0,
     );
   }
 
@@ -272,11 +288,20 @@ class SubSubjectItem {
       'progress': progress,
       'finishedDate': finishedDate,
       'sub_materi': subMateri.map((e) => e.toJson()).toList(),
+      'itemType': itemType,
+      'currentValue': currentValue,
+      'targetValue': targetValue,
     };
   }
 
   void updateStatusFromChildren() {
-    if (subMateri.isEmpty) return;
+    if (subMateri.isEmpty) {
+      // Validasi penentu otomatis status penyelesaian khusus jenis elemen Progress List
+      if (itemType == 'progress' && targetValue > 0) {
+        progress = currentValue >= targetValue ? 'selesai' : 'belum';
+      }
+      return;
+    }
 
     for (var child in subMateri) {
       child.updateStatusFromChildren();
