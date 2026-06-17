@@ -25,7 +25,6 @@ class NoteColumnSettingsView extends StatefulWidget {
 }
 
 class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
-  // State baru untuk mengontrol kemunculan aksi secara massal
   bool _isManageMode = false;
 
   final List<String> _availableTypes = [
@@ -150,7 +149,6 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // HEADER BARU: Menyertakan tombol pemicu aktivasi aksi pengelolaan massal
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -217,8 +215,8 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                     ),
                   )
                 : ReorderableListView.builder(
-                    // Fungsionalitas reorder hanya aktif saat mode kelola dihidupkan
-                    buildDefaultDragHandles: _isManageMode,
+                    // FIX 1: Matikan default drag handle bawaan agar area card tidak conflict
+                    buildDefaultDragHandles: false,
                     itemCount: widget.currentFieldKeys.length,
                     onReorder: (oldIndex, newIndex) {
                       widget.controller.moveFieldKey(
@@ -251,16 +249,23 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                           ),
                           child: Row(
                             children: [
-                              // Drag Handle: Hanya tampil jika dalam mode kelola
+                              // FIX 2: Bungkus Icon dengan ReorderableDragStartListener secara spesifik
                               if (_isManageMode)
-                                const Padding(
-                                  padding: EdgeInsets.only(right: 8.0),
-                                  child: Icon(
-                                    Icons.drag_indicator_rounded,
-                                    color: Colors.grey,
+                                ReorderableDragStartListener(
+                                  index: idx,
+                                  child: const Padding(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: 8.0,
+                                      vertical: 10.0,
+                                    ),
+                                    child: Icon(
+                                      Icons.drag_indicator_rounded,
+                                      color: Colors.grey,
+                                      size: 22,
+                                    ),
                                   ),
                                 ),
-                              // SISI KIRI: Detail Kolom (Nama & Dropdown Tipe)
+                              const SizedBox(width: 4),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -311,7 +316,6 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                                                   ),
                                                 )
                                                 .toList(),
-                                            // Pengubahan tipe dinonaktifkan sementara saat mengelola posisi agar tidak bentrok
                                             onChanged: _isManageMode
                                                 ? null
                                                 : (String? newType) {
@@ -341,12 +345,10 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                                   ],
                                 ),
                               ),
-                              // SISI KANAN: Tombol Aksi (Hanya muncul jika _isManageMode bernilai true)
                               if (_isManageMode)
                                 Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    // Tombol Edit Nama Kolom
                                     Material(
                                       color: Colors.indigo.withOpacity(0.08),
                                       borderRadius: BorderRadius.circular(8),
@@ -365,7 +367,6 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                                       ),
                                     ),
                                     const SizedBox(width: 8),
-                                    // Tombol Hapus Kolom
                                     Material(
                                       color: Colors.red.withOpacity(0.08),
                                       borderRadius: BorderRadius.circular(8),
@@ -404,7 +405,6 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                   ),
           ),
           const SizedBox(height: 12),
-          // Sembunyikan tombol tambah kolom jika sedang masuk ke mode kelola agar fokus
           if (!_isManageMode)
             SizedBox(
               width: double.infinity,
