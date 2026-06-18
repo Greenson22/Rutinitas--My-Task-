@@ -36,11 +36,11 @@ class _PasswordGateState extends State<PasswordGate> {
 
   void _onSessionExpired() {
     if (StorageService.sessionExpiredNotifier.value != null) {
-      // 1. Paksa tutup semua dialog atau layer halaman lain yang sedang terbuka
-      // Ini akan mengembalikan rute ke halaman utama di mana PasswordGate berada
-      Navigator.of(context).popUntil((route) => route.isFirst);
+      // PERBAIKAN: Hapus atau komentari baris Navigator.of(context).popUntil karena
+      // PasswordGate berada di atas Navigator global, sehingga tidak memiliki akses Navigator context.
+      // Navigator.of(context).popUntil((route) => route.isFirst);
 
-      // 2. Tampilkan form kata sandi
+      // Cukup ubah state untuk menampilkan form kata sandi secara global
       setState(() {
         _needsPassword = true;
         _isChecking = false;
