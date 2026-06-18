@@ -26,7 +26,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
   late String _tempSelection;
   bool _isEncryptionEnabled = false;
   bool _rememberPassword = false;
-  int _passwordTimeout = 1; // --- TAMBAHAN STATE: Default 1 Menit ---
+  int _passwordTimeout = 1;
 
   final StorageService _storageService = StorageService();
 
@@ -42,8 +42,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
     setState(() {
       _isEncryptionEnabled = prefs.getBool('is_encrypted') ?? false;
       _rememberPassword = prefs.getBool('remember_password') ?? false;
-      _passwordTimeout =
-          prefs.getInt('password_timeout') ?? 1; // Ambil nilai yang tersimpan
+      _passwordTimeout = prefs.getInt('password_timeout') ?? 1;
     });
   }
 
@@ -56,11 +55,66 @@ class _SettingsDialogState extends State<SettingsDialog> {
     }
   }
 
-  Future<void> _lockApplicationNow() async {
-    await StorageService.lockManually(); // Ganti pemanggilan ke method di StorageService
-    if (mounted) {
-      Navigator.pop(context);
-      widget.onEncryptionToggled();
+  // --- TAMBAHAN BARU: Dialog untuk Input Menit Secara Manual ---
+  Future<void> _showCustomTimeoutDialog() async {
+    final textController = TextEditingController();
+
+    int? customMinutes = await showDialog<int>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Input Batas Waktu'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Masukkan batas waktu sesi dalam satuan menit:',
+              style: TextStyle(fontSize: 13, color: Colors.black87),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: textController,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                labelText: 'Durasi (Menit)',
+                isDense: true,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, null),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final val = int.tryParse(textController.text.trim());
+              if (val != null && val > 0) {
+                Navigator.pop(ctx, val);
+              } else {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(
+                    content: Text('Masukkan angka menit yang valid (> 0)!'),
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
+            child: const Text('Simpan', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (customMinutes != null) {
+      setState(() {
+        _passwordTimeout = customMinutes;
+      });
+      await _storageService.setPasswordTimeout(customMinutes);
     }
   }
 
@@ -302,6 +356,10 @@ class _SettingsDialogState extends State<SettingsDialog> {
 
   @override
   Widget build(BuildContext context) {
+    // Memeriksa apakah nilai timeout saat ini adalah nilai kustom (selain 1, 3, atau 5)
+    final bool isCustomValue =
+        _passwordTimeout != 1 && _passwordTimeout != 3 && _passwordTimeout != 5;
+
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: const Text('Pengaturan Folder Data'),
@@ -411,7 +469,6 @@ class _SettingsDialogState extends State<SettingsDialog> {
               ),
             ),
 
-            // --- TAMBAHAN UI BARU: Dropdown Batas Waktu Sesi (Timeout) ---
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: Container(
@@ -438,30 +495,39 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 style: TextStyle(fontSize: 11, color: Colors.black54),
               ),
               trailing: DropdownButton<int>(
-                value: _passwordTimeout,
+                // Jika nilainya kustom, dropdown akan otomatis diarahkan ke value -1 (Input Manual)
+                value: isCustomValue ? -1 : _passwordTimeout,
                 underline: const SizedBox(),
                 isDense: true,
-                items: const [
-                  DropdownMenuItem(
+                items: [
+                  const DropdownMenuItem(
                     value: 1,
                     child: Text('1 Menit', style: TextStyle(fontSize: 13)),
                   ),
-                  DropdownMenuItem(
+                  const DropdownMenuItem(
                     value: 3,
                     child: Text('3 Menit', style: TextStyle(fontSize: 13)),
                   ),
-                  DropdownMenuItem(
+                  const DropdownMenuItem(
                     value: 5,
                     child: Text('5 Menit', style: TextStyle(fontSize: 13)),
                   ),
                   DropdownMenuItem(
-                    value: 0,
-                    child: Text('Manual', style: TextStyle(fontSize: 13)),
+                    value: -1,
+                    child: Text(
+                      isCustomValue
+                          ? '$_passwordTimeout Menit'
+                          : 'Input Manual',
+                      style: const TextStyle(fontSize: 13),
+                    ),
                   ),
                 ],
                 onChanged: _isEncryptionEnabled
                     ? (val) async {
-                        if (val != null) {
+                        if (val == -1) {
+                          // Jika memilih input manual, tampilkan dialog input angka kustom
+                          await _showCustomTimeoutDialog();
+                        } else if (val != null) {
                           setState(() {
                             _passwordTimeout = val;
                           });
@@ -472,24 +538,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
               ),
             ),
 
-            if (_isEncryptionEnabled) ...[
-              const SizedBox(height: 4),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: _lockApplicationNow,
-                  icon: const Icon(Icons.lock_clock, size: 16),
-                  label: const Text('Kunci Aplikasi Secara Manual'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.redAccent,
-                    side: BorderSide(color: Colors.red.shade200),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+            // --- SEKSI TOMBOL "KUNCI APLIKASI" TELAH DIHAPUS SEPENUHNYA ---
             const Divider(),
             const SizedBox(height: 10),
             Row(

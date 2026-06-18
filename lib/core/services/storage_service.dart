@@ -55,6 +55,9 @@ class StorageService {
 
     final prefs = await SharedPreferences.getInstance();
     bool isEncrypted = prefs.getBool(_keyIsEncrypted) ?? false;
+    bool rememberPassword =
+        prefs.getBool(_keyRememberPassword) ??
+        false; // <-- Tambahan deteksi status ingat password
 
     // Jika fitur enkripsi mati, tidak perlu menyalakan timer
     if (!isEncrypted) return;
@@ -64,12 +67,20 @@ class StorageService {
     // Jika lebih dari 0, berarti bukan Manual. Nyalakan hitung mundur.
     if (minutes > 0) {
       sessionTimer = Timer(Duration(minutes: minutes), () async {
-        sessionPassword = null;
-        await prefs.remove(_keyEncryptionPassword);
-        await prefs.setBool(_keyRememberPassword, false);
-        // Picu notifikasi agar PasswordGate mengambil alih layar
-        sessionExpiredNotifier.value =
-            'Waktu sesi telah habis ($minutes Menit). Silakan masukkan kata sandi kembali.';
+        // --- BERLAKU JIKA INGAT PASSWORD TIDAK DICENTANG ---
+        if (!rememberPassword) {
+          sessionPassword = null;
+          await prefs.remove(_keyEncryptionPassword);
+          await prefs.setBool(_keyRememberPassword, false);
+
+          // Jikalau habis waktu, otomatis melempar ke password_gate dengan keterangan
+          sessionExpiredNotifier.value =
+              'Waktu sesi telah habis ($minutes Menit). Silakan masukkan kata sandi kembali.';
+        } else {
+          debugPrint(
+            "Sesi timer habis, namun dilewati karena fitur 'Ingat Kata Sandi' aktif.",
+          );
+        }
       });
     }
   }
