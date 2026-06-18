@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:rutinitasku/core/services/storage_service.dart';
-import 'package:rutinitasku/core/utils/crypto_helper.dart';
 
 class SettingsDialog extends StatefulWidget {
   final String currentBaseDir;
@@ -26,6 +25,7 @@ class SettingsDialog extends StatefulWidget {
 class _SettingsDialogState extends State<SettingsDialog> {
   late String _tempSelection;
   bool _isEncryptionEnabled = false;
+  bool _rememberPassword = false; // --- TAMBAHAN STATE BARU ---
   final StorageService _storageService = StorageService();
 
   @override
@@ -39,6 +39,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _isEncryptionEnabled = prefs.getBool('is_encrypted') ?? false;
+      _rememberPassword =
+          prefs.getBool('remember_password') ?? false; // Default false
     });
   }
 
@@ -137,17 +139,22 @@ class _SettingsDialogState extends State<SettingsDialog> {
       );
 
       try {
-        // Mengeksekusi penulisan enkripsi massal ke seluruh file biner .json di disk lokal
-        await _storageService.migrateFilesEncryption(value, inputPassword);
+        // MODIFIKASI: Meneruskan state _rememberPassword saat migrasi dijalankan
+        await _storageService.migrateFilesEncryption(
+          value,
+          inputPassword,
+          remember: _rememberPassword,
+        );
 
         if (!mounted) return;
-        Navigator.pop(context); // Menutup overlay loading indicator
+        Navigator.pop(context);
 
         setState(() {
           _isEncryptionEnabled = value;
+          if (!value)
+            _rememberPassword = false; // Ikut mati jika enkripsi dimatikan
         });
 
-        // Menjalankan callback inter-screen secara instan untuk memperbarui state memori halaman utama
         widget.onEncryptionToggled();
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -248,6 +255,50 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 value: _isEncryptionEnabled,
                 activeColor: Colors.teal,
                 onChanged: _handleEncryptionToggle,
+              ),
+            ),
+
+            // --- TAMBAHAN BARU: Switch Mengingat Kata Sandi (Selalu Ditampilkan) ---
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: _isEncryptionEnabled
+                      ? Colors.amber.withOpacity(0.1)
+                      : Colors.grey.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.memory,
+                  color: _isEncryptionEnabled
+                      ? Colors.amber[800]
+                      : Colors.grey[600],
+                ),
+              ),
+              title: const Text(
+                'Ingat Kata Sandi',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+              subtitle: const Text(
+                'Jangan tanyakan sandi lagi saat aplikasi dibuka ulang.',
+                style: TextStyle(fontSize: 11, color: Colors.black54),
+              ),
+              trailing: Switch(
+                value: _rememberPassword,
+                activeColor: Colors.amber[800],
+                // Hanya bisa diubah jika enkripsi berkas dalam kondisi aktif
+                onChanged: _isEncryptionEnabled
+                    ? (value) async {
+                        setState(() {
+                          _rememberPassword = value;
+                        });
+                        await _storageService.setRememberPassword(
+                          value,
+                          currentPassword: StorageService.sessionPassword,
+                        );
+                      }
+                    : null,
               ),
             ),
             const Divider(),

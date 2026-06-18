@@ -20,21 +20,55 @@ class StorageService {
   // Key baru untuk menyimpan informasi restore terakhir secara persisten
   static const String _keyLastRestoreInfo = 'last_restore_info';
 
+  // --- TAMBAHAN BARU: Key Ingat Password & Variabel Sesi RAM ---
+  static const String _keyRememberPassword = 'remember_password';
+  static String?
+  sessionPassword; // Menyimpan kata sandi di RAM selama aplikasi hidup
+
   String _getBaseDirKey() {
     return kDebugMode ? _keyBaseDirDebug : _keyBaseDirRelease;
+  }
+
+  // --- TAMBAHAN BARU: Helper untuk Fitur Ingat Kata Sandi ---
+  Future<bool> isRememberPasswordEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyRememberPassword) ?? false;
+  }
+
+  Future<void> setRememberPassword(
+    bool value, {
+    String? currentPassword,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyRememberPassword, value);
+
+    if (value) {
+      // Jika diaktifkan, pastikan password disimpan secara persisten di disk
+      String? pwd =
+          currentPassword ??
+          sessionPassword ??
+          prefs.getString(_keyEncryptionPassword);
+      if (pwd != null) {
+        await prefs.setString(_keyEncryptionPassword, pwd);
+      }
+    } else {
+      // Jika dimatikan, hapus dari disk tetapi amankan di RAM agar sesi aktif tidak terputus
+      String? existingPwd = prefs.getString(_keyEncryptionPassword);
+      if (existingPwd != null) sessionPassword = existingPwd;
+
+      await prefs.remove(_keyEncryptionPassword);
+    }
   }
 
   // =========================================================================
   // === HELPER STATUS RESTORE TERAKHIR (PERSISTEN) ===
   // =========================================================================
 
-  /// Menyimpan data status restore terakhir ke dalam SharedPreferences
   Future<void> saveLastRestoreInfo(String jsonString) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyLastRestoreInfo, jsonString);
   }
 
-  /// Mengambil data status restore terakhir dari SharedPreferences
   Future<String?> getLastRestoreInfo() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_keyLastRestoreInfo);
@@ -50,6 +84,9 @@ class StorageService {
   }
 
   Future<String?> getEncryptionPassword() async {
+    // MODIFIKASI: Selalu utamakan kata sandi dari sesi RAM terlebih dahulu
+    if (sessionPassword != null) return sessionPassword;
+
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_keyEncryptionPassword);
   }
@@ -379,50 +416,55 @@ class StorageService {
   }
 
   // =========================================================================
-  // === MODIFIKASI MIGRASI MASSAL: PERBAIKAN LOGIKA DETEKSI JSON ===
+  // === MODIFIKASI MIGRASI MASSAL ===
   // =========================================================================
 
-  Future<void> migrateFilesEncryption(bool turnOn, String password) async {
+  Future<void> migrateFilesEncryption(
+    bool turnOn,
+    String password, {
+    bool remember = false,
+  }) async {
     final baseDir = await getBaseDirSetting();
 
-    // Tulis status SharedPreferences di awal agar sinkron dengan threads UI
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyIsEncrypted, turnOn);
+    await prefs.setBool(_keyRememberPassword, remember);
+
     if (turnOn) {
-      await prefs.setString(_keyEncryptionPassword, password);
+      sessionPassword = password; // Amankan ke memori RAM
+      if (remember) {
+        await prefs.setString(_keyEncryptionPassword, password);
+      } else {
+        await prefs.remove(_keyEncryptionPassword);
+      }
     } else {
+      sessionPassword = null;
       await prefs.remove(_keyEncryptionPassword);
+      await prefs.setBool(_keyRememberPassword, false);
     }
 
     List<File> allTargetFiles = [];
 
-    // Kumpulkan seluruh file dari berbagai modul
     allTargetFiles.add(await getTargetJsonFile(baseDir));
     allTargetFiles.add(await getJurnalJsonFile(baseDir));
     allTargetFiles.addAll(await getAllChecklistGroups(baseDir));
     allTargetFiles.addAll(await getAllPromptGroups(baseDir));
     allTargetFiles.addAll(await getAllNoteGroups(baseDir));
 
-    // Jalankan proses Enkripsi/Dekripsi Massal
     for (var file in allTargetFiles) {
       if (!await file.exists()) continue;
       String content = await file.readAsString();
 
-      // Bersihkan spasi kosong di awal/akhir untuk deteksi yang akurat
       final trimmedContent = content.trim();
-
-      // PERBAIKAN LOGIKA: Deteksi valid JSON berdasarkan karakter kurung awal '{' atau '['
       bool isRawJson =
           trimmedContent.startsWith('{') || trimmedContent.startsWith('[');
 
       if (turnOn) {
-        // PROSES AKTIVASI: Enkripsi hanya jika file MASIH berupa JSON murni
         if (isRawJson) {
           String encrypted = CryptoHelper.encrypt(content, password);
           await file.writeAsString(encrypted, flush: true);
         }
       } else {
-        // PROSES DEAKTIVASI: Dekripsi hanya jika file BUKAN JSON murni (sudah terenkripsi)
         if (!isRawJson) {
           try {
             String decrypted = CryptoHelper.decrypt(content, password);
