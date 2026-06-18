@@ -15,6 +15,8 @@ class PasswordGate extends StatefulWidget {
 class _PasswordGateState extends State<PasswordGate> {
   bool _isChecking = true;
   bool _needsPassword = false;
+  bool _obscurePassword =
+      true; // --- TAMBAHAN: State kontrol visibilitas password ---
   final TextEditingController _passwordController = TextEditingController();
 
   @override
@@ -45,13 +47,20 @@ class _PasswordGateState extends State<PasswordGate> {
 
   void _unlockApplication() {
     final textInput = _passwordController.text.trim();
-    if (textInput.isNotEmpty) {
-      // Masukkan ke memori RAM global agar modul json penulisan/pembacaan dapat menggunakannya
-      StorageService.sessionPassword = textInput;
+
+    // --- MODIFIKASI: Jika password kosong, langsung lolos dan buka aplikasi ---
+    if (textInput.isEmpty) {
       setState(() {
         _needsPassword = false;
       });
+      return;
     }
+
+    // Masukkan ke memori RAM global jika password diisi
+    StorageService.sessionPassword = textInput;
+    setState(() {
+      _needsPassword = false;
+    });
   }
 
   @override
@@ -97,13 +106,28 @@ class _PasswordGateState extends State<PasswordGate> {
                   const SizedBox(height: 24),
                   TextField(
                     controller: _passwordController,
-                    obscureText: true,
+                    obscureText:
+                        _obscurePassword, // --- MODIFIKASI: Mengikuti variabel state ---
                     autofocus: true,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      border: const OutlineInputBorder(),
                       labelText: 'Kata Sandi Enkripsi',
-                      prefixIcon: Icon(Icons.vpn_key_outlined),
+                      prefixIcon: const Icon(Icons.vpn_key_outlined),
                       isDense: true,
+                      // --- TAMBAHAN BARU: Ikon Toggle Tampilkan/Sembunyikan Password ---
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
+                          size: 20,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
+                      ),
                     ),
                     onSubmitted: (_) => _unlockApplication(),
                   ),
