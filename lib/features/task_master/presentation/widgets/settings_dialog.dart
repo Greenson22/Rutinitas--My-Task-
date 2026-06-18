@@ -25,7 +25,7 @@ class SettingsDialog extends StatefulWidget {
 class _SettingsDialogState extends State<SettingsDialog> {
   late String _tempSelection;
   bool _isEncryptionEnabled = false;
-  bool _rememberPassword = false; // --- TAMBAHAN STATE BARU ---
+  bool _rememberPassword = false;
   final StorageService _storageService = StorageService();
 
   @override
@@ -39,8 +39,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _isEncryptionEnabled = prefs.getBool('is_encrypted') ?? false;
-      _rememberPassword =
-          prefs.getBool('remember_password') ?? false; // Default false
+      _rememberPassword = prefs.getBool('remember_password') ?? false;
     });
   }
 
@@ -50,6 +49,122 @@ class _SettingsDialogState extends State<SettingsDialog> {
       setState(() {
         _tempSelection = selectedDirectory;
       });
+    }
+  }
+
+  // --- FUNGSI VALIDASI KATA SANDI SEBELUM MENGAKTIFKAN "INGAT KATA SANDI" ---
+  Future<void> _handleRememberPasswordToggle(bool value) async {
+    // Jika mematikan "Ingat Kata Sandi", langsung eksekusi tanpa validasi password
+    if (!value) {
+      setState(() {
+        _rememberPassword = false;
+      });
+      await _storageService.setRememberPassword(false);
+      return;
+    }
+
+    final passwordController = TextEditingController();
+    bool obscurePassword = true;
+
+    // Tampilkan Dialog Validasi Kata Sandi saat tombol diaktifkan
+    bool? validated = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text('Konfirmasi Kata Sandi'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Masukkan kata sandi enkripsi Anda saat ini untuk mengaktifkan fitur "Ingat Kata Sandi".',
+                  style: TextStyle(fontSize: 13, color: Colors.black87),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: passwordController,
+                  obscureText: obscurePassword,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    labelText: 'Kata Sandi Saat Ini',
+                    border: const OutlineInputBorder(),
+                    isDense: true,
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        obscurePassword
+                            ? Icons.visibility
+                            : Icons.visibility_off,
+                        size: 20,
+                      ),
+                      onPressed: () {
+                        setModalState(() => obscurePassword = !obscurePassword);
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Batal'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  final input = passwordController.text.trim();
+                  // Cek kecocokan dengan password sesi yang sedang aktif di RAM
+                  if (input == StorageService.sessionPassword) {
+                    Navigator.pop(ctx, true);
+                  } else {
+                    Navigator.pop(ctx, false); // Berikan false jika tidak cocok
+                  }
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
+                child: const Text(
+                  'Verifikasi',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    if (validated == true) {
+      setState(() {
+        _rememberPassword = true;
+      });
+      await _storageService.setRememberPassword(
+        true,
+        currentPassword: StorageService.sessionPassword,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Fitur "Ingat Kata Sandi" berhasil diaktifkan.'),
+          backgroundColor: Colors.teal,
+        ),
+      );
+    } else {
+      // Jika salah atau batal, paksa nilai switch tetap mati / false dan tampilkan peringatan
+      setState(() {
+        _rememberPassword = false;
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Kata sandi salah! Gagal mengaktifkan fitur ingat kata sandi.',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -139,7 +254,6 @@ class _SettingsDialogState extends State<SettingsDialog> {
       );
 
       try {
-        // MODIFIKASI: Meneruskan state _rememberPassword saat migrasi dijalankan
         await _storageService.migrateFilesEncryption(
           value,
           inputPassword,
@@ -151,8 +265,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
 
         setState(() {
           _isEncryptionEnabled = value;
-          if (!value)
-            _rememberPassword = false; // Ikut mati jika enkripsi dimatikan
+          if (!value) _rememberPassword = false;
         });
 
         widget.onEncryptionToggled();
@@ -257,8 +370,6 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 onChanged: _handleEncryptionToggle,
               ),
             ),
-
-            // --- TAMBAHAN BARU: Switch Mengingat Kata Sandi (Selalu Ditampilkan) ---
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: Container(
@@ -287,17 +398,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
               trailing: Switch(
                 value: _rememberPassword,
                 activeColor: Colors.amber[800],
-                // Hanya bisa diubah jika enkripsi berkas dalam kondisi aktif
                 onChanged: _isEncryptionEnabled
-                    ? (value) async {
-                        setState(() {
-                          _rememberPassword = value;
-                        });
-                        await _storageService.setRememberPassword(
-                          value,
-                          currentPassword: StorageService.sessionPassword,
-                        );
-                      }
+                    ? _handleRememberPasswordToggle
                     : null,
               ),
             ),
