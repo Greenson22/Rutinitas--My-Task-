@@ -15,14 +15,32 @@ class PasswordGate extends StatefulWidget {
 class _PasswordGateState extends State<PasswordGate> {
   bool _isChecking = true;
   bool _needsPassword = false;
-  bool _obscurePassword =
-      true; // --- TAMBAHAN: State kontrol visibilitas password ---
+  bool _obscurePassword = true;
   final TextEditingController _passwordController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _checkSecurityStatus();
+    // Daftarkan listener untuk mendengarkan perubahan status timeout dari timer StorageService
+    StorageService.sessionExpiredNotifier.addListener(_onSessionExpired);
+  }
+
+  @override
+  void dispose() {
+    StorageService.sessionExpiredNotifier.removeListener(_onSessionExpired);
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  // --- TAMBAHAN FUNGSI: Eksekutor ketika menerima sinyal waktu kedaluwarsa ---
+  void _onSessionExpired() {
+    if (StorageService.sessionExpiredNotifier.value != null) {
+      setState(() {
+        _needsPassword = true;
+        _isChecking = false;
+      });
+    }
   }
 
   Future<void> _checkSecurityStatus() async {
@@ -30,12 +48,17 @@ class _PasswordGateState extends State<PasswordGate> {
     bool isEncrypted = prefs.getBool('is_encrypted') ?? false;
     bool rememberPassword = prefs.getBool('remember_password') ?? false;
 
-    // Kunci aplikasi jika enkripsi aktif tetapi RAM kosong & opsi ingat password mati
     if (isEncrypted &&
         !rememberPassword &&
         StorageService.sessionPassword == null) {
       setState(() {
         _needsPassword = true;
+        _isChecking = false;
+      });
+    } else if (isEncrypted) {
+      // Jika lolos (Password di RAM masih ada atau Remember Password aktif), kita restart / muat ulang timer
+      await StorageService().restartSessionTimer();
+      setState(() {
         _isChecking = false;
       });
     } else {
@@ -48,7 +71,9 @@ class _PasswordGateState extends State<PasswordGate> {
   void _unlockApplication() {
     final textInput = _passwordController.text.trim();
 
-    // --- MODIFIKASI: Jika password kosong, langsung lolos dan buka aplikasi ---
+    // Hapus peringatan kedaluwarsa setelah mencoba membuka lagi
+    StorageService.sessionExpiredNotifier.value = null;
+
     if (textInput.isEmpty) {
       setState(() {
         _needsPassword = false;
@@ -56,8 +81,9 @@ class _PasswordGateState extends State<PasswordGate> {
       return;
     }
 
-    // Masukkan ke memori RAM global jika password diisi
     StorageService.sessionPassword = textInput;
+    // Nyalakan ulang perhitungan timer karena user baru saja login
+    StorageService().restartSessionTimer();
     setState(() {
       _needsPassword = false;
     });
@@ -71,8 +97,9 @@ class _PasswordGateState extends State<PasswordGate> {
       );
     }
 
-    // Jika membutuhkan sandi, tampilkan Form Kunci Fullscreen
     if (_needsPassword) {
+      final String? expiredMsg = StorageService.sessionExpiredNotifier.value;
+
       return Scaffold(
         backgroundColor: Colors.grey[100],
         body: Center(
@@ -103,18 +130,48 @@ class _PasswordGateState extends State<PasswordGate> {
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 12, color: Colors.black54),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 20),
+
+                  // --- BANNER PERINGATAN KEDALUWARSA WAKTU ---
+                  if (expiredMsg != null)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.red[50],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red[200]!),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.timer_off,
+                            color: Colors.red[700],
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              expiredMsg,
+                              style: TextStyle(
+                                color: Colors.red[800],
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
                   TextField(
                     controller: _passwordController,
-                    obscureText:
-                        _obscurePassword, // --- MODIFIKASI: Mengikuti variabel state ---
+                    obscureText: _obscurePassword,
                     autofocus: true,
                     decoration: InputDecoration(
                       border: const OutlineInputBorder(),
                       labelText: 'Kata Sandi Enkripsi',
                       prefixIcon: const Icon(Icons.vpn_key_outlined),
                       isDense: true,
-                      // --- TAMBAHAN BARU: Ikon Toggle Tampilkan/Sembunyikan Password ---
                       suffixIcon: IconButton(
                         icon: Icon(
                           _obscurePassword

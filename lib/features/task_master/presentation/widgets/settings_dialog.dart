@@ -26,6 +26,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
   late String _tempSelection;
   bool _isEncryptionEnabled = false;
   bool _rememberPassword = false;
+  int _passwordTimeout = 1; // --- TAMBAHAN STATE: Default 1 Menit ---
+
   final StorageService _storageService = StorageService();
 
   @override
@@ -40,6 +42,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
     setState(() {
       _isEncryptionEnabled = prefs.getBool('is_encrypted') ?? false;
       _rememberPassword = prefs.getBool('remember_password') ?? false;
+      _passwordTimeout =
+          prefs.getInt('password_timeout') ?? 1; // Ambil nilai yang tersimpan
     });
   }
 
@@ -52,9 +56,15 @@ class _SettingsDialogState extends State<SettingsDialog> {
     }
   }
 
-  // --- FUNGSI VALIDASI KATA SANDI SEBELUM MENGAKTIFKAN "INGAT KATA SANDI" ---
+  Future<void> _lockApplicationNow() async {
+    await StorageService.lockManually(); // Ganti pemanggilan ke method di StorageService
+    if (mounted) {
+      Navigator.pop(context);
+      widget.onEncryptionToggled();
+    }
+  }
+
   Future<void> _handleRememberPasswordToggle(bool value) async {
-    // Jika mematikan "Ingat Kata Sandi", langsung eksekusi tanpa validasi password
     if (!value) {
       setState(() {
         _rememberPassword = false;
@@ -66,7 +76,6 @@ class _SettingsDialogState extends State<SettingsDialog> {
     final passwordController = TextEditingController();
     bool obscurePassword = true;
 
-    // Tampilkan Dialog Validasi Kata Sandi saat tombol diaktifkan
     bool? validated = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -117,11 +126,10 @@ class _SettingsDialogState extends State<SettingsDialog> {
               ElevatedButton(
                 onPressed: () {
                   final input = passwordController.text.trim();
-                  // Cek kecocokan dengan password sesi yang sedang aktif di RAM
                   if (input == StorageService.sessionPassword) {
                     Navigator.pop(ctx, true);
                   } else {
-                    Navigator.pop(ctx, false); // Berikan false jika tidak cocok
+                    Navigator.pop(ctx, false);
                   }
                 },
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
@@ -152,7 +160,6 @@ class _SettingsDialogState extends State<SettingsDialog> {
         ),
       );
     } else {
-      // Jika salah atau batal, paksa nilai switch tetap mati / false dan tampilkan peringatan
       setState(() {
         _rememberPassword = false;
       });
@@ -403,6 +410,86 @@ class _SettingsDialogState extends State<SettingsDialog> {
                     : null,
               ),
             ),
+
+            // --- TAMBAHAN UI BARU: Dropdown Batas Waktu Sesi (Timeout) ---
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: _isEncryptionEnabled
+                      ? Colors.blue.withOpacity(0.1)
+                      : Colors.grey.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.timer_outlined,
+                  color: _isEncryptionEnabled
+                      ? Colors.blue[800]
+                      : Colors.grey[600],
+                ),
+              ),
+              title: const Text(
+                'Batas Waktu Sesi',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+              subtitle: const Text(
+                'Otomatis mengunci kembali aplikasi jika waktu habis.',
+                style: TextStyle(fontSize: 11, color: Colors.black54),
+              ),
+              trailing: DropdownButton<int>(
+                value: _passwordTimeout,
+                underline: const SizedBox(),
+                isDense: true,
+                items: const [
+                  DropdownMenuItem(
+                    value: 1,
+                    child: Text('1 Menit', style: TextStyle(fontSize: 13)),
+                  ),
+                  DropdownMenuItem(
+                    value: 3,
+                    child: Text('3 Menit', style: TextStyle(fontSize: 13)),
+                  ),
+                  DropdownMenuItem(
+                    value: 5,
+                    child: Text('5 Menit', style: TextStyle(fontSize: 13)),
+                  ),
+                  DropdownMenuItem(
+                    value: 0,
+                    child: Text('Manual', style: TextStyle(fontSize: 13)),
+                  ),
+                ],
+                onChanged: _isEncryptionEnabled
+                    ? (val) async {
+                        if (val != null) {
+                          setState(() {
+                            _passwordTimeout = val;
+                          });
+                          await _storageService.setPasswordTimeout(val);
+                        }
+                      }
+                    : null,
+              ),
+            ),
+
+            if (_isEncryptionEnabled) ...[
+              const SizedBox(height: 4),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _lockApplicationNow,
+                  icon: const Icon(Icons.lock_clock, size: 16),
+                  label: const Text('Kunci Aplikasi Secara Manual'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.redAccent,
+                    side: BorderSide(color: Colors.red.shade200),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              ),
+            ],
             const Divider(),
             const SizedBox(height: 10),
             Row(
