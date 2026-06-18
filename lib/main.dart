@@ -23,15 +23,13 @@ class TaskMasterApp extends StatelessWidget {
         // Pastikan child tidak null (child di sini adalah Navigator bawaan MaterialApp)
         Widget appNavigator = child!;
 
-        // PERBAIKAN UTAMA: Membungkus PasswordGate ke dalam Overlay mandiri.
-        // Ini menyediakan Overlay ancestor bagi TextField di dalam PasswordGate
-        // dan menyelesaikan error "No Overlay widget found" saat pengguna mengetik password.
-        Widget secureApp = Overlay(
-          initialEntries: [
-            OverlayEntry(
+        // SOLUSI: Mengganti Overlay dengan Navigator lokal agar DropdownButton mempunyai context Navigator
+        Widget secureApp = Navigator(
+          onGenerateRoute: (settings) {
+            return MaterialPageRoute(
               builder: (context) => PasswordGate(child: appNavigator),
-            ),
-          ],
+            );
+          },
         );
 
         // Evaluasi platform untuk Window Control (Desktop)

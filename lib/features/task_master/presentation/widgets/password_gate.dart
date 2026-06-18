@@ -197,6 +197,10 @@ class _PasswordGateState extends State<PasswordGate> {
                       DropdownMenuItem(value: 15, child: Text('15 Menit')),
                       DropdownMenuItem(value: 30, child: Text('30 Menit')),
                       DropdownMenuItem(value: 60, child: Text('1 Jam')),
+                      DropdownMenuItem(
+                        value: 0,
+                        child: Text('Tanpa Batas Waktu'),
+                      ), // Perubahan di sini
                     ],
                     onChanged: (value) {
                       if (value != null) {
