@@ -39,6 +39,8 @@ class _PasswordGateState extends State<PasswordGate> {
       setState(() {
         _needsPassword = true;
         _isChecking = false;
+        // Poin Penting: Langsung hapus sisa password lama saat sesi habis!
+        _passwordController.clear();
       });
     }
   }
@@ -54,6 +56,8 @@ class _PasswordGateState extends State<PasswordGate> {
       setState(() {
         _needsPassword = true;
         _isChecking = false;
+        _passwordController
+            .clear(); // Bersihkan juga saat inisialisasi awal jika butuh kunci
       });
     } else if (isEncrypted) {
       // Jika lolos (Password di RAM masih ada atau Remember Password aktif), kita restart / muat ulang timer
@@ -86,6 +90,8 @@ class _PasswordGateState extends State<PasswordGate> {
     StorageService().restartSessionTimer();
     setState(() {
       _needsPassword = false;
+      // Bersihkan input setelah berhasil masuk agar tidak tersimpan di memori controller
+      _passwordController.clear();
     });
   }
 
