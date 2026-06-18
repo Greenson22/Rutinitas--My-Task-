@@ -16,6 +16,7 @@ class _PasswordGateState extends State<PasswordGate> {
   bool _isChecking = true;
   bool _needsPassword = false;
   bool _obscurePassword = true;
+  int _selectedTimeout = 5; // Default 5 menit
   final TextEditingController _passwordController = TextEditingController();
 
   @override
@@ -33,13 +34,12 @@ class _PasswordGateState extends State<PasswordGate> {
     super.dispose();
   }
 
-  // --- TAMBAHAN FUNGSI: Eksekutor ketika menerima sinyal waktu kedaluwarsa ---
   void _onSessionExpired() {
     if (StorageService.sessionExpiredNotifier.value != null) {
       setState(() {
         _needsPassword = true;
         _isChecking = false;
-        // Poin Penting: Langsung hapus sisa password lama saat sesi habis!
+        // Langsung hapus sisa password lama saat sesi habis!
         _passwordController.clear();
       });
     }
@@ -50,17 +50,21 @@ class _PasswordGateState extends State<PasswordGate> {
     bool isEncrypted = prefs.getBool('is_encrypted') ?? false;
     bool rememberPassword = prefs.getBool('remember_password') ?? false;
 
+    // Memuat preferensi batas waktu sesi yang disimpan sebelumnya
+    setState(() {
+      _selectedTimeout = prefs.getInt('session_timeout_minutes') ?? 5;
+    });
+
     if (isEncrypted &&
         !rememberPassword &&
         StorageService.sessionPassword == null) {
       setState(() {
         _needsPassword = true;
         _isChecking = false;
-        _passwordController
-            .clear(); // Bersihkan juga saat inisialisasi awal jika butuh kunci
+        _passwordController.clear();
       });
     } else if (isEncrypted) {
-      // Jika lolos (Password di RAM masih ada atau Remember Password aktif), kita restart / muat ulang timer
+      // Jika lolos, restart timer
       await StorageService().restartSessionTimer();
       setState(() {
         _isChecking = false;
@@ -72,7 +76,7 @@ class _PasswordGateState extends State<PasswordGate> {
     }
   }
 
-  void _unlockApplication() {
+  void _unlockApplication() async {
     final textInput = _passwordController.text.trim();
 
     // Hapus peringatan kedaluwarsa setelah mencoba membuka lagi
@@ -85,9 +89,14 @@ class _PasswordGateState extends State<PasswordGate> {
       return;
     }
 
+    // Simpan penentuan batas waktu sesi baru ke SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('session_timeout_minutes', _selectedTimeout);
+
     StorageService.sessionPassword = textInput;
-    // Nyalakan ulang perhitungan timer karena user baru saja login
+    // Nyalakan ulang perhitungan timer menggunakan konfigurasi waktu yang baru
     StorageService().restartSessionTimer();
+
     setState(() {
       _needsPassword = false;
       // Bersihkan input setelah berhasil masuk agar tidak tersimpan di memori controller
@@ -168,6 +177,32 @@ class _PasswordGateState extends State<PasswordGate> {
                         ],
                       ),
                     ),
+
+                  // --- DROPDOWN BATAS WAKTU SESI ---
+                  DropdownButtonFormField<int>(
+                    value: _selectedTimeout,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      labelText: 'Batas Waktu Sesi Aktif',
+                      prefixIcon: Icon(Icons.timer_outlined),
+                      isDense: true,
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 1, child: Text('1 Menit')),
+                      DropdownMenuItem(value: 5, child: Text('5 Menit')),
+                      DropdownMenuItem(value: 15, child: Text('15 Menit')),
+                      DropdownMenuItem(value: 30, child: Text('30 Menit')),
+                      DropdownMenuItem(value: 60, child: Text('1 Jam')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() {
+                          _selectedTimeout = value;
+                        });
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 16),
 
                   TextField(
                     controller: _passwordController,
