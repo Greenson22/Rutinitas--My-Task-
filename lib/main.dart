@@ -1,9 +1,8 @@
 // lib/main.dart
-
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 import 'features/task_master/presentation/screens/task_master_screen.dart';
-import 'features/task_master/presentation/widgets/password_gate.dart'; // Import berkas baru Anda disini
+import 'features/task_master/presentation/widgets/password_gate.dart';
 
 void main() {
   runApp(const TaskMasterApp());
@@ -18,32 +17,47 @@ class TaskMasterApp extends StatelessWidget {
       debugShowCheckedModeBanner: true,
       title: 'My Tasks',
       theme: ThemeData(primarySwatch: Colors.indigo, useMaterial3: false),
-      builder: (context, child) {
-        final platform = Theme.of(context).platform;
 
+      // Menggunakan properti builder untuk membungkus seluruh hierarki navigasi
+      builder: (context, child) {
+        // Pastikan child tidak null (child di sini adalah Navigator bawaan MaterialApp)
+        Widget appNavigator = child!;
+
+        // PERBAIKAN UTAMA: Membungkus PasswordGate ke dalam Overlay mandiri.
+        // Ini menyediakan Overlay ancestor bagi TextField di dalam PasswordGate
+        // dan menyelesaikan error "No Overlay widget found" saat pengguna mengetik password.
+        Widget secureApp = Overlay(
+          initialEntries: [
+            OverlayEntry(
+              builder: (context) => PasswordGate(child: appNavigator),
+            ),
+          ],
+        );
+
+        // Evaluasi platform untuk Window Control (Desktop)
+        final platform = Theme.of(context).platform;
         if (platform == TargetPlatform.windows ||
             platform == TargetPlatform.macOS ||
             platform == TargetPlatform.linux) {
-          return WindowControlWrapper(child: child!);
+          return WindowControlWrapper(child: secureApp);
         }
 
-        return child!;
+        return secureApp;
       },
-      // Menggunakan PasswordGate yang kini berasal dari file terpisah
-      home: const PasswordGate(child: HomeScreen()),
+
+      // PasswordGate sudah dipindah ke builder, sehingga home cukup memanggil HomeScreen
+      home: const HomeScreen(),
     );
   }
 }
 
 class WindowControlWrapper extends StatelessWidget {
   final Widget child;
-
   const WindowControlWrapper({super.key, required this.child});
 
   @override
   Widget build(BuildContext context) {
     final Color barColor = Colors.indigo;
-
     return Scaffold(
       backgroundColor: Colors.grey[200],
       body: Column(

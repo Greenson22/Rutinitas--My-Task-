@@ -190,7 +190,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     input,
                   );
 
-                  final parsed = jsonDecode(decrypted); // Atau jsonDecode
+                  final parsed = jsonDecode(decrypted);
                   if (parsed is Map && parsed.containsKey('categories')) {
                     Navigator.pop(ctx);
                     final List<dynamic> catList = parsed['categories'] ?? [];
@@ -289,17 +289,12 @@ class _HomeScreenState extends State<HomeScreen> {
         },
         onAddTask: () => _showAddTaskFormDialog(category),
         onMoveTaskCategory: (task, source, target) async {
-          // 1. Mutasi data lokal di dalam memori
           source.tasks.removeWhere((t) => t.id == task.id);
           target.tasks.add(task);
 
-          // 2. Simpan ke file lokal tanpa memicu memuat ulang data dari disk
           await _controller.saveAllCategoriesToFile(shouldRefresh: false);
-
-          // 3. Rekalkulasi display kategori agar counter tugas di Card Grid langsung ter-update secara real-time
           _controller.processCategoriesDisplay();
 
-          // 4. Tutup dialog tugas setelah pemindahan sukses dilakukan demi efisiensi navigasi dan UX
           if (context.mounted) {
             Navigator.pop(context);
           }
@@ -461,6 +456,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // PERUBAHAN UTAMA: Langsung mengembalikan widget Scaffold.
+    // Tidak ada pembungkus PasswordGate di sini karena penanganan proteksi enkripsi
+    // kini ditangani di level teratas (builder MaterialApp pada main.dart).
     return Scaffold(
       backgroundColor: Colors.grey[200],
       appBar: BaseDetailAppBar(
