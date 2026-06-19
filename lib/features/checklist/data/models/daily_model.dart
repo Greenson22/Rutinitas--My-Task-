@@ -238,11 +238,14 @@ class SubSubjectItem {
   int targetValue;
   bool isDisabled;
   String? linkedSubjectName;
+  String? accumulatorItemName;
 
   // =========================================================================
-  // PROPERTI BARU: Menyimpan nama target item pengumpul data akumulasi harian
+  // PROPERTI BARU: Menyimpan kaitan akumulasi nilai harian lintas Card Checklist
   // =========================================================================
-  String? accumulatorItemName;
+  String? linkedExternalCardName; // Menyimpan nama Card Checklist target
+  String?
+  linkedExternalItemName; // Menyimpan nama Item List bernilai progres di Card target
 
   SubSubjectItem({
     required this.subjectName,
@@ -254,7 +257,9 @@ class SubSubjectItem {
     this.targetValue = 0,
     this.isDisabled = false,
     this.linkedSubjectName,
-    this.accumulatorItemName, // <--- MASUK KONSTRUKTOR
+    this.accumulatorItemName,
+    this.linkedExternalCardName, // <--- MASUK KONSTRUKTOR
+    this.linkedExternalItemName, // <--- MASUK KONSTRUKTOR
   }) : this.subMateri = subMateri ?? [];
 
   SubSubjectItem clone() {
@@ -268,7 +273,11 @@ class SubSubjectItem {
       targetValue: this.targetValue,
       isDisabled: this.isDisabled,
       linkedSubjectName: this.linkedSubjectName,
-      accumulatorItemName: this.accumulatorItemName, // <--- SALIN SAAT CLONE
+      accumulatorItemName: this.accumulatorItemName,
+      linkedExternalCardName:
+          this.linkedExternalCardName, // <--- SALIN SAAT CLONE
+      linkedExternalItemName:
+          this.linkedExternalItemName, // <--- SALIN SAAT CLONE
     );
   }
 
@@ -288,8 +297,11 @@ class SubSubjectItem {
       targetValue: json['targetValue'] ?? 0,
       isDisabled: json['isDisabled'] ?? false,
       linkedSubjectName: json['linkedSubjectName'],
-      accumulatorItemName:
-          json['accumulatorItemName'], // <--- EKSTRAK DARI JSON
+      accumulatorItemName: json['accumulatorItemName'],
+      linkedExternalCardName:
+          json['linkedExternalCardName'], // <--- EKSTRAK DARI JSON
+      linkedExternalItemName:
+          json['linkedExternalItemName'], // <--- EKSTRAK DARI JSON
     );
   }
 
@@ -304,7 +316,9 @@ class SubSubjectItem {
       'targetValue': targetValue,
       'isDisabled': isDisabled,
       'linkedSubjectName': linkedSubjectName,
-      'accumulatorItemName': accumulatorItemName, // <--- AMANKAN KE JSON
+      'accumulatorItemName': accumulatorItemName,
+      'linkedExternalCardName': linkedExternalCardName, // <--- AMANKAN KE JSON
+      'linkedExternalItemName': linkedExternalItemName, // <--- AMANKAN KE JSON
     };
   }
 

@@ -299,6 +299,32 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
     widget.onDataChanged();
   }
 
+  void _forceSaveExternalCardData(DailySubject targetCard) {
+    if (widget.allAvailableGroups != null && widget.baseDir != null) {
+      final storageService = StorageService();
+      for (var group in widget.allAvailableGroups!) {
+        bool match = false;
+        for (var sec in group.allList) {
+          if (sec.items.contains(targetCard)) {
+            match = true;
+            break;
+          }
+        }
+        if (match) {
+          final String jsonString = const JsonEncoder.withIndent(
+            '  ',
+          ).convert(group.toJson());
+          storageService.getSpecificGroupFile(widget.baseDir!, group.id).then((
+            file,
+          ) {
+            storageService.saveJsonData(file, jsonString);
+          });
+          break;
+        }
+      }
+    }
+  }
+
   void showEditNameDialog(SubSubjectItem item) {
     final editController = TextEditingController(text: item.subjectName);
     ChecklistGroup? selectedGroupTarget;
@@ -339,6 +365,33 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
 
     String? localAccumulatorTarget = item.accumulatorItemName;
 
+    // =========================================================================
+    // STATE RELASI KANAN/KIRI LINTAS CARD CHECKLIST
+    // =========================================================================
+    DailySubject? selectedExternalCard;
+    List<SubSubjectItem> externalCardProgressItems = [];
+    String? localExternalCardName = item.linkedExternalCardName;
+    String? localExternalItemName = item.linkedExternalItemName;
+
+    if (localExternalCardName != null) {
+      selectedExternalCard = widget.allAvailableSubjects.firstWhere(
+        (sub) => sub.subjectName == localExternalCardName,
+        orElse: () =>
+            DailySubject(subjectName: '', progress: 'belum', subMateri: []),
+      );
+      if (selectedExternalCard.subjectName.isNotEmpty) {
+        getAllItemsFlattened(
+          selectedExternalCard.subMateri,
+          externalCardProgressItems,
+        );
+        externalCardProgressItems = externalCardProgressItems
+            .where((el) => el.itemType == 'progress')
+            .toList();
+      } else {
+        selectedExternalCard = null;
+      }
+    }
+
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -360,10 +413,119 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
                     ),
                   ),
                   const SizedBox(height: 16),
+                  const Divider(),
 
                   // =========================================================================
-                  // INPUT BARU: Dropdown untuk mengaitkan pengumpul data otomatis (Akumulator)
+                  // DROPDOWN PILILIHAN RELASI LINTAS CARD CHECKLIST
                   // =========================================================================
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '🔗 Kaitan Akumulasi Lintas Card Checklist',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.indigo,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<DailySubject>(
+                    value: selectedExternalCard,
+                    decoration: const InputDecoration(
+                      labelText: 'Pilih Card Checklist Target',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.credit_card_rounded),
+                    ),
+                    hint: const Text('Pilih Card Luar (Opsional)'),
+                    items: [
+                      const DropdownMenuItem<DailySubject>(
+                        value: null,
+                        child: Text('Tidak Dikaitkan Ke Card Lain'),
+                      ),
+                      ...widget.allAvailableSubjects
+                          .where(
+                            (sub) =>
+                                sub.subjectName != widget.subject.subjectName,
+                          )
+                          .map(
+                            (sub) => DropdownMenuItem<DailySubject>(
+                              value: sub,
+                              child: Text('${sub.icon} ${sub.subjectName}'),
+                            ),
+                          ),
+                    ],
+                    onChanged: (DailySubject? targetCard) {
+                      setDialogState(() {
+                        selectedExternalCard = targetCard;
+                        externalCardProgressItems.clear();
+                        localExternalCardName = targetCard?.subjectName;
+                        localExternalItemName = null;
+
+                        if (targetCard != null) {
+                          getAllItemsFlattened(
+                            targetCard.subMateri,
+                            externalCardProgressItems,
+                          );
+                          externalCardProgressItems = externalCardProgressItems
+                              .where((el) => el.itemType == 'progress')
+                              .toList();
+                        }
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: localExternalItemName,
+                    disabledHint: const Text(
+                      'Pilih Card target terlebih dahulu...',
+                    ),
+                    decoration: InputDecoration(
+                      labelText: 'Pilih Item Angka Target',
+                      border: const OutlineInputBorder(),
+                      enabled:
+                          selectedExternalCard != null &&
+                          externalCardProgressItems.isNotEmpty,
+                      prefixIcon: const Icon(Icons.bar_chart_rounded),
+                    ),
+                    hint: Text(
+                      selectedExternalCard == null
+                          ? 'Pilih Card dulu'
+                          : (externalCardProgressItems.isEmpty
+                                ? 'Tidak ada item progress'
+                                : 'Pilih Item Target'),
+                    ),
+                    items: selectedExternalCard == null
+                        ? null
+                        : externalCardProgressItems
+                              .map(
+                                (el) => DropdownMenuItem<String>(
+                                  value: el.subjectName,
+                                  child: Text('Item: ${el.subjectName}'),
+                                ),
+                              )
+                              .toList(),
+                    onChanged: selectedExternalCard == null
+                        ? null
+                        : (String? val) =>
+                              setDialogState(() => localExternalItemName = val),
+                  ),
+
+                  const SizedBox(height: 16),
+                  const Divider(),
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '⚙️ Pengaturan Kaitan Internal & Prasyarat Kunci',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+
                   DropdownButtonFormField<String>(
                     value: localAccumulatorTarget,
                     decoration: const InputDecoration(
@@ -485,9 +647,21 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
                           : localLinkedTarget;
                       item.accumulatorItemName =
                           localAccumulatorTarget; // <--- SIMPAN TARGET AKUMULASI
+
+                      item.linkedExternalCardName = selectedExternalCard == null
+                          ? null
+                          : localExternalCardName;
+                      item.linkedExternalItemName = selectedExternalCard == null
+                          ? null
+                          : localExternalItemName;
                     });
                     updateSubjectOverallProgress();
                     widget.onDataChanged();
+
+                    if (selectedExternalCard != null &&
+                        localExternalItemName != null) {
+                      _forceSaveExternalCardData(selectedExternalCard!);
+                    }
                   }
                   Navigator.pop(context);
                 },
@@ -1245,7 +1419,7 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
                       }
 
                       // =========================================================================
-                      // AKSI OTOMATIS: Tambahkan nilai tambahan ke item akumulator (jika terhubung)
+                      // AKSI OTOMATIS INTERNAL CARD
                       // =========================================================================
                       if (item.accumulatorItemName != null &&
                           item.accumulatorItemName!.isNotEmpty) {
@@ -1278,6 +1452,64 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
                               accumulatorTarget.progress = 'belum';
                               accumulatorTarget.finishedDate = null;
                             }
+                          }
+                        }
+                      }
+
+                      // =========================================================================
+                      // AKSI OTOMATIS: TRANSMIT AKUMULASI NILAI LINTAS CARD CHECKLIST
+                      // =========================================================================
+                      if (item.linkedExternalCardName != null &&
+                          item.linkedExternalItemName != null) {
+                        final externalCard = widget.allAvailableSubjects
+                            .firstWhere(
+                              (sub) =>
+                                  sub.subjectName ==
+                                  item.linkedExternalCardName,
+                              orElse: () => DailySubject(
+                                subjectName: '',
+                                progress: 'belum',
+                                subMateri: [],
+                              ),
+                            );
+
+                        if (externalCard.subjectName.isNotEmpty) {
+                          List<SubSubjectItem> extFlattened = [];
+                          getAllItemsFlattened(
+                            externalCard.subMateri,
+                            extFlattened,
+                          );
+
+                          final extItemTarget = extFlattened.firstWhere(
+                            (el) =>
+                                el.subjectName == item.linkedExternalItemName,
+                            orElse: () => SubSubjectItem(
+                              subjectName: '',
+                              progress: 'belum',
+                            ),
+                          );
+
+                          if (extItemTarget.subjectName.isNotEmpty) {
+                            extItemTarget.currentValue += addValue;
+
+                            if (extItemTarget.itemType == 'progress' &&
+                                extItemTarget.targetValue > 0) {
+                              if (extItemTarget.currentValue >=
+                                  extItemTarget.targetValue) {
+                                extItemTarget.progress = 'selesai';
+                                extItemTarget.finishedDate =
+                                    "${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}";
+                              } else {
+                                extItemTarget.progress = 'belum';
+                                extItemTarget.finishedDate = null;
+                              }
+                            }
+
+                            for (var root in externalCard.subMateri) {
+                              root.updateStatusFromChildren();
+                            }
+
+                            _forceSaveExternalCardData(externalCard);
                           }
                         }
                       }

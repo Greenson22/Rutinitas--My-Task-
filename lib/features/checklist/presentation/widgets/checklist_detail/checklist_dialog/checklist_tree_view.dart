@@ -1,4 +1,4 @@
-// lib/features/daily/presentation/widgets/checklist_detail/checklist_tree_view.dart
+// lib/features/daily/presentation/widgets/checklist_detail/checklist_dialog/checklist_tree_view.dart
 
 import 'package:flutter/material.dart';
 import '../../../../data/models/daily_model.dart';
@@ -64,9 +64,14 @@ class ChecklistTreeView extends StatelessWidget {
     bool isHighlighted = highlightedItem == item;
     double paddingLeft = (depth * 14.0).clamp(0.0, 48.0);
 
-    // Mengecek apakah item ini dikunci oleh relasi kaitan card eksternal
+    // Mengecek apakah item ini dikunci oleh relasi kaitan card eksternal (Prasyarat)
     bool isLinkedAndLocked =
         item.linkedSubjectName != null && item.linkedSubjectName!.isNotEmpty;
+
+    // Mengecek apakah item ini menyumbang/mengaitkan akumulasi nilainya ke Card Checklist lain
+    bool hasExternalCardLink =
+        item.linkedExternalCardName != null &&
+        item.linkedExternalItemName != null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -136,7 +141,10 @@ class ChecklistTreeView extends StatelessWidget {
                               Expanded(
                                 child: Text(
                                   item.subjectName +
-                                      (isLinkedAndLocked ? ' 🔑' : ''),
+                                      (isLinkedAndLocked ? ' 🔑' : '') +
+                                      (hasExternalCardLink
+                                          ? ' 🔗'
+                                          : ''), // <--- ICON DI MODE EDIT
                                   style: TextStyle(
                                     fontSize: 14,
                                     color: item.isDisabled
@@ -265,7 +273,10 @@ class ChecklistTreeView extends StatelessWidget {
                                     ],
                                     Flexible(
                                       child: Text(
-                                        item.subjectName,
+                                        item.subjectName +
+                                            (hasExternalCardLink
+                                                ? ' 🔗'
+                                                : ''), // <--- ICON DI MODE NORMAL
                                         style: TextStyle(
                                           fontSize: 14,
                                           decoration:
@@ -387,8 +398,7 @@ class ChecklistTreeView extends StatelessWidget {
                 onDeleteItem: onDeleteItem,
                 onToggleItemType: onToggleItemType,
                 onUpdateProgressValue: onUpdateProgressValue,
-                onToggleDisable:
-                    onToggleDisable, // Rekursi untuk meneruskan callback ke cabang anak
+                onToggleDisable: onToggleDisable,
               );
             }),
           ),
