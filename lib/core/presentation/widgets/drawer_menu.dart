@@ -3,12 +3,13 @@
 import 'package:flutter/material.dart';
 import '../../../features/task_master/presentation/screens/task_master_screen.dart';
 import '../../../features/checklist/presentation/screens/checklist_screen.dart';
-import '../../../features/notes/presentation/screens/note_screen.dart'; // Pindah ke atas sesuai urutan
+import '../../../features/notes/presentation/screens/note_screen.dart';
 import '../../../features/jurnal_aktivitas/presentation/screens/jurnal_aktivitas_screen.dart';
 import '../../../features/prompt/presentation/screens/prompt_screen.dart';
 import '../../../features/data_center/data_center_screen.dart';
 import '../../../features/about/presentation/pages/about_page.dart';
 import '../../../features/task_master/presentation/widgets/settings_dialog.dart';
+import '../../../features/random/presentation/screens/random_screen.dart'; // IMPORT SCREEN BARU
 import '../../services/storage_service.dart';
 
 class DrawerMenu extends StatefulWidget {
@@ -17,6 +18,7 @@ class DrawerMenu extends StatefulWidget {
   final bool isDataCenterActive;
   final bool isPromptActive;
   final bool isNotesActive;
+  final bool isRandomActive; // TAMBAHKAN PROPERTI INI
 
   const DrawerMenu({
     super.key,
@@ -25,6 +27,7 @@ class DrawerMenu extends StatefulWidget {
     this.isDataCenterActive = false,
     this.isPromptActive = false,
     this.isNotesActive = false,
+    this.isRandomActive = false, // BERI DEFAULT VALUE FALSE
   });
 
   @override
@@ -55,46 +58,36 @@ class _DrawerMenuState extends State<DrawerMenu> {
           await _storageService.saveBaseDirSetting(newDir);
           if (mounted) {
             setState(() => _selectedBaseDir = newDir);
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => widget.isDailyActive
-                    ? const DailyScreen()
-                    : widget.isJurnalActive
-                    ? const JurnalAktivitasScreen()
-                    : widget.isDataCenterActive
-                    ? const DataCenterScreen()
-                    : widget.isPromptActive
-                    ? const PromptScreen()
-                    : widget.isNotesActive
-                    ? const NotesScreen()
-                    : const HomeScreen(),
-              ),
-            );
+            _reloadActiveScreen();
           }
         },
-        // PERBAIKAN: Tambahkan parameter required onEncryptionToggled
-        // Picu pushReplacement ke screen aktif agar data langsung reload bersih
         onEncryptionToggled: () {
           if (mounted) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => widget.isDailyActive
-                    ? const DailyScreen()
-                    : widget.isJurnalActive
-                    ? const JurnalAktivitasScreen()
-                    : widget.isDataCenterActive
-                    ? const DataCenterScreen()
-                    : widget.isPromptActive
-                    ? const PromptScreen()
-                    : widget.isNotesActive
-                    ? const NotesScreen()
-                    : const HomeScreen(),
-              ),
-            );
+            _reloadActiveScreen();
           }
         },
+      ),
+    );
+  }
+
+  // Helper untuk navigasi ulang setelah pengaturan berubah
+  void _reloadActiveScreen() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => widget.isDailyActive
+            ? const DailyScreen()
+            : widget.isJurnalActive
+            ? const JurnalAktivitasScreen()
+            : widget.isDataCenterActive
+            ? const DataCenterScreen()
+            : widget.isPromptActive
+            ? const PromptScreen()
+            : widget.isNotesActive
+            ? const NotesScreen()
+            : widget.isRandomActive
+            ? const RandomScreen() // DUKUNG REFRESH DI RANDOM SCREEN
+            : const HomeScreen(),
       ),
     );
   }
@@ -155,7 +148,8 @@ class _DrawerMenuState extends State<DrawerMenu> {
                 !widget.isJurnalActive &&
                 !widget.isDataCenterActive &&
                 !widget.isPromptActive &&
-                !widget.isNotesActive,
+                !widget.isNotesActive &&
+                !widget.isRandomActive,
             onTap: () {
               Navigator.pop(context);
               Navigator.pushReplacement(
@@ -231,7 +225,23 @@ class _DrawerMenuState extends State<DrawerMenu> {
             },
           ),
 
-          // 6. Menu Data Center (Utilitas Penyimpanan)
+          // 6. TAMBAHAN: Menu Random Generator
+          _buildMenuTile(
+            icon: Icons.casino_outlined,
+            title: 'Random Generator',
+            isActive: widget.isRandomActive,
+            onTap: () {
+              Navigator.pop(context);
+              if (!widget.isRandomActive) {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => const RandomScreen()),
+                );
+              }
+            },
+          ),
+
+          // 7. Menu Data Center (Utilitas Penyimpanan)
           _buildMenuTile(
             icon: Icons.storage,
             title: 'Data Center',
@@ -251,7 +261,7 @@ class _DrawerMenuState extends State<DrawerMenu> {
 
           const Divider(),
 
-          // 7. Settings
+          // 8. Settings
           ListTile(
             leading: Icon(Icons.settings_outlined, color: Colors.blueGrey[700]),
             title: const Text(
@@ -270,7 +280,7 @@ class _DrawerMenuState extends State<DrawerMenu> {
 
           const Divider(),
 
-          // 8. About
+          // 9. About
           ListTile(
             leading: const Icon(Icons.info_outline, color: Colors.orangeAccent),
             title: const Text(
@@ -292,7 +302,6 @@ class _DrawerMenuState extends State<DrawerMenu> {
     );
   }
 
-  // FUNGSI HELPER UNTUK MEMBUAT MENU TILE SECARA OTOMATIS
   Widget _buildMenuTile({
     required IconData icon,
     required String title,
