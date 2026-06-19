@@ -24,7 +24,7 @@ class ChecklistTreeView extends StatelessWidget {
   final Function(SubSubjectItem)? onToggleItemType;
   final Function(SubSubjectItem)? onUpdateProgressValue;
 
-  // === CALLBACK BARU: Penangan aktivasi/nonaktivasi manual list ===
+  // Callback untuk penangan aktivasi/nonaktivasi manual list
   final Function(SubSubjectItem)? onToggleDisable;
 
   const ChecklistTreeView({
@@ -141,10 +141,8 @@ class ChecklistTreeView extends StatelessWidget {
                               Expanded(
                                 child: Text(
                                   item.subjectName +
-                                      (isLinkedAndLocked ? ' 🔑' : '') +
-                                      (hasExternalCardLink
-                                          ? ' 🔗'
-                                          : ''), // <--- ICON DI MODE EDIT
+                                      (isLinkedAndLocked ? ' 🔒' : '') +
+                                      (hasExternalCardLink ? ' 🔗' : ''),
                                   style: TextStyle(
                                     fontSize: 14,
                                     color: item.isDisabled
@@ -156,45 +154,6 @@ class ChecklistTreeView extends StatelessWidget {
                                   ),
                                 ),
                               ),
-                              // === TOMBOL DI MODE EDIT: Mengubah Status Aktif/Nonaktif List ===
-                              IconButton(
-                                icon: Icon(
-                                  item.isDisabled
-                                      ? Icons.block_flipped
-                                      : Icons.check_circle_outline,
-                                  color: item.isDisabled
-                                      ? Colors.red
-                                      : Colors.grey,
-                                  size: 18,
-                                ),
-                                tooltip: item.isDisabled
-                                    ? 'Aktifkan Kembali'
-                                    : 'Nonaktifkan List',
-                                constraints: const BoxConstraints(),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                ),
-                                onPressed: () => onToggleDisable?.call(item),
-                              ),
-                              if (item.subMateri.isEmpty &&
-                                  onToggleItemType != null &&
-                                  !item.isDisabled)
-                                IconButton(
-                                  icon: Icon(
-                                    item.itemType == 'progress'
-                                        ? Icons.toggle_on_rounded
-                                        : Icons.toggle_off_outlined,
-                                    color: item.itemType == 'progress'
-                                        ? Colors.deepOrange
-                                        : Colors.grey,
-                                  ),
-                                  tooltip: 'Ubah ke Tipe Progress',
-                                  constraints: const BoxConstraints(),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 4,
-                                  ),
-                                  onPressed: () => onToggleItemType!(item),
-                                ),
                               const Icon(
                                 Icons.edit_note,
                                 color: Colors.blueGrey,
@@ -206,14 +165,13 @@ class ChecklistTreeView extends StatelessWidget {
                       )
                     : Row(
                         children: [
-                          // === RENDERING KONDISI NORMAL: Tanda Kali (X) jika dinonaktifkan, Checkbox jika normal ===
                           item.isDisabled
                               ? const Padding(
                                   padding: EdgeInsets.symmetric(
                                     horizontal: 14.0,
                                   ),
                                   child: Icon(
-                                    Icons.close_rounded, // Gambar Kali / X
+                                    Icons.close_rounded,
                                     color: Colors.red,
                                     size: 20,
                                   ),
@@ -238,7 +196,6 @@ class ChecklistTreeView extends StatelessWidget {
                                 ),
                           Expanded(
                             child: InkWell(
-                              // Mengunci jembatan aksi klik jika elemen berstatus dinonaktifkan
                               onTap: item.isDisabled
                                   ? null
                                   : () {
@@ -274,9 +231,7 @@ class ChecklistTreeView extends StatelessWidget {
                                     Flexible(
                                       child: Text(
                                         item.subjectName +
-                                            (hasExternalCardLink
-                                                ? ' 🔗'
-                                                : ''), // <--- ICON DI MODE NORMAL
+                                            (hasExternalCardLink ? ' 🔗' : ''),
                                         style: TextStyle(
                                           fontSize: 14,
                                           decoration:
@@ -284,13 +239,9 @@ class ChecklistTreeView extends StatelessWidget {
                                               ? TextDecoration.lineThrough
                                               : null,
                                           color: item.isDisabled
-                                              ? Colors
-                                                    .red
-                                                    .shade300 // Merah pudar jika dinonaktifkan
+                                              ? Colors.red.shade300
                                               : (isLinkedAndLocked && !isChecked
-                                                    ? Colors
-                                                          .grey
-                                                          .shade700 // Warna terkunci relasi
+                                                    ? Colors.grey.shade700
                                                     : (isChecked
                                                           ? Colors.grey
                                                           : Colors.black87)),
@@ -305,7 +256,6 @@ class ChecklistTreeView extends StatelessWidget {
                               ),
                             ),
                           ),
-                          // TAMPILAN INDIKATOR ANGKA PROGRES DENGAN FORMAT TITIK RIBUAN
                           if (item.itemType == 'progress' &&
                               item.subMateri.isEmpty &&
                               !item.isDisabled)
@@ -352,25 +302,108 @@ class ChecklistTreeView extends StatelessWidget {
                       ),
               ),
               if (isEditMode) ...[
-                IconButton(
+                // === TOMBOL SHOW MENU (MORE OPTIONS) ===
+                PopupMenuButton<String>(
                   icon: const Icon(
-                    Icons.add_circle_outline,
-                    color: Colors.teal,
-                    size: 18,
+                    Icons.more_vert,
+                    color: Colors.blueGrey,
+                    size: 20,
                   ),
-                  onPressed: () => onAddChild(item),
                   constraints: const BoxConstraints(),
                   padding: const EdgeInsets.all(4),
-                ),
-                IconButton(
-                  icon: const Icon(
-                    Icons.delete_outline,
-                    color: Colors.redAccent,
-                    size: 18,
-                  ),
-                  onPressed: () => onDeleteItem(item),
-                  constraints: const BoxConstraints(),
-                  padding: const EdgeInsets.all(4),
+                  onSelected: (String value) {
+                    if (value == 'add_child') {
+                      onAddChild(item);
+                    } else if (value == 'toggle_disable') {
+                      onToggleDisable?.call(item);
+                    } else if (value == 'toggle_type') {
+                      onToggleItemType?.call(item);
+                    } else if (value == 'delete') {
+                      onDeleteItem(item);
+                    }
+                  },
+                  itemBuilder: (BuildContext context) => [
+                    PopupMenuItem<String>(
+                      value: 'add_child',
+                      child: Row(
+                        children: const [
+                          Icon(
+                            Icons.add_circle_outline,
+                            color: Colors.teal,
+                            size: 18,
+                          ),
+                          SizedBox(width: 8),
+                          Text('Tambah Anak', style: TextStyle(fontSize: 13)),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem<String>(
+                      value: 'toggle_disable',
+                      child: Row(
+                        children: [
+                          Icon(
+                            item.isDisabled
+                                ? Icons.check_circle_outline
+                                : Icons.block_flipped,
+                            color: item.isDisabled ? Colors.green : Colors.red,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            item.isDisabled
+                                ? 'Aktifkan Kembali'
+                                : 'Nonaktifkan List',
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (item.subMateri.isEmpty && !item.isDisabled)
+                      PopupMenuItem<String>(
+                        value: 'toggle_type',
+                        child: Row(
+                          children: [
+                            Icon(
+                              item.itemType == 'progress'
+                                  ? Icons.toggle_on_rounded
+                                  : Icons.toggle_off_outlined,
+                              color: item.itemType == 'progress'
+                                  ? Colors.deepOrange
+                                  : Colors.grey,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              item.itemType == 'progress'
+                                  ? 'Ubah ke Tipe Normal'
+                                  : 'Ubah ke Tipe Progress',
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      ),
+                    const PopupMenuDivider(),
+                    PopupMenuItem<String>(
+                      value: 'delete',
+                      child: Row(
+                        children: const [
+                          Icon(
+                            Icons.delete_outline,
+                            color: Colors.redAccent,
+                            size: 18,
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            'Hapus Item',
+                            style: TextStyle(
+                              color: Colors.redAccent,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ],
@@ -407,7 +440,6 @@ class ChecklistTreeView extends StatelessWidget {
   }
 }
 
-// Ekstensi sederhana untuk memformat RegExp string pengganti titik tanpa membutuhkan package tambahan
 extension on String {
   String replaceAllWithRegExp(RegExp regExp, String replacement) {
     return this.replaceAllMapped(regExp, (match) => replacement);
