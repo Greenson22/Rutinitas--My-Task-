@@ -571,7 +571,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
           }
         }
 
-        // --- PEMPROSESAN LOGIKA PRATINJAU TEKS CATATAN ---
+        // --- PEMPROSESAN LOGIKA PRATINU TEKS CATATAN ---
         String notePreviewText = "Catatan kosong...";
         if (subject.noteContent != null &&
             subject.noteContent!.trim().isNotEmpty) {
@@ -726,14 +726,21 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                                   ? 'Selesai Semua'
                                   : '$selesaiText / $totalText List ($percentageText%)',
                               style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 9,
+                                color: Colors
+                                    .black87, // Diubah dari Putih ke Gelap agar kontras di bar abu-abu maupun berwarna
+                                fontSize: 9.5,
                                 fontWeight: FontWeight.bold,
                                 shadows: [
+                                  // Menggunakan dual outline shadow putih agar teks tetap terbaca tajam di atas warna apa pun
                                   Shadow(
-                                    offset: Offset(0.5, 0.5),
-                                    blurRadius: 1.0,
-                                    color: Colors.black87,
+                                    offset: Offset(0.8, 0.8),
+                                    blurRadius: 2.0,
+                                    color: Colors.white,
+                                  ),
+                                  Shadow(
+                                    offset: Offset(-0.8, -0.8),
+                                    blurRadius: 2.0,
+                                    color: Colors.white,
                                   ),
                                 ],
                               ),
