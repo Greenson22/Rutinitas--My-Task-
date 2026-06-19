@@ -237,11 +237,12 @@ class SubSubjectItem {
   int currentValue;
   int targetValue;
   bool isDisabled;
+  String? linkedSubjectName;
 
   // =========================================================================
-  // PROPERTI BARU: Mengaitkan item ini dengan nama Card Checklist lain
+  // PROPERTI BARU: Menyimpan nama target item pengumpul data akumulasi harian
   // =========================================================================
-  String? linkedSubjectName;
+  String? accumulatorItemName;
 
   SubSubjectItem({
     required this.subjectName,
@@ -252,7 +253,8 @@ class SubSubjectItem {
     this.currentValue = 0,
     this.targetValue = 0,
     this.isDisabled = false,
-    this.linkedSubjectName, // <--- BARU: Masuk konstruktor
+    this.linkedSubjectName,
+    this.accumulatorItemName, // <--- MASUK KONSTRUKTOR
   }) : this.subMateri = subMateri ?? [];
 
   SubSubjectItem clone() {
@@ -265,8 +267,8 @@ class SubSubjectItem {
       currentValue: this.currentValue,
       targetValue: this.targetValue,
       isDisabled: this.isDisabled,
-      linkedSubjectName:
-          this.linkedSubjectName, // <--- BARU: Salin kaitan saat clone
+      linkedSubjectName: this.linkedSubjectName,
+      accumulatorItemName: this.accumulatorItemName, // <--- SALIN SAAT CLONE
     );
   }
 
@@ -285,8 +287,9 @@ class SubSubjectItem {
       currentValue: json['currentValue'] ?? 0,
       targetValue: json['targetValue'] ?? 0,
       isDisabled: json['isDisabled'] ?? false,
-      linkedSubjectName:
-          json['linkedSubjectName'], // <--- BARU: Ekstrak string target dari JSON
+      linkedSubjectName: json['linkedSubjectName'],
+      accumulatorItemName:
+          json['accumulatorItemName'], // <--- EKSTRAK DARI JSON
     );
   }
 
@@ -300,8 +303,8 @@ class SubSubjectItem {
       'currentValue': currentValue,
       'targetValue': targetValue,
       'isDisabled': isDisabled,
-      'linkedSubjectName':
-          linkedSubjectName, // <--- BARU: Amankan simpanan target ke JSON
+      'linkedSubjectName': linkedSubjectName,
+      'accumulatorItemName': accumulatorItemName, // <--- AMANKAN KE JSON
     };
   }
 

@@ -328,6 +328,17 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
             .where((g) => !g.id.startsWith("CORRUPTED_"))
             .toList();
 
+    // Saring opsi item internal bertipe progress untuk akumulasi data (selain diri sendiri)
+    List<SubSubjectItem> allFlattenedItems = [];
+    getAllItemsFlattened(widget.subject.subMateri, allFlattenedItems);
+    List<SubSubjectItem> progressOptions = allFlattenedItems
+        .where(
+          (e) => e.itemType == 'progress' && e.subjectName != item.subjectName,
+        )
+        .toList();
+
+    String? localAccumulatorTarget = item.accumulatorItemName;
+
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -336,7 +347,7 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
-            title: const Text('Ubah Item & Kaitan Card Lintas Grup'),
+            title: const Text('Ubah Item & Hubungan Lintas Data'),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -349,6 +360,41 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
                     ),
                   ),
                   const SizedBox(height: 16),
+
+                  // =========================================================================
+                  // INPUT BARU: Dropdown untuk mengaitkan pengumpul data otomatis (Akumulator)
+                  // =========================================================================
+                  DropdownButtonFormField<String>(
+                    value: localAccumulatorTarget,
+                    decoration: const InputDecoration(
+                      labelText: 'Kaitkan Akumulasi Nilai Ke:',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.auto_graph_rounded),
+                    ),
+                    hint: const Text('Pilih List Pengumpul (Opsional)'),
+                    items: [
+                      const DropdownMenuItem<String>(
+                        value: null,
+                        child: Text('Tidak Dikaitkan (Berdiri Sendiri)'),
+                      ),
+                      ...progressOptions.map(
+                        (opt) => DropdownMenuItem<String>(
+                          value: opt.subjectName,
+                          child: Text('Kumpul ke: ${opt.subjectName}'),
+                        ),
+                      ),
+                    ],
+                    onChanged: (String? val) {
+                      setDialogState(() {
+                        localAccumulatorTarget = val;
+                      });
+                    },
+                  ),
+
+                  const SizedBox(height: 16),
+                  const Divider(),
+                  const SizedBox(height: 8),
+
                   DropdownButtonFormField<ChecklistGroup>(
                     value: selectedGroupTarget,
                     decoration: const InputDecoration(
@@ -437,6 +483,8 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
                       item.linkedSubjectName = selectedGroupTarget == null
                           ? null
                           : localLinkedTarget;
+                      item.accumulatorItemName =
+                          localAccumulatorTarget; // <--- SIMPAN TARGET AKUMULASI
                     });
                     updateSubjectOverallProgress();
                     widget.onDataChanged();
@@ -1185,6 +1233,7 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
                   if (addValue != null && addValue > 0) {
                     saveToHistory();
                     setState(() {
+                      // 1. Tambah nilai ke item utama saat ini
                       item.currentValue = item.currentValue + addValue;
                       if (item.currentValue >= item.targetValue) {
                         item.progress = 'selesai';
@@ -1194,6 +1243,45 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
                         item.progress = 'belum';
                         item.finishedDate = null;
                       }
+
+                      // =========================================================================
+                      // AKSI OTOMATIS: Tambahkan nilai tambahan ke item akumulator (jika terhubung)
+                      // =========================================================================
+                      if (item.accumulatorItemName != null &&
+                          item.accumulatorItemName!.isNotEmpty) {
+                        List<SubSubjectItem> flattened = [];
+                        getAllItemsFlattened(
+                          widget.subject.subMateri,
+                          flattened,
+                        );
+
+                        final accumulatorTarget = flattened.firstWhere(
+                          (el) => el.subjectName == item.accumulatorItemName,
+                          orElse: () => SubSubjectItem(
+                            subjectName: '',
+                            progress: 'belum',
+                          ),
+                        );
+
+                        if (accumulatorTarget.subjectName.isNotEmpty) {
+                          accumulatorTarget.currentValue += addValue;
+
+                          // Sinkronisasi status progres pada elemen akumulator pengumpul
+                          if (accumulatorTarget.itemType == 'progress' &&
+                              accumulatorTarget.targetValue > 0) {
+                            if (accumulatorTarget.currentValue >=
+                                accumulatorTarget.targetValue) {
+                              accumulatorTarget.progress = 'selesai';
+                              accumulatorTarget.finishedDate =
+                                  "${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}";
+                            } else {
+                              accumulatorTarget.progress = 'belum';
+                              accumulatorTarget.finishedDate = null;
+                            }
+                          }
+                        }
+                      }
+
                       for (var r in widget.subject.subMateri) {
                         r.updateStatusFromChildren();
                       }
