@@ -407,10 +407,13 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
         .map((s) => s.sectionName)
         .toList();
 
-    // 3. Bangun Map item yang telah disaring berdasarkan query pencarian (searchQuery)
+    // 3. Bangun Map item yang telah disaring berdasarkan query pencarian (searchQuery) dan visibilitas (isHidden)
     final Map<String, List<DailySubject>> groupedItems = {
       for (var section in currentGroup.allList)
         section.sectionName: section.items.where((subject) {
+          // === PERBAIKAN: Sembunyikan item jika status isHidden bernilai true ===
+          if (subject.isHidden) return false;
+
           if (searchQuery.isEmpty) return true;
           return subject.subjectName.toLowerCase().contains(searchQuery);
         }).toList(),
@@ -774,6 +777,28 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
               ),
             ],
 
+            // =========================================================================
+            // FITUR BARU: MENU UNTUK MENYEMBUNYIKAN ITEM CHECKLIST INDIVIDU
+            // =========================================================================
+            const PopupMenuDivider(),
+            PopupMenuItem<String>(
+              value: 'TOGGLE_VISIBILITY',
+              child: Row(
+                children: [
+                  Icon(
+                    subject.isHidden ? Icons.visibility : Icons.visibility_off,
+                    size: 18,
+                    color: Colors.blueGrey[700],
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    subject.isHidden ? 'Tampilkan Item' : 'Sembunyikan Item',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+
             if (currentGroup.allList.length > 1 || _loadedAllGroups.length > 1)
               const PopupMenuDivider(),
             const PopupMenuItem<String>(
@@ -806,6 +831,12 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                 originalSection: originalSection,
                 subject: subject,
               );
+            }
+            // =========================================================================
+            // EKSEKUSI FITUR BARU: Panggil fungsi visibilitas di controller
+            // =========================================================================
+            else if (value == 'TOGGLE_VISIBILITY') {
+              toggleSubjectVisibility(subject);
             }
             // Penanganan Aksi Mutasi Seksi Internal Bawaan
             else if (value.startsWith('INTERNAL_MOVE:')) {

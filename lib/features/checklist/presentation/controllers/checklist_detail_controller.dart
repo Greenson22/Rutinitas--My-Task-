@@ -52,6 +52,33 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
   }
 
   // =========================================================================
+  // FITUR BARU: Mengubah Status Visibilitas Item (Sembunyikan / Tampilkan)
+  // =========================================================================
+  Future<void> toggleSubjectVisibility(DailySubject subject) async {
+    setState(() {
+      // Membalikkan status boolean isHidden pada model subjek
+      subject.isHidden = !subject.isHidden;
+    });
+
+    // Simpan perubahan status visibilitas ke berkas lokal
+    await saveGroupData();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            subject.isHidden
+                ? 'Item "${subject.subjectName}" berhasil disembunyikan'
+                : 'Item "${subject.subjectName}" berhasil ditampilkan kembali',
+          ),
+          backgroundColor: Colors.teal,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  // =========================================================================
   // FITUR BARU: Memindahkan DailySubject ke Berkas Grup Lain dengan Konfirmasi
   // =========================================================================
   Future<void> moveChecklistToAnotherGroup({
