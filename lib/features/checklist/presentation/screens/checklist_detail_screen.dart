@@ -32,6 +32,9 @@ class ChecklistDetailScreen extends StatefulWidget {
 class _ChecklistDetailScreenState extends ChecklistDetailController {
   List<ChecklistGroup> _loadedAllGroups = [];
 
+  // === STATE BARU: Sakelar global untuk kontrol tampil/sembunyikan item nonaktif ===
+  bool _showHiddenItems = false;
+
   @override
   void initState() {
     super.initState();
@@ -411,8 +414,8 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
     final Map<String, List<DailySubject>> groupedItems = {
       for (var section in currentGroup.allList)
         section.sectionName: section.items.where((subject) {
-          // === PERBAIKAN: Sembunyikan item jika status isHidden bernilai true ===
-          if (subject.isHidden) return false;
+          // === MODIFIKASI: Sembunyikan item jika status isHidden bernilai true dan tombol global mati ===
+          if (subject.isHidden && !_showHiddenItems) return false;
 
           if (searchQuery.isEmpty) return true;
           return subject.subjectName.toLowerCase().contains(searchQuery);
@@ -444,6 +447,22 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
       // Hubungkan fungsi pencarian dan penambahan seksi utama ke layout AppBar
       onSearchChanged: updateSearchQuery,
       onAddPressed: showAddSectionDialog,
+
+      // === FITUR BARU: SAKELAR GLOBAL UNTUK MENGONTROL VISIBILITAS ITEM NONAKTIF/TERSEMBUNYI ===
+      additionalAction: IconButton(
+        icon: Icon(
+          _showHiddenItems ? Icons.visibility : Icons.visibility_off,
+          color: Colors.white,
+        ),
+        tooltip: _showHiddenItems
+            ? 'Sembunyikan Item Nonaktif'
+            : 'Tampilkan Item Tersembunyi',
+        onPressed: () {
+          setState(() {
+            _showHiddenItems = !_showHiddenItems;
+          });
+        },
+      ),
 
       sectionHeaderBuilder: (context, index, sectionName, isLayoutEditMode) {
         final section = currentGroup.allList[index];
@@ -677,6 +696,10 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
           themeColor: Color(subject.backgroundColor),
           content: cardContent,
           isEditMode: isLayoutEditMode ? true : isPageEditMode,
+
+          // === PEMBARUAN: Berikan efek style pudar transparansi jika kartu berstatus tersembunyi ===
+          isHiddenStyle: subject.isHidden,
+
           isFirst: index == 0,
           isLast: index == sectionItems.length - 1,
           onTap: () => openMateriChecklist(subject),
