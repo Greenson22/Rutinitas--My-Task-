@@ -13,6 +13,8 @@ class DailyChecklistDialog extends StatefulWidget {
   final DailySubject subject;
   final VoidCallback onDataChanged;
   final List<DailySubject> allAvailableSubjects;
+  final List<ChecklistGroup>?
+  allAvailableGroups; // <-- TAMBAHAN PARAMETER GLOBAL GROUP MANIFEST
   final VoidCallback? onCustomClosePressed;
 
   const DailyChecklistDialog({
@@ -20,6 +22,7 @@ class DailyChecklistDialog extends StatefulWidget {
     required this.subject,
     required this.onDataChanged,
     required this.allAvailableSubjects,
+    this.allAvailableGroups, // <-- MASUK CONSTRUCTOR
     this.onCustomClosePressed,
   });
 
@@ -203,16 +206,37 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
 
   void _showEditNameDialog(SubSubjectItem item) {
     final editController = TextEditingController(text: item.subjectName);
+
+    // Inisialisasi variabel bantu pelacakan dropdown berantai lintas grup
+    ChecklistGroup? selectedGroupTarget;
+    List<DailySubject> filteredCardTargets = [];
     String? localLinkedTarget = item.linkedSubjectName;
 
-    // Saring daftar card checklist lain yang valid untuk dikaitkan
-    List<String> validCardTargets = widget.allAvailableSubjects
-        .map((sub) => sub.subjectName)
-        .where(
-          (name) =>
-              name != widget.subject.subjectName && name.trim().isNotEmpty,
-        )
-        .toList();
+    // Deteksi jika sebelumnya sudah ada kaitan card, cari card tersebut ada di grup mana
+    if (localLinkedTarget != null && localLinkedTarget.isNotEmpty) {
+      for (var group in widget.allAvailableGroups ?? <ChecklistGroup>[]) {
+        for (var section in group.allList) {
+          bool isFound = section.items.any(
+            (sub) => sub.subjectName == localLinkedTarget,
+          );
+          if (isFound) {
+            selectedGroupTarget = group;
+            // Ambil semua card di dalam grup yang cocok tersebut
+            for (var sec in group.allList) {
+              filteredCardTargets.addAll(sec.items);
+            }
+            break;
+          }
+        }
+        if (selectedGroupTarget != null) break;
+      }
+    }
+
+    // Filter kelompok grup yang terdaftar agar tidak memunculkan berkas korup
+    final List<ChecklistGroup> validGroupsList =
+        (widget.allAvailableGroups ?? <ChecklistGroup>[])
+            .where((g) => !g.id.startsWith("CORRUPTED_"))
+            .toList();
 
     showDialog(
       context: context,
@@ -222,44 +246,103 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
-            title: const Text('Ubah Item & Kaitan Card'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: editController,
-                  decoration: const InputDecoration(
-                    labelText: 'Nama Sub-Materi',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: localLinkedTarget,
-                  decoration: const InputDecoration(
-                    labelText: 'Kaitkan dengan Kunci Card Lain',
-                    border: OutlineInputBorder(),
-                  ),
-                  hint: const Text('Pilih Card Prasyarat (Opsional)'),
-                  items: [
-                    const DropdownMenuItem<String>(
-                      value: null,
-                      child: Text('Tidak Dikaitkan (Bebas Klik)'),
+            title: const Text('Ubah Item & Kaitan Card Lintas Grup'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: editController,
+                    decoration: const InputDecoration(
+                      labelText: 'Nama Sub-Materi',
+                      border: OutlineInputBorder(),
                     ),
-                    ...validCardTargets.map(
-                      (name) => DropdownMenuItem(
-                        value: name,
-                        child: Text('🔑 Card: $name'),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // LANGKAH 1: DROPDOWN PILIH KELOMPOK GRUP TARGET
+                  DropdownButtonFormField<ChecklistGroup>(
+                    value: selectedGroupTarget,
+                    decoration: const InputDecoration(
+                      labelText: '1. Pilih Kelompok Grup',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.group_work_outlined),
+                    ),
+                    hint: const Text('Pilih Grup Asal Card (Opsional)'),
+                    items: [
+                      const DropdownMenuItem<ChecklistGroup>(
+                        value: null,
+                        child: Text('Tidak Dikaitkan (Bebas Klik)'),
                       ),
+                      ...validGroupsList.map(
+                        (group) => DropdownMenuItem(
+                          value: group,
+                          child: Text('${group.icon} ${group.groupName}'),
+                        ),
+                      ),
+                    ],
+                    onChanged: (ChecklistGroup? targetGroup) {
+                      setDialogState(() {
+                        selectedGroupTarget = targetGroup;
+                        filteredCardTargets.clear();
+                        localLinkedTarget =
+                            null; // Reset nilai card lama jika grup ditukar
+
+                        if (targetGroup != null) {
+                          // Ambil semua subjek/card harian dari seluruh seksi milik grup yang dipilih
+                          for (var section in targetGroup.allList) {
+                            filteredCardTargets.addAll(section.items);
+                          }
+                          // Cegah agar card tidak mengaitkan ke dirinya sendiri jika memilih grup yang sama
+                          filteredCardTargets.removeWhere(
+                            (sub) =>
+                                sub.subjectName == widget.subject.subjectName,
+                          );
+                        }
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  // LANGKAH 2: DROPDOWN PILIH CARD (Baru aktif/muncul setelah Langkah 1 dipilih)
+                  DropdownButtonFormField<String>(
+                    value: localLinkedTarget,
+                    disabledHint: const Text(
+                      'Pilih kelompok grup terlebih dahulu...',
                     ),
-                  ],
-                  onChanged: (val) {
-                    setDialogState(() {
-                      localLinkedTarget = val;
-                    });
-                  },
-                ),
-              ],
+                    decoration: InputDecoration(
+                      labelText: '2. Pilih Card Prasyarat',
+                      border: const OutlineInputBorder(),
+                      enabled:
+                          selectedGroupTarget != null &&
+                          filteredCardTargets.isNotEmpty,
+                      prefixIcon: const Icon(Icons.credit_card_rounded),
+                    ),
+                    hint: Text(
+                      filteredCardTargets.isEmpty
+                          ? 'Tidak ada card tersedia'
+                          : 'Pilih Card Prasyarat',
+                    ),
+                    items: selectedGroupTarget == null
+                        ? null
+                        : filteredCardTargets
+                              .map(
+                                (sub) => DropdownMenuItem<String>(
+                                  value: sub.subjectName,
+                                  child: Text('Card: ${sub.subjectName}'),
+                                ),
+                              )
+                              .toList(),
+                    onChanged: selectedGroupTarget == null
+                        ? null
+                        : (String? val) {
+                            setDialogState(() {
+                              localLinkedTarget = val;
+                            });
+                          },
+                  ),
+                ],
+              ),
             ),
             actions: [
               TextButton(
@@ -272,7 +355,10 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                   if (newName.isNotEmpty) {
                     setState(() {
                       item.subjectName = newName;
-                      item.linkedSubjectName = localLinkedTarget;
+                      // Amankan penyimpanan data kaitan; jika grup kosong, maka kaitan card dihapus bersih
+                      item.linkedSubjectName = selectedGroupTarget == null
+                          ? null
+                          : localLinkedTarget;
                     });
                     _updateSubjectOverallProgress();
                     widget.onDataChanged();
@@ -458,12 +544,41 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     for (var item in list) {
       if (item.linkedSubjectName != null &&
           item.linkedSubjectName!.isNotEmpty) {
-        // Cari Card prasyarat target di dalam manifest subjek kelompok
-        final targetSubject = widget.allAvailableSubjects.firstWhere(
-          (sub) => sub.subjectName == item.linkedSubjectName,
-          orElse: () =>
-              DailySubject(subjectName: '', progress: 'belum', subMateri: []),
+        // PENCARIAN GLOBAL: Cari card prasyarat dari seluruh manifest kelompok grup harian yang tersedia
+        DailySubject targetSubject = DailySubject(
+          subjectName: '',
+          progress: 'belum',
+          subMateri: [],
         );
+
+        if (widget.allAvailableGroups != null) {
+          for (var group in widget.allAvailableGroups!) {
+            for (var section in group.allList) {
+              final found = section.items.firstWhere(
+                (sub) => sub.subjectName == item.linkedSubjectName,
+                orElse: () => DailySubject(
+                  subjectName: '',
+                  progress: 'belum',
+                  subMateri: [],
+                ),
+              );
+              if (found.subjectName.isNotEmpty) {
+                targetSubject = found;
+                break;
+              }
+            }
+            if (targetSubject.subjectName.isNotEmpty) break;
+          }
+        }
+
+        // Fallback pencarian internal lokal jika map group luar tidak dikirim/kosong
+        if (targetSubject.subjectName.isEmpty) {
+          targetSubject = widget.allAvailableSubjects.firstWhere(
+            (sub) => sub.subjectName == item.linkedSubjectName,
+            orElse: () =>
+                DailySubject(subjectName: '', progress: 'belum', subMateri: []),
+          );
+        }
 
         if (targetSubject.subjectName.isNotEmpty) {
           // Jika Card target selesai sepenuhnya (100%), terapkan centang selesai otomatis

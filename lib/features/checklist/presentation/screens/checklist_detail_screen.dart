@@ -293,6 +293,8 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
               key: globalDialogKey, // Pasang instans kunci kontrol state
               subject: subject,
               allAvailableSubjects: allAvailableSubjects,
+              allAvailableGroups:
+                  _loadedAllGroups, // <-- OVERRIDE SINKRONISASI: Suntikkan seluruh manifest grup terunduh ke dialog
               onDataChanged: () {
                 saveGroupData();
                 setState(() {});
