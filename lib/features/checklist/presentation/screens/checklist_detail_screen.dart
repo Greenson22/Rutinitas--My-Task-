@@ -369,9 +369,18 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
           // Jika memiliki anak (nested list), telusuri anak-anaknya saja tanpa menghitung induk
           count += _countFinishedItems(item.subMateri);
         } else {
-          // Hanya hitung item ujung (tanpa anak) yang status progressnya selesai
-          if (item.progress == 'selesai') {
-            count += 1.0;
+          // === PERUBAHAN: Hitung kontribusi proporsional jika bertipe progress/input angka ===
+          if (item.itemType == 'progress' && item.targetValue > 0) {
+            double progressRatio = item.currentValue / item.targetValue;
+            count += progressRatio.clamp(
+              0.0,
+              1.0,
+            ); // Batasi rasio antara 0.0 - 1.0
+          } else {
+            // Hanya hitung item ujung (tanpa anak) yang status progressnya selesai
+            if (item.progress == 'selesai') {
+              count += 1.0;
+            }
           }
         }
       }
