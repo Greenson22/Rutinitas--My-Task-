@@ -217,12 +217,23 @@ class _RandomScreenState extends State<RandomScreen> {
                             key: ValueKey<String>(_result ?? '-'),
                             textAlign: TextAlign.center,
                             style: TextStyle(
+                              // LOGIKA ADAPTIF BARU DI SINI:
                               fontSize:
                                   _selectedType == RandomType.list &&
-                                      (_result?.length ?? 0) > 10
-                                  ? 36
-                                  : 84,
-                              fontWeight: FontWeight.w900,
+                                      _result != null
+                                  ? (_result!.length > 50
+                                        ? 18 // Sangat panjang (kalimat panjang)
+                                        : _result!.length > 20
+                                        ? 24 // Lumayan panjang
+                                        : 36) // Pendek
+                                  : (_selectedType == RandomType.list
+                                        ? 36
+                                        : 84), // Default angka/huruf atau list kosong
+                              fontWeight:
+                                  _result != null && _result!.length > 20
+                                  ? FontWeight
+                                        .w600 // Lebih tipis jika panjang agar rapi
+                                  : FontWeight.w900,
                               color: Colors.indigo[900],
                             ),
                           ),
