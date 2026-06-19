@@ -1,9 +1,10 @@
 // lib/features/random/presentation/screens/random_screen.dart
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Dibutuhkan untuk mengakses Clipboard
 import '../../../../core/presentation/widgets/drawer_menu.dart';
 
-enum RandomType { angka, huruf }
+enum RandomType { angka, huruf, list }
 
 class RandomScreen extends StatefulWidget {
   const RandomScreen({super.key});
@@ -29,6 +30,11 @@ class _RandomScreenState extends State<RandomScreen> {
     text: 'E',
   );
 
+  // Controller untuk List/Daftar Teks
+  final TextEditingController _listController = TextEditingController(
+    text: 'Pilihan 1\nPilihan 2\nPilihan 3',
+  );
+
   String? _result;
   final Random _random = Random();
 
@@ -48,22 +54,19 @@ class _RandomScreenState extends State<RandomScreen> {
         }
 
         _result = (min + _random.nextInt((max - min) + 1)).toString();
-      } else {
+      } else if (_selectedType == RandomType.huruf) {
         // Logika Acak Huruf
         String minStr = _minLetterController.text.trim().toUpperCase();
         String maxStr = _maxLetterController.text.trim().toUpperCase();
 
-        // Validasi jika input kosong, beri default A-E
         if (minStr.isEmpty) minStr = 'A';
         if (maxStr.isEmpty) maxStr = 'E';
 
-        // Ambil kode ASCII dari huruf pertama
         int minCode = minStr.codeUnitAt(0);
         int maxCode = maxStr.codeUnitAt(0);
 
-        // Pastikan input adalah huruf alfabet valid (A-Z)
-        if (minCode < 65 || minCode > 90) minCode = 65; // 'A'
-        if (maxCode < 65 || maxCode > 90) maxCode = 69; // 'E'
+        if (minCode < 65 || minCode > 90) minCode = 65;
+        if (maxCode < 65 || maxCode > 90) maxCode = 69;
 
         if (minCode > maxCode) {
           final temp = minCode;
@@ -75,8 +78,34 @@ class _RandomScreenState extends State<RandomScreen> {
 
         int randomCode = minCode + _random.nextInt((maxCode - minCode) + 1);
         _result = String.fromCharCode(randomCode);
+      } else {
+        // Logika Acak List/Daftar Teks
+        // Memisahkan teks berdasarkan baris baru dan menghapus baris kosong
+        List<String> items = _listController.text
+            .split('\n')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
+
+        if (items.isEmpty) {
+          _result = 'Daftar Kosong';
+          return;
+        }
+
+        int randomIndex = _random.nextInt(items.length);
+        _result = items[randomIndex];
       }
     });
+  }
+
+  // Fungsi untuk menempelkan teks dari clipboard
+  Future<void> _pasteFromClipboard() async {
+    ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain);
+    if (data != null && data.text != null) {
+      setState(() {
+        _listController.text = data.text!;
+      });
+    }
   }
 
   @override
@@ -85,11 +114,19 @@ class _RandomScreenState extends State<RandomScreen> {
     _maxController.dispose();
     _minLetterController.dispose();
     _maxLetterController.dispose();
+    _listController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    String cardTitle = 'ANGKA ACAK';
+    if (_selectedType == RandomType.huruf) {
+      cardTitle = 'HURUF ACAK';
+    } else if (_selectedType == RandomType.list) {
+      cardTitle = 'HASIL ACAK LIST';
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Random Generator'),
@@ -111,7 +148,7 @@ class _RandomScreenState extends State<RandomScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Pilihan Mode: Angka atau Huruf
+                // Pilihan Mode: Angka, Huruf, atau List
                 SegmentedButton<RandomType>(
                   segments: const <ButtonSegment<RandomType>>[
                     ButtonSegment<RandomType>(
@@ -124,12 +161,17 @@ class _RandomScreenState extends State<RandomScreen> {
                       label: Text('Huruf'),
                       icon: Icon(Icons.text_fields),
                     ),
+                    ButtonSegment<RandomType>(
+                      value: RandomType.list,
+                      label: Text('List'),
+                      icon: Icon(Icons.list),
+                    ),
                   ],
                   selected: <RandomType>{_selectedType},
                   onSelectionChanged: (Set<RandomType> newSelection) {
                     setState(() {
                       _selectedType = newSelection.first;
-                      _result = null; // Reset hasil saat ganti mode
+                      _result = null;
                     });
                   },
                 ),
@@ -152,9 +194,7 @@ class _RandomScreenState extends State<RandomScreen> {
                     child: Column(
                       children: [
                         Text(
-                          _selectedType == RandomType.angka
-                              ? 'ANGKA ACAK'
-                              : 'HURUF ACAK',
+                          cardTitle,
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
@@ -175,8 +215,13 @@ class _RandomScreenState extends State<RandomScreen> {
                           child: Text(
                             _result ?? '?',
                             key: ValueKey<String>(_result ?? '-'),
+                            textAlign: TextAlign.center,
                             style: TextStyle(
-                              fontSize: 84,
+                              fontSize:
+                                  _selectedType == RandomType.list &&
+                                      (_result?.length ?? 0) > 10
+                                  ? 36
+                                  : 84,
                               fontWeight: FontWeight.w900,
                               color: Colors.indigo[900],
                             ),
@@ -188,7 +233,7 @@ class _RandomScreenState extends State<RandomScreen> {
                 ),
                 const SizedBox(height: 32),
 
-                // Card Input Rentang (Kondisional berdasarkan pilihan mode)
+                // Card Input Pengaturan (Kondisional berdasarkan mode)
                 Card(
                   elevation: 4,
                   shape: RoundedRectangleBorder(
@@ -201,65 +246,105 @@ class _RandomScreenState extends State<RandomScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          _selectedType == RandomType.angka
-                              ? 'Tentukan Rentang Angka'
-                              : 'Tentukan Rentang Huruf (A-Z)',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey[800],
+                        if (_selectedType == RandomType.list) ...[
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Masukkan Daftar Teks',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.grey[800],
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.assignment_returned_rounded,
+                                ),
+                                tooltip: 'Paste dari Clipboard',
+                                color: Colors.indigo[700],
+                                onPressed: _pasteFromClipboard,
+                              ),
+                            ],
                           ),
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: _selectedType == RandomType.angka
-                                    ? _minController
-                                    : _minLetterController,
-                                keyboardType: _selectedType == RandomType.angka
-                                    ? TextInputType.number
-                                    : TextInputType.text,
-                                maxLength: _selectedType == RandomType.huruf
-                                    ? 1
-                                    : null,
-                                decoration: InputDecoration(
-                                  counterText:
-                                      "", // Menyembunyikan counter panjang teks
-                                  labelText: 'Min',
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  prefixIcon: const Icon(Icons.arrow_downward),
-                                ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: _listController,
+                            maxLines: 5,
+                            keyboardType: TextInputType.multiline,
+                            decoration: InputDecoration(
+                              hintText:
+                                  'Pisahkan setiap pilihan dengan baris baru...',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
                               ),
                             ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: TextField(
-                                controller: _selectedType == RandomType.angka
-                                    ? _maxController
-                                    : _maxLetterController,
-                                keyboardType: _selectedType == RandomType.angka
-                                    ? TextInputType.number
-                                    : TextInputType.text,
-                                maxLength: _selectedType == RandomType.huruf
-                                    ? 1
-                                    : null,
-                                decoration: InputDecoration(
-                                  counterText: "",
-                                  labelText: 'Max',
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
+                          ),
+                        ] else ...[
+                          Text(
+                            _selectedType == RandomType.angka
+                                ? 'Tentukan Rentang Angka'
+                                : 'Tentukan Rentang Huruf (A-Z)',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey[800],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _selectedType == RandomType.angka
+                                      ? _minController
+                                      : _minLetterController,
+                                  keyboardType:
+                                      _selectedType == RandomType.angka
+                                      ? TextInputType.number
+                                      : TextInputType.text,
+                                  maxLength: _selectedType == RandomType.huruf
+                                      ? 1
+                                      : null,
+                                  decoration: InputDecoration(
+                                    counterText: "",
+                                    labelText: 'Min',
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    prefixIcon: const Icon(
+                                      Icons.arrow_downward,
+                                    ),
                                   ),
-                                  prefixIcon: const Icon(Icons.arrow_upward),
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: TextField(
+                                  controller: _selectedType == RandomType.angka
+                                      ? _maxController
+                                      : _maxLetterController,
+                                  keyboardType:
+                                      _selectedType == RandomType.angka
+                                      ? TextInputType.number
+                                      : TextInputType.text,
+                                  maxLength: _selectedType == RandomType.huruf
+                                      ? 1
+                                      : null,
+                                  decoration: InputDecoration(
+                                    counterText: "",
+                                    labelText: 'Max',
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    prefixIcon: const Icon(Icons.arrow_upward),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -280,12 +365,12 @@ class _RandomScreenState extends State<RandomScreen> {
                       ),
                       elevation: 4,
                     ),
-                    child: Row(
+                    child: const Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.casino, color: Colors.white),
+                        Icon(Icons.casino, color: Colors.white),
                         const SizedBox(width: 12),
-                        const Text(
+                        Text(
                           'ACAK SEKARANG',
                           style: TextStyle(
                             fontSize: 16,
