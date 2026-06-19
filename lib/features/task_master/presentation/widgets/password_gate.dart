@@ -36,10 +36,6 @@ class _PasswordGateState extends State<PasswordGate> {
 
   void _onSessionExpired() {
     if (StorageService.sessionExpiredNotifier.value != null) {
-      // PERBAIKAN: Hapus atau komentari baris Navigator.of(context).popUntil karena
-      // PasswordGate berada di atas Navigator global, sehingga tidak memiliki akses Navigator context.
-      // Navigator.of(context).popUntil((route) => route.isFirst);
-
       // Cukup ubah state untuk menampilkan form kata sandi secara global
       setState(() {
         _needsPassword = true;
@@ -54,9 +50,9 @@ class _PasswordGateState extends State<PasswordGate> {
     bool isEncrypted = prefs.getBool('is_encrypted') ?? false;
     bool rememberPassword = prefs.getBool('remember_password') ?? false;
 
-    // Memuat preferensi batas waktu sesi yang disimpan sebelumnya
+    // PERBAIKAN: Menggunakan key 'password_timeout' agar sinkron dengan StorageService
     setState(() {
-      _selectedTimeout = prefs.getInt('session_timeout_minutes') ?? 5;
+      _selectedTimeout = prefs.getInt('password_timeout') ?? 1;
     });
 
     if (isEncrypted &&
@@ -87,19 +83,25 @@ class _PasswordGateState extends State<PasswordGate> {
     StorageService.sessionExpiredNotifier.value = null;
 
     if (textInput.isEmpty) {
-      setState(() {
-        _needsPassword = false;
-      });
-      return;
+      // PERBAIKAN: Jangan ubah _needsPassword menjadi false.
+      // Tampilkan peringatan agar pengguna wajib mengisi sandi.
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Kata sandi tidak boleh kosong!'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return; // Berhenti di sini, gerbang tetap terkunci
     }
 
-    // Simpan penentuan batas waktu sesi baru ke SharedPreferences
+    // PERBAIKAN: Simpan dengan key 'password_timeout' agar dibaca oleh StorageService
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('session_timeout_minutes', _selectedTimeout);
+    await prefs.setInt('password_timeout', _selectedTimeout);
 
     StorageService.sessionPassword = textInput;
     // Nyalakan ulang perhitungan timer menggunakan konfigurasi waktu yang baru
-    StorageService().restartSessionTimer();
+    await StorageService().restartSessionTimer();
 
     setState(() {
       _needsPassword = false;
@@ -200,7 +202,7 @@ class _PasswordGateState extends State<PasswordGate> {
                       DropdownMenuItem(
                         value: 0,
                         child: Text('Tanpa Batas Waktu'),
-                      ), // Perubahan di sini
+                      ),
                     ],
                     onChanged: (value) {
                       if (value != null) {
