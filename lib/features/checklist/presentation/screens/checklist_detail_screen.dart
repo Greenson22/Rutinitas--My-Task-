@@ -32,7 +32,7 @@ class ChecklistDetailScreen extends StatefulWidget {
 class _ChecklistDetailScreenState extends ChecklistDetailController {
   List<ChecklistGroup> _loadedAllGroups = [];
 
-  // === STATE BARU: Sakelar global untuk kontrol tampil/sembunyikan item nonaktif ===
+  // === STATE SAKELAR GLOBAL: Tampil/Sembunyikan item tersembunyi ===
   bool _showHiddenItems = false;
 
   @override
@@ -405,26 +405,45 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
       );
     }
 
-    // 2. Siapkan list kunci seksi untuk GroupedSectionLayout
-    final List<String> sectionKeys = currentGroup.allList
+    // 2. Siapkan list seksi awal (Hanya yang memiliki item terlihat / tidak disembunyikan secara default)
+    final List<String> allKeys = currentGroup.allList
         .map((s) => s.sectionName)
         .toList();
+    final int visibleKeysCount = allKeys.length;
 
     // 3. Bangun Map item yang telah disaring berdasarkan query pencarian (searchQuery) dan visibilitas (isHidden)
-    final Map<String, List<DailySubject>> groupedItems = {
+    final Map<String, List<DailySubject>> allItems = {
       for (var section in currentGroup.allList)
         section.sectionName: section.items.where((subject) {
-          // === MODIFIKASI: Sembunyikan item jika status isHidden bernilai true dan tombol global mati ===
-          if (subject.isHidden && !_showHiddenItems) return false;
-
+          // Hanya muat seksi yang aktif (tidak disembunyikan) untuk grid utama
+          if (subject.isHidden) return false;
           if (searchQuery.isEmpty) return true;
           return subject.subjectName.toLowerCase().contains(searchQuery);
         }).toList(),
     };
 
+    // =========================================================================
+    // SINKRONISASI LOGIKA: TAMPILKAN SEKSI TERSEMBUNYI DI BAWAH PEMBATAS GARIS (DIVIDER)
+    // =========================================================================
+    if (_showHiddenItems) {
+      for (var section in currentGroup.allList) {
+        final hiddenItemsInSection = section.items.where((subject) {
+          if (!subject.isHidden) return false;
+          if (searchQuery.isEmpty) return true;
+          return subject.subjectName.toLowerCase().contains(searchQuery);
+        }).toList();
+
+        if (hiddenItemsInSection.isNotEmpty) {
+          final String hiddenKey = '${section.sectionName}_hidden_key';
+          allKeys.add(hiddenKey);
+          allItems[hiddenKey] = hiddenItemsInSection;
+        }
+      }
+    }
+
     // Hitung total item riil hasil penyaringan pencarian untuk memantau keadaan kosong
     int totalFilteredItems = 0;
-    groupedItems.forEach((key, list) => totalFilteredItems += list.length);
+    allItems.forEach((key, list) => totalFilteredItems += list.length);
 
     // 4. Gunakan Template GroupedSectionLayout
     return GroupedSectionLayout<DailySubject>(
@@ -435,8 +454,8 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
       isEmpty: currentGroup.allList.isEmpty && totalFilteredItems == 0,
       emptyMessage: 'Item tidak ditemukan atau belum ada seksi.',
 
-      sectionKeys: sectionKeys,
-      groupedItems: groupedItems,
+      sectionKeys: allKeys,
+      groupedItems: allItems,
 
       isSelectMode: false,
       selectedItemsCount: 0,
@@ -448,7 +467,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
       onSearchChanged: updateSearchQuery,
       onAddPressed: showAddSectionDialog,
 
-      // === FITUR BARU: SAKELAR GLOBAL UNTUK MENGONTROL VISIBILITAS ITEM NONAKTIF/TERSEMBUNYI ===
+      // === SELESAI: SAKELAR GLOBAL UNTUK MENGONTROL VISIBILITAS ITEM TERSEMBUNYI ===
       additionalAction: IconButton(
         icon: Icon(
           _showHiddenItems ? Icons.visibility : Icons.visibility_off,
@@ -464,7 +483,36 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
         },
       ),
 
-      sectionHeaderBuilder: (context, index, sectionName, isLayoutEditMode) {
+      sectionHeaderBuilder: (context, index, sectionKey, isLayoutEditMode) {
+        // === RENDERING KONDISI TERSEMBUNYI DI BAWAH GARIS DIVIDER ===
+        if (index >= visibleKeysCount) {
+          String originalName = sectionKey.replaceAll('_hidden_key', '');
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (index == visibleKeysCount)
+                const Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 8.0,
+                  ),
+                  child: Divider(thickness: 2, color: Colors.grey),
+                ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                child: Text(
+                  '$originalName (Tersembunyi)',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.blueGrey,
+                  ),
+                ),
+              ),
+            ],
+          );
+        }
+
         final section = currentGroup.allList[index];
 
         // Evaluasi apakah ini seksi default tunggal yang perlu disembunyikan judulnya
@@ -480,7 +528,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
           isEditMode: isLayoutEditMode ? true : isSectionEditMode,
           isUpperCase: false,
           isFirst: index == 0,
-          isLast: index == currentGroup.allList.length - 1,
+          isLast: index == visibleKeysCount - 1,
           onToggleEdit: () {
             setState(() {
               isSectionEditMode = !isSectionEditMode;
@@ -536,10 +584,10 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
           children: [
             Text(
               subject.subjectName,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
-                color: Colors.black87,
+                color: subject.isHidden ? Colors.grey : Colors.black87,
               ),
               textAlign: TextAlign.center,
             ),
@@ -608,7 +656,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                   children: [
                     Flexible(
                       child: Text(
-                        isAllDone ? '🎉 Semua Selesai!' : '📌 $topListText',
+                        isAllDone ? '  Semua Selesai!' : '  $topListText',
                         style: TextStyle(
                           fontSize: 12,
                           color: Color(subject.backgroundColor),
@@ -697,7 +745,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
           content: cardContent,
           isEditMode: isLayoutEditMode ? true : isPageEditMode,
 
-          // === PEMBARUAN: Berikan efek style pudar transparansi jika kartu berstatus tersembunyi ===
+          // === PEMBARUAN: Memberikan style pudar transparan jika kartu berstatus tersembunyi ===
           isHiddenStyle: subject.isHidden,
 
           isFirst: index == 0,
