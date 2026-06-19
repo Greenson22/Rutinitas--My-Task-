@@ -92,7 +92,19 @@ class NoteDetailController {
         currentFieldKeys.add(key);
         currentFieldTypes[key] = type;
 
-        String defaultVal = type == 'Boolean' ? 'Tidak' : '';
+        // <-- PERBAIKAN: Menentukan default value awal untuk tipe data Option
+        String defaultVal = '';
+        if (type == 'Boolean') {
+          defaultVal = 'Tidak';
+        } else if (type.startsWith('Option:')) {
+          String optionsRaw = type.substring(type.indexOf(':') + 1);
+          List<String> options = optionsRaw
+              .split(',')
+              .map((e) => e.trim())
+              .toList();
+          defaultVal = options.isNotEmpty ? options.first : '';
+        }
+
         formControllers[key] = TextEditingController(text: defaultVal);
 
         for (var row in tableRows) {

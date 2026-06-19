@@ -81,8 +81,20 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
         newRow[key] = TextEditingController(
           text: widget.formControllers[key]?.text.trim() ?? '',
         );
-        widget.formControllers[key]?.text =
-            widget.currentFieldTypes[key] == 'Boolean' ? 'Tidak' : '';
+
+        // <-- PERBAIKAN: Setel default value untuk form input berikutnya
+        String fullType = widget.currentFieldTypes[key] ?? 'String';
+        if (fullType.startsWith('Option:')) {
+          String optionsRaw = fullType.substring(fullType.indexOf(':') + 1);
+          List<String> opts = optionsRaw
+              .split(',')
+              .map((e) => e.trim())
+              .toList();
+          widget.formControllers[key]?.text = opts.isNotEmpty ? opts.first : '';
+        } else {
+          widget.formControllers[key]?.text =
+              widget.currentFieldTypes[key] == 'Boolean' ? 'Tidak' : '';
+        }
       }
 
       if (_insertPosition == 'Paling Atas') {
@@ -155,7 +167,11 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
       );
     }
 
-    String type = widget.currentFieldTypes[key] ?? 'String';
+    String fullType = widget.currentFieldTypes[key] ?? 'String';
+    String type = fullType
+        .split(':')
+        .first; // <-- BARU: Mengambil kata dasar tipe data (misal 'Option')
+
     InputDecoration inputDecoration = InputDecoration(
       isDense: true,
       contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
@@ -220,6 +236,54 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
           DropdownMenuItem(value: 'Ya', child: Text('Ya')),
           DropdownMenuItem(value: 'Tidak', child: Text('Tidak')),
         ],
+        onChanged: (val) {
+          if (val != null) {
+            setState(() {
+              controller.text = val;
+              if (!isFormInput) {
+                _editingRowIndex = null;
+                _editingKey = null;
+              }
+            });
+            widget.onChanged();
+          }
+        },
+      );
+    }
+
+    // =========================================================================
+    // LOGIKA BARU: DROPDOWN SELECT UNTUK FIELD TIPE OPTION
+    // =========================================================================
+    if (type == 'Option') {
+      List<String> options = [];
+      if (fullType.contains(':')) {
+        String optionsRaw = fullType.substring(fullType.indexOf(':') + 1);
+        options = optionsRaw
+            .split(',')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
+      }
+
+      if (options.isEmpty) {
+        options = ['-'];
+      }
+
+      // Validasi agar nilai saat ini selalu sinkron dengan daftar opsi yang tersedia
+      if (!options.contains(controller.text)) {
+        controller.text = options.first;
+      }
+
+      return DropdownButtonFormField<String>(
+        value: controller.text,
+        decoration: inputDecoration,
+        style: const TextStyle(fontSize: 13, color: Colors.black),
+        items: options.map((opt) {
+          return DropdownMenuItem<String>(
+            value: opt,
+            child: Text(opt, style: const TextStyle(fontSize: 13)),
+          );
+        }).toList(),
         onChanged: (val) {
           if (val != null) {
             setState(() {
@@ -593,16 +657,15 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
     // =========================================================================
     // LOGIKA FILTER: MENYARING BARIS BERDASARKAN QUERY PENCARIAN
     // =========================================================================
-    final List<MapEntry<int, Map<String, TextEditingController>>>
-    filteredRows = widget.tableRows.asMap().entries.where((entry) {
-      if (_searchQuery.isEmpty) return true;
-      final row = entry.value;
-      // Periksa apakah ada nilai teks di kolom mana pun pada baris ini yang mengandung kata kunci pencarian
-      return widget.currentFieldKeys.any((key) {
-        final textValue = row[key]?.text.toLowerCase() ?? '';
-        return textValue.contains(_searchQuery.toLowerCase());
-      });
-    }).toList();
+    final List<MapEntry<int, Map<String, TextEditingController>>> filteredRows =
+        widget.tableRows.asMap().entries.where((entry) {
+          if (_searchQuery.isEmpty) return true;
+          final row = entry.value;
+          return widget.currentFieldKeys.any((key) {
+            final textValue = row[key]?.text.toLowerCase() ?? '';
+            return textValue.contains(_searchQuery.toLowerCase());
+          });
+        }).toList();
 
     return Padding(
       padding: const EdgeInsets.all(12.0),
@@ -686,6 +749,12 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                               ),
                               const Divider(),
                               ...widget.currentFieldKeys.map((key) {
+                                final fullType =
+                                    widget.currentFieldTypes[key] ?? 'String';
+                                final displayType = fullType
+                                    .split(':')
+                                    .first; // Visual pembersih nama tipe data
+
                                 return Padding(
                                   padding: const EdgeInsets.only(bottom: 8.0),
                                   child: Row(
@@ -693,7 +762,7 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                                       SizedBox(
                                         width: 100,
                                         child: Text(
-                                          "$key (${widget.currentFieldTypes[key] ?? 'String'})",
+                                          "$key ($displayType)",
                                           style: const TextStyle(
                                             fontSize: 12,
                                             fontWeight: FontWeight.w500,
@@ -844,9 +913,6 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
               const SizedBox(height: 8),
             ],
 
-            // =========================================================================
-            // STRUKTUR HEADER BARU: MENYEDIAKAN AREA DAN TOMBOL AKTIVASI SEARCH
-            // =========================================================================
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -909,7 +975,6 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // TOMBOL SEARCH UTAMA
                     InkWell(
                       onTap: () {
                         setState(() {
@@ -1066,36 +1131,46 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                                         ),
                                       ),
                                     ),
-                                    ...widget.currentFieldKeys.asMap().entries.map((
-                                      entry,
-                                    ) {
-                                      String key = entry.value;
-                                      return DataColumn(
-                                        label: Text(
-                                          "$key (${widget.currentFieldTypes[key] ?? 'String'})",
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.indigo,
-                                          ),
-                                        ),
-                                        onSort: (columnIndex, ascending) =>
-                                            widget.controller.sortTable(
-                                              setDialogState: setState,
-                                              tableRows: widget.tableRows,
-                                              currentFieldTypes:
-                                                  widget.currentFieldTypes,
-                                              triggerChange: widget.onChanged,
-                                              key: key,
-                                              columnIndex: columnIndex - 1,
-                                              currentSortColumnIndex:
-                                                  widget.sortColumnIndex,
-                                              currentIsAscending:
-                                                  widget.isAscending,
-                                              onSortUpdated:
-                                                  widget.onSortChanged,
+                                    ...widget.currentFieldKeys
+                                        .asMap()
+                                        .entries
+                                        .map((entry) {
+                                          String key = entry.value;
+                                          final fullType =
+                                              widget.currentFieldTypes[key] ??
+                                              'String';
+                                          final displayType = fullType
+                                              .split(':')
+                                              .first;
+
+                                          return DataColumn(
+                                            label: Text(
+                                              "$key ($displayType)",
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.indigo,
+                                              ),
                                             ),
-                                      );
-                                    }).toList(),
+                                            onSort: (columnIndex, ascending) =>
+                                                widget.controller.sortTable(
+                                                  setDialogState: setState,
+                                                  tableRows: widget.tableRows,
+                                                  currentFieldTypes:
+                                                      widget.currentFieldTypes,
+                                                  triggerChange:
+                                                      widget.onChanged,
+                                                  key: key,
+                                                  columnIndex: columnIndex - 1,
+                                                  currentSortColumnIndex:
+                                                      widget.sortColumnIndex,
+                                                  currentIsAscending:
+                                                      widget.isAscending,
+                                                  onSortUpdated:
+                                                      widget.onSortChanged,
+                                                ),
+                                          );
+                                        })
+                                        .toList(),
                                     if (!widget.isViewMode)
                                       const DataColumn(
                                         label: Text(
@@ -1107,7 +1182,6 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                                         ),
                                       ),
                                   ],
-                                  // MENGGUNAKAN LIST BARIS HASIL FILTER
                                   rows: filteredRows.map((filteredEntry) {
                                     int index = filteredEntry.key;
                                     var row = filteredEntry.value;

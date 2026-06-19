@@ -34,6 +34,7 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
     'Time',
     'Pengingat',
     'Boolean',
+    'Option', // <-- BARU: Menambahkan opsi tipe data baru
   ];
 
   void _showRenameFieldDialog(String oldKey) {
@@ -78,6 +79,8 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
 
   void _showAddFieldDialog() {
     final keyController = TextEditingController();
+    final optionsController =
+        TextEditingController(); // <-- BARU: Controller input opsi kustom
     String selectedType = 'String';
     showDialog(
       context: context,
@@ -90,7 +93,7 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
               TextField(
                 controller: keyController,
                 decoration: const InputDecoration(
-                  hintText: 'Nama Kolom (misal: No, Nama, Tanggal)',
+                  hintText: 'Nama Kolom (misal: Bank, No, Nama)',
                 ),
                 autofocus: true,
               ),
@@ -110,6 +113,18 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                   }
                 },
               ),
+              // <-- BARU: Tampilkan input list pilihan hanya jika tipe 'Option' dipilih
+              if (selectedType == 'Option') ...[
+                const SizedBox(height: 12),
+                TextField(
+                  controller: optionsController,
+                  decoration: const InputDecoration(
+                    labelText: 'Pilihan Opsi (Pisahkan dengan koma)',
+                    hintText: 'Misal: BRI, BCA, Mandiri',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
             ],
           ),
           actions: [
@@ -121,6 +136,14 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
               onPressed: () {
                 final key = keyController.text.trim();
                 if (key.isNotEmpty) {
+                  String finalType = selectedType;
+
+                  // Jika bertipe Option, format teks tipenya menjadi Option:BRI,BCA,Mandiri
+                  if (selectedType == 'Option') {
+                    final optionsText = optionsController.text.trim();
+                    finalType = 'Option:$optionsText';
+                  }
+
                   widget.controller.addFieldKey(
                     setDialogState: setState,
                     currentFieldKeys: widget.currentFieldKeys,
@@ -129,7 +152,7 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                     tableRows: widget.tableRows,
                     triggerChange: widget.onChanged,
                     key: key,
-                    type: selectedType,
+                    type: finalType,
                   );
                   Navigator.pop(ctx);
                 }
@@ -215,7 +238,6 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                     ),
                   )
                 : ReorderableListView.builder(
-                    // FIX 1: Matikan default drag handle bawaan agar area card tidak conflict
                     buildDefaultDragHandles: false,
                     itemCount: widget.currentFieldKeys.length,
                     onReorder: (oldIndex, newIndex) {
@@ -229,7 +251,12 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                     },
                     itemBuilder: (ctx, idx) {
                       final key = widget.currentFieldKeys[idx];
-                      final type = widget.currentFieldTypes[key] ?? 'String';
+                      final fullType =
+                          widget.currentFieldTypes[key] ?? 'String';
+
+                      // Membersihkan visual tipe data kustom di UI (misal 'Option:BRI,BCA' menjadi 'Option')
+                      final displayType = fullType.split(':').first;
+
                       return Card(
                         key: ValueKey(key),
                         margin: const EdgeInsets.only(bottom: 10),
@@ -249,7 +276,6 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                           ),
                           child: Row(
                             children: [
-                              // FIX 2: Bungkus Icon dengan ReorderableDragStartListener secara spesifik
                               if (_isManageMode)
                                 ReorderableDragStartListener(
                                   index: idx,
@@ -295,7 +321,8 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                                             context,
                                           ).copyWith(canvasColor: Colors.white),
                                           child: DropdownButton<String>(
-                                            value: type,
+                                            value:
+                                                displayType, // Gunakan displayType hasil parsing
                                             isDense: true,
                                             underline: const SizedBox(),
                                             icon: const Icon(
@@ -316,11 +343,14 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                                                   ),
                                                 )
                                                 .toList(),
-                                            onChanged: _isManageMode
-                                                ? null
+                                            onChanged:
+                                                _isManageMode ||
+                                                    displayType == 'Option'
+                                                ? null // Kunci dropdown bawaan jika tipe Option agar datanya tidak rusak tanpa parameter list
                                                 : (String? newType) {
                                                     if (newType != null &&
-                                                        newType != type) {
+                                                        newType !=
+                                                            displayType) {
                                                       widget.controller
                                                           .updateFieldType(
                                                             setDialogState:
