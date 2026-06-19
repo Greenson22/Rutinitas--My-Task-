@@ -3,10 +3,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../data/models/daily_model.dart';
-import 'change_color_dialog.dart';
-import 'checklist_control_panel.dart';
-import 'checklist_tree_view.dart';
-import 'checklist_note_view.dart';
+import 'checklist_dialog/change_color_dialog.dart';
+import 'checklist_dialog/checklist_control_panel.dart';
+import 'checklist_dialog/checklist_tree_view.dart';
+import 'checklist_dialog/checklist_note_view.dart';
 import '../../../../../core/presentation/widgets/base_popup_dialog.dart';
 
 class DailyChecklistDialog extends StatefulWidget {

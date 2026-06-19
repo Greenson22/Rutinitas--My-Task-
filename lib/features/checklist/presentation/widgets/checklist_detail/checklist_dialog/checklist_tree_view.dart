@@ -1,7 +1,7 @@
 // lib/features/daily/presentation/widgets/checklist_detail/checklist_tree_view.dart
 
 import 'package:flutter/material.dart';
-import '../../../data/models/daily_model.dart';
+import '../../../../data/models/daily_model.dart';
 
 class ChecklistTreeView extends StatelessWidget {
   final SubSubjectItem item;
