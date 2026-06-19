@@ -2,9 +2,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../../../data/models/daily_model.dart';
-import '../checklist_dialog.dart';
-import 'change_color_dialog.dart';
+import '../../data/models/daily_model.dart';
+import '../widgets/checklist_detail/checklist_dialog.dart';
+import '../widgets/checklist_detail/checklist_dialog/change_color_dialog.dart';
 
 abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
   final TextEditingController singleInputController = TextEditingController();

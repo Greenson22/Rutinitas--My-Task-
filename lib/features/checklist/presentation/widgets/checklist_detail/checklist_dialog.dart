@@ -6,7 +6,7 @@ import 'checklist_dialog/change_color_dialog.dart';
 import 'checklist_dialog/checklist_control_panel.dart';
 import 'checklist_dialog/checklist_tree_view.dart';
 import 'checklist_dialog/checklist_note_view.dart';
-import 'checklist_dialog/checklist_dialog_controller.dart';
+import '../../controllers/checklist_dialog_controller.dart';
 import '../../../../../core/presentation/widgets/base_popup_dialog.dart';
 
 class DailyChecklistDialog extends StatefulWidget {
