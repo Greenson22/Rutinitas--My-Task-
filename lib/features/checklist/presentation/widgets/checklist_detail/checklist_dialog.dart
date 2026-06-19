@@ -15,6 +15,7 @@ class DailyChecklistDialog extends StatefulWidget {
   final List<DailySubject> allAvailableSubjects;
   final List<ChecklistGroup>? allAvailableGroups;
   final VoidCallback? onCustomClosePressed;
+  final String? baseDir; // <--- TAMBAHKAN INI
 
   const DailyChecklistDialog({
     super.key,
@@ -23,6 +24,7 @@ class DailyChecklistDialog extends StatefulWidget {
     required this.allAvailableSubjects,
     this.allAvailableGroups,
     this.onCustomClosePressed,
+    this.baseDir, // <--- TAMBAHKAN INI
   });
 
   @override
@@ -624,7 +626,7 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                     },
                     onLongPress: () async {
                       final confirm = await showConfirmDialog(
-                        title: '🔄 Reset Total Checklist',
+                        title: '⚠️ Reset Total Checklist',
                         content:
                             'Apakah Anda yakin ingin mereset seluruh progress DAN mengaktifkan kembali semua list yang dinonaktifkan (tanda silang)?',
                       );
@@ -650,7 +652,7 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text(
-                              '🔄 Seluruh list dan status dinonaktifkan berhasil di-reset total!',
+                              '🎉 Seluruh list dan status dinonaktifkan berhasil di-reset total!',
                             ),
                             backgroundColor: Colors.deepOrange,
                             duration: Duration(seconds: 2),

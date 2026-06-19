@@ -1,10 +1,12 @@
 // lib/features/daily/presentation/widgets/checklist_detail/checklist_dialog/checklist_dialog_controller.dart
 
+import 'dart:convert'; // <--- TAMBAHKAN INI
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../data/models/daily_model.dart';
 import '../widgets/checklist_detail/checklist_dialog.dart';
 import '../widgets/checklist_detail/checklist_dialog/change_color_dialog.dart';
+import '../../../../core/services/storage_service.dart'; // <--- TAMBAHKAN INI
 
 abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
   final TextEditingController singleInputController = TextEditingController();
@@ -592,6 +594,83 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
     } else {
       widget.subject.progress = 'belum';
     }
+
+    // =========================================================================
+    // FITUR UTAMA BARU: MUTASI & SINKRONISASI JSON BERKAS LINTAS GRUP
+    // =========================================================================
+    if (widget.allAvailableGroups != null && widget.baseDir != null) {
+      final storageService = StorageService();
+      final String todayStr =
+          "${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}";
+
+      for (var group in widget.allAvailableGroups!) {
+        bool groupChanged = false;
+
+        for (var section in group.allList) {
+          for (var sub in section.items) {
+            void updateLinkedItemsRecursive(List<SubSubjectItem> items) {
+              for (var item in items) {
+                if (item.linkedSubjectName == widget.subject.subjectName) {
+                  if (widget.subject.progress == 'selesai') {
+                    if (item.progress != 'selesai') {
+                      item.progress = 'selesai';
+                      item.finishedDate = todayStr;
+                      groupChanged = true;
+                    }
+                  } else {
+                    if (item.progress == 'selesai') {
+                      item.progress = 'belum';
+                      item.finishedDate = null;
+                      groupChanged = true;
+                    }
+                  }
+                }
+                if (item.subMateri.isNotEmpty) {
+                  updateLinkedItemsRecursive(item.subMateri);
+                }
+              }
+            }
+
+            updateLinkedItemsRecursive(sub.subMateri);
+
+            // Apabila ada sub-materi eksternal yang tercentang otomatis, hitung ulang progres Card tersebut
+            if (groupChanged) {
+              for (var root in sub.subMateri) {
+                root.updateStatusFromChildren();
+              }
+              double subTotal = countTotal(sub.subMateri);
+              double subSelesai = countFinished(sub.subMateri);
+
+              if (subTotal == 0) {
+                sub.progress = 'belum';
+              } else if (subSelesai == subTotal) {
+                sub.progress = 'selesai';
+              } else if (subSelesai > 0) {
+                sub.progress = 'sementara';
+              } else {
+                sub.progress = 'belum';
+              }
+            }
+          }
+        }
+
+        // Tulis ulang perubahan secara independen ke penyimpanan disk lokal grup terkait
+        if (groupChanged) {
+          try {
+            final String jsonString = const JsonEncoder.withIndent(
+              '  ',
+            ).convert(group.toJson());
+            storageService.getSpecificGroupFile(widget.baseDir!, group.id).then(
+              (file) {
+                storageService.saveJsonData(file, jsonString);
+              },
+            );
+          } catch (e) {
+            debugPrint("Gagal mensinkronisasikan berkas grup eksternal: $e");
+          }
+        }
+      }
+    }
   }
 
   void handleToggleDisableItem(SubSubjectItem item) {
@@ -853,7 +932,7 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
                 autofocus: true,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 decoration: const InputDecoration(
-                  labelText: 'Target Nilai (Misal: 10, 1.000, 1.000.000)',
+                  labelText: 'Target Nil Value (Misal: 10, 1.000, 1.000.000)',
                   border: OutlineInputBorder(),
                 ),
                 onChanged: (val) {

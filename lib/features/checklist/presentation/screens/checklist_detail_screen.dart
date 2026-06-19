@@ -295,6 +295,8 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
               allAvailableSubjects: allAvailableSubjects,
               allAvailableGroups:
                   _loadedAllGroups, // <-- OVERRIDE SINKRONISASI: Suntikkan seluruh manifest grup terunduh ke dialog
+              baseDir: widget
+                  .baseDir, // <--- BARU: Menyuntikkan baseDir penyimpanan untuk sinkronisasi otomatis
               onDataChanged: () {
                 saveGroupData();
                 setState(() {});
