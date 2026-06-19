@@ -124,9 +124,48 @@ class _RandomScreenState extends State<RandomScreen> {
         } else {
           _timer?.cancel();
           _isTimerRunning = false;
+          // Panggil dialog di sini saat waktu habis
+          _showTimeoutDialog();
         }
       });
     });
+  }
+
+  // Fungsi baru untuk menampilkan dialog saat waktu habis
+  void _showTimeoutDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // User harus menekan tombol untuk menutup
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.alarm_on, color: Colors.red[700]),
+              const SizedBox(width: 10),
+              const Text('Waktu Habis!'),
+            ],
+          ),
+          content: const Text(
+            'Durasi hitung mundur telah selesai.',
+            style: TextStyle(fontSize: 16),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Menutup dialog
+              },
+              child: const Text(
+                'OK',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   void _pauseTimer() {
