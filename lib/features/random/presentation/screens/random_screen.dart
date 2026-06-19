@@ -1,4 +1,5 @@
 // lib/features/random/presentation/screens/random_screen.dart
+import 'dart:async'; // Ditambahkan untuk fitur Timer
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // Dibutuhkan untuk mengakses Clipboard
@@ -35,13 +36,21 @@ class _RandomScreenState extends State<RandomScreen> {
     text: 'Pilihan 1\nPilihan 2\nPilihan 3',
   );
 
+  // State untuk Fitur Timer
+  final TextEditingController _durationController = TextEditingController(
+    text: '10',
+  );
+  Timer? _timer;
+  int _remainingSeconds = 0;
+  bool _isTimerRunning = false;
+  bool _isTimerInitialized = false;
+
   String? _result;
   final Random _random = Random();
 
   void _generateRandomValue() {
     setState(() {
       if (_selectedType == RandomType.angka) {
-        // Logika Acak Angka
         int min = int.tryParse(_minController.text) ?? 0;
         int max = int.tryParse(_maxController.text) ?? 10;
 
@@ -55,7 +64,6 @@ class _RandomScreenState extends State<RandomScreen> {
 
         _result = (min + _random.nextInt((max - min) + 1)).toString();
       } else if (_selectedType == RandomType.huruf) {
-        // Logika Acak Huruf
         String minStr = _minLetterController.text.trim().toUpperCase();
         String maxStr = _maxLetterController.text.trim().toUpperCase();
 
@@ -79,8 +87,6 @@ class _RandomScreenState extends State<RandomScreen> {
         int randomCode = minCode + _random.nextInt((maxCode - minCode) + 1);
         _result = String.fromCharCode(randomCode);
       } else {
-        // Logika Acak List/Daftar Teks
-        // Memisahkan teks berdasarkan baris baru dan menghapus baris kosong
         List<String> items = _listController.text
             .split('\n')
             .map((e) => e.trim())
@@ -95,6 +101,47 @@ class _RandomScreenState extends State<RandomScreen> {
         int randomIndex = _random.nextInt(items.length);
         _result = items[randomIndex];
       }
+    });
+  }
+
+  // Fungsi Logika Timer
+  void _startTimer() {
+    if (!_isTimerInitialized) {
+      int duration = int.tryParse(_durationController.text) ?? 10;
+      if (duration <= 0) return;
+      _remainingSeconds = duration;
+      _isTimerInitialized = true;
+    }
+
+    setState(() {
+      _isTimerRunning = true;
+    });
+
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        if (_remainingSeconds > 0) {
+          _remainingSeconds--;
+        } else {
+          _timer?.cancel();
+          _isTimerRunning = false;
+        }
+      });
+    });
+  }
+
+  void _pauseTimer() {
+    _timer?.cancel();
+    setState(() {
+      _isTimerRunning = false;
+    });
+  }
+
+  void _resetTimer() {
+    _timer?.cancel();
+    setState(() {
+      _isTimerRunning = false;
+      _isTimerInitialized = false;
+      _remainingSeconds = 0;
     });
   }
 
@@ -115,6 +162,8 @@ class _RandomScreenState extends State<RandomScreen> {
     _minLetterController.dispose();
     _maxLetterController.dispose();
     _listController.dispose();
+    _durationController.dispose();
+    _timer?.cancel();
     super.dispose();
   }
 
@@ -217,22 +266,20 @@ class _RandomScreenState extends State<RandomScreen> {
                             key: ValueKey<String>(_result ?? '-'),
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              // LOGIKA ADAPTIF BARU DI SINI:
                               fontSize:
                                   _selectedType == RandomType.list &&
                                       _result != null
                                   ? (_result!.length > 50
-                                        ? 18 // Sangat panjang (kalimat panjang)
+                                        ? 18
                                         : _result!.length > 20
-                                        ? 24 // Lumayan panjang
-                                        : 36) // Pendek
+                                        ? 24
+                                        : 36)
                                   : (_selectedType == RandomType.list
                                         ? 36
-                                        : 84), // Default angka/huruf atau list kosong
+                                        : 84),
                               fontWeight:
                                   _result != null && _result!.length > 20
-                                  ? FontWeight
-                                        .w600 // Lebih tipis jika panjang agar rapi
+                                  ? FontWeight.w600
                                   : FontWeight.w900,
                               color: Colors.indigo[900],
                             ),
@@ -380,7 +427,7 @@ class _RandomScreenState extends State<RandomScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(Icons.casino, color: Colors.white),
-                        const SizedBox(width: 12),
+                        SizedBox(width: 12),
                         Text(
                           'ACAK SEKARANG',
                           style: TextStyle(
@@ -389,6 +436,99 @@ class _RandomScreenState extends State<RandomScreen> {
                             color: Colors.white,
                             letterSpacing: 1,
                           ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // CARD BARU: Fitur Timer Hitung Mundur Adaptif
+                Card(
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Container(
+                    width: double.infinity,
+                    constraints: const BoxConstraints(maxWidth: 400),
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      children: [
+                        Text(
+                          'TIMER HITUNG MUNDUR',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey[600],
+                            letterSpacing: 1.5,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        if (!_isTimerInitialized)
+                          TextField(
+                            controller: _durationController,
+                            keyboardType: TextInputType.number,
+                            decoration: InputDecoration(
+                              labelText: 'Durasi Hitung Mundur (Detik)',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              prefixIcon: const Icon(Icons.timer),
+                            ),
+                          )
+                        else
+                          Text(
+                            _isTimerInitialized && _remainingSeconds == 0
+                                ? 'TIMER HABIS'
+                                : '$_remainingSeconds Detik',
+                            style: TextStyle(
+                              fontSize:
+                                  _isTimerInitialized && _remainingSeconds == 0
+                                  ? 28
+                                  : 40,
+                              fontWeight: FontWeight.bold,
+                              color:
+                                  _isTimerInitialized && _remainingSeconds == 0
+                                  ? Colors.red[700]
+                                  : Colors.indigo[900],
+                            ),
+                          ),
+                        const SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            if (_isTimerRunning)
+                              ElevatedButton.icon(
+                                onPressed: _pauseTimer,
+                                icon: const Icon(Icons.pause),
+                                label: const Text('Pause'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.amber[800],
+                                ),
+                              )
+                            else
+                              ElevatedButton.icon(
+                                onPressed:
+                                    _isTimerInitialized &&
+                                        _remainingSeconds == 0
+                                    ? null
+                                    : _startTimer,
+                                icon: const Icon(Icons.play_arrow),
+                                label: const Text('Mulai'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green[700],
+                                ),
+                              ),
+                            ElevatedButton.icon(
+                              onPressed: _resetTimer,
+                              icon: const Icon(Icons.refresh),
+                              label: const Text('Reset'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.grey[700],
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
