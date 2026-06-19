@@ -34,19 +34,44 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
     'Time',
     'Pengingat',
     'Boolean',
-    'Option', // <-- BARU: Menambahkan opsi tipe data baru
+    'Option',
   ];
 
-  void _showRenameFieldDialog(String oldKey) {
-    final renameController = TextEditingController(text: oldKey);
+  // <-- PERBAIKAN & PENINGKATAN: Mengganti fungsi rename menjadi dialog edit lengkap
+  void _showEditFieldDialog(String oldKey) {
+    final nameController = TextEditingController(text: oldKey);
+    final optionsController = TextEditingController();
+
+    final String fullType = widget.currentFieldTypes[oldKey] ?? 'String';
+    final bool isOptionType = fullType.startsWith('Option:');
+
+    if (isOptionType) {
+      optionsController.text = fullType.substring(fullType.indexOf(':') + 1);
+    }
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Ubah Nama Kolom'),
-        content: TextField(
-          controller: renameController,
-          decoration: const InputDecoration(labelText: 'Nama Kolom Baru'),
-          autofocus: true,
+        title: Text(isOptionType ? 'Edit Kolom & Opsi' : 'Ubah Nama Kolom'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(labelText: 'Nama Kolom Baru'),
+              autofocus: true,
+            ),
+            if (isOptionType) ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: optionsController,
+                decoration: const InputDecoration(
+                  labelText: 'Pilihan Opsi (Pisahkan dengan koma)',
+                  hintText: 'Misal: BRI, BCA, Mandiri',
+                ),
+              ),
+            ],
+          ],
         ),
         actions: [
           TextButton(
@@ -55,18 +80,31 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
           ),
           ElevatedButton(
             onPressed: () {
-              final String newKey = renameController.text.trim();
-              if (newKey.isNotEmpty && newKey != oldKey) {
-                widget.controller.renameFieldKey(
-                  setDialogState: setState,
-                  currentFieldKeys: widget.currentFieldKeys,
-                  currentFieldTypes: widget.currentFieldTypes,
-                  formControllers: widget.formControllers,
-                  tableRows: widget.tableRows,
-                  triggerChange: widget.onChanged,
-                  oldKey: oldKey,
-                  newKey: newKey,
-                );
+              final String newKey = nameController.text.trim();
+              if (newKey.isNotEmpty) {
+                // 1. Jika bertipe Option, update isi opsi barunya terlebih dahulu ke dalam map type
+                if (isOptionType) {
+                  final String updatedOptions = optionsController.text.trim();
+                  widget.currentFieldTypes[oldKey] = 'Option:$updatedOptions';
+                }
+
+                // 2. Jalankan migrasi rename key (jika nama berubah) atau picu pembaruan UI kustom
+                if (newKey != oldKey) {
+                  widget.controller.renameFieldKey(
+                    setDialogState: setState,
+                    currentFieldKeys: widget.currentFieldKeys,
+                    currentFieldTypes: widget.currentFieldTypes,
+                    formControllers: widget.formControllers,
+                    tableRows: widget.tableRows,
+                    triggerChange: widget.onChanged,
+                    oldKey: oldKey,
+                    newKey: newKey,
+                  );
+                } else {
+                  // Jika hanya mengubah opsi saja tanpa mengubah nama kolom
+                  setState(() {});
+                  widget.onChanged();
+                }
                 Navigator.pop(ctx);
               }
             },
@@ -79,8 +117,7 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
 
   void _showAddFieldDialog() {
     final keyController = TextEditingController();
-    final optionsController =
-        TextEditingController(); // <-- BARU: Controller input opsi kustom
+    final optionsController = TextEditingController();
     String selectedType = 'String';
     showDialog(
       context: context,
@@ -113,7 +150,6 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                   }
                 },
               ),
-              // <-- BARU: Tampilkan input list pilihan hanya jika tipe 'Option' dipilih
               if (selectedType == 'Option') ...[
                 const SizedBox(height: 12),
                 TextField(
@@ -137,13 +173,10 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                 final key = keyController.text.trim();
                 if (key.isNotEmpty) {
                   String finalType = selectedType;
-
-                  // Jika bertipe Option, format teks tipenya menjadi Option:BRI,BCA,Mandiri
                   if (selectedType == 'Option') {
                     final optionsText = optionsController.text.trim();
                     finalType = 'Option:$optionsText';
                   }
-
                   widget.controller.addFieldKey(
                     setDialogState: setState,
                     currentFieldKeys: widget.currentFieldKeys,
@@ -253,8 +286,6 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                       final key = widget.currentFieldKeys[idx];
                       final fullType =
                           widget.currentFieldTypes[key] ?? 'String';
-
-                      // Membersihkan visual tipe data kustom di UI (misal 'Option:BRI,BCA' menjadi 'Option')
                       final displayType = fullType.split(':').first;
 
                       return Card(
@@ -321,8 +352,7 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                                             context,
                                           ).copyWith(canvasColor: Colors.white),
                                           child: DropdownButton<String>(
-                                            value:
-                                                displayType, // Gunakan displayType hasil parsing
+                                            value: displayType,
                                             isDense: true,
                                             underline: const SizedBox(),
                                             icon: const Icon(
@@ -346,7 +376,7 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                                             onChanged:
                                                 _isManageMode ||
                                                     displayType == 'Option'
-                                                ? null // Kunci dropdown bawaan jika tipe Option agar datanya tidak rusak tanpa parameter list
+                                                ? null
                                                 : (String? newType) {
                                                     if (newType != null &&
                                                         newType !=
@@ -383,8 +413,9 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                                       color: Colors.indigo.withOpacity(0.08),
                                       borderRadius: BorderRadius.circular(8),
                                       child: InkWell(
-                                        onTap: () =>
-                                            _showRenameFieldDialog(key),
+                                        onTap: () => _showEditFieldDialog(
+                                          key,
+                                        ), // <-- Perubahan pemicu dialog edit
                                         borderRadius: BorderRadius.circular(8),
                                         child: const Padding(
                                           padding: EdgeInsets.all(8.0),
