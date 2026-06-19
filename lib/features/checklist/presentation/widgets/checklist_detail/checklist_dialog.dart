@@ -297,69 +297,9 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                                   isEditMode = !isEditMode;
                                   selectedItems.clear();
                                 }),
-                                onCheckStatusChanged: (target, checked) {
-                                  if (target.linkedSubjectName != null &&
-                                      target.linkedSubjectName!.isNotEmpty) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          '🔒 Item ini otomatis tercentang hanya jika Card "${target.linkedSubjectName}" selesai semua.',
-                                        ),
-                                        backgroundColor: Colors.amber[800],
-                                      ),
-                                    );
-                                    return;
-                                  }
-                                  saveToHistory();
-                                  setState(() {
-                                    if (target.itemType == 'progress') {
-                                      if (checked == false) {
-                                        target.currentValue = 0;
-                                        target.progress = 'belum';
-                                        target.finishedDate = null;
-                                      }
-                                    } else {
-                                      target.progress = checked == true
-                                          ? 'selesai'
-                                          : 'belum';
-                                    }
-                                    for (var r in widget.subject.subMateri) {
-                                      r.updateStatusFromChildren();
-                                    }
-                                  });
-                                  updateSubjectOverallProgress();
-                                  widget.onDataChanged();
-                                },
-                                onTapToggleStatus: (target) {
-                                  if (target.linkedSubjectName != null &&
-                                      target.linkedSubjectName!.isNotEmpty) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          '🔒 Item ini dikunci oleh penyelesaian Card "${target.linkedSubjectName}"',
-                                        ),
-                                        backgroundColor: Colors.amber[800],
-                                      ),
-                                    );
-                                    return;
-                                  }
-                                  if (target.itemType == 'progress') {
-                                    showUpdateProgressValueDialog(target);
-                                    return;
-                                  }
-                                  saveToHistory();
-                                  setState(
-                                    () => target.progress =
-                                        target.progress != 'selesai'
-                                        ? 'selesai'
-                                        : 'belum',
-                                  );
-                                  for (var r in widget.subject.subMateri) {
-                                    r.updateStatusFromChildren();
-                                  }
-                                  updateSubjectOverallProgress();
-                                  widget.onDataChanged();
-                                },
+                                // PERBAIKAN UTAMA: Hubungkan langsung ke handler rekursif milik Controller
+                                onCheckStatusChanged: handleCheckStatusChanged,
+                                onTapToggleStatus: handleTapToggleStatus,
                                 onAddChild: (targetItem) =>
                                     addChildSubMateri(targetItem),
                                 onDeleteItem: (targetItem) =>
@@ -438,73 +378,10 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                                     isEditMode = !isEditMode;
                                     selectedItems.clear();
                                   }),
-                                  onCheckStatusChanged: (target, checked) {
-                                    if (target.linkedSubjectName != null &&
-                                        target.linkedSubjectName!.isNotEmpty) {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            '🔒 Item ini otomatis tercentang hanya jika Card "${target.linkedSubjectName}" selesai semua.',
-                                          ),
-                                          backgroundColor: Colors.amber[800],
-                                        ),
-                                      );
-                                      return;
-                                    }
-                                    saveToHistory();
-                                    setState(() {
-                                      if (target.itemType == 'progress') {
-                                        if (checked == false) {
-                                          target.currentValue = 0;
-                                          target.progress = 'belum';
-                                          target.finishedDate = null;
-                                        }
-                                      } else {
-                                        target.progress = checked == true
-                                            ? 'selesai'
-                                            : 'belum';
-                                      }
-                                      for (var r in widget.subject.subMateri) {
-                                        r.updateStatusFromChildren();
-                                      }
-                                    });
-                                    updateSubjectOverallProgress();
-                                    widget.onDataChanged();
-                                  },
-                                  onTapToggleStatus: (target) {
-                                    if (target.linkedSubjectName != null &&
-                                        target.linkedSubjectName!.isNotEmpty) {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            '🔒 Item ini dikunci oleh penyelesaian Card "${target.linkedSubjectName}"',
-                                          ),
-                                          backgroundColor: Colors.amber[800],
-                                        ),
-                                      );
-                                      return;
-                                    }
-                                    if (target.itemType == 'progress') {
-                                      showUpdateProgressValueDialog(target);
-                                      return;
-                                    }
-                                    saveToHistory();
-                                    setState(
-                                      () => target.progress =
-                                          target.progress != 'selesai'
-                                          ? 'selesai'
-                                          : 'belum',
-                                    );
-                                    for (var r in widget.subject.subMateri) {
-                                      r.updateStatusFromChildren();
-                                    }
-                                    updateSubjectOverallProgress();
-                                    widget.onDataChanged();
-                                  },
+                                  // PERBAIKAN UTAMA: Hubungkan langsung ke handler rekursif milik Controller
+                                  onCheckStatusChanged:
+                                      handleCheckStatusChanged,
+                                  onTapToggleStatus: handleTapToggleStatus,
                                   onAddChild: (targetItem) =>
                                       addChildSubMateri(targetItem),
                                   onDeleteItem: (targetItem) =>
@@ -626,7 +503,7 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                     },
                     onLongPress: () async {
                       final confirm = await showConfirmDialog(
-                        title: '⚠️ Reset Total Checklist',
+                        title: 'Reset Total Checklist',
                         content:
                             'Apakah Anda yakin ingin mereset seluruh progress DAN mengaktifkan kembali semua list yang dinonaktifkan (tanda silang)?',
                       );
@@ -652,7 +529,7 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text(
-                              '🎉 Seluruh list dan status dinonaktifkan berhasil di-reset total!',
+                              'Seluruh list dan status dinonaktifkan berhasil di-reset total!',
                             ),
                             backgroundColor: Colors.deepOrange,
                             duration: Duration(seconds: 2),

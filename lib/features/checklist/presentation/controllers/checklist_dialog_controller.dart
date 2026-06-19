@@ -1,12 +1,12 @@
 // lib/features/daily/presentation/widgets/checklist_detail/checklist_dialog/checklist_dialog_controller.dart
 
-import 'dart:convert'; // <--- TAMBAHKAN INI
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../data/models/daily_model.dart';
 import '../widgets/checklist_detail/checklist_dialog.dart';
 import '../widgets/checklist_detail/checklist_dialog/change_color_dialog.dart';
-import '../../../../core/services/storage_service.dart'; // <--- TAMBAHKAN INI
+import '../../../../core/services/storage_service.dart';
 
 abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
   final TextEditingController singleInputController = TextEditingController();
@@ -99,6 +99,121 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
     }
 
     setState(() => markDoneRecursive(widget.subject.subMateri));
+    updateSubjectOverallProgress();
+    widget.onDataChanged();
+  }
+
+  // =========================================================================
+  // FITUR REKURSIF BARU: Mengubah Status Parent Sekaligus Semua Anak di Bawahnya
+  // =========================================================================
+  void handleCheckStatusChanged(SubSubjectItem target, bool? checked) {
+    if (target.linkedSubjectName != null &&
+        target.linkedSubjectName!.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '⚠️ Item ini otomatis tercentang hanya jika Card "${target.linkedSubjectName}" selesai semua.',
+          ),
+          backgroundColor: Colors.amber[800],
+        ),
+      );
+      return;
+    }
+    saveToHistory();
+    setState(() {
+      final String todayStr =
+          "${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}";
+
+      bool isDone = checked == true;
+
+      // Fungsi internal untuk melakukan loop menurun ke setiap anak subMateri
+      void toggleRecursive(SubSubjectItem item) {
+        if (item.isDisabled) return;
+
+        if (item.itemType == 'progress') {
+          if (isDone) {
+            item.currentValue = item.targetValue;
+            item.progress = 'selesai';
+            item.finishedDate = todayStr;
+          } else {
+            item.currentValue = 0;
+            item.progress = 'belum';
+            item.finishedDate = null;
+          }
+        } else {
+          item.progress = isDone ? 'selesai' : 'belum';
+          item.finishedDate = isDone ? todayStr : null;
+        }
+
+        for (var child in item.subMateri) {
+          toggleRecursive(child);
+        }
+      }
+
+      toggleRecursive(target);
+
+      for (var r in widget.subject.subMateri) {
+        r.updateStatusFromChildren();
+      }
+    });
+    updateSubjectOverallProgress();
+    widget.onDataChanged();
+  }
+
+  void handleTapToggleStatus(SubSubjectItem target) {
+    if (target.linkedSubjectName != null &&
+        target.linkedSubjectName!.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '⚠️ Item ini dikunci oleh penyelesaian Card "${target.linkedSubjectName}"',
+          ),
+          backgroundColor: Colors.amber[800],
+        ),
+      );
+      return;
+    }
+    if (target.itemType == 'progress') {
+      showUpdateProgressValueDialog(target);
+      return;
+    }
+    saveToHistory();
+    setState(() {
+      final String todayStr =
+          "${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}";
+
+      // Ambil kebalikan status dari status parent saat ini
+      bool isDone = target.progress != 'selesai';
+
+      void toggleRecursive(SubSubjectItem item) {
+        if (item.isDisabled) return;
+
+        if (item.itemType == 'progress') {
+          if (isDone) {
+            item.currentValue = item.targetValue;
+            item.progress = 'selesai';
+            item.finishedDate = todayStr;
+          } else {
+            item.currentValue = 0;
+            item.progress = 'belum';
+            item.finishedDate = null;
+          }
+        } else {
+          item.progress = isDone ? 'selesai' : 'belum';
+          item.finishedDate = isDone ? todayStr : null;
+        }
+
+        for (var child in item.subMateri) {
+          toggleRecursive(child);
+        }
+      }
+
+      toggleRecursive(target);
+
+      for (var r in widget.subject.subMateri) {
+        r.updateStatusFromChildren();
+      }
+    });
     updateSubjectOverallProgress();
     widget.onDataChanged();
   }
@@ -595,9 +710,6 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
       widget.subject.progress = 'belum';
     }
 
-    // =========================================================================
-    // FITUR UTAMA BARU: MUTASI & SINKRONISASI JSON BERKAS LINTAS GRUP
-    // =========================================================================
     if (widget.allAvailableGroups != null && widget.baseDir != null) {
       final storageService = StorageService();
       final String todayStr =
@@ -633,7 +745,6 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
 
             updateLinkedItemsRecursive(sub.subMateri);
 
-            // Apabila ada sub-materi eksternal yang tercentang otomatis, hitung ulang progres Card tersebut
             if (groupChanged) {
               for (var root in sub.subMateri) {
                 root.updateStatusFromChildren();
@@ -654,7 +765,6 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
           }
         }
 
-        // Tulis ulang perubahan secara independen ke penyimpanan disk lokal grup terkait
         if (groupChanged) {
           try {
             final String jsonString = const JsonEncoder.withIndent(
