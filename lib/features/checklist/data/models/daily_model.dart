@@ -236,11 +236,12 @@ class SubSubjectItem {
   String itemType; // 'normal' atau 'progress'
   int currentValue;
   int targetValue;
+  bool isDisabled;
 
   // =========================================================================
-  // PROPERTI BARU: Menyimpan status aktif/nonaktif elemen list harian harian
+  // PROPERTI BARU: Mengaitkan item ini dengan nama Card Checklist lain
   // =========================================================================
-  bool isDisabled;
+  String? linkedSubjectName;
 
   SubSubjectItem({
     required this.subjectName,
@@ -250,7 +251,8 @@ class SubSubjectItem {
     this.itemType = 'normal',
     this.currentValue = 0,
     this.targetValue = 0,
-    this.isDisabled = false, // Default awal: Aktif (false)
+    this.isDisabled = false,
+    this.linkedSubjectName, // <--- BARU: Masuk konstruktor
   }) : this.subMateri = subMateri ?? [];
 
   SubSubjectItem clone() {
@@ -262,7 +264,9 @@ class SubSubjectItem {
       itemType: this.itemType,
       currentValue: this.currentValue,
       targetValue: this.targetValue,
-      isDisabled: this.isDisabled, // <--- BARU: Salin status kustom
+      isDisabled: this.isDisabled,
+      linkedSubjectName:
+          this.linkedSubjectName, // <--- BARU: Salin kaitan saat clone
     );
   }
 
@@ -280,8 +284,9 @@ class SubSubjectItem {
       itemType: json['itemType'] ?? 'normal',
       currentValue: json['currentValue'] ?? 0,
       targetValue: json['targetValue'] ?? 0,
-      isDisabled:
-          json['isDisabled'] ?? false, // <--- BARU: Ekstrak dari JSON storage
+      isDisabled: json['isDisabled'] ?? false,
+      linkedSubjectName:
+          json['linkedSubjectName'], // <--- BARU: Ekstrak string target dari JSON
     );
   }
 
@@ -294,12 +299,13 @@ class SubSubjectItem {
       'itemType': itemType,
       'currentValue': currentValue,
       'targetValue': targetValue,
-      'isDisabled': isDisabled, // <--- BARU: Simpan ke JSON storage
+      'isDisabled': isDisabled,
+      'linkedSubjectName':
+          linkedSubjectName, // <--- BARU: Amankan simpanan target ke JSON
     };
   }
 
   void updateStatusFromChildren() {
-    // === ANTISIPASI: Jika item ini berstatus Dinonaktifkan, hentikan update kalkulasi ===
     if (isDisabled) return;
 
     if (subMateri.isEmpty) {
@@ -313,10 +319,7 @@ class SubSubjectItem {
       child.updateStatusFromChildren();
     }
 
-    // === FILTER UTAMA: Hanya hitung anak-anak yang berstatus AKTIF (tidak disabled) ===
     final activeChildren = subMateri.where((sm) => !sm.isDisabled).toList();
-
-    // Jika semua anak dinonaktifkan, biarkan status progress induk apa adanya atau default
     if (activeChildren.isEmpty) return;
 
     int total = activeChildren.length;

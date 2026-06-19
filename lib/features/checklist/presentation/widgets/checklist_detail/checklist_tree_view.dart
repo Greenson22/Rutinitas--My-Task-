@@ -64,6 +64,10 @@ class ChecklistTreeView extends StatelessWidget {
     bool isHighlighted = highlightedItem == item;
     double paddingLeft = (depth * 14.0).clamp(0.0, 48.0);
 
+    // Mengecek apakah item ini dikunci oleh relasi kaitan card eksternal
+    bool isLinkedAndLocked =
+        item.linkedSubjectName != null && item.linkedSubjectName!.isNotEmpty;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -131,7 +135,8 @@ class ChecklistTreeView extends StatelessWidget {
                               const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
-                                  item.subjectName,
+                                  item.subjectName +
+                                      (isLinkedAndLocked ? ' 🔑' : ''),
                                   style: TextStyle(
                                     fontSize: 14,
                                     color: item.isDisabled
@@ -209,7 +214,9 @@ class ChecklistTreeView extends StatelessWidget {
                                   value: isChecked,
                                   activeColor: item.itemType == 'progress'
                                       ? Colors.deepOrange
-                                      : Colors.teal,
+                                      : (isLinkedAndLocked
+                                            ? Colors.amber[700]
+                                            : Colors.teal),
                                   onChanged: item.itemType == 'progress'
                                       ? (isChecked
                                             ? (bool? checked) =>
@@ -238,24 +245,51 @@ class ChecklistTreeView extends StatelessWidget {
                                 padding: const EdgeInsets.symmetric(
                                   vertical: 8.0,
                                 ),
-                                child: Text(
-                                  item.subjectName,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    decoration: item.isDisabled || isChecked
-                                        ? TextDecoration.lineThrough
-                                        : null,
-                                    color: item.isDisabled
-                                        ? Colors
-                                              .red
-                                              .shade300 // Merah pudar jika dinonaktifkan
-                                        : (isChecked
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (isLinkedAndLocked &&
+                                        !item.isDisabled) ...[
+                                      Tooltip(
+                                        message:
+                                            'Dikunci kaitan Card: "${item.linkedSubjectName}"',
+                                        child: Icon(
+                                          Icons.lock_outline,
+                                          size: 15,
+                                          color: isChecked
                                               ? Colors.grey
-                                              : Colors.black87),
-                                    fontStyle: item.isDisabled
-                                        ? FontStyle.italic
-                                        : null,
-                                  ),
+                                              : Colors.amber[800],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                    ],
+                                    Flexible(
+                                      child: Text(
+                                        item.subjectName,
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          decoration:
+                                              item.isDisabled || isChecked
+                                              ? TextDecoration.lineThrough
+                                              : null,
+                                          color: item.isDisabled
+                                              ? Colors
+                                                    .red
+                                                    .shade300 // Merah pudar jika dinonaktifkan
+                                              : (isLinkedAndLocked && !isChecked
+                                                    ? Colors
+                                                          .grey
+                                                          .shade700 // Warna terkunci relasi
+                                                    : (isChecked
+                                                          ? Colors.grey
+                                                          : Colors.black87)),
+                                          fontStyle: item.isDisabled
+                                              ? FontStyle.italic
+                                              : null,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),

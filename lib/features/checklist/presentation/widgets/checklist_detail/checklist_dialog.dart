@@ -105,8 +105,10 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
 
     void markDoneRecursive(List<SubSubjectItem> list) {
       for (var item in list) {
-        if (item.isDisabled)
-          continue; // Jangan tandai selesai jika dinonaktifkan
+        if (item.isDisabled ||
+            (item.linkedSubjectName != null &&
+                item.linkedSubjectName!.isNotEmpty))
+          continue; // Jangan tandai selesai jika dinonaktifkan atau dikunci relasi kaitan
         item.progress = 'selesai';
         item.finishedDate = formattedDate;
         if (item.subMateri.isNotEmpty) markDoneRecursive(item.subMateri);
@@ -201,31 +203,87 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
 
   void _showEditNameDialog(SubSubjectItem item) {
     final editController = TextEditingController(text: item.subjectName);
+    String? localLinkedTarget = item.linkedSubjectName;
+
+    // Saring daftar card checklist lain yang valid untuk dikaitkan
+    List<String> validCardTargets = widget.allAvailableSubjects
+        .map((sub) => sub.subjectName)
+        .where(
+          (name) =>
+              name != widget.subject.subjectName && name.trim().isNotEmpty,
+        )
+        .toList();
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Ubah Nama Sub-Materi'),
-        content: TextField(
-          controller: editController,
-          decoration: const InputDecoration(border: OutlineInputBorder()),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final newName = editController.text.trim();
-              if (newName.isNotEmpty) {
-                setState(() => item.subjectName = newName);
-                widget.onDataChanged();
-              }
-              Navigator.pop(context);
-            },
-            child: const Text('Simpan'),
-          ),
-        ],
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text('Ubah Item & Kaitan Card'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: editController,
+                  decoration: const InputDecoration(
+                    labelText: 'Nama Sub-Materi',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: localLinkedTarget,
+                  decoration: const InputDecoration(
+                    labelText: 'Kaitkan dengan Kunci Card Lain',
+                    border: OutlineInputBorder(),
+                  ),
+                  hint: const Text('Pilih Card Prasyarat (Opsional)'),
+                  items: [
+                    const DropdownMenuItem<String>(
+                      value: null,
+                      child: Text('Tidak Dikaitkan (Bebas Klik)'),
+                    ),
+                    ...validCardTargets.map(
+                      (name) => DropdownMenuItem(
+                        value: name,
+                        child: Text('🔑 Card: $name'),
+                      ),
+                    ),
+                  ],
+                  onChanged: (val) {
+                    setDialogState(() {
+                      localLinkedTarget = val;
+                    });
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Batal'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  final newName = editController.text.trim();
+                  if (newName.isNotEmpty) {
+                    setState(() {
+                      item.subjectName = newName;
+                      item.linkedSubjectName = localLinkedTarget;
+                    });
+                    _updateSubjectOverallProgress();
+                    widget.onDataChanged();
+                  }
+                  Navigator.pop(context);
+                },
+                child: const Text('Simpan'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -395,7 +453,43 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
     );
   }
 
+  // === FITUR BARU: Pengecekan Kaitan Antar Card Checklist Secara Rekursif ===
+  void _validateAndSetLinkedProgress(List<SubSubjectItem> list) {
+    for (var item in list) {
+      if (item.linkedSubjectName != null &&
+          item.linkedSubjectName!.isNotEmpty) {
+        // Cari Card prasyarat target di dalam manifest subjek kelompok
+        final targetSubject = widget.allAvailableSubjects.firstWhere(
+          (sub) => sub.subjectName == item.linkedSubjectName,
+          orElse: () =>
+              DailySubject(subjectName: '', progress: 'belum', subMateri: []),
+        );
+
+        if (targetSubject.subjectName.isNotEmpty) {
+          // Jika Card target selesai sepenuhnya (100%), terapkan centang selesai otomatis
+          if (targetSubject.progress == 'selesai') {
+            item.progress = 'selesai';
+            if (item.finishedDate == null) {
+              item.finishedDate =
+                  "${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}";
+            }
+          } else {
+            // Jika belum selesai, paksa kunci statusnya ke 'belum'
+            item.progress = 'belum';
+            item.finishedDate = null;
+          }
+        }
+      }
+      if (item.subMateri.isNotEmpty) {
+        _validateAndSetLinkedProgress(item.subMateri);
+      }
+    }
+  }
+
   void _updateSubjectOverallProgress() {
+    // Jalankan sinkronisasi relasi kaitan eksternal terlebih dahulu
+    _validateAndSetLinkedProgress(widget.subject.subMateri);
+
     double countTotal(List<SubSubjectItem> list) {
       double total = 0;
       for (var i in list) {
@@ -1149,6 +1243,20 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                                   _selectedItems.clear();
                                 }),
                                 onCheckStatusChanged: (target, checked) {
+                                  // === VALIDASI BLOKIR: Cek apakah item terkunci oleh relasi kaitan ===
+                                  if (target.linkedSubjectName != null &&
+                                      target.linkedSubjectName!.isNotEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          '🔒 Item ini otomatis tercentang hanya jika Card "${target.linkedSubjectName}" selesai semua.',
+                                        ),
+                                        backgroundColor: Colors.amber[800],
+                                      ),
+                                    );
+                                    return;
+                                  }
+
                                   _saveToHistory();
                                   setState(() {
                                     if (target.itemType == 'progress') {
@@ -1170,6 +1278,20 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                                   widget.onDataChanged();
                                 },
                                 onTapToggleStatus: (target) {
+                                  // === VALIDASI BLOKIR: Cek apakah item terkunci oleh relasi kaitan ===
+                                  if (target.linkedSubjectName != null &&
+                                      target.linkedSubjectName!.isNotEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          '🔒 Item ini dikunci oleh penyelesaian Card "${target.linkedSubjectName}"',
+                                        ),
+                                        backgroundColor: Colors.amber[800],
+                                      ),
+                                    );
+                                    return;
+                                  }
+
                                   if (target.itemType == 'progress') {
                                     _showUpdateProgressValueDialog(target);
                                     return;
@@ -1237,85 +1359,115 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                                 ),
                               ),
                             if (!_hideFinishedItems)
-                              ...List.generate(
-                                widget.subject.subMateri.length,
-                                (index) {
-                                  final item = widget.subject.subMateri[index];
-                                  if (item.progress != 'selesai')
-                                    return const SizedBox.shrink();
-                                  return ChecklistTreeView(
-                                    item: item,
-                                    depth: 0,
-                                    isEditMode: _isEditMode,
-                                    selectedItems: _selectedItems,
-                                    highlightedItem: _highlightedItem,
-                                    isFirst: index == 0,
-                                    isLast:
-                                        index ==
-                                        widget.subject.subMateri.length - 1,
-                                    onSelectItem: (target, add) => setState(
-                                      () => add
-                                          ? _selectedItems.add(target)
-                                          : _selectedItems.remove(target),
-                                    ),
-                                    onMoveOrder: _moveItemOrder,
-                                    onEditName: (targetItem) =>
-                                        _showEditNameDialog(targetItem),
-                                    onLongPressToggle: () => setState(() {
-                                      _isEditMode = !_isEditMode;
-                                      _selectedItems.clear();
-                                    }),
-                                    onCheckStatusChanged: (target, checked) {
-                                      _saveToHistory();
-                                      setState(() {
-                                        if (target.itemType == 'progress') {
-                                          if (checked == false) {
-                                            target.currentValue = 0;
-                                            target.progress = 'belum';
-                                            target.finishedDate = null;
-                                          }
-                                        } else {
-                                          target.progress = checked == true
-                                              ? 'selesai'
-                                              : 'belum';
-                                        }
-                                        for (var r
-                                            in widget.subject.subMateri) {
-                                          r.updateStatusFromChildren();
-                                        }
-                                      });
-                                      _updateSubjectOverallProgress();
-                                      widget.onDataChanged();
-                                    },
-                                    onTapToggleStatus: (target) {
-                                      if (target.itemType == 'progress') {
-                                        _showUpdateProgressValueDialog(target);
-                                        return;
-                                      }
-                                      _saveToHistory();
-                                      setState(
-                                        () => target.progress =
-                                            target.progress != 'selesai'
-                                            ? 'selesai'
-                                            : 'belum',
+                              ...List.generate(widget.subject.subMateri.length, (
+                                index,
+                              ) {
+                                final item = widget.subject.subMateri[index];
+                                if (item.progress != 'selesai')
+                                  return const SizedBox.shrink();
+                                return ChecklistTreeView(
+                                  item: item,
+                                  depth: 0,
+                                  isEditMode: _isEditMode,
+                                  selectedItems: _selectedItems,
+                                  highlightedItem: _highlightedItem,
+                                  isFirst: index == 0,
+                                  isLast:
+                                      index ==
+                                      widget.subject.subMateri.length - 1,
+                                  onSelectItem: (target, add) => setState(
+                                    () => add
+                                        ? _selectedItems.add(target)
+                                        : _selectedItems.remove(target),
+                                  ),
+                                  onMoveOrder: _moveItemOrder,
+                                  onEditName: (targetItem) =>
+                                      _showEditNameDialog(targetItem),
+                                  onLongPressToggle: () => setState(() {
+                                    _isEditMode = !_isEditMode;
+                                    _selectedItems.clear();
+                                  }),
+                                  onCheckStatusChanged: (target, checked) {
+                                    // === VALIDASI BLOKIR ===
+                                    if (target.linkedSubjectName != null &&
+                                        target.linkedSubjectName!.isNotEmpty) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            '🔒 Item ini otomatis tercentang hanya jika Card "${target.linkedSubjectName}" selesai semua.',
+                                          ),
+                                          backgroundColor: Colors.amber[800],
+                                        ),
                                       );
+                                      return;
+                                    }
+
+                                    _saveToHistory();
+                                    setState(() {
+                                      if (target.itemType == 'progress') {
+                                        if (checked == false) {
+                                          target.currentValue = 0;
+                                          target.progress = 'belum';
+                                          target.finishedDate = null;
+                                        }
+                                      } else {
+                                        target.progress = checked == true
+                                            ? 'selesai'
+                                            : 'belum';
+                                      }
                                       for (var r in widget.subject.subMateri) {
                                         r.updateStatusFromChildren();
                                       }
-                                      _updateSubjectOverallProgress();
-                                      widget.onDataChanged();
-                                    },
-                                    onAddChild: (targetItem) =>
-                                        _addChildSubMateri(targetItem),
-                                    onDeleteItem: (targetItem) =>
-                                        _deleteSingleSubMateri(targetItem),
-                                    onToggleItemType: _handleToggleItemType,
-                                    onUpdateProgressValue:
-                                        _showUpdateProgressValueDialog,
-                                    onToggleDisable: _handleToggleDisableItem,
-                                  );
-                                },
-                              ),
+                                    });
+                                    _updateSubjectOverallProgress();
+                                    widget.onDataChanged();
+                                  },
+                                  onTapToggleStatus: (target) {
+                                    // === VALIDASI BLOKIR ===
+                                    if (target.linkedSubjectName != null &&
+                                        target.linkedSubjectName!.isNotEmpty) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            '🔒 Item ini dikunci oleh penyelesaian Card "${target.linkedSubjectName}"',
+                                          ),
+                                          backgroundColor: Colors.amber[800],
+                                        ),
+                                      );
+                                      return;
+                                    }
+
+                                    if (target.itemType == 'progress') {
+                                      _showUpdateProgressValueDialog(target);
+                                      return;
+                                    }
+                                    _saveToHistory();
+                                    setState(
+                                      () => target.progress =
+                                          target.progress != 'selesai'
+                                          ? 'selesai'
+                                          : 'belum',
+                                    );
+                                    for (var r in widget.subject.subMateri) {
+                                      r.updateStatusFromChildren();
+                                    }
+                                    _updateSubjectOverallProgress();
+                                    widget.onDataChanged();
+                                  },
+                                  onAddChild: (targetItem) =>
+                                      _addChildSubMateri(targetItem),
+                                  onDeleteItem: (targetItem) =>
+                                      _deleteSingleSubMateri(targetItem),
+                                  onToggleItemType: _handleToggleItemType,
+                                  onUpdateProgressValue:
+                                      _showUpdateProgressValueDialog,
+                                  onToggleDisable: _handleToggleDisableItem,
+                                );
+                              }),
                           ],
                         )),
           ),
@@ -1403,11 +1555,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                       icon: const Icon(Icons.redo, color: Colors.blueGrey),
                       onPressed: _redoStack.isEmpty ? null : _executeRedo,
                     ),
-
-                  // =========================================================================
-                  // MODIFIKASI UTAMA: Mengganti TextButton dengan InkWell / GestureDetector
-                  // Pendukung Deteksi Tap Biasa (Reset Aman) dan Long Press (Reset Total)
-                  // =========================================================================
                   InkWell(
                     borderRadius: BorderRadius.circular(8),
                     onTap: () async {
@@ -1420,7 +1567,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                       _saveToHistory();
                       void resetRecursive(List<SubSubjectItem> list) {
                         for (var item in list) {
-                          // Klik biasa: Lewati reset jika status item dinonaktifkan (tanda silang X)
                           if (!item.isDisabled) {
                             item.progress = 'belum';
                             item.finishedDate = null;
@@ -1444,7 +1590,6 @@ class _DailyChecklistDialogState extends State<DailyChecklistDialog> {
                       _saveToHistory();
                       void forceResetAllRecursive(List<SubSubjectItem> list) {
                         for (var item in list) {
-                          // Klik dan tahan: Paksa reset semua progress dan kembalikan status isDisabled menjadi aktif (false)
                           item.isDisabled = false;
                           item.progress = 'belum';
                           item.finishedDate = null;
