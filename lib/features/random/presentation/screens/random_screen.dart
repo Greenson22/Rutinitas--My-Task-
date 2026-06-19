@@ -3,6 +3,8 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import '../../../../core/presentation/widgets/drawer_menu.dart';
 
+enum RandomType { angka, huruf }
+
 class RandomScreen extends StatefulWidget {
   const RandomScreen({super.key});
 
@@ -11,28 +13,69 @@ class RandomScreen extends StatefulWidget {
 }
 
 class _RandomScreenState extends State<RandomScreen> {
+  RandomType _selectedType = RandomType.angka;
+
+  // Controller untuk Angka
   final TextEditingController _minController = TextEditingController(text: '0');
   final TextEditingController _maxController = TextEditingController(
     text: '10',
   );
-  int? _result;
+
+  // Controller untuk Huruf
+  final TextEditingController _minLetterController = TextEditingController(
+    text: 'A',
+  );
+  final TextEditingController _maxLetterController = TextEditingController(
+    text: 'E',
+  );
+
+  String? _result;
   final Random _random = Random();
 
-  void _generateRandomNumber() {
-    int min = int.tryParse(_minController.text) ?? 0;
-    int max = int.tryParse(_maxController.text) ?? 10;
-
-    if (min > max) {
-      // Tukar posisi jika min lebih besar dari max secara tidak sengaja
-      final temp = min;
-      min = max;
-      max = temp;
-      _minController.text = min.toString();
-      _maxController.text = max.toString();
-    }
-
+  void _generateRandomValue() {
     setState(() {
-      _result = min + _random.nextInt((max - min) + 1);
+      if (_selectedType == RandomType.angka) {
+        // Logika Acak Angka
+        int min = int.tryParse(_minController.text) ?? 0;
+        int max = int.tryParse(_maxController.text) ?? 10;
+
+        if (min > max) {
+          final temp = min;
+          min = max;
+          max = temp;
+          _minController.text = min.toString();
+          _maxController.text = max.toString();
+        }
+
+        _result = (min + _random.nextInt((max - min) + 1)).toString();
+      } else {
+        // Logika Acak Huruf
+        String minStr = _minLetterController.text.trim().toUpperCase();
+        String maxStr = _maxLetterController.text.trim().toUpperCase();
+
+        // Validasi jika input kosong, beri default A-E
+        if (minStr.isEmpty) minStr = 'A';
+        if (maxStr.isEmpty) maxStr = 'E';
+
+        // Ambil kode ASCII dari huruf pertama
+        int minCode = minStr.codeUnitAt(0);
+        int maxCode = maxStr.codeUnitAt(0);
+
+        // Pastikan input adalah huruf alfabet valid (A-Z)
+        if (minCode < 65 || minCode > 90) minCode = 65; // 'A'
+        if (maxCode < 65 || maxCode > 90) maxCode = 69; // 'E'
+
+        if (minCode > maxCode) {
+          final temp = minCode;
+          minCode = maxCode;
+          maxCode = temp;
+          _minLetterController.text = String.fromCharCode(minCode);
+          _maxLetterController.text = String.fromCharCode(maxCode);
+        }
+
+        int randomCode = minCode + _random.nextInt((maxCode - minCode) + 1);
+        _result = String.fromCharCode(randomCode);
+      }
     });
   }
 
@@ -40,6 +83,8 @@ class _RandomScreenState extends State<RandomScreen> {
   void dispose() {
     _minController.dispose();
     _maxController.dispose();
+    _minLetterController.dispose();
+    _maxLetterController.dispose();
     super.dispose();
   }
 
@@ -66,7 +111,31 @@ class _RandomScreenState extends State<RandomScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Card Display Utama untuk Hasil Angka
+                // Pilihan Mode: Angka atau Huruf
+                SegmentedButton<RandomType>(
+                  segments: const <ButtonSegment<RandomType>>[
+                    ButtonSegment<RandomType>(
+                      value: RandomType.angka,
+                      label: Text('Angka'),
+                      icon: Icon(Icons.numbers),
+                    ),
+                    ButtonSegment<RandomType>(
+                      value: RandomType.huruf,
+                      label: Text('Huruf'),
+                      icon: Icon(Icons.text_fields),
+                    ),
+                  ],
+                  selected: <RandomType>{_selectedType},
+                  onSelectionChanged: (Set<RandomType> newSelection) {
+                    setState(() {
+                      _selectedType = newSelection.first;
+                      _result = null; // Reset hasil saat ganti mode
+                    });
+                  },
+                ),
+                const SizedBox(height: 24),
+
+                // Card Display Utama untuk Hasil
                 Card(
                   elevation: 8,
                   shadowColor: Colors.indigo.withOpacity(0.3),
@@ -83,7 +152,9 @@ class _RandomScreenState extends State<RandomScreen> {
                     child: Column(
                       children: [
                         Text(
-                          'ANGKA ACAK',
+                          _selectedType == RandomType.angka
+                              ? 'ANGKA ACAK'
+                              : 'HURUF ACAK',
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
@@ -102,8 +173,8 @@ class _RandomScreenState extends State<RandomScreen> {
                                 );
                               },
                           child: Text(
-                            _result != null ? '$_result' : '?',
-                            key: ValueKey<int>(_result ?? -1),
+                            _result ?? '?',
+                            key: ValueKey<String>(_result ?? '-'),
                             style: TextStyle(
                               fontSize: 84,
                               fontWeight: FontWeight.w900,
@@ -116,7 +187,8 @@ class _RandomScreenState extends State<RandomScreen> {
                   ),
                 ),
                 const SizedBox(height: 32),
-                // Card Input Pengaturan Rentang Angka
+
+                // Card Input Rentang (Kondisional berdasarkan pilihan mode)
                 Card(
                   elevation: 4,
                   shape: RoundedRectangleBorder(
@@ -127,11 +199,12 @@ class _RandomScreenState extends State<RandomScreen> {
                     constraints: const BoxConstraints(maxWidth: 400),
                     padding: const EdgeInsets.all(24.0),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment
-                          .start, // DIUBAH: Typo 'cross CrossAxisAlignment' diperbaiki ke nama parameter yang benar
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Tentukan Rentang Angka',
+                          _selectedType == RandomType.angka
+                              ? 'Tentukan Rentang Angka'
+                              : 'Tentukan Rentang Huruf (A-Z)',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -143,9 +216,18 @@ class _RandomScreenState extends State<RandomScreen> {
                           children: [
                             Expanded(
                               child: TextField(
-                                controller: _minController,
-                                keyboardType: TextInputType.number,
+                                controller: _selectedType == RandomType.angka
+                                    ? _minController
+                                    : _minLetterController,
+                                keyboardType: _selectedType == RandomType.angka
+                                    ? TextInputType.number
+                                    : TextInputType.text,
+                                maxLength: _selectedType == RandomType.huruf
+                                    ? 1
+                                    : null,
                                 decoration: InputDecoration(
+                                  counterText:
+                                      "", // Menyembunyikan counter panjang teks
                                   labelText: 'Min',
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
@@ -157,9 +239,17 @@ class _RandomScreenState extends State<RandomScreen> {
                             const SizedBox(width: 16),
                             Expanded(
                               child: TextField(
-                                controller: _maxController,
-                                keyboardType: TextInputType.number,
+                                controller: _selectedType == RandomType.angka
+                                    ? _maxController
+                                    : _maxLetterController,
+                                keyboardType: _selectedType == RandomType.angka
+                                    ? TextInputType.number
+                                    : TextInputType.text,
+                                maxLength: _selectedType == RandomType.huruf
+                                    ? 1
+                                    : null,
                                 decoration: InputDecoration(
+                                  counterText: "",
                                   labelText: 'Max',
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
@@ -175,13 +265,14 @@ class _RandomScreenState extends State<RandomScreen> {
                   ),
                 ),
                 const SizedBox(height: 32),
-                // Tombol Generator (DIUBAH dari SizedBox ke Container untuk menghindari error constraints)
+
+                // Tombol Generator
                 Container(
                   width: double.infinity,
                   constraints: const BoxConstraints(maxWidth: 400),
                   height: 56,
                   child: ElevatedButton(
-                    onPressed: _generateRandomNumber,
+                    onPressed: _generateRandomValue,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.indigo[700],
                       shape: RoundedRectangleBorder(
