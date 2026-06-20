@@ -41,7 +41,7 @@ class _HomeScreenState extends State<HomeScreen> {
         return 'ca-app-pub-3940256099942544/6300978111';
       } else {
         // GANTI dengan Ad Unit ID asli Anda dari dasbor AdMob saat rilis nanti
-        return 'ca-app-pub-xxxxxxxxxxxxxxxx/xxxxxxxxxx';
+        return 'ca-app-pub-5320800343545863/3489307539';
       }
     }
     return ''; // Kosongkan jika berjalan di Desktop (Windows/Linux/macOS) agar tidak crash
