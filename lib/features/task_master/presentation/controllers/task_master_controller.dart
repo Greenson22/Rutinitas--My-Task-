@@ -152,7 +152,6 @@ class TaskMasterController {
         await saveAllCategoriesToFile(shouldRefresh: false);
       }
 
-      // SINKRONISASI: Memastikan kalkulasi jam pengerjaan jurnal dipanggil saat inisialisasi data
       await kalkulasiTotalJurnalHariIni();
       processCategoriesDisplay();
     } catch (e) {
@@ -294,25 +293,22 @@ class TaskMasterController {
     await initStorageAndLoadData();
   }
 
+  // --- HAK CIPTA OPTIMISASI DI SINI ---
   Future<bool> incrementTaskCount(TaskItem task, BuildContext context) async {
+    // 1. UPDATE INSTAN KE MEMORI & REAL-TIME REFRESH UI (Tanpa Lag)
     task.count += 1;
     task.countToday += 1;
     task.date = getTodayDateString();
 
-    await saveAllCategoriesToFile(shouldRefresh: false);
-    bool isLinked = await _add30MinutesToJurnal(task.id, context);
+    // Perbarui UI lokal secara instan agar efek klik terasa instan
+    processCategoriesDisplay();
 
-    if (!isLinked && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Progress bertambah! (Tugas tidak terhubung ke jurnal)',
-          ),
-          duration: Duration(seconds: 2),
-          backgroundColor: Colors.blueGrey,
-        ),
-      );
-    }
+    // 2. JALANKAN PROSES I/O FILE SECARA BACK-GROUND (TIDAK DITUNGGU DENGAN AWAIT)
+    saveAllCategoriesToFile(shouldRefresh: false);
+
+    // Proses pencatatan jurnal dijalankan di background
+    _add30MinutesToJurnal(task.id, context);
+
     return true;
   }
 
@@ -390,22 +386,41 @@ class TaskMasterController {
           );
           await storageService.saveJsonData(JurnalFile, updatedJsonContent);
 
-          // SINKRONISASI: Memperbarui card total jam hari ini seketika setelah increment sukses dilakukan
+          // Sinkronisasi total durasi setelah penyimpanan background sukses
           await kalkulasiTotalJurnalHariIni();
 
           if (context.mounted) {
+            ScaffoldMessenger.of(
+              context,
+            ).hideCurrentSnackBar(); // Hapus snackbar lama agar responsif
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
                   'Terhubung! "$updatedJurnalTaskName" di Jurnal +$minutesToAdd mnt.',
                 ),
-                duration: const Duration(seconds: 2),
+                duration: const Duration(
+                  seconds: 1,
+                ), // Durasi dipersingkat agar bersih
                 backgroundColor: Colors.teal[800],
               ),
             );
           }
           return true;
         }
+      }
+
+      // Jika tugas tidak terhubung ke jurnal
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Progress bertambah! (Tugas tidak terhubung ke jurnal)',
+            ),
+            duration: Duration(seconds: 1),
+            backgroundColor: Colors.blueGrey,
+          ),
+        );
       }
       return false;
     } catch (e) {
@@ -418,14 +433,20 @@ class TaskMasterController {
     final Map<String, dynamic> updatedMap = {
       'categories': allCategoriesRaw.map((cat) => cat.toJson()).toList(),
     };
-    final String updatedJsonString = const JsonEncoder.withIndent(
-      '  ',
-    ).convert(updatedMap);
+
+    // OPTIMISASI: Gunakan jsonEncode standar (Tanpa .withIndent) jika shouldRefresh = false
+    // agar pembentukan string ke enkripsi melesat jauh lebih cepat.
+    final String updatedJsonString = shouldRefresh
+        ? const JsonEncoder.withIndent('  ').convert(updatedMap)
+        : jsonEncode(updatedMap);
+
     try {
       File jsonFile = await storageService.getTargetJsonFile(selectedBaseDir);
       await storageService.saveJsonData(jsonFile, updatedJsonString);
       if (shouldRefresh) {
         await initStorageAndLoadData();
+      } else {
+        processCategoriesDisplay(); // Update UI dari data lokal memori RAM
       }
     } catch (e) {
       debugPrint("Error saving categories: $e");
