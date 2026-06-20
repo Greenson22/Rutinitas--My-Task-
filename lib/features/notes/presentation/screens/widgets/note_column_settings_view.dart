@@ -37,80 +37,120 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
     'Option',
   ];
 
-  // <-- PERBAIKAN & PENINGKATAN: Mengganti fungsi rename menjadi dialog edit lengkap
+  // <-- PERBAIKAN & PENINGKATAN: Menggunakan StatefulBuilder agar tipe data dan opsi bisa diubah secara dinamis
   void _showEditFieldDialog(String oldKey) {
     final nameController = TextEditingController(text: oldKey);
     final optionsController = TextEditingController();
 
     final String fullType = widget.currentFieldTypes[oldKey] ?? 'String';
-    final bool isOptionType = fullType.startsWith('Option:');
+    String selectedType = fullType.split(':').first;
 
-    if (isOptionType) {
+    if (selectedType == 'Option' && fullType.contains(':')) {
       optionsController.text = fullType.substring(fullType.indexOf(':') + 1);
     }
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(isOptionType ? 'Edit Kolom & Opsi' : 'Ubah Nama Kolom'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(labelText: 'Nama Kolom Baru'),
-              autofocus: true,
-            ),
-            if (isOptionType) ...[
-              const SizedBox(height: 12),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctxModal, setModalState) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          title: const Text('Edit Pengaturan Kolom'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
               TextField(
-                controller: optionsController,
+                controller: nameController,
                 decoration: const InputDecoration(
-                  labelText: 'Pilihan Opsi (Pisahkan dengan koma)',
-                  hintText: 'Misal: BRI, BCA, Mandiri',
+                  labelText: 'Nama Kolom',
+                  border: OutlineInputBorder(),
                 ),
+                autofocus: true,
               ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: selectedType,
+                decoration: const InputDecoration(
+                  labelText: 'Tipe Data Kolom',
+                  border: OutlineInputBorder(),
+                ),
+                items: _availableTypes
+                    .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                    .toList(),
+                onChanged: (val) {
+                  if (val != null) {
+                    setModalState(() => selectedType = val);
+                  }
+                },
+              ),
+              if (selectedType == 'Option') ...[
+                const SizedBox(height: 12),
+                TextField(
+                  controller: optionsController,
+                  decoration: const InputDecoration(
+                    labelText: 'Pilihan Opsi (Pisahkan dengan koma)',
+                    hintText: 'Misal: BRI, BCA, Mandiri',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
             ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final String newKey = nameController.text.trim();
+                if (newKey.isNotEmpty) {
+                  String finalType = selectedType;
+                  if (selectedType == 'Option') {
+                    final optionsText = optionsController.text.trim();
+                    finalType = 'Option:$optionsText';
+                  }
+
+                  // 1. Jika tipe data atau susunan opsi berubah, perbarui tipe datanya
+                  if (finalType != fullType) {
+                    widget.controller.updateFieldType(
+                      setDialogState: setState,
+                      currentFieldTypes: widget.currentFieldTypes,
+                      tableRows: widget.tableRows,
+                      triggerChange: widget.onChanged,
+                      key: oldKey,
+                      newType: finalType,
+                    );
+                  }
+
+                  // 2. Jalankan migrasi rename key (jika nama berubah) atau picu pembaruan UI kustom
+                  if (newKey != oldKey) {
+                    widget.controller.renameFieldKey(
+                      setDialogState: setState,
+                      currentFieldKeys: widget.currentFieldKeys,
+                      currentFieldTypes: widget.currentFieldTypes,
+                      formControllers: widget.formControllers,
+                      tableRows: widget.tableRows,
+                      triggerChange: widget.onChanged,
+                      oldKey: oldKey,
+                      newKey: newKey,
+                    );
+                  } else {
+                    setState(() {});
+                    widget.onChanged();
+                  }
+                  Navigator.pop(ctx);
+                }
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
+              child: const Text(
+                'Simpan',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final String newKey = nameController.text.trim();
-              if (newKey.isNotEmpty) {
-                // 1. Jika bertipe Option, update isi opsi barunya terlebih dahulu ke dalam map type
-                if (isOptionType) {
-                  final String updatedOptions = optionsController.text.trim();
-                  widget.currentFieldTypes[oldKey] = 'Option:$updatedOptions';
-                }
-
-                // 2. Jalankan migrasi rename key (jika nama berubah) atau picu pembaruan UI kustom
-                if (newKey != oldKey) {
-                  widget.controller.renameFieldKey(
-                    setDialogState: setState,
-                    currentFieldKeys: widget.currentFieldKeys,
-                    currentFieldTypes: widget.currentFieldTypes,
-                    formControllers: widget.formControllers,
-                    tableRows: widget.tableRows,
-                    triggerChange: widget.onChanged,
-                    oldKey: oldKey,
-                    newKey: newKey,
-                  );
-                } else {
-                  // Jika hanya mengubah opsi saja tanpa mengubah nama kolom
-                  setState(() {});
-                  widget.onChanged();
-                }
-                Navigator.pop(ctx);
-              }
-            },
-            child: const Text('Simpan'),
-          ),
-        ],
       ),
     );
   }
@@ -413,9 +453,7 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
                                       color: Colors.indigo.withOpacity(0.08),
                                       borderRadius: BorderRadius.circular(8),
                                       child: InkWell(
-                                        onTap: () => _showEditFieldDialog(
-                                          key,
-                                        ), // <-- Perubahan pemicu dialog edit
+                                        onTap: () => _showEditFieldDialog(key),
                                         borderRadius: BorderRadius.circular(8),
                                         child: const Padding(
                                           padding: EdgeInsets.all(8.0),
