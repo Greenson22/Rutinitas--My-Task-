@@ -1,6 +1,9 @@
 // lib/features/prompt/presentation/screens/prompt_detail_screen.dart
+import 'dart:io'; // Ditambahkan untuk mengecek platform
+import 'package:flutter/foundation.dart'; // Ditambahkan untuk mendeteksi kDebugMode
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart'; // Ditambahkan untuk SDK AdMob
 import 'package:rutinitasku/core/presentation/widgets/base_popup_dialog.dart';
 import '../../../../core/presentation/widgets/base_detail_list_screen.dart';
 import '../../../../core/presentation/widgets/universal_empty_state.dart'; // IMPORT BARU
@@ -21,22 +24,67 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
   late PromptGroup _currentGroup;
   final PromptController _controller = PromptController();
 
+  // Variabel kontrol untuk Banner AdMob
+  BannerAd? _bannerAd;
+  bool _isAdLoaded = false;
+
+  // Getter adaptif untuk menentukan Ad Unit ID Iklan Banner
+  String get adUnitId {
+    if (Platform.isAndroid) {
+      if (kDebugMode) {
+        // ID Test Resmi dari Google untuk pengujian iklan Banner Android
+        return 'ca-app-pub-3940256099942544/6300978111';
+      } else {
+        // GANTI dengan Ad Unit ID asli Anda dari dasbor AdMob saat rilis nanti
+        return 'ca-app-pub-5320800343545863/1957989622';
+      }
+    }
+    return ''; // Kosongkan jika berjalan di Desktop (Windows/Linux/macOS) agar tidak crash
+  }
+
   @override
   void initState() {
     super.initState();
     // Langsung gunakan data group yang dioper dari halaman utama
     _currentGroup = widget.promptGroup;
 
-    // Solusi A: Panggilan _controller.loadAllPrompts(context) di sini telah dihapus
-    // untuk mencegah lag akibat operasi I/O storage massal saat halaman pertama kali dibuka.
+    // Panggil fungsi pemuatan iklan banner
+    _loadBannerAd();
+  }
+
+  // Fungsi untuk mengunduh iklan banner AdMob
+  void _loadBannerAd() {
+    if (adUnitId.isEmpty) return; // Batalkan jika bukan platform Android
+
+    _bannerAd = BannerAd(
+      adUnitId: adUnitId,
+      request: const AdRequest(),
+      size: AdSize.banner,
+      listener: BannerAdListener(
+        onAdLoaded: (ad) {
+          setState(() {
+            _isAdLoaded = true;
+          });
+        },
+        onAdFailedToLoad: (ad, err) {
+          debugPrint('Iklan Banner Prompt Detail gagal dimuat: $err');
+          ad.dispose();
+        },
+      ),
+    )..load();
   }
 
   @override
   void dispose() {
     _controller.clearSelectedPrompts();
+    _bannerAd
+        ?.dispose(); // Hancurkan objek iklan dari memori saat halaman ditutup untuk mencegah kebocoran memori
     super.dispose();
   }
 
+  // --- (Semua sisa fungsi internal pendukung dialog seperti _openAddPromptDialog, _openEditPromptDialog,
+  // _showDeleteSingleDialog, _showMoveOrCopyDialog, _showMassMoveDialog, _openVersionSelectorDialog,
+  // _openEditVersionNameDialog, dan _openCreateNewVersionDialog dibiarkan utuh tanpa modifikasi) ---
   void _openAddPromptDialog() {
     showDialog(
       context: context,
@@ -344,7 +392,6 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                 trailing: const Icon(Icons.chevron_right, color: Colors.indigo),
                 onTap: () async {
                   Navigator.pop(ctx);
-                  // Masukkan ID item terpilih ke state controller secara masal
                   _controller.clearSelectedPrompts();
                   for (var item in selectedItems) {
                     _controller.toggleSelectPromptItem(item.id);
@@ -660,324 +707,356 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
           themeColor: const Color(0xFF3F51B5),
           onPressed: _openAddPromptDialog,
         ),
+        // IMPLEMENTASI FOOTER AD BANNER PADA KONDISI DATA KOSONG
+        bottomNavigationBar:
+            _isAdLoaded && _bannerAd != null && Platform.isAndroid
+            ? SafeArea(
+                child: SizedBox(
+                  width: _bannerAd!.size.width.toDouble(),
+                  height: _bannerAd!.size.height.toDouble(),
+                  child: AdWidget(ad: _bannerAd!),
+                ),
+              )
+            : const SizedBox.shrink(),
       );
     }
 
-    return ListBehaviorBuilder(
-      controller: _controller,
-      builder: (context) {
-        // ================= TAMPILKAN LIST UTAMA JIKA DATA TERSEDIA =================
-        return BaseDetailListScreen<PromptItem>(
-          pageTitle: _currentGroup.title,
-          items: _currentGroup.prompts,
-          enableSearch: true,
-          enableMultiSelect: true,
-          enableAddButton: true,
-          enableFavoriteSort: true,
-          itemTitle: (item) => item.actAs,
+    return Scaffold(
+      body: ListBehaviorBuilder(
+        controller: _controller,
+        builder: (context) {
+          // ================= TAMPILKAN LIST UTAMA JIKA DATA TERSEDIA =================
+          return BaseDetailListScreen<PromptItem>(
+            pageTitle: _currentGroup.title,
+            items: _currentGroup.prompts,
+            enableSearch: true,
+            enableMultiSelect: true,
+            enableAddButton: true,
+            enableFavoriteSort: true,
+            itemTitle: (item) => item.actAs,
 
-          // =========================================================================
-          // FITUR BARU: UTILITY SORT DROPDOWN PADA KANAN APPBAR
-          // =========================================================================
-          additionalAction: PopupMenuButton<String>(
-            icon: const Icon(Icons.sort_rounded, color: Colors.white),
-            tooltip: 'Urutkan Prompt',
-            onSelected: (String sortType) {
-              _controller.sortPromptItems(
-                group: _currentGroup,
-                sortType: sortType,
-                context: context,
+            // =========================================================================
+            // FITUR BARU: UTILITY SORT DROPDOWN PADA KANAN APPBAR
+            // =========================================================================
+            additionalAction: PopupMenuButton<String>(
+              icon: const Icon(Icons.sort_rounded, color: Colors.white),
+              tooltip: 'Urutkan Prompt',
+              onSelected: (String sortType) {
+                _controller.sortPromptItems(
+                  group: _currentGroup,
+                  sortType: sortType,
+                  context: context,
+                );
+                setState(() {});
+              },
+              itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                PopupMenuItem<String>(
+                  value: 'manual',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.tune_rounded,
+                        color: _controller.currentSortType == 'manual'
+                            ? Colors.indigo
+                            : Colors.grey,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Urutan Manual',
+                        style: TextStyle(
+                          fontWeight: _controller.currentSortType == 'manual'
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                PopupMenuItem<String>(
+                  value: 'az',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.sort_by_alpha_rounded,
+                        color: _controller.currentSortType == 'az'
+                            ? Colors.indigo
+                            : Colors.grey,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Abjad: A ➔ Z',
+                        style: TextStyle(
+                          fontWeight: _controller.currentSortType == 'az'
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                PopupMenuItem<String>(
+                  value: 'za',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.sort_by_alpha_rounded,
+                        color: _controller.currentSortType == 'za'
+                            ? Colors.indigo
+                            : Colors.grey,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Abjad: Z ➔ A',
+                        style: TextStyle(
+                          fontWeight: _controller.currentSortType == 'za'
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            itemSubtitle: (item) {
+              final hasDesc =
+                  item.description != null &&
+                  item.description!.trim().isNotEmpty;
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    hasDesc ? item.description! : 'Tidak ada deskripsi',
+                    style: TextStyle(
+                      color: hasDesc ? Colors.blueGrey[700] : Colors.grey[400],
+                      fontSize: 13,
+                      fontStyle: hasDesc ? FontStyle.normal : FontStyle.italic,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.indigo.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'Versi Aktif: ${item.activeVersion.versionName}',
+                          style: const TextStyle(
+                            color: Colors.indigo,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.blueGrey.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'Total: ${item.versions.length} Versi',
+                          style: const TextStyle(
+                            color: Colors.blueGrey,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               );
-              setState(() {});
             },
-            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-              PopupMenuItem<String>(
-                value: 'manual',
+
+            // Penyatuan String untuk Pencarian Komponen Bawaan
+            itemSearchString: (item) =>
+                '${item.actAs} ${item.description ?? ''} ${item.activeVersion.content}',
+            itemIsFavorite: (item) => item.isFavorite,
+            onAddPressed: _openAddPromptDialog,
+
+            // Aksi Klik Menyalin Konten Prompt Utama Langsung ke Clipboard OS
+            onItemTap: (item) async {
+              final scaffoldMessenger = ScaffoldMessenger.of(context);
+              await Clipboard.setData(
+                ClipboardData(text: item.activeVersion.content),
+              );
+              scaffoldMessenger.clearSnackBars();
+              scaffoldMessenger.showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Berhasil menyalin instruksi "${item.actAs}" ke papan klip!',
+                  ),
+                  backgroundColor: Colors.teal,
+                  behavior: SnackBarBehavior.floating,
+                  duration: const Duration(seconds: 1),
+                ),
+              );
+            },
+
+            itemMenuBuilder: (item) => [
+              const PopupMenuItem(
+                value: 'manage_versions',
                 child: Row(
                   children: [
                     Icon(
-                      Icons.tune_rounded,
-                      color: _controller.currentSortType == 'manual'
-                          ? Colors.indigo
-                          : Colors.grey,
+                      Icons.history_toggle_off_rounded,
                       size: 18,
+                      color: Colors.indigo,
                     ),
-                    const SizedBox(width: 10),
+                    SizedBox(width: 10),
                     Text(
-                      'Urutan Manual',
-                      style: TextStyle(
-                        fontWeight: _controller.currentSortType == 'manual'
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                        fontSize: 13,
-                      ),
+                      'Kelola Riwayat Versi',
+                      style: TextStyle(fontSize: 13),
                     ),
                   ],
                 ),
               ),
-              PopupMenuItem<String>(
-                value: 'az',
+              const PopupMenuItem(
+                value: 'edit',
                 child: Row(
                   children: [
                     Icon(
-                      Icons.sort_by_alpha_rounded,
-                      color: _controller.currentSortType == 'az'
-                          ? Colors.indigo
-                          : Colors.grey,
+                      Icons.mode_edit_outline_outlined,
                       size: 18,
+                      color: Colors.teal,
                     ),
-                    const SizedBox(width: 10),
+                    SizedBox(width: 10),
                     Text(
-                      'Abjad: A ➔ Z',
-                      style: TextStyle(
-                        fontWeight: _controller.currentSortType == 'az'
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                        fontSize: 13,
-                      ),
+                      'Ubah Detail Informasi',
+                      style: TextStyle(fontSize: 13),
                     ),
                   ],
                 ),
               ),
-              PopupMenuItem<String>(
-                value: 'za',
+              PopupMenuItem(
+                value: 'toggle_favorite',
                 child: Row(
                   children: [
                     Icon(
-                      Icons.sort_by_alpha_rounded,
-                      color: _controller.currentSortType == 'za'
-                          ? Colors.indigo
-                          : Colors.grey,
+                      item.isFavorite ? Icons.star_border_rounded : Icons.star,
                       size: 18,
+                      color: Colors.amber,
                     ),
                     const SizedBox(width: 10),
                     Text(
-                      'Abjad: Z ➔ A',
-                      style: TextStyle(
-                        fontWeight: _controller.currentSortType == 'za'
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                        fontSize: 13,
-                      ),
+                      item.isFavorite
+                          ? 'Hilangkan dari Favorit'
+                          : 'Jadikan Prompt Favorit',
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'move_or_copy',
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.drive_file_move_outlined,
+                      size: 18,
+                      color: Colors.blueGrey,
+                    ),
+                    SizedBox(width: 10),
+                    Text('Salin / Pindah Box', style: TextStyle(fontSize: 13)),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'delete',
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.delete_outline_rounded,
+                      size: 20,
+                      color: Colors.redAccent,
+                    ),
+                    SizedBox(width: 10),
+                    Text(
+                      'Hapus Prompt',
+                      style: TextStyle(fontSize: 13, color: Colors.redAccent),
                     ),
                   ],
                 ),
               ),
             ],
-          ),
 
-          itemSubtitle: (item) {
-            final hasDesc =
-                item.description != null && item.description!.trim().isNotEmpty;
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  hasDesc ? item.description! : 'Tidak ada deskripsi',
-                  style: TextStyle(
-                    color: hasDesc ? Colors.blueGrey[700] : Colors.grey[400],
-                    fontSize: 13,
-                    fontStyle: hasDesc ? FontStyle.normal : FontStyle.italic,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.indigo.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        'Versi Aktif: ${item.activeVersion.versionName}',
-                        style: const TextStyle(
-                          color: Colors.indigo,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.blueGrey.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        'Total: ${item.versions.length} Versi',
-                        style: const TextStyle(
-                          color: Colors.blueGrey,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            );
-          },
+            onItemMenuSelected: (value, item) async {
+              if (value == 'manage_versions') {
+                _openVersionSelectorDialog(item);
+              } else if (value == 'edit') {
+                _openEditPromptDialog(item);
+              } else if (value == 'toggle_favorite') {
+                final res = await _controller.toggleFavoritePromptItem(
+                  group: _currentGroup,
+                  itemId: item.id,
+                  context: context,
+                );
+                if (res != null) {
+                  setState(() {
+                    _currentGroup = res;
+                  });
+                }
+              } else if (value == 'move_or_copy') {
+                _showMoveOrCopyDialog(item);
+              } else if (value == 'delete') {
+                _showDeleteSingleDialog(item);
+              }
+            },
 
-          // Penyatuan String untuk Pencarian Komponen Bawaan
-          itemSearchString: (item) =>
-              '${item.actAs} ${item.description ?? ''} ${item.activeVersion.content}',
-          itemIsFavorite: (item) => item.isFavorite,
-          onAddPressed: _openAddPromptDialog,
-
-          // Aksi Klik Menyalin Konten Prompt Utama Langsung ke Clipboard OS
-          onItemTap: (item) async {
-            final scaffoldMessenger = ScaffoldMessenger.of(context);
-            await Clipboard.setData(
-              ClipboardData(text: item.activeVersion.content),
-            );
-            scaffoldMessenger.clearSnackBars();
-            scaffoldMessenger.showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Berhasil menyalin instruksi "${item.actAs}" ke papan klip!',
-                ),
-                backgroundColor: Colors.teal,
-                behavior: SnackBarBehavior.floating,
-                duration: const Duration(seconds: 1),
-              ),
-            );
-          },
-
-          itemMenuBuilder: (item) => [
-            const PopupMenuItem(
-              value: 'manage_versions',
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.history_toggle_off_rounded,
-                    size: 18,
-                    color: Colors.indigo,
-                  ),
-                  SizedBox(width: 10),
-                  Text('Kelola Riwayat Versi', style: TextStyle(fontSize: 13)),
-                ],
-              ),
-            ),
-            const PopupMenuItem(
-              value: 'edit',
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.mode_edit_outline_outlined,
-                    size: 18,
-                    color: Colors.teal,
-                  ),
-                  SizedBox(width: 10),
-                  Text('Ubah Detail Informasi', style: TextStyle(fontSize: 13)),
-                ],
-              ),
-            ),
-            PopupMenuItem(
-              value: 'toggle_favorite',
-              child: Row(
-                children: [
-                  Icon(
-                    item.isFavorite ? Icons.star_border_rounded : Icons.star,
-                    size: 18,
-                    color: Colors.amber,
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    item.isFavorite
-                        ? 'Hilangkan dari Favorit'
-                        : 'Jadikan Prompt Favorit',
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                ],
-              ),
-            ),
-            const PopupMenuItem(
-              value: 'move_or_copy',
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.drive_file_move_outlined,
-                    size: 18,
-                    color: Colors.blueGrey,
-                  ),
-                  SizedBox(width: 10),
-                  Text('Salin / Pindah Box', style: TextStyle(fontSize: 13)),
-                ],
-              ),
-            ),
-            const PopupMenuDivider(),
-            const PopupMenuItem(
-              value: 'delete',
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.delete_outline_rounded,
-                    size: 20,
-                    color: Colors.redAccent,
-                  ),
-                  SizedBox(width: 10),
-                  Text(
-                    'Hapus Prompt',
-                    style: TextStyle(fontSize: 13, color: Colors.redAccent),
-                  ),
-                ],
-              ),
-            ),
-          ],
-
-          onItemMenuSelected: (value, item) async {
-            if (value == 'manage_versions') {
-              _openVersionSelectorDialog(item);
-            } else if (value == 'edit') {
-              _openEditPromptDialog(item);
-            } else if (value == 'toggle_favorite') {
-              final res = await _controller.toggleFavoritePromptItem(
+            onDeleteMassive: (selectedItems) async {
+              // Pasang list terpilih ke controller untuk bulk actions
+              _controller.clearSelectedPrompts();
+              for (var item in selectedItems) {
+                _controller.toggleSelectPromptItem(item.id);
+              }
+              final res = await _controller.deleteSelectedPromptItems(
                 group: _currentGroup,
-                itemId: item.id,
                 context: context,
               );
-              if (res != null) {
+              if (res != null && mounted) {
                 setState(() {
                   _currentGroup = res;
                 });
               }
-            } else if (value == 'move_or_copy') {
-              _showMoveOrCopyDialog(item);
-            } else if (value == 'delete') {
-              _showDeleteSingleDialog(item);
-            }
-          },
+            },
+            onMoveMassive: (selectedItems) {
+              _showMassMoveDialog(selectedItems);
+            },
+          );
+        },
+      ),
 
-          onDeleteMassive: (selectedItems) async {
-            // Pasang list terpilih ke controller untuk bulk actions
-            _controller.clearSelectedPrompts();
-            for (var item in selectedItems) {
-              _controller.toggleSelectPromptItem(item.id);
-            }
-            final res = await _controller.deleteSelectedPromptItems(
-              group: _currentGroup,
-              context: context,
-            );
-            if (res != null && mounted) {
-              setState(() {
-                _currentGroup = res;
-              });
-            }
-          },
-          onMoveMassive: (selectedItems) {
-            _showMassMoveDialog(selectedItems);
-          },
-        );
-      },
+      // IMPLEMENTASI LAYOUT FOOTER BANNER ADMOB KHUSUS ANDROID
+      bottomNavigationBar:
+          _isAdLoaded && _bannerAd != null && Platform.isAndroid
+          ? SafeArea(
+              child: SizedBox(
+                width: _bannerAd!.size.width.toDouble(),
+                height: _bannerAd!.size.height.toDouble(),
+                child: AdWidget(ad: _bannerAd!),
+              ),
+            )
+          : const SizedBox.shrink(),
     );
   }
 }
