@@ -1,6 +1,9 @@
 // lib/features/notes/presentation/screens/note_detail_screen.dart
 
+import 'dart:io'; // Ditambahkan untuk mengecek platform
+import 'package:flutter/foundation.dart'; // Ditambahkan untuk mendeteksi kDebugMode
 import 'package:flutter/material.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart'; // Ditambahkan untuk SDK AdMob
 import 'package:rutinitasku/core/presentation/widgets/base_popup_dialog.dart';
 import '../../models/note_model.dart';
 import '../controllers/note_detail_controller.dart';
@@ -23,6 +26,24 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   // STATE BARU: Menyimpan jenis pengurutan aktif ('manual', 'az', 'za')
   String _currentSortType = 'manual';
 
+  // Variabel kontrol untuk Banner AdMob
+  BannerAd? _bannerAd;
+  bool _isAdLoaded = false;
+
+  // Getter adaptif untuk menentukan Ad Unit ID Iklan Banner
+  String get adUnitId {
+    if (Platform.isAndroid) {
+      if (kDebugMode) {
+        // ID Test Resmi dari Google untuk pengujian iklan Banner Android
+        return 'ca-app-pub-3940256099942544/6300978111';
+      } else {
+        // GANTI dengan Ad Unit ID asli Anda dari dasbor AdMob saat rilis nanti
+        return 'ca-app-pub-5320800343545863/4775724658';
+      }
+    }
+    return ''; // Kosongkan jika berjalan di Desktop (Windows/Linux/macOS) agar tidak crash
+  }
+
   @override
   void initState() {
     super.initState();
@@ -31,6 +52,38 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       context: context,
       onStateChanged: () => setState(() {}),
     );
+
+    // Panggil fungsi pemuatan iklan banner
+    _loadBannerAd();
+  }
+
+  // Fungsi untuk mengunduh iklan banner AdMob
+  void _loadBannerAd() {
+    if (adUnitId.isEmpty) return; // Batalkan jika bukan platform Android
+
+    _bannerAd = BannerAd(
+      adUnitId: adUnitId,
+      request: const AdRequest(),
+      size: AdSize.banner,
+      listener: BannerAdListener(
+        onAdLoaded: (ad) {
+          setState(() {
+            _isAdLoaded = true;
+          });
+        },
+        onAdFailedToLoad: (ad, err) {
+          debugPrint('Iklan Banner Note Detail gagal dimuat: $err');
+          ad.dispose();
+        },
+      ),
+    )..load();
+  }
+
+  @override
+  void dispose() {
+    _bannerAd
+        ?.dispose(); // Hancurkan objek iklan dari memori saat halaman ditutup untuk mencegah kebocoran memori
+    super.dispose();
   }
 
   void _showNoteDialog({NoteModel? existingNote}) {
@@ -56,7 +109,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           (a, b) => b.title.toLowerCase().compareTo(a.title.toLowerCase()),
         );
       } else {
-        // Mode Manual: Dikembalikan ke urutan default berdasarkan waktu pembuatan (createdAt)
+        // Mode Manual: Ditembalikan ke urutan default berdasarkan waktu pembuatan (createdAt)
         _controller.currentGroup.notes.sort(
           (a, b) => a.createdAt.compareTo(b.createdAt),
         );
@@ -221,187 +274,216 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           themeColor: const Color(0xFF3F51B5), // Warna tema Indigo
           onPressed: () => _showNoteDialog(),
         ),
+        // IMPLEMENTASI FOOTER AD BANNER PADA KONDISI DATA KOSONG
+        bottomNavigationBar:
+            _isAdLoaded && _bannerAd != null && Platform.isAndroid
+            ? SafeArea(
+                child: SizedBox(
+                  width: _bannerAd!.size.width.toDouble(),
+                  height: _bannerAd!.size.height.toDouble(),
+                  child: AdWidget(ad: _bannerAd!),
+                ),
+              )
+            : const SizedBox.shrink(),
       );
     }
 
     // ================= TAMPILKAN LIST UTAMA JIKA DATA TERSEDIA =================
-    return BaseDetailListScreen<NoteModel>(
-      pageTitle: _controller.currentGroup.groupName,
-      items: _controller.currentGroup.notes,
-      enableSearch: true,
-      enableMultiSelect: true,
-      enableAddButton: true,
-      enableFavoriteSort: false,
-      itemTitle: (note) => note.title,
+    return Scaffold(
+      body: BaseDetailListScreen<NoteModel>(
+        pageTitle: _controller.currentGroup.groupName,
+        items: _controller.currentGroup.notes,
+        enableSearch: true,
+        enableMultiSelect: true,
+        enableAddButton: true,
+        enableFavoriteSort: false,
+        itemTitle: (note) => note.title,
 
-      // =========================================================================
-      // PERBAIKAN UTAMA: Menggunakan parameter 'additionalAction'
-      // =========================================================================
-      additionalAction: PopupMenuButton<String>(
-        icon: const Icon(Icons.sort_rounded, color: Colors.white),
-        tooltip: 'Urutkan Prompt',
-        onSelected: _handleSort,
-        itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-          PopupMenuItem<String>(
-            value: 'manual',
-            child: Row(
-              children: [
-                Icon(
-                  Icons.tune_rounded,
-                  color: _currentSortType == 'manual'
-                      ? Colors.indigo
-                      : Colors.grey,
-                  size: 18,
-                ),
-                const SizedBox(width: 10),
+        // =========================================================================
+        // PERBAIKAN UTAMA: Menggunakan parameter 'additionalAction'
+        // =========================================================================
+        additionalAction: PopupMenuButton<String>(
+          icon: const Icon(Icons.sort_rounded, color: Colors.white),
+          tooltip: 'Urutkan Prompt',
+          onSelected: _handleSort,
+          itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+            PopupMenuItem<String>(
+              value: 'manual',
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.tune_rounded,
+                    color: _currentSortType == 'manual'
+                        ? Colors.indigo
+                        : Colors.grey,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Urutan Manual (Waktu)',
+                    style: TextStyle(
+                      fontWeight: _currentSortType == 'manual'
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            PopupMenuItem<String>(
+              value: 'az',
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.sort_by_alpha_rounded,
+                    color: _currentSortType == 'az'
+                        ? Colors.indigo
+                        : Colors.grey,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Abjad: A ➔ Z',
+                    style: TextStyle(
+                      fontWeight: _currentSortType == 'az'
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            PopupMenuItem<String>(
+              value: 'za',
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.sort_by_alpha_rounded,
+                    color: _currentSortType == 'za'
+                        ? Colors.indigo
+                        : Colors.grey,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Abjad: Z ➔ A',
+                    style: TextStyle(
+                      fontWeight: _currentSortType == 'za'
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+
+        // 1. Mengembalikan Layout Widget Custom dengan Warna Berbeda
+        itemSubtitle: (note) {
+          String created = _controller.formatDate(note.createdAt);
+          String updated = _controller.formatDate(note.updatedAt);
+          bool isTable = note.type == 'table';
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Dibuat: $created',
+                style: TextStyle(color: Colors.blueGrey[600], fontSize: 12),
+              ),
+              const SizedBox(height: 1),
+              Text(
+                'Diperbarui: $updated',
+                style: const TextStyle(color: Colors.orange, fontSize: 12),
+              ),
+              if (isTable) ...[
+                const SizedBox(height: 2),
                 Text(
-                  'Urutan Manual (Waktu)',
-                  style: TextStyle(
-                    fontWeight: _currentSortType == 'manual'
-                        ? FontWeight.bold
-                        : FontWeight.normal,
-                    fontSize: 13,
+                  'Tipe: Tabel (${note.tableData.length} Baris)',
+                  style: const TextStyle(
+                    color: Colors.teal,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ],
-            ),
-          ),
-          PopupMenuItem<String>(
-            value: 'az',
+            ],
+          );
+        },
+
+        // 2. Mengembalikan data String murni agar sistem search bawaan tetap berfungsi
+        itemSearchString: (note) {
+          String created = _controller.formatDate(note.createdAt);
+          String updated = _controller.formatDate(note.updatedAt);
+          String typeInfo = note.type == 'table' ? 'tabel table' : 'text teks';
+          return '$created $updated $typeInfo';
+        },
+        itemIsFavorite: (note) => false,
+        onAddPressed: () => _showNoteDialog(),
+        onItemTap: (note) => _showNoteDialog(existingNote: note),
+        itemMenuBuilder: (note) => const [
+          PopupMenuItem(
+            value: 'edit',
             child: Row(
               children: [
-                Icon(
-                  Icons.sort_by_alpha_rounded,
-                  color: _currentSortType == 'az' ? Colors.indigo : Colors.grey,
-                  size: 18,
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  'Abjad: A ➔ Z',
-                  style: TextStyle(
-                    fontWeight: _currentSortType == 'az'
-                        ? FontWeight.bold
-                        : FontWeight.normal,
-                    fontSize: 13,
-                  ),
-                ),
+                Icon(Icons.edit_note, size: 18, color: Colors.teal),
+                SizedBox(width: 10),
+                Text('Edit', style: TextStyle(fontSize: 13)),
               ],
             ),
           ),
-          PopupMenuItem<String>(
-            value: 'za',
+          PopupMenuItem(
+            value: 'delete',
             child: Row(
               children: [
-                Icon(
-                  Icons.sort_by_alpha_rounded,
-                  color: _currentSortType == 'za' ? Colors.indigo : Colors.grey,
-                  size: 18,
-                ),
-                const SizedBox(width: 10),
+                Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
+                SizedBox(width: 10),
                 Text(
-                  'Abjad: Z ➔ A',
-                  style: TextStyle(
-                    fontWeight: _currentSortType == 'za'
-                        ? FontWeight.bold
-                        : FontWeight.normal,
-                    fontSize: 13,
-                  ),
+                  'Hapus',
+                  style: TextStyle(color: Colors.redAccent, fontSize: 13),
                 ),
               ],
             ),
           ),
         ],
+        onItemMenuSelected: (value, note) async {
+          if (value == 'edit') {
+            _showNoteDialog(existingNote: note);
+          } else if (value == 'delete') {
+            final bool confirm = await _controller.showConfirmDialog(
+              title: 'Hapus Catatan',
+              content:
+                  'Apakah Anda yakin ingin menghapus catatan "${note.title}" secara permanen?',
+            );
+
+            if (confirm) {
+              _controller.deleteNote(note);
+            }
+          }
+        },
+        onDeleteMassive: (selectedItems) async {
+          await _controller.deleteMassiveNotes(selectedItems);
+        },
+        onMoveMassive: (selectedItems) {
+          _showMoveMassiveDialog(selectedItems);
+        },
       ),
 
-      // 1. Mengembalikan Layout Widget Custom dengan Warna Berbeda
-      itemSubtitle: (note) {
-        String created = _controller.formatDate(note.createdAt);
-        String updated = _controller.formatDate(note.updatedAt);
-        bool isTable = note.type == 'table';
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Dibuat: $created',
-              style: TextStyle(color: Colors.blueGrey[600], fontSize: 12),
-            ),
-            const SizedBox(height: 1),
-            Text(
-              'Diperbarui: $updated',
-              style: const TextStyle(color: Colors.orange, fontSize: 12),
-            ),
-            if (isTable) ...[
-              const SizedBox(height: 2),
-              Text(
-                'Tipe: Tabel (${note.tableData.length} Baris)',
-                style: const TextStyle(
-                  color: Colors.teal,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
+      // IMPLEMENTASI LAYOUT FOOTER BANNER ADMOB KHUSUS ANDROID
+      bottomNavigationBar:
+          _isAdLoaded && _bannerAd != null && Platform.isAndroid
+          ? SafeArea(
+              child: SizedBox(
+                width: _bannerAd!.size.width.toDouble(),
+                height: _bannerAd!.size.height.toDouble(),
+                child: AdWidget(ad: _bannerAd!),
               ),
-            ],
-          ],
-        );
-      },
-
-      // 2. Mengembalikan data String murni agar sistem search bawaan tetap berfungsi
-      itemSearchString: (note) {
-        String created = _controller.formatDate(note.createdAt);
-        String updated = _controller.formatDate(note.updatedAt);
-        String typeInfo = note.type == 'table' ? 'tabel table' : 'text teks';
-        return '$created $updated $typeInfo';
-      },
-      itemIsFavorite: (note) => false,
-      onAddPressed: () => _showNoteDialog(),
-      onItemTap: (note) => _showNoteDialog(existingNote: note),
-      itemMenuBuilder: (note) => const [
-        PopupMenuItem(
-          value: 'edit',
-          child: Row(
-            children: [
-              Icon(Icons.edit_note, size: 18, color: Colors.teal),
-              SizedBox(width: 10),
-              Text('Edit', style: TextStyle(fontSize: 13)),
-            ],
-          ),
-        ),
-        PopupMenuItem(
-          value: 'delete',
-          child: Row(
-            children: [
-              Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
-              SizedBox(width: 10),
-              Text(
-                'Hapus',
-                style: TextStyle(color: Colors.redAccent, fontSize: 13),
-              ),
-            ],
-          ),
-        ),
-      ],
-      onItemMenuSelected: (value, note) async {
-        if (value == 'edit') {
-          _showNoteDialog(existingNote: note);
-        } else if (value == 'delete') {
-          final bool confirm = await _controller.showConfirmDialog(
-            title: 'Hapus Catatan',
-            content:
-                'Apakah Anda yakin ingin menghapus catatan "${note.title}" secara permanen?',
-          );
-
-          if (confirm) {
-            _controller.deleteNote(note);
-          }
-        }
-      },
-      onDeleteMassive: (selectedItems) async {
-        await _controller.deleteMassiveNotes(selectedItems);
-      },
-      onMoveMassive: (selectedItems) {
-        _showMoveMassiveDialog(selectedItems);
-      },
+            )
+          : const SizedBox.shrink(),
     );
   }
 }
