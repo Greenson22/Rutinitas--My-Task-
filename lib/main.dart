@@ -23,14 +23,10 @@ class TaskMasterApp extends StatelessWidget {
         // Pastikan child tidak null (child di sini adalah Navigator bawaan MaterialApp)
         Widget appNavigator = child!;
 
-        // SOLUSI: Mengganti Overlay dengan Navigator lokal agar DropdownButton mempunyai context Navigator
-        Widget secureApp = Navigator(
-          onGenerateRoute: (settings) {
-            return MaterialPageRoute(
-              builder: (context) => PasswordGate(child: appNavigator),
-            );
-          },
-        );
+        // PERBAIKAN: Langsung teruskan appNavigator ke PasswordGate.
+        // Jangan dibungkus dengan Navigator lokal di sini agar tombol Back Android
+        // dapat menutup dialog di dalam aplikasi dengan normal.
+        Widget secureApp = PasswordGate(child: appNavigator);
 
         // Evaluasi platform untuk Window Control (Desktop)
         final platform = Theme.of(context).platform;
@@ -42,8 +38,6 @@ class TaskMasterApp extends StatelessWidget {
 
         return secureApp;
       },
-
-      // PasswordGate sudah dipindah ke builder, sehingga home cukup memanggil HomeScreen
       home: const HomeScreen(),
     );
   }
@@ -55,88 +49,79 @@ class WindowControlWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color barColor = Colors.indigo;
     return Scaffold(
-      backgroundColor: Colors.grey[200],
       body: Column(
         children: [
           Container(
+            color: Colors.indigo.shade700,
             height: 30,
-            color: barColor,
             child: Row(
               children: [
-                Expanded(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.translucent,
-                    onPanStart: (details) {
-                      windowManager.startDragging();
-                    },
-                    child: const SizedBox(height: double.infinity),
+                const SizedBox(width: 10),
+                const Text(
+                  'My Tasks',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                SizedBox(
-                  height: 30,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        width: 45,
-                        height: 30,
-                        child: IconButton(
-                          padding: EdgeInsets.zero,
-                          icon: const Icon(
-                            Icons.minimize,
-                            size: 16,
-                            color: Colors.white,
-                          ),
-                          hoverColor: Colors.white.withOpacity(0.1),
-                          onPressed: () async {
-                            if (await windowManager.isMinimized()) {
-                              await windowManager.restore();
-                            } else {
-                              await windowManager.minimize();
-                            }
-                          },
+                const Spacer(),
+                WindowCaptionButtons(
+                  children: [
+                    SizedBox(
+                      width: 45,
+                      height: 30,
+                      child: IconButton(
+                        padding: EdgeInsets.zero,
+                        icon: const Icon(
+                          Icons.minimize,
+                          size: 16,
+                          color: Colors.white,
                         ),
+                        hoverColor: Colors.white.withOpacity(0.1),
+                        onPressed: () async {
+                          await windowManager.minimize();
+                        },
                       ),
-                      SizedBox(
-                        width: 45,
-                        height: 30,
-                        child: IconButton(
-                          padding: EdgeInsets.zero,
-                          icon: const Icon(
-                            Icons.crop_square,
-                            size: 14,
-                            color: Colors.white,
-                          ),
-                          hoverColor: Colors.white.withOpacity(0.1),
-                          onPressed: () async {
-                            if (await windowManager.isMaximized()) {
-                              await windowManager.unmaximize();
-                            } else {
-                              await windowManager.maximize();
-                            }
-                          },
+                    ),
+                    SizedBox(
+                      width: 45,
+                      height: 30,
+                      child: IconButton(
+                        padding: EdgeInsets.zero,
+                        icon: const Icon(
+                          Icons.crop_square,
+                          size: 14,
+                          color: Colors.white,
                         ),
+                        hoverColor: Colors.white.withOpacity(0.1),
+                        onPressed: () async {
+                          if (await windowManager.isMaximized()) {
+                            await windowManager.unmaximize();
+                          } else {
+                            await windowManager.maximize();
+                          }
+                        },
                       ),
-                      SizedBox(
-                        width: 45,
-                        height: 30,
-                        child: IconButton(
-                          padding: EdgeInsets.zero,
-                          icon: const Icon(
-                            Icons.close,
-                            size: 16,
-                            color: Colors.white,
-                          ),
-                          hoverColor: Colors.redAccent,
-                          onPressed: () async {
-                            await windowManager.close();
-                          },
+                    ),
+                    SizedBox(
+                      width: 45,
+                      height: 30,
+                      child: IconButton(
+                        padding: EdgeInsets.zero,
+                        icon: const Icon(
+                          Icons.close,
+                          size: 16,
+                          color: Colors.white,
                         ),
+                        hoverColor: Colors.redAccent,
+                        onPressed: () async {
+                          await windowManager.close();
+                        },
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -145,5 +130,15 @@ class WindowControlWrapper extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class WindowCaptionButtons extends StatelessWidget {
+  final List<Widget> children;
+  const WindowCaptionButtons({super.key, required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(mainAxisSize: MainAxisSize.min, children: children);
   }
 }

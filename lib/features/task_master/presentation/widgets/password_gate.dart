@@ -112,156 +112,191 @@ class _PasswordGateState extends State<PasswordGate> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isChecking) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator(color: Colors.indigo)),
-      );
-    }
-
-    if (_needsPassword) {
-      final String? expiredMsg = StorageService.sessionExpiredNotifier.value;
-
-      return Scaffold(
-        backgroundColor: Colors.grey[100],
-        body: Center(
-          child: Card(
-            elevation: 4,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Container(
-              width: 360,
-              padding: const EdgeInsets.all(28.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.lock_person_outlined,
-                    size: 60,
-                    color: Colors.indigo,
+    // PERBAIKAN: Kita bungkus kondisi _isChecking dan _needsPassword ke dalam Navigator lokal.
+    // Ini menyelesaikan masalah DropdownButtonFormField yang membutuhkan context Navigator,
+    // tanpa memisah alur tumpukan halaman navigasi utama ketika aplikasi terbuka.
+    if (_isChecking || _needsPassword) {
+      return Navigator(
+        onGenerateRoute: (settings) {
+          return MaterialPageRoute(
+            builder: (context) {
+              if (_isChecking) {
+                return const Scaffold(
+                  body: Center(
+                    child: CircularProgressIndicator(color: Colors.indigo),
                   ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Dekripsi Berkas Data',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Fitur keamanan aktif. Masukkan kata sandi berkas Anda untuk masuk ke aplikasi.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 12, color: Colors.black54),
-                  ),
-                  const SizedBox(height: 20),
+                );
+              }
 
-                  // --- BANNER PERINGATAN KEDALUWARSA WAKTU ---
-                  if (expiredMsg != null)
-                    Container(
-                      margin: const EdgeInsets.only(bottom: 16),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.red[50],
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.red[200]!),
-                      ),
-                      child: Row(
+              final String? expiredMsg =
+                  StorageService.sessionExpiredNotifier.value;
+
+              return Scaffold(
+                backgroundColor: Colors.grey[100],
+                body: Center(
+                  child: Card(
+                    elevation: 4,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Container(
+                      width: 360,
+                      padding: const EdgeInsets.all(28.0),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
-                            Icons.timer_off,
-                            color: Colors.red[700],
-                            size: 20,
+                          const Icon(
+                            Icons.lock_person_outlined,
+                            size: 60,
+                            color: Colors.indigo,
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              expiredMsg,
-                              style: TextStyle(
-                                color: Colors.red[800],
-                                fontSize: 12,
+                          const SizedBox(height: 16),
+                          const Text(
+                            'Dekripsi Berkas Data',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Fitur keamanan aktif. Masukkan kata sandi berkas Anda untuk masuk ke aplikasi.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.black54,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+
+                          // --- BANNER PERINGATAN KEDALUWARSA WAKTU ---
+                          if (expiredMsg != null)
+                            Container(
+                              margin: const EdgeInsets.only(bottom: 16),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.red[50],
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.red[200]!),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.timer_off,
+                                    color: Colors.red[700],
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      expiredMsg,
+                                      style: TextStyle(
+                                        color: Colors.red[800],
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                          // --- DROPDOWN BATAS WAKTU SESI ---
+                          DropdownButtonFormField<int>(
+                            value: _selectedTimeout,
+                            decoration: const InputDecoration(
+                              border: OutlineInputBorder(),
+                              labelText: 'Batas Waktu Sesi Aktif',
+                              prefixIcon: Icon(Icons.timer_outlined),
+                              isDense: true,
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 1,
+                                child: Text('1 Menit'),
+                              ),
+                              DropdownMenuItem(
+                                value: 5,
+                                child: Text('5 Menit'),
+                              ),
+                              DropdownMenuItem(
+                                value: 15,
+                                child: Text('15 Menit'),
+                              ),
+                              DropdownMenuItem(
+                                value: 30,
+                                child: Text('30 Menit'),
+                              ),
+                              DropdownMenuItem(value: 60, child: Text('1 Jam')),
+                              DropdownMenuItem(
+                                value: 0,
+                                child: Text('Tanpa Batas Waktu'),
+                              ),
+                            ],
+                            onChanged: (value) {
+                              if (value != null) {
+                                setState(() {
+                                  _selectedTimeout = value;
+                                });
+                              }
+                            },
+                          ),
+                          const SizedBox(height: 16),
+
+                          TextField(
+                            controller: _passwordController,
+                            obscureText: _obscurePassword,
+                            autofocus: true,
+                            decoration: InputDecoration(
+                              border: const OutlineInputBorder(),
+                              labelText: 'Kata Sandi Enkripsi',
+                              prefixIcon: const Icon(Icons.vpn_key_outlined),
+                              isDense: true,
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _obscurePassword
+                                      ? Icons.visibility_off_outlined
+                                      : Icons.visibility_outlined,
+                                  size: 20,
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    _obscurePassword = !_obscurePassword;
+                                  });
+                                },
+                              ),
+                            ),
+                            onSubmitted: (_) => _unlockApplication(),
+                          ),
+                          const SizedBox(height: 20),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 44,
+                            child: ElevatedButton(
+                              onPressed: _unlockApplication,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.indigo,
+                              ),
+                              child: const Text(
+                                'Buka Aplikasi',
+                                style: TextStyle(color: Colors.white),
                               ),
                             ),
                           ),
                         ],
                       ),
                     ),
-
-                  // --- DROPDOWN BATAS WAKTU SESI ---
-                  DropdownButtonFormField<int>(
-                    value: _selectedTimeout,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      labelText: 'Batas Waktu Sesi Aktif',
-                      prefixIcon: Icon(Icons.timer_outlined),
-                      isDense: true,
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 1, child: Text('1 Menit')),
-                      DropdownMenuItem(value: 5, child: Text('5 Menit')),
-                      DropdownMenuItem(value: 15, child: Text('15 Menit')),
-                      DropdownMenuItem(value: 30, child: Text('30 Menit')),
-                      DropdownMenuItem(value: 60, child: Text('1 Jam')),
-                      DropdownMenuItem(
-                        value: 0,
-                        child: Text('Tanpa Batas Waktu'),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() {
-                          _selectedTimeout = value;
-                        });
-                      }
-                    },
                   ),
-                  const SizedBox(height: 16),
-
-                  TextField(
-                    controller: _passwordController,
-                    obscureText: _obscurePassword,
-                    autofocus: true,
-                    decoration: InputDecoration(
-                      border: const OutlineInputBorder(),
-                      labelText: 'Kata Sandi Enkripsi',
-                      prefixIcon: const Icon(Icons.vpn_key_outlined),
-                      isDense: true,
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscurePassword
-                              ? Icons.visibility_off_outlined
-                              : Icons.visibility_outlined,
-                          size: 20,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _obscurePassword = !_obscurePassword;
-                          });
-                        },
-                      ),
-                    ),
-                    onSubmitted: (_) => _unlockApplication(),
-                  ),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 44,
-                    child: ElevatedButton(
-                      onPressed: _unlockApplication,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.indigo,
-                      ),
-                      child: const Text(
-                        'Buka Aplikasi',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
+                ),
+              );
+            },
+          );
+        },
       );
     }
 
+    // PERBAIKAN: Mengembalikan widget.child secara mentah saat gerbang keamanan terbuka.
+    // Hal ini mengembalikan fokus tombol fisik "Kembali" Android ke Navigator utama aplikasi
+    // yang menangani penutupan dialog dengan benar.
     return widget.child;
   }
 }
