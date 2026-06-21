@@ -327,6 +327,15 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
 
   void showEditNameDialog(SubSubjectItem item) {
     final editController = TextEditingController(text: item.subjectName);
+
+    // --- TAMBAHAN KONTROLLER EDIT VALUE & TARGET VALUE ---
+    final currentValController = TextEditingController(
+      text: item.currentValue.toString(),
+    );
+    final targetValController = TextEditingController(
+      text: item.targetValue.toString(),
+    );
+
     ChecklistGroup? selectedGroupTarget;
     List<DailySubject> filteredCardTargets = [];
     String? localLinkedTarget = item.linkedSubjectName;
@@ -412,6 +421,54 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
                       border: OutlineInputBorder(),
                     ),
                   ),
+
+                  // =========================================================================
+                  // INPUT BARU: KHUSUS TAMPIL JIKA BERUPA LIST TIPE NILAI (PROGRESS)
+                  // =========================================================================
+                  if (item.itemType == 'progress') ...[
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: currentValController,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                            decoration: const InputDecoration(
+                              labelText: 'Nilai Sekarang',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ),
+                        const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 12),
+                          child: Text(
+                            '/',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: TextField(
+                            controller: targetValController,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                            decoration: const InputDecoration(
+                              labelText: 'Target Nilai',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+
                   const SizedBox(height: 16),
                   const Divider(),
 
@@ -640,13 +697,13 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
                 onPressed: () {
                   final newName = editController.text.trim();
                   if (newName.isNotEmpty) {
+                    saveToHistory();
                     setState(() {
                       item.subjectName = newName;
                       item.linkedSubjectName = selectedGroupTarget == null
                           ? null
                           : localLinkedTarget;
-                      item.accumulatorItemName =
-                          localAccumulatorTarget; // <--- SIMPAN TARGET AKUMULASI
+                      item.accumulatorItemName = localAccumulatorTarget;
 
                       item.linkedExternalCardName = selectedExternalCard == null
                           ? null
@@ -654,6 +711,33 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
                       item.linkedExternalItemName = selectedExternalCard == null
                           ? null
                           : localExternalItemName;
+
+                      // === PROSES SIMPAN NILAI YANG SEKARANG & TARGET BARU ===
+                      if (item.itemType == 'progress') {
+                        final int parsedCurrent =
+                            int.tryParse(currentValController.text) ??
+                            item.currentValue;
+                        final int parsedTarget =
+                            int.tryParse(targetValController.text) ??
+                            item.targetValue;
+
+                        item.currentValue = parsedCurrent;
+                        item.targetValue = parsedTarget > 0
+                            ? parsedTarget
+                            : 1; // Menghindari pembagian 0
+
+                        // Menyesuaikan status penyelesaian berdasarkan nilai baru
+                        if (item.currentValue >= item.targetValue) {
+                          item.progress = 'selesai';
+                          if (item.finishedDate == null) {
+                            item.finishedDate =
+                                "${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}";
+                          }
+                        } else {
+                          item.progress = 'belum';
+                          item.finishedDate = null;
+                        }
+                      }
                     });
                     updateSubjectOverallProgress();
                     widget.onDataChanged();
