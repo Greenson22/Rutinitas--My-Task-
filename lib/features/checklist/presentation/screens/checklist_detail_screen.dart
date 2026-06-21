@@ -217,7 +217,12 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
     // Kumpulkan semua kotak materi (DailySubject) dari seluruh seksi yang tersedia untuk parameter dialog
     List<DailySubject> allAvailableSubjects = [];
     for (var section in currentGroup.allList) {
-      allAvailableSubjects.addAll(section.items);
+      for (var item in section.items) {
+        // SINKRONISASI AKTIF: Paksa isi properti item.section agar mutlak sesuai
+        // dengan nama seksi tempat penampung visualnya saat ini sebelum dioper ke dialog.
+        item.section = section.sectionName;
+        allAvailableSubjects.add(item);
+      }
     }
 
     final double screenWidth = MediaQuery.of(context).size.width;

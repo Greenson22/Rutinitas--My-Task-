@@ -544,12 +544,21 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
                             (sub) =>
                                 sub.subjectName != widget.subject.subjectName,
                           )
-                          .map(
-                            (sub) => DropdownMenuItem<DailySubject>(
+                          .map((sub) {
+                            // SINKRONISASI DROPDOWN SEKSI: Berikan fallback aman jika seksi bawaan bernilai 'focus' atau kosong
+                            String displaySection =
+                                (sub.section == 'focus' ||
+                                    sub.section.trim().isEmpty)
+                                ? 'Seksi Utama'
+                                : sub.section;
+
+                            return DropdownMenuItem<DailySubject>(
                               value: sub,
-                              child: Text('${sub.icon} ${sub.subjectName}'),
-                            ),
-                          ),
+                              child: Text(
+                                '${sub.icon} ${sub.subjectName} (${displaySection.toUpperCase()})',
+                              ),
+                            );
+                          }),
                     ],
                     onChanged: (DailySubject? targetCard) {
                       setDialogState(() {
