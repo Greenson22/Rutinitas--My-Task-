@@ -46,6 +46,9 @@ class DailySubject {
   bool
   isMarkdownEnabled; // <--- BARU: Menyimpan status aktif/nonaktif format MD Catatan
 
+  // === TAMBAHAN BARU: Menyimpan konfigurasi default apakah anak list langsung terbuka atau tertutup ===
+  bool defaultExpanded;
+
   // Palet warna standar yang estetis untuk memudahkan pengguna memilih warna kustom
   static const List<Map<String, dynamic>> customPalletColor = [
     {'nama': 'Teal', 'bg': 4281166415, 'text': 4294967295},
@@ -93,6 +96,7 @@ class DailySubject {
     this.dateType = 'single',
     this.endDate,
     this.isMarkdownEnabled = false,
+    this.defaultExpanded = false, // <--- Default awal diatur tertutup (false)
   });
 
   factory DailySubject.fromJson(Map<String, dynamic> json) {
@@ -118,6 +122,8 @@ class DailySubject {
       dateType: json['dateType'] ?? 'single',
       endDate: json['endDate'],
       isMarkdownEnabled: json['isMarkdownEnabled'] ?? false,
+      defaultExpanded:
+          json['defaultExpanded'] ?? false, // <--- Amankan parsing dari JSON
     );
   }
 
@@ -139,6 +145,7 @@ class DailySubject {
       'dateType': dateType,
       'endDate': endDate,
       'isMarkdownEnabled': isMarkdownEnabled,
+      'defaultExpanded': defaultExpanded, // <--- Amankan penyimpanan ke JSON
     };
   }
 
@@ -247,6 +254,9 @@ class SubSubjectItem {
   String?
   linkedExternalItemName; // Menyimpan nama Item List bernilai progres di Card target
 
+  // === TAMBAHAN BARU: Melacak status expand/collapse UI item list secara runtime harian ===
+  bool isExpanded;
+
   SubSubjectItem({
     required this.subjectName,
     required this.progress,
@@ -258,8 +268,9 @@ class SubSubjectItem {
     this.isDisabled = false,
     this.linkedSubjectName,
     this.accumulatorItemName,
-    this.linkedExternalCardName, // <--- MASUK KONSTRUKTOR
-    this.linkedExternalItemName, // <--- MASUK KONSTRUKTOR
+    this.linkedExternalCardName,
+    this.linkedExternalItemName,
+    this.isExpanded = false, // <--- Default runtime awal false
   }) : this.subMateri = subMateri ?? [];
 
   SubSubjectItem clone() {
@@ -274,10 +285,10 @@ class SubSubjectItem {
       isDisabled: this.isDisabled,
       linkedSubjectName: this.linkedSubjectName,
       accumulatorItemName: this.accumulatorItemName,
-      linkedExternalCardName:
-          this.linkedExternalCardName, // <--- SALIN SAAT CLONE
-      linkedExternalItemName:
-          this.linkedExternalItemName, // <--- SALIN SAAT CLONE
+      linkedExternalCardName: this.linkedExternalCardName,
+      linkedExternalItemName: this.linkedExternalItemName,
+      isExpanded: this
+          .isExpanded, // <--- Salin state expand saat kloning histori undo/redo
     );
   }
 
@@ -298,10 +309,9 @@ class SubSubjectItem {
       isDisabled: json['isDisabled'] ?? false,
       linkedSubjectName: json['linkedSubjectName'],
       accumulatorItemName: json['accumulatorItemName'],
-      linkedExternalCardName:
-          json['linkedExternalCardName'], // <--- EKSTRAK DARI JSON
-      linkedExternalItemName:
-          json['linkedExternalItemName'], // <--- EKSTRAK DARI JSON
+      linkedExternalCardName: json['linkedExternalCardName'],
+      linkedExternalItemName: json['linkedExternalItemName'],
+      isExpanded: false, // <--- Selalu mulai dari false saat memuat file mentah
     );
   }
 
@@ -317,8 +327,10 @@ class SubSubjectItem {
       'isDisabled': isDisabled,
       'linkedSubjectName': linkedSubjectName,
       'accumulatorItemName': accumulatorItemName,
-      'linkedExternalCardName': linkedExternalCardName, // <--- AMANKAN KE JSON
-      'linkedExternalItemName': linkedExternalItemName, // <--- AMANKAN KE JSON
+      'linkedExternalCardName': linkedExternalCardName,
+      'linkedExternalItemName': linkedExternalItemName,
+      // Properti `isExpanded` sengaja tidak ditulis ke berkas JSON
+      // karena status buka-tutup ini hanya digunakan sebagai UI state dinamis sementara.
     };
   }
 

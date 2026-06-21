@@ -27,6 +27,9 @@ class ChecklistTreeView extends StatelessWidget {
   // Callback untuk penangan aktivasi/nonaktivasi manual list
   final Function(SubSubjectItem)? onToggleDisable;
 
+  // === CALLBACK BARU UNTUK SEKUENS EXPAND/COLLAPSE TREE ===
+  final Function(SubSubjectItem)? onToggleExpansion;
+
   const ChecklistTreeView({
     super.key,
     required this.item,
@@ -47,6 +50,8 @@ class ChecklistTreeView extends StatelessWidget {
     this.onToggleItemType,
     this.onUpdateProgressValue,
     this.onToggleDisable,
+    // --- DAFTARKAN PADA CONSTRUCTOR ---
+    this.onToggleExpansion,
   });
 
   // Fungsi pembantu untuk memformat angka dengan separator titik ribuan Indonesia
@@ -90,6 +95,25 @@ class ChecklistTreeView extends StatelessWidget {
           padding: EdgeInsets.fromLTRB(paddingLeft, 2, 4, 2),
           child: Row(
             children: [
+              // === ADAPTIF PANAH FOLDING: Tampil jika bukan mode edit & item memiliki turunan sub-materi ===
+              if (!isEditMode && item.subMateri.isNotEmpty)
+                IconButton(
+                  icon: Icon(
+                    item.isExpanded
+                        ? Icons.keyboard_arrow_down_rounded
+                        : Icons.keyboard_arrow_right_rounded,
+                    color: Colors.blueGrey,
+                    size: 20,
+                  ),
+                  constraints: const BoxConstraints(),
+                  padding: const EdgeInsets.only(right: 2),
+                  onPressed: () => onToggleExpansion?.call(item),
+                )
+              else if (!isEditMode)
+                const SizedBox(
+                  width: 22,
+                ), // Spacer pengganti ukuran panah agar letak checkbox sejajar semetris
+
               if (isEditMode) ...[
                 Checkbox(
                   value: isCurrentlySelected,
@@ -234,6 +258,17 @@ class ChecklistTreeView extends StatelessWidget {
                                             (hasExternalCardLink ? ' 🔗' : ''),
                                         style: TextStyle(
                                           fontSize: 14,
+                                          // Jika item memiliki anak yang sedang disembunyikan (collapsed), berikan gaya teks miring halus
+                                          fontStyle:
+                                              !item.isExpanded &&
+                                                  item.subMateri.isNotEmpty
+                                              ? FontStyle.italic
+                                              : (item.isDisabled
+                                                    ? FontStyle.italic
+                                                    : null),
+                                          fontWeight: item.subMateri.isNotEmpty
+                                              ? FontWeight.w600
+                                              : FontWeight.normal,
                                           decoration:
                                               item.isDisabled || isChecked
                                               ? TextDecoration.lineThrough
@@ -245,12 +280,35 @@ class ChecklistTreeView extends StatelessWidget {
                                                     : (isChecked
                                                           ? Colors.grey
                                                           : Colors.black87)),
-                                          fontStyle: item.isDisabled
-                                              ? FontStyle.italic
-                                              : null,
                                         ),
                                       ),
                                     ),
+                                    // Berikan badge info jumlah sub-materi jika sedang tertutup
+                                    if (!item.isExpanded &&
+                                        item.subMateri.isNotEmpty)
+                                      Container(
+                                        margin: const EdgeInsets.only(left: 6),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 5,
+                                          vertical: 1.5,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.blueGrey.withOpacity(
+                                            0.12,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          '${item.subMateri.length}',
+                                          style: const TextStyle(
+                                            fontSize: 9,
+                                            color: Colors.blueGrey,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
                                   ],
                                 ),
                               ),
@@ -409,7 +467,8 @@ class ChecklistTreeView extends StatelessWidget {
             ],
           ),
         ),
-        if (item.subMateri.isNotEmpty)
+        // === SINKRONISASI FILTER EXPAND: Hanya render rekursif anak jika status 'isExpanded' bernilai TRUE atau saat Mode Edit ===
+        if (item.subMateri.isNotEmpty && (isEditMode || item.isExpanded))
           Column(
             children: List.generate(item.subMateri.length, (index) {
               final child = item.subMateri[index];
@@ -432,6 +491,8 @@ class ChecklistTreeView extends StatelessWidget {
                 onToggleItemType: onToggleItemType,
                 onUpdateProgressValue: onUpdateProgressValue,
                 onToggleDisable: onToggleDisable,
+                // --- SUNTIKKAN SAKELAR CALLBACK EXPANSION KE CHILD ---
+                onToggleExpansion: onToggleExpansion,
               );
             }),
           ),

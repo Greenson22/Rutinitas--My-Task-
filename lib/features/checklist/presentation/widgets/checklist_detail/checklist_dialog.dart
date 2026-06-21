@@ -243,6 +243,10 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                     hideFinishedItems: hideFinishedItems,
                     onToggleHideFinished: () =>
                         setState(() => hideFinishedItems = !hideFinishedItems),
+                    defaultCardExpanded: widget.subject.defaultExpanded,
+                    onDefaultExpandedPrefChanged:
+                        toggleCardDefaultExpandedPreference,
+                    onTriggerAllExpansion: expandOrCollapseAllMateri,
                   )
                 : const SizedBox.shrink(),
           ),
@@ -297,7 +301,6 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                                   isEditMode = !isEditMode;
                                   selectedItems.clear();
                                 }),
-                                // PERBAIKAN UTAMA: Hubungkan langsung ke handler rekursif milik Controller
                                 onCheckStatusChanged: handleCheckStatusChanged,
                                 onTapToggleStatus: handleTapToggleStatus,
                                 onAddChild: (targetItem) =>
@@ -308,6 +311,7 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                                 onUpdateProgressValue:
                                     showUpdateProgressValueDialog,
                                 onToggleDisable: handleToggleDisableItem,
+                                onToggleExpansion: toggleItemExpansion,
                               );
                             }),
                             if (!hideFinishedItems &&
@@ -350,48 +354,49 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                                 ),
                               ),
                             if (!hideFinishedItems)
-                              ...List.generate(widget.subject.subMateri.length, (
-                                index,
-                              ) {
-                                final item = widget.subject.subMateri[index];
-                                if (item.progress != 'selesai')
-                                  return const SizedBox.shrink();
-                                return ChecklistTreeView(
-                                  item: item,
-                                  depth: 0,
-                                  isEditMode: isEditMode,
-                                  selectedItems: selectedItems,
-                                  highlightedItem: highlightedItem,
-                                  isFirst: index == 0,
-                                  isLast:
-                                      index ==
-                                      widget.subject.subMateri.length - 1,
-                                  onSelectItem: (target, add) => setState(
-                                    () => add
-                                        ? selectedItems.add(target)
-                                        : selectedItems.remove(target),
-                                  ),
-                                  onMoveOrder: moveItemOrder,
-                                  onEditName: (targetItem) =>
-                                      showEditNameDialog(targetItem),
-                                  onLongPressToggle: () => setState(() {
-                                    isEditMode = !isEditMode;
-                                    selectedItems.clear();
-                                  }),
-                                  // PERBAIKAN UTAMA: Hubungkan langsung ke handler rekursif milik Controller
-                                  onCheckStatusChanged:
-                                      handleCheckStatusChanged,
-                                  onTapToggleStatus: handleTapToggleStatus,
-                                  onAddChild: (targetItem) =>
-                                      addChildSubMateri(targetItem),
-                                  onDeleteItem: (targetItem) =>
-                                      deleteSingleSubMateri(targetItem),
-                                  onToggleItemType: handleToggleItemType,
-                                  onUpdateProgressValue:
-                                      showUpdateProgressValueDialog,
-                                  onToggleDisable: handleToggleDisableItem,
-                                );
-                              }),
+                              ...List.generate(
+                                widget.subject.subMateri.length,
+                                (index) {
+                                  final item = widget.subject.subMateri[index];
+                                  if (item.progress != 'selesai')
+                                    return const SizedBox.shrink();
+                                  return ChecklistTreeView(
+                                    item: item,
+                                    depth: 0,
+                                    isEditMode: isEditMode,
+                                    selectedItems: selectedItems,
+                                    highlightedItem: highlightedItem,
+                                    isFirst: index == 0,
+                                    isLast:
+                                        index ==
+                                        widget.subject.subMateri.length - 1,
+                                    onSelectItem: (target, add) => setState(
+                                      () => add
+                                          ? selectedItems.add(target)
+                                          : selectedItems.remove(target),
+                                    ),
+                                    onMoveOrder: moveItemOrder,
+                                    onEditName: (targetItem) =>
+                                        showEditNameDialog(targetItem),
+                                    onLongPressToggle: () => setState(() {
+                                      isEditMode = !isEditMode;
+                                      selectedItems.clear();
+                                    }),
+                                    onCheckStatusChanged:
+                                        handleCheckStatusChanged,
+                                    onTapToggleStatus: handleTapToggleStatus,
+                                    onAddChild: (targetItem) =>
+                                        addChildSubMateri(targetItem),
+                                    onDeleteItem: (targetItem) =>
+                                        deleteSingleSubMateri(targetItem),
+                                    onToggleItemType: handleToggleItemType,
+                                    onUpdateProgressValue:
+                                        showUpdateProgressValueDialog,
+                                    onToggleDisable: handleToggleDisableItem,
+                                    onToggleExpansion: toggleItemExpansion,
+                                  );
+                                },
+                              ),
                           ],
                         )),
           ),

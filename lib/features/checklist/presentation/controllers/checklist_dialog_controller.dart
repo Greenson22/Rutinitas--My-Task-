@@ -36,6 +36,12 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
     );
     isMarkdownEnabled = widget.subject.isMarkdownEnabled;
     isNoteViewMode = noteController.text.isNotEmpty;
+
+    // === TAMBAHAN BARU: Mengatur status awal runtime anak-anak sesuai preferensi Card ===
+    _applyDefaultExpansion(
+      widget.subject.subMateri,
+      widget.subject.defaultExpanded,
+    );
   }
 
   @override
@@ -44,6 +50,39 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
     noteController.dispose();
     super.dispose();
   }
+
+  // === FUNGSI ADAPTIF BARU UNTUK SEKUENS FOLDING TREE ===
+  void _applyDefaultExpansion(List<SubSubjectItem> items, bool expand) {
+    for (var item in items) {
+      item.isExpanded = expand;
+      if (item.subMateri.isNotEmpty) {
+        _applyDefaultExpansion(item.subMateri, expand);
+      }
+    }
+  }
+
+  // Fungsi ekspansi individual (satu-satu)
+  void toggleItemExpansion(SubSubjectItem item) {
+    setState(() {
+      item.isExpanded = !item.isExpanded;
+    });
+  }
+
+  // Fungsi ekspansi masal (tampilkan/sembunyikan semuanya sekaligus)
+  void expandOrCollapseAllMateri(bool expand) {
+    setState(() {
+      _applyDefaultExpansion(widget.subject.subMateri, expand);
+    });
+  }
+
+  // Fungsi menyimpan preferensi konfigurasi default card harian
+  void toggleCardDefaultExpandedPreference(bool val) {
+    setState(() {
+      widget.subject.defaultExpanded = val;
+    });
+    widget.onDataChanged();
+  }
+  // =========================================================================
 
   void saveToHistory() {
     final List<SubSubjectItem> currentSnapshot = widget.subject.subMateri

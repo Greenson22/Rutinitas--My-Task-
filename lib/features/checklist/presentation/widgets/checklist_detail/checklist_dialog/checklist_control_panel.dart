@@ -21,6 +21,11 @@ class ChecklistControlPanel extends StatelessWidget {
   final bool hideFinishedItems;
   final VoidCallback onToggleHideFinished;
 
+  // === PROPERTI BARU UNTUK FOLDING TREE ===
+  final bool defaultCardExpanded;
+  final ValueChanged<bool> onDefaultExpandedPrefChanged;
+  final Function(bool) onTriggerAllExpansion;
+
   const ChecklistControlPanel({
     super.key,
     required this.subject,
@@ -39,6 +44,10 @@ class ChecklistControlPanel extends StatelessWidget {
     required this.onMarkAllDone,
     required this.hideFinishedItems,
     required this.onToggleHideFinished,
+    // --- MASUKKAN BARU KE CONSTRUCTOR ---
+    required this.defaultCardExpanded,
+    required this.onDefaultExpandedPrefChanged,
+    required this.onTriggerAllExpansion,
   });
 
   @override
@@ -91,6 +100,61 @@ class ChecklistControlPanel extends StatelessWidget {
             ),
             child: Column(
               children: [
+                // --- BARIS KONTROL BARU: ATURAN DEFALT EXPAND / COLLAPSE MASAL ---
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.account_tree_outlined,
+                      size: 16,
+                      color: Colors.blueGrey,
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Default Anak Terbuka:',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    Transform.scale(
+                      scale: 0.8,
+                      child: Switch(
+                        value: defaultCardExpanded,
+                        activeColor: Colors.indigo,
+                        onChanged: onDefaultExpandedPrefChanged,
+                      ),
+                    ),
+                    const Spacer(),
+                    // Tombol cepat buka semua anak list
+                    TextButton.icon(
+                      onPressed: () => onTriggerAllExpansion(true),
+                      icon: const Icon(Icons.unfold_more, size: 14),
+                      label: const Text(
+                        'Buka Semua',
+                        style: TextStyle(fontSize: 11),
+                      ),
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Tombol cepat ciutkan semua anak list
+                    TextButton.icon(
+                      onPressed: () => onTriggerAllExpansion(false),
+                      icon: const Icon(Icons.unfold_less, size: 14),
+                      label: const Text(
+                        'Tutup Semua',
+                        style: TextStyle(fontSize: 11),
+                      ),
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                  ],
+                ),
+
                 Row(
                   children: [
                     const Text(
