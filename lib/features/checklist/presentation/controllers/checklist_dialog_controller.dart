@@ -461,7 +461,7 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
                     ),
                   ),
 
-                  // ================= ========================================
+                  // =========================================================================
                   // INPUT BARU: KHUSUS TAMPIL JIKA BERUPA LIST TIPE NILAI (PROGRESS)
                   // =========================================================================
                   if (item.itemType == 'progress') ...[
@@ -1730,6 +1730,46 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
   void showImportJsonDialog() {
     final TextEditingController jsonFieldController = TextEditingController();
 
+    // Template JSON lengkap dengan key penampung struktur model data SubSubjectItem murni secara utuh
+    const String completeJsonTemplate =
+        '[\n'
+        '  {\n'
+        '    "nama_materi": "Contoh Normal Item",\n'
+        '    "progress": "belum",\n'
+        '    "finishedDate": null,\n'
+        '    "itemType": "normal",\n'
+        '    "currentValue": 0,\n'
+        '    "targetValue": 0,\n'
+        '    "isDisabled": false,\n'
+        '    "linkedSubjectName": null,\n'
+        '    "accumulatorItemName": null,\n'
+        '    "linkedExternalCardName": null,\n'
+        '    "linkedExternalItemName": null,\n'
+        '    "sub_materi": []\n'
+        '  },\n'
+        '  {\n'
+        '    "nama_materi": "Contoh Progress Item",\n'
+        '    "progress": "belum",\n'
+        '    "finishedDate": null,\n'
+        '    "itemType": "progress",\n'
+        '    "currentValue": 0,\n'
+        '    "targetValue": 10,\n'
+        '    "isDisabled": false,\n'
+        '    "linkedSubjectName": null,\n'
+        '    "accumulatorItemName": null,\n'
+        '    "linkedExternalCardName": null,\n'
+        '    "linkedExternalItemName": null,\n'
+        '    "sub_materi": [\n'
+        '      {\n'
+        '        "nama_materi": "Anak Sub Materi 1",\n'
+        '        "progress": "belum",\n'
+        '        "itemType": "normal",\n'
+        '        "sub_materi": []\n'
+        '      }\n'
+        '    ]\n'
+        '  }\n'
+        ']';
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -1747,9 +1787,49 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Tempel data teks JSON terstruktur sesuai format pemodelan sub-materi di bawah ini:',
-                style: TextStyle(fontSize: 13, color: Colors.black87),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Tempel data teks JSON sesuai format sub-materi:',
+                      style: TextStyle(fontSize: 12, color: Colors.black87),
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      await Clipboard.setData(
+                        const ClipboardData(text: completeJsonTemplate),
+                      );
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              '📋 Template JSON lengkap disalin ke clipboard!',
+                            ),
+                            backgroundColor: Colors.teal,
+                          ),
+                        );
+                      }
+                    },
+                    icon: const Icon(
+                      Icons.copy_all,
+                      size: 14,
+                      color: Colors.indigo,
+                    ),
+                    label: const Text(
+                      'Salin Template Lengkap',
+                      style: TextStyle(fontSize: 11, color: Colors.indigo),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      side: const BorderSide(color: Colors.indigo),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 12),
               TextField(
@@ -1758,7 +1838,7 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
                 style: const TextStyle(fontFamily: 'Courier', fontSize: 12),
                 decoration: const InputDecoration(
                   hintText:
-                      '[\n  {\n    "nama_materi": "Contoh Item Baru",\n    "itemType": "normal"\n  }\n]',
+                      '[\n  {\n    "nama_materi": "Nama Item Baru",\n    "itemType": "normal"\n  }\n]',
                   border: OutlineInputBorder(),
                   fillColor: Color(0xFFF8F9FA),
                   filled: true,
