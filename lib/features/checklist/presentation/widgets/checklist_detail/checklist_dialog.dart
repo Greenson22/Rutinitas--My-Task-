@@ -247,6 +247,8 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                     onDefaultExpandedPrefChanged:
                         toggleCardDefaultExpandedPreference,
                     onTriggerAllExpansion: expandOrCollapseAllMateri,
+                    // --- MENGHUBUNGKAN AKSI POPUP DIALOG IMPOR JSON ---
+                    onImportJsonPressed: showImportJsonDialog,
                   )
                 : const SizedBox.shrink(),
           ),

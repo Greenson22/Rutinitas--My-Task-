@@ -26,6 +26,9 @@ class ChecklistControlPanel extends StatelessWidget {
   final ValueChanged<bool> onDefaultExpandedPrefChanged;
   final Function(bool) onTriggerAllExpansion;
 
+  // === KONTROL SAKELAR BARU: AKSES IMPOR DATA DATA JSON ===
+  final VoidCallback onImportJsonPressed;
+
   const ChecklistControlPanel({
     super.key,
     required this.subject,
@@ -44,10 +47,11 @@ class ChecklistControlPanel extends StatelessWidget {
     required this.onMarkAllDone,
     required this.hideFinishedItems,
     required this.onToggleHideFinished,
-    // --- MASUKKAN BARU KE CONSTRUCTOR ---
     required this.defaultCardExpanded,
     required this.onDefaultExpandedPrefChanged,
     required this.onTriggerAllExpansion,
+    // --- MASUKKAN BARU KE CONSTRUCTOR ---
+    required this.onImportJsonPressed,
   });
 
   @override
@@ -89,6 +93,15 @@ class ChecklistControlPanel extends StatelessWidget {
                   ),
                   tooltip: 'Paste Banyak Baris dari Clipboard',
                   onPressed: onPasteFromClipboard,
+                ),
+                // --- SAKELAR ICON BUTTON BARU KHUSUS IMPOR JSON ---
+                IconButton(
+                  icon: const Icon(
+                    Icons.code_rounded,
+                    color: Colors.deepOrange,
+                  ),
+                  tooltip: 'Impor Data dari JSON',
+                  onPressed: onImportJsonPressed,
                 ),
               ],
             ),

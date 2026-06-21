@@ -461,7 +461,7 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
                     ),
                   ),
 
-                  // =========================================================================
+                  // ================= ========================================
                   // INPUT BARU: KHUSUS TAMPIL JIKA BERUPA LIST TIPE NILAI (PROGRESS)
                   // =========================================================================
                   if (item.itemType == 'progress') ...[
@@ -1664,6 +1664,127 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
             ],
           );
         },
+      ),
+    );
+  }
+
+  // =========================================================================
+  // FITUR BARU: MANAJEMEN IMPOR DATA DENGAN PARSING JSON STRUKTUR SUB-MATERI
+  // =========================================================================
+  void importSubMateriFromJson(String jsonString) {
+    if (jsonString.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Data JSON tidak boleh kosong.')),
+      );
+      return;
+    }
+
+    try {
+      saveToHistory();
+      final decoded = jsonDecode(jsonString.trim());
+
+      setState(() {
+        if (decoded is List) {
+          for (var itemJson in decoded) {
+            if (itemJson is Map<String, dynamic>) {
+              widget.subject.subMateri.add(SubSubjectItem.fromJson(itemJson));
+            }
+          }
+        } else if (decoded is Map<String, dynamic>) {
+          widget.subject.subMateri.add(SubSubjectItem.fromJson(decoded));
+        } else {
+          throw const FormatException(
+            'Struktur JSON harus berupa Objek {} atau Array []',
+          );
+        }
+
+        // Terapkan setelan ekspansi default ke item yang baru saja diimpor
+        _applyDefaultExpansion(
+          widget.subject.subMateri,
+          widget.subject.defaultExpanded,
+        );
+      });
+
+      updateSubjectOverallProgress();
+      widget.onDataChanged();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('🎉 Sukses mengimpor seluruh item dari data JSON!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      debugPrint("Gagal memproses parsing JSON harian: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Gagal memuat JSON! Periksa kembali sintaksis Anda. Detail: $e',
+          ),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
+  void showImportJsonDialog() {
+    final TextEditingController jsonFieldController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: const [
+            Icon(Icons.code_rounded, color: Colors.indigo),
+            SizedBox(width: 8),
+            Text('Impor Data dari JSON'),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Tempel data teks JSON terstruktur sesuai format pemodelan sub-materi di bawah ini:',
+                style: TextStyle(fontSize: 13, color: Colors.black87),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: jsonFieldController,
+                maxLines: 8,
+                style: const TextStyle(fontFamily: 'Courier', fontSize: 12),
+                decoration: const InputDecoration(
+                  hintText:
+                      '[\n  {\n    "nama_materi": "Contoh Item Baru",\n    "itemType": "normal"\n  }\n]',
+                  border: OutlineInputBorder(),
+                  fillColor: Color(0xFFF8F9FA),
+                  filled: true,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final String rawInput = jsonFieldController.text;
+              Navigator.pop(context);
+              importSubMateriFromJson(rawInput);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
+            child: const Text(
+              'Impor Konten',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
       ),
     );
   }
