@@ -27,7 +27,7 @@ class ChecklistTreeView extends StatelessWidget {
   // Callback untuk penangan aktivasi/nonaktivasi manual list
   final Function(SubSubjectItem)? onToggleDisable;
 
-  // === CALLBACK BARU UNTUK SEKUENS EXPAND/COLLAPSE TREE ===
+  // Callback untuk sekuens expand/collapse tree
   final Function(SubSubjectItem)? onToggleExpansion;
 
   const ChecklistTreeView({
@@ -50,7 +50,6 @@ class ChecklistTreeView extends StatelessWidget {
     this.onToggleItemType,
     this.onUpdateProgressValue,
     this.onToggleDisable,
-    // --- DAFTARKAN PADA CONSTRUCTOR ---
     this.onToggleExpansion,
   });
 
@@ -95,25 +94,33 @@ class ChecklistTreeView extends StatelessWidget {
           padding: EdgeInsets.fromLTRB(paddingLeft, 2, 4, 2),
           child: Row(
             children: [
-              // === ADAPTIF PANAH FOLDING: Tampil jika bukan mode edit & item memiliki turunan sub-materi ===
-              if (!isEditMode && item.subMateri.isNotEmpty)
-                IconButton(
-                  icon: Icon(
-                    item.isExpanded
-                        ? Icons.keyboard_arrow_down_rounded
-                        : Icons.keyboard_arrow_right_rounded,
-                    color: Colors.blueGrey,
-                    size: 20,
-                  ),
-                  constraints: const BoxConstraints(),
-                  padding: const EdgeInsets.only(right: 2),
-                  onPressed: () => onToggleExpansion?.call(item),
-                )
-              else if (!isEditMode)
-                const SizedBox(
-                  width: 22,
-                ), // Spacer pengganti ukuran panah agar letak checkbox sejajar semetris
+              // === PERBAIKAN STABILITAS SEJAJAR (ALIGNMENT FIX) ===
+              if (!isEditMode) ...[
+                if (item.subMateri.isNotEmpty)
+                  SizedBox(
+                    width: 32,
+                    height: 32,
+                    child: IconButton(
+                      icon: Icon(
+                        item.isExpanded
+                            ? Icons.keyboard_arrow_down_rounded
+                            : Icons.keyboard_arrow_right_rounded,
+                        color: Colors.blueGrey,
+                        size: 20,
+                      ),
+                      constraints: const BoxConstraints(),
+                      padding: EdgeInsets
+                          .zero, // Hilangkan padding bawaan agar pas di dalam Box
+                      onPressed: () => onToggleExpansion?.call(item),
+                    ),
+                  )
+                else
+                  const SizedBox(
+                    width: 32,
+                  ), // Spacer dengan lebar yang sama persis agar Checkbox sejajar sempurna
+              ],
 
+              // ====================================================
               if (isEditMode) ...[
                 Checkbox(
                   value: isCurrentlySelected,
@@ -258,7 +265,6 @@ class ChecklistTreeView extends StatelessWidget {
                                             (hasExternalCardLink ? ' 🔗' : ''),
                                         style: TextStyle(
                                           fontSize: 14,
-                                          // Jika item memiliki anak yang sedang disembunyikan (collapsed), berikan gaya teks miring halus
                                           fontStyle:
                                               !item.isExpanded &&
                                                   item.subMateri.isNotEmpty
@@ -283,7 +289,6 @@ class ChecklistTreeView extends StatelessWidget {
                                         ),
                                       ),
                                     ),
-                                    // Berikan badge info jumlah sub-materi jika sedang tertutup
                                     if (!item.isExpanded &&
                                         item.subMateri.isNotEmpty)
                                       Container(
@@ -360,7 +365,6 @@ class ChecklistTreeView extends StatelessWidget {
                       ),
               ),
               if (isEditMode) ...[
-                // === TOMBOL SHOW MENU (MORE OPTIONS) ===
                 PopupMenuButton<String>(
                   icon: const Icon(
                     Icons.more_vert,
@@ -467,7 +471,6 @@ class ChecklistTreeView extends StatelessWidget {
             ],
           ),
         ),
-        // === SINKRONISASI FILTER EXPAND: Hanya render rekursif anak jika status 'isExpanded' bernilai TRUE atau saat Mode Edit ===
         if (item.subMateri.isNotEmpty && (isEditMode || item.isExpanded))
           Column(
             children: List.generate(item.subMateri.length, (index) {
@@ -491,7 +494,6 @@ class ChecklistTreeView extends StatelessWidget {
                 onToggleItemType: onToggleItemType,
                 onUpdateProgressValue: onUpdateProgressValue,
                 onToggleDisable: onToggleDisable,
-                // --- SUNTIKKAN SAKELAR CALLBACK EXPANSION KE CHILD ---
                 onToggleExpansion: onToggleExpansion,
               );
             }),
