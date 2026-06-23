@@ -166,10 +166,6 @@ class _PromptScreenState extends State<PromptScreen> {
               final String inputPassword = passwordController.text;
               Navigator.pop(context);
 
-              setState(
-                () => _controller.loadAllPrompts(context),
-              ); // Membuka status loading awal
-
               try {
                 // Potong prefix mock ID untuk mendapatkan nama file asli
                 final String originalFileName = corruptedGroup.id.replaceFirst(
@@ -177,9 +173,9 @@ class _PromptScreenState extends State<PromptScreen> {
                   '',
                 );
 
-                // Dapatkan jalur (path) akurat file melalui StorageService
+                // PERBAIKAN UTAMA 1: Menggunakan getSpecificPromptFile untuk mencari di folder 'prompts'
                 final File targetFile = await _storageService
-                    .getSpecificGroupFile(
+                    .getSpecificPromptFile(
                       await _storageService.getBaseDirSetting(),
                       originalFileName,
                     );
@@ -210,7 +206,7 @@ class _PromptScreenState extends State<PromptScreen> {
                 messenger.showSnackBar(
                   SnackBar(
                     content: Text(
-                      'Berkas "${decryptedGroup.title}" berhasil didekripsi dan disinkronkan ke sistem!',
+                      'Berkas "${decryptedGroup.title}" berhasil didekripsi and disinkronkan ke sistem!',
                     ),
                     backgroundColor: Colors.green,
                   ),
@@ -226,6 +222,7 @@ class _PromptScreenState extends State<PromptScreen> {
                   ),
                 );
               } finally {
+                // PERBAIKAN UTAMA 2: Eksekusi pemuatan di luar setState (Aman dari Exception Future)
                 if (mounted) {
                   _controller.loadAllPrompts(context);
                 }
@@ -242,9 +239,6 @@ class _PromptScreenState extends State<PromptScreen> {
     );
   }
 
-  // --- (Semua sisa fungsi dialog operasional internal seperti _showSequentialAddDialog, _showAddSectionDialog,
-  // _showEditSectionNameDialog, _showDeleteSectionDialog, _showAddGroupDialog, _showEditGroupDialog,
-  // _showMoveSectionDialog, dan _showDeleteGroupItemDialog dibiarkan utuh tanpa modifikasi) ---
   void _showSequentialAddDialog() {
     final sectionController = TextEditingController();
     final formKey = GlobalKey<FormState>();
@@ -629,7 +623,6 @@ class _PromptScreenState extends State<PromptScreen> {
           });
         }
 
-        // Dibungkus Scaffold terluar agar properti bottomNavigationBar bisa merender layout iklan
         return Scaffold(
           body: GroupedSectionLayout<PromptGroup>(
             title: 'Prompt Groups',
@@ -784,7 +777,6 @@ class _PromptScreenState extends State<PromptScreen> {
                     "CORRUPTED_",
                   );
 
-                  // --- FIX: AKTIFKAN MODUL DIALOG DEKRIPSI UNTUK CARD MERAH ---
                   if (isCorrupted) {
                     return InteractiveGridCard(
                       themeColor: Colors.redAccent,
@@ -794,9 +786,7 @@ class _PromptScreenState extends State<PromptScreen> {
                       isHiddenStyle: false,
                       isFirst: isSearching ? true : (index == 0),
                       isLast: isSearching ? true : (index == items.length - 1),
-                      onTap: () => _showManualDecryptDialog(
-                        promptGroup,
-                      ), // <--- SEJAJAR DENGAN DAILY
+                      onTap: () => _showManualDecryptDialog(promptGroup),
                       onLongPress: () {
                         _controller.toggleCardEditMode();
                       },
@@ -1063,8 +1053,6 @@ class _PromptScreenState extends State<PromptScreen> {
                   );
                 },
           ),
-
-          // IMPLEMENTASI LAYOUT FOOTER BANNER ADMOB KHUSUS ANDROID
           bottomNavigationBar:
               _isAdLoaded && _bannerAd != null && Platform.isAndroid
               ? SafeArea(
