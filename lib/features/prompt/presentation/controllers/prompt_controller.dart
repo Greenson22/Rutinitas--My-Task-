@@ -1,5 +1,6 @@
 // lib/features/prompt/presentation/controllers/prompt_controller.dart
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:rutinitasku/core/services/storage_service.dart';
 import 'package:rutinitasku/core/utils/crypto_helper.dart'; // <--- MEMASTIKAN IMPORT CRYPTO HELPER TERSEDIA
@@ -1395,6 +1396,44 @@ class PromptController extends ChangeNotifier {
       await _storageService.savePromptGroup(baseDir, group.id, jsonString);
     } catch (e) {
       debugPrint("Gagal menyimpan urutan prompt group: $e");
+    }
+  }
+
+  // =========================================================================
+  // FITUR BARU: PENYELAMAT DEKRIPSI MANUAL UNTUK BERKAS PROMPT TERKUNCI
+  // =========================================================================
+  Future<void> saveGroupDataToFile(PromptGroup group) async {
+    try {
+      final baseDir = await _storageService.getBaseDirSetting();
+
+      // Ambil nama file asli (bersihkan prefix corrupted jika ada)
+      String fileName = group.id;
+      if (fileName.startsWith("CORRUPTED_")) {
+        fileName = fileName.replaceFirst(RegExp(r'CORRUPTED_\d+_'), '');
+      }
+
+      final File jsonFile = File('$baseDir/$fileName.json');
+      final String jsonString = _storageService.formatJsonPretty(
+        group.toJson(),
+      );
+
+      bool isEncrypted = await _storageService.isEncryptionEnabled();
+      String? password = await _storageService.getEncryptionPassword();
+
+      if (isEncrypted && password != null) {
+        final String encryptedContent = CryptoHelper.encrypt(
+          jsonString,
+          password,
+        );
+        await jsonFile.writeAsString(encryptedContent);
+      } else {
+        await jsonFile.writeAsString(jsonString);
+      }
+
+      debugPrint("Berhasil memulihkan file fisik prompt: ${jsonFile.path}");
+    } catch (e) {
+      debugPrint("Gagal menulis file pemulihan prompt: $e");
+      rethrow;
     }
   }
 }

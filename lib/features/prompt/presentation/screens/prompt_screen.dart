@@ -1,4 +1,5 @@
 // lib/features/prompt/presentation/screens/prompt_screen.dart
+import 'dart:convert';
 import 'dart:io'; // Ditambahkan untuk mengecek platform
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart'; // Ditambahkan untuk mendeteksi kDebugMode
@@ -9,6 +10,7 @@ import '../../../../core/presentation/widgets/grouped_section_layout.dart';
 import '../../../../core/presentation/widgets/interactive_section_header.dart';
 import '../../../../core/presentation/widgets/interactive_grid_card.dart';
 import '../../../../core/presentation/widgets/universal_empty_state.dart';
+import '../../../../core/utils/crypto_helper.dart'; // <--- TAMBAHKAN IMPORT CRYPTO HELPER
 import '../../data/models/prompt_model.dart';
 import '../controllers/prompt_controller.dart';
 import 'prompt_detail_screen.dart';
@@ -106,6 +108,138 @@ class _PromptScreenState extends State<PromptScreen> {
     _bannerAd
         ?.dispose(); // Hancurkan objek iklan dari memori saat halaman ditutup untuk mencegah kebocoran memori
     super.dispose();
+  }
+
+  // --- FITUR BARU: Dialog Input Kata Sandi untuk Dekripsi Manual Berkas Prompt Rusak ---
+  void _showManualDecryptDialog(PromptGroup corruptedGroup) {
+    final TextEditingController passwordController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: const [
+            Icon(Icons.lock_open_rounded, color: Colors.indigo),
+            SizedBox(width: 8),
+            Text('Dekripsi Berkas Prompt'),
+          ],
+        ),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Masukkan password yang sesuai untuk membuka file "${corruptedGroup.title}.json":',
+                style: const TextStyle(fontSize: 13, color: Colors.black87),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: passwordController,
+                obscureText: true,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Password Enkripsi Lama',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.key_rounded),
+                ),
+                validator: (value) => value == null || value.isEmpty
+                    ? 'Password tidak boleh kosong'
+                    : null,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (!formKey.currentState!.validate()) return;
+
+              final messenger = ScaffoldMessenger.of(context);
+              final String inputPassword = passwordController.text;
+              Navigator.pop(context);
+
+              setState(
+                () => _controller.loadAllPrompts(context),
+              ); // Membuka status loading awal
+
+              try {
+                // Potong prefix mock ID untuk mendapatkan nama file asli
+                final String originalFileName = corruptedGroup.id.replaceFirst(
+                  RegExp(r'CORRUPTED_\d+_'),
+                  '',
+                );
+
+                // Dapatkan jalur (path) akurat file melalui StorageService
+                final File targetFile = await _storageService
+                    .getSpecificGroupFile(
+                      await _storageService.getBaseDirSetting(),
+                      originalFileName,
+                    );
+
+                if (!await targetFile.exists()) {
+                  throw Exception(
+                    "Berkas fisik tidak ditemukan di penyimpanan.\nPath: ${targetFile.path}",
+                  );
+                }
+
+                String rawContent = await targetFile.readAsString();
+
+                // Langkah 1: Coba dekripsi manual data teks menggunakan input kunci dari pengguna
+                String decryptedContent = CryptoHelper.decrypt(
+                  rawContent.trim(),
+                  inputPassword,
+                );
+
+                // Langkah 2: Uji kelayakan parsing JSON untuk memastikan password valid & struktur berkas aman
+                final Map<String, dynamic> parsedJson = jsonDecode(
+                  decryptedContent,
+                );
+                PromptGroup decryptedGroup = PromptGroup.fromJson(parsedJson);
+
+                // Langkah 3: Tulis ulang konten menggunakan fungsi terenkripsi internal controller
+                await _controller.saveGroupDataToFile(decryptedGroup);
+
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Berkas "${decryptedGroup.title}" berhasil didekripsi dan disinkronkan ke sistem!',
+                    ),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              } catch (e) {
+                debugPrint("Gagal melakukan dekripsi manual berkas prompt: $e");
+                messenger.showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Gagal mendekripsi! Password salah atau struktur file korup/tidak ditemukan.',
+                    ),
+                    backgroundColor: Colors.redAccent,
+                  ),
+                );
+              } finally {
+                if (mounted) {
+                  _controller.loadAllPrompts(context);
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
+            child: const Text(
+              'Dekripsi',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // --- (Semua sisa fungsi dialog operasional internal seperti _showSequentialAddDialog, _showAddSectionDialog,
@@ -650,6 +784,7 @@ class _PromptScreenState extends State<PromptScreen> {
                     "CORRUPTED_",
                   );
 
+                  // --- FIX: AKTIFKAN MODUL DIALOG DEKRIPSI UNTUK CARD MERAH ---
                   if (isCorrupted) {
                     return InteractiveGridCard(
                       themeColor: Colors.redAccent,
@@ -659,23 +794,32 @@ class _PromptScreenState extends State<PromptScreen> {
                       isHiddenStyle: false,
                       isFirst: isSearching ? true : (index == 0),
                       isLast: isSearching ? true : (index == items.length - 1),
-                      onTap: () {
-                        ScaffoldMessenger.of(context).clearSnackBars();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Berkas "${promptGroup.title}.json" terkunci enkripsi atau korup.',
-                            ),
-                            backgroundColor: Colors.redAccent,
-                          ),
-                        );
-                      },
+                      onTap: () => _showManualDecryptDialog(
+                        promptGroup,
+                      ), // <--- SEJAJAR DENGAN DAILY
                       onLongPress: () {
                         _controller.toggleCardEditMode();
                       },
                       onMoveLeft: () {},
                       onMoveRight: () {},
                       popupMenuItems: [
+                        const PopupMenuItem(
+                          value: 'decrypt',
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.lock_open_rounded,
+                                size: 18,
+                                color: Colors.indigo,
+                              ),
+                              SizedBox(width: 10),
+                              Text(
+                                'Dekripsi Manual',
+                                style: TextStyle(fontSize: 13),
+                              ),
+                            ],
+                          ),
+                        ),
                         const PopupMenuItem(
                           value: 'delete_corrupted',
                           child: Row(
@@ -698,7 +842,9 @@ class _PromptScreenState extends State<PromptScreen> {
                         ),
                       ],
                       onPopupSelected: (value) async {
-                        if (value == 'delete_corrupted') {
+                        if (value == 'decrypt') {
+                          _showManualDecryptDialog(promptGroup);
+                        } else if (value == 'delete_corrupted') {
                           _showDeleteGroupItemDialog(promptGroup);
                         }
                       },
@@ -931,6 +1077,25 @@ class _PromptScreenState extends State<PromptScreen> {
               : const SizedBox.shrink(),
         );
       },
+    );
+  }
+}
+
+class ListBehaviorBuilder extends StatelessWidget {
+  final PromptController controller;
+  final WidgetBuilder builder;
+
+  const ListBehaviorBuilder({
+    super.key,
+    required this.controller,
+    required this.builder,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (ctx, _) => builder(context),
     );
   }
 }
