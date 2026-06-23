@@ -1,16 +1,18 @@
 // lib/features/daily/presentation/screens/daily_screen.dart
-
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart'; // Ditambahkan untuk mendeteksi kDebugMode
 import 'package:google_mobile_ads/google_mobile_ads.dart'; // Ditambahkan untuk SDK AdMob
+
 import '../../../../core/presentation/widgets/drawer_menu.dart';
 import '../../../../core/presentation/widgets/grouped_section_layout.dart';
 import '../../../../core/presentation/widgets/interactive_grid_card.dart';
 import '../../../../core/presentation/widgets/interactive_section_header.dart';
 import '../../../../core/presentation/widgets/universal_empty_state.dart'; // Using Universal Widget from Core
 import '../../../../core/utils/crypto_helper.dart'; // Import CryptoHelper untuk Dekripsi Manual
+import '../../../../core/services/storage_service.dart'; // <--- IMPORT BARU KUNCI PENYIMPANAN
+
 import '../../data/models/daily_model.dart';
 import '../controllers/daily_controller.dart';
 import 'checklist_detail_screen.dart';
@@ -141,11 +143,13 @@ class _DailyScreenState extends State<DailyScreen> {
           ElevatedButton(
             onPressed: () async {
               if (!formKey.currentState!.validate()) return;
+
               final messenger = ScaffoldMessenger.of(context);
               final String inputPassword = passwordController.text;
               Navigator.pop(context);
 
               setState(() => _controller.isLoading = true);
+
               try {
                 // Potong prefix mock ID untuk mendapatkan nama file asli
                 final String originalFileName = corruptedGroup.id.replaceFirst(
@@ -153,18 +157,18 @@ class _DailyScreenState extends State<DailyScreen> {
                   '',
                 );
 
-                // Konstruksi manual base directory path sesuai standar storage
-                final String basePath =
-                    _controller.selectedBaseDir == 'Documents'
-                    ? '/storage/emulated/0/Documents'
-                    : _controller.selectedBaseDir;
+                // --- PERBAIKAN UTAMA DI SINI ---
+                // Dapatkan jalur (path) akurat file melalui StorageService
+                final StorageService storageService = StorageService();
+                final File targetFile = await storageService
+                    .getSpecificGroupFile(
+                      _controller.selectedBaseDir,
+                      originalFileName,
+                    );
 
-                final File targetFile = File(
-                  '$basePath/checklist/$originalFileName.json',
-                );
                 if (!await targetFile.exists()) {
                   throw Exception(
-                    "Berkas fisik tidak ditemukan di penyimpanan.",
+                    "Berkas fisik tidak ditemukan di penyimpanan.\nPath: ${targetFile.path}",
                   );
                 }
 
@@ -202,13 +206,11 @@ class _DailyScreenState extends State<DailyScreen> {
                 messenger.showSnackBar(
                   const SnackBar(
                     content: Text(
-                      'Gagal mendekripsi! Password salah atau struktur biner di dalam JSON memang korup.',
+                      'Gagal mendekripsi! Password salah atau struktur file korup/tidak ditemukan.',
                     ),
                     backgroundColor: Colors.redAccent,
                   ),
                 );
-              } catch (e) {
-                debugPrint("Gagal memuat ulang: $e");
               } finally {
                 _controller.loadGroupsData();
               }
@@ -257,10 +259,8 @@ class _DailyScreenState extends State<DailyScreen> {
               if (formKey.currentState!.validate()) {
                 final String namaSeksiBaru = sectionController.text.trim();
                 _controller.addLocalMainSection(namaSeksiBaru);
-
                 // Tutup dialog langkah 1
                 Navigator.pop(context);
-
                 // Otomatis lanjut ke dialog langkah 2 untuk mengisi Group Checklist di seksi tersebut
                 _showAddGroupDialogAtSection(namaSeksiBaru);
               }
@@ -278,6 +278,7 @@ class _DailyScreenState extends State<DailyScreen> {
 
   void _showAddMainSectionDialog() {
     final sectionController = TextEditingController();
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -319,7 +320,7 @@ class _DailyScreenState extends State<DailyScreen> {
 
   void _showAddGroupDialogAtSection(String targetMainSection) {
     final nameController = TextEditingController();
-    final iconController = TextEditingController(text: '📁');
+    final iconController = TextEditingController(text: '📂');
     final formKey = GlobalKey<FormState>();
 
     showDialog(
@@ -467,7 +468,6 @@ class _DailyScreenState extends State<DailyScreen> {
   void _showMoveSectionDialog(ChecklistGroup group) {
     List<String> availableSections = _controller.groupedVisibleGroup.keys
         .toList();
-
     if (!availableSections.contains("Lainnya")) {
       availableSections.add("Lainnya");
     }
@@ -535,6 +535,7 @@ class _DailyScreenState extends State<DailyScreen> {
 
   void _editMainSectionName(String oldSectionName) {
     final editController = TextEditingController(text: oldSectionName);
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
