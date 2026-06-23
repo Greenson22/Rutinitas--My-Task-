@@ -48,6 +48,14 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
     // Langsung gunakan data group yang dioper dari halaman utama
     _currentGroup = widget.promptGroup;
 
+    // Pastikan controller memuat data seluruh group di background
+    // karena fungsi riwayat versi di PromptController mengandalkan list internal '_promptGroups'.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _controller.loadAllPrompts(context);
+      }
+    });
+
     // Panggil fungsi pemuatan iklan banner
     _loadBannerAd();
   }
@@ -82,9 +90,6 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
     super.dispose();
   }
 
-  // --- (Semua sisa fungsi internal pendukung dialog seperti _openAddPromptDialog, _openEditPromptDialog,
-  // _showDeleteSingleDialog, _showMoveOrCopyDialog, _showMassMoveDialog, _openVersionSelectorDialog,
-  // _openEditVersionNameDialog, dan _openCreateNewVersionDialog dibiarkan utuh tanpa modifikasi) ---
   void _openAddPromptDialog() {
     showDialog(
       context: context,
@@ -512,6 +517,14 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                                     onPressed: item.versions.length <= 1
                                         ? null
                                         : () async {
+                                            // PENGAMANAN: Pastikan list memori controller sudah terisi
+                                            if (_controller
+                                                .promptGroups
+                                                .isEmpty) {
+                                              await _controller.loadAllPrompts(
+                                                context,
+                                              );
+                                            }
                                             await _controller
                                                 .deletePromptVersion(
                                                   group: _currentGroup,
@@ -519,8 +532,23 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                                                   versionId: version.id,
                                                   context: context,
                                                 );
-                                            setModalState(() {});
-                                            setState(() {});
+                                            // Ambil group terbaru pasca penghapusan
+                                            final updatedGroup = _controller
+                                                .promptGroups
+                                                .firstWhere(
+                                                  (g) =>
+                                                      g.id == _currentGroup.id,
+                                                  orElse: () => _currentGroup,
+                                                );
+                                            setModalState(() {
+                                              item = updatedGroup.prompts
+                                                  .firstWhere(
+                                                    (p) => p.id == item.id,
+                                                  );
+                                            });
+                                            setState(() {
+                                              _currentGroup = updatedGroup;
+                                            });
                                           },
                                   ),
                                   if (!isActive)
@@ -530,14 +558,33 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                                         visualDensity: VisualDensity.compact,
                                       ),
                                       onPressed: () async {
+                                        // PENGAMANAN: Pastikan list memori controller sudah terisi
+                                        if (_controller.promptGroups.isEmpty) {
+                                          await _controller.loadAllPrompts(
+                                            context,
+                                          );
+                                        }
                                         await _controller.switchPromptVersion(
                                           group: _currentGroup,
                                           itemId: item.id,
                                           versionId: version.id,
                                           context: context,
                                         );
-                                        setModalState(() {});
-                                        setState(() {});
+                                        final updatedGroup = _controller
+                                            .promptGroups
+                                            .firstWhere(
+                                              (g) => g.id == _currentGroup.id,
+                                              orElse: () => _currentGroup,
+                                            );
+                                        setModalState(() {
+                                          item = updatedGroup.prompts
+                                              .firstWhere(
+                                                (p) => p.id == item.id,
+                                              );
+                                        });
+                                        setState(() {
+                                          _currentGroup = updatedGroup;
+                                        });
                                       },
                                       child: const Text(
                                         'Gunakan',
@@ -582,8 +629,23 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                         ),
                         onPressed: () {
                           _openCreateNewVersionDialog(item, () {
-                            setModalState(() {});
-                            setState(() {});
+                            // SINKRONISASI DATA: Cari group dan item yang diperbarui dari controller
+                            final updatedGroup = _controller.promptGroups
+                                .firstWhere(
+                                  (g) => g.id == _currentGroup.id,
+                                  orElse: () => _currentGroup,
+                                );
+
+                            setModalState(() {
+                              // Memperbarui objek item lokal dialog agar ListView me-render daftar versi yang baru
+                              item = updatedGroup.prompts.firstWhere(
+                                (p) => p.id == item.id,
+                              );
+                            });
+
+                            setState(() {
+                              _currentGroup = updatedGroup;
+                            });
                           });
                         },
                       ),
@@ -621,6 +683,10 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
           ElevatedButton(
             onPressed: () async {
               if (nameController.text.trim().isNotEmpty) {
+                // PENGAMANAN: Pastikan list memori controller sudah terisi
+                if (_controller.promptGroups.isEmpty) {
+                  await _controller.loadAllPrompts(context);
+                }
                 await _controller.editPromptVersionName(
                   group: _currentGroup,
                   itemId: item.id,
@@ -628,7 +694,9 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                   newVersionName: nameController.text,
                   context: context,
                 );
-                Navigator.pop(ctx);
+                if (ctx.mounted) {
+                  Navigator.pop(ctx);
+                }
                 onUpdated();
               }
             },
@@ -660,13 +728,22 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
+              // PENGAMANAN: Memastikan data controller list telah termuat
+              if (_controller.promptGroups.isEmpty) {
+                await _controller.loadAllPrompts(context);
+              }
+
+              // Menunggu proses asinkronus penulisan ke storage selesai
               await _controller.createNewPromptVersion(
                 group: _currentGroup,
                 itemId: item.id,
                 versionName: nameController.text,
                 context: context,
               );
-              Navigator.pop(ctx);
+              if (ctx.mounted) {
+                Navigator.pop(ctx);
+              }
+              // Memicu callback sinkronisasi data ke dialog riwayat versi induk
               onUpdated();
             },
             child: const Text('Duplikat'),
@@ -1039,7 +1116,11 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                 });
               }
             },
-            onMoveMassive: (selectedItems) {
+            onMoveMassive: (selectedItems) async {
+              // PENGAMANAN: Pastikan list memori controller sudah terisi
+              if (_controller.promptGroups.isEmpty) {
+                await _controller.loadAllPrompts(context);
+              }
               _showMassMoveDialog(selectedItems);
             },
           );
@@ -1061,7 +1142,6 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
   }
 }
 
-// Widget Pembantu untuk Mematikan Ketergantungan Eksternal ListenableBuilder yang Berbeda Nama di Projek Anda
 class ListBehaviorBuilder extends StatelessWidget {
   final PromptController controller;
   final WidgetBuilder builder;
