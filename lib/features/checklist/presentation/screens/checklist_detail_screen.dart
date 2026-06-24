@@ -582,13 +582,8 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
 
           final section = currentGroup.allList[index];
 
-          // Evaluasi apakah ini seksi default tunggal yang perlu disembunyikan judulnya
-          final bool hideHeader =
-              currentGroup.allList.length == 1 &&
-              section.sectionName ==
-                  ChecklistDetailController.defaultSectionName;
-
-          if (hideHeader) return const SizedBox.shrink();
+          // PERBAIKAN: Baris logika pengecekan 'hideHeader' dihapus agar seksi header
+          // selalu dirender dan tampil ke layar smartphone meskipun jumlah seksi hanya ada satu.
 
           return InteractiveSectionHeader(
             sectionName: section.sectionName,

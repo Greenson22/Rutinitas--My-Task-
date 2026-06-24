@@ -18,8 +18,8 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
   // State untuk menyimpan teks pencarian item
   String searchQuery = '';
 
-  // Konstanta untuk menandai nama seksi unik/default
-  static const String defaultSectionName = "Checklist Standar";
+  // PERBAIKAN: Mengubah nama seksi default/standar menjadi "Seksi Utama"
+  static const String defaultSectionName = "Seksi Utama";
 
   @override
   void initState() {
@@ -229,7 +229,7 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
             onPressed: () {
               if (sectionController.text.isNotEmpty) {
                 setState(() {
-                  // LOGIKA: Jika seksi pertama masih berupa seksi unik default, otomatis ubah namanya
+                  // Jika seksi pertama masih berupa seksi unik default, otomatis ubah namanya
                   if (currentGroup.allList.length == 1 &&
                       currentGroup.allList.first.sectionName ==
                           defaultSectionName) {
