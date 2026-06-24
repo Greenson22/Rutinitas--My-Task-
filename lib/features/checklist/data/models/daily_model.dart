@@ -43,10 +43,9 @@ class DailySubject {
   bool isDateActive;
   String dateType;
   String? endDate;
-  bool
-  isMarkdownEnabled; // <--- BARU: Menyimpan status aktif/nonaktif format MD Catatan
+  bool isMarkdownEnabled; // Menyimpan status aktif/nonaktif format MD Catatan
 
-  // === TAMBAHAN BARU: Menyimpan konfigurasi default apakah anak list langsung terbuka atau tertutup ===
+  // Menyimpan konfigurasi default apakah anak list langsung terbuka atau tertutup
   bool defaultExpanded;
 
   // Palet warna standar yang estetis untuk memudahkan pengguna memilih warna kustom
@@ -96,7 +95,7 @@ class DailySubject {
     this.dateType = 'single',
     this.endDate,
     this.isMarkdownEnabled = false,
-    this.defaultExpanded = false, // <--- Default awal diatur tertutup (false)
+    this.defaultExpanded = false,
   });
 
   factory DailySubject.fromJson(Map<String, dynamic> json) {
@@ -122,8 +121,7 @@ class DailySubject {
       dateType: json['dateType'] ?? 'single',
       endDate: json['endDate'],
       isMarkdownEnabled: json['isMarkdownEnabled'] ?? false,
-      defaultExpanded:
-          json['defaultExpanded'] ?? false, // <--- Amankan parsing dari JSON
+      defaultExpanded: json['defaultExpanded'] ?? false,
     );
   }
 
@@ -145,7 +143,7 @@ class DailySubject {
       'dateType': dateType,
       'endDate': endDate,
       'isMarkdownEnabled': isMarkdownEnabled,
-      'defaultExpanded': defaultExpanded, // <--- Amankan penyimpanan ke JSON
+      'defaultExpanded': defaultExpanded,
     };
   }
 
@@ -240,21 +238,18 @@ class SubSubjectItem {
   String? finishedDate;
   List<SubSubjectItem> subMateri;
 
-  String itemType; // 'normal' atau 'progress'
+  String itemType; // 'normal', 'progress', atau 'countdown'
   int currentValue;
   int targetValue;
   bool isDisabled;
   String? linkedSubjectName;
   String? accumulatorItemName;
 
-  // =========================================================================
-  // PROPERTI BARU: Menyimpan kaitan akumulasi nilai harian lintas Card Checklist
-  // =========================================================================
-  String? linkedExternalCardName; // Menyimpan nama Card Checklist target
-  String?
-  linkedExternalItemName; // Menyimpan nama Item List bernilai progres di Card target
+  // Menyimpan kaitan akumulasi nilai harian lintas Card Checklist
+  String? linkedExternalCardName;
+  String? linkedExternalItemName;
 
-  // === TAMBAHAN BARU: Melacak status expand/collapse UI item list secara runtime harian ===
+  // Melacak status expand/collapse UI item list secara runtime harian
   bool isExpanded;
 
   SubSubjectItem({
@@ -270,7 +265,7 @@ class SubSubjectItem {
     this.accumulatorItemName,
     this.linkedExternalCardName,
     this.linkedExternalItemName,
-    this.isExpanded = false, // <--- Default runtime awal false
+    this.isExpanded = false,
   }) : this.subMateri = subMateri ?? [];
 
   SubSubjectItem clone() {
@@ -287,8 +282,7 @@ class SubSubjectItem {
       accumulatorItemName: this.accumulatorItemName,
       linkedExternalCardName: this.linkedExternalCardName,
       linkedExternalItemName: this.linkedExternalItemName,
-      isExpanded: this
-          .isExpanded, // <--- Salin state expand saat kloning histori undo/redo
+      isExpanded: this.isExpanded,
     );
   }
 
@@ -311,7 +305,7 @@ class SubSubjectItem {
       accumulatorItemName: json['accumulatorItemName'],
       linkedExternalCardName: json['linkedExternalCardName'],
       linkedExternalItemName: json['linkedExternalItemName'],
-      isExpanded: false, // <--- Selalu mulai dari false saat memuat file mentah
+      isExpanded: false,
     );
   }
 
@@ -329,8 +323,6 @@ class SubSubjectItem {
       'accumulatorItemName': accumulatorItemName,
       'linkedExternalCardName': linkedExternalCardName,
       'linkedExternalItemName': linkedExternalItemName,
-      // Properti `isExpanded` sengaja tidak ditulis ke berkas JSON
-      // karena status buka-tutup ini hanya digunakan sebagai UI state dinamis sementara.
     };
   }
 
@@ -340,6 +332,9 @@ class SubSubjectItem {
     if (subMateri.isEmpty) {
       if (itemType == 'progress' && targetValue > 0) {
         progress = currentValue >= targetValue ? 'selesai' : 'belum';
+      } else if (itemType == 'countdown' && targetValue > 0) {
+        // Tipe Countdown: Selesai ketika nilai berjalan menyentuh angka 0 atau di bawahnya
+        progress = currentValue <= 0 ? 'selesai' : 'belum';
       }
       return;
     }

@@ -20,8 +20,8 @@ class ChecklistTreeView extends StatelessWidget {
   final Function(SubSubjectItem) onAddChild;
   final Function(SubSubjectItem) onDeleteItem;
 
-  // Callback untuk kustomisasi Progress angka harian
-  final Function(SubSubjectItem)? onToggleItemType;
+  // Callback untuk kustomisasi Progress angka harian (Menerima parameter string tipe)
+  final Function(SubSubjectItem, String)? onToggleItemType;
   final Function(SubSubjectItem)? onUpdateProgressValue;
 
   // Callback untuk penangan aktivasi/nonaktivasi manual list
@@ -167,13 +167,19 @@ class ChecklistTreeView extends StatelessWidget {
                                   Icons.bar_chart_rounded,
                                   size: 16,
                                   color: Colors.deepOrange,
+                                )
+                              else if (item.itemType == 'countdown')
+                                const Icon(
+                                  Icons.exposure_minus_1_rounded,
+                                  size: 16,
+                                  color: Colors.deepOrange,
                                 ),
                               const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
                                   item.subjectName +
-                                      (isLinkedAndLocked ? ' 🔒' : '') +
-                                      (hasExternalCardLink ? ' 🔗' : ''),
+                                      (isLinkedAndLocked ? ' 白' : '') +
+                                      (hasExternalCardLink ? ' 迫' : ''),
                                   style: TextStyle(
                                     fontSize: 14,
                                     color: item.isDisabled
@@ -209,12 +215,16 @@ class ChecklistTreeView extends StatelessWidget {
                                 )
                               : Checkbox(
                                   value: isChecked,
-                                  activeColor: item.itemType == 'progress'
+                                  activeColor:
+                                      (item.itemType == 'progress' ||
+                                          item.itemType == 'countdown')
                                       ? Colors.deepOrange
                                       : (isLinkedAndLocked
                                             ? Colors.amber[700]
                                             : Colors.teal),
-                                  onChanged: item.itemType == 'progress'
+                                  onChanged:
+                                      (item.itemType == 'progress' ||
+                                          item.itemType == 'countdown')
                                       ? (isChecked
                                             ? (bool? checked) =>
                                                   onCheckStatusChanged(
@@ -230,7 +240,8 @@ class ChecklistTreeView extends StatelessWidget {
                               onTap: item.isDisabled
                                   ? null
                                   : () {
-                                      if (item.itemType == 'progress') {
+                                      if (item.itemType == 'progress' ||
+                                          item.itemType == 'countdown') {
                                         onUpdateProgressValue?.call(item);
                                       } else {
                                         onTapToggleStatus(item);
@@ -262,7 +273,7 @@ class ChecklistTreeView extends StatelessWidget {
                                     Flexible(
                                       child: Text(
                                         item.subjectName +
-                                            (hasExternalCardLink ? ' 🔗' : ''),
+                                            (hasExternalCardLink ? ' 迫' : ''),
                                         style: TextStyle(
                                           fontSize: 14,
                                           fontStyle:
@@ -319,7 +330,8 @@ class ChecklistTreeView extends StatelessWidget {
                               ),
                             ),
                           ),
-                          if (item.itemType == 'progress' &&
+                          if ((item.itemType == 'progress' ||
+                                  item.itemType == 'countdown') &&
                               item.subMateri.isEmpty &&
                               !item.isDisabled)
                             Padding(
@@ -341,14 +353,18 @@ class ChecklistTreeView extends StatelessWidget {
                                   ),
                                 ),
                                 icon: Icon(
-                                  Icons.add_circle_outline_rounded,
+                                  item.itemType == 'countdown'
+                                      ? Icons.remove_circle_outline_rounded
+                                      : Icons.add_circle_outline_rounded,
                                   size: 14,
                                   color: isChecked
                                       ? Colors.grey
                                       : Colors.deepOrange,
                                 ),
                                 label: Text(
-                                  '${_formatNumber(item.currentValue)} / ${_formatNumber(item.targetValue)}',
+                                  item.itemType == 'countdown'
+                                      ? _formatNumber(item.currentValue)
+                                      : '${_formatNumber(item.currentValue)} / ${_formatNumber(item.targetValue)}',
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
@@ -378,8 +394,11 @@ class ChecklistTreeView extends StatelessWidget {
                       onAddChild(item);
                     } else if (value == 'toggle_disable') {
                       onToggleDisable?.call(item);
-                    } else if (value == 'toggle_type') {
-                      onToggleItemType?.call(item);
+                    } else if (value.startsWith('type_')) {
+                      onToggleItemType?.call(
+                        item,
+                        value.replaceFirst('type_', ''),
+                      );
                     } else if (value == 'delete') {
                       onDeleteItem(item);
                     }
@@ -420,30 +439,66 @@ class ChecklistTreeView extends StatelessWidget {
                         ],
                       ),
                     ),
-                    if (item.subMateri.isEmpty && !item.isDisabled)
-                      PopupMenuItem<String>(
-                        value: 'toggle_type',
-                        child: Row(
-                          children: [
-                            Icon(
-                              item.itemType == 'progress'
-                                  ? Icons.toggle_on_rounded
-                                  : Icons.toggle_off_outlined,
-                              color: item.itemType == 'progress'
-                                  ? Colors.deepOrange
-                                  : Colors.grey,
-                              size: 18,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              item.itemType == 'progress'
-                                  ? 'Ubah ke Tipe Normal'
-                                  : 'Ubah ke Tipe Progress',
-                              style: const TextStyle(fontSize: 13),
-                            ),
-                          ],
+
+                    // =========================================================
+                    // OPSIONAL RUANG KONFIGURASI TIPE DI BAWAH UBAH TIPE PROGRESS
+                    // =========================================================
+                    if (item.subMateri.isEmpty && !item.isDisabled) ...[
+                      if (item.itemType != 'normal')
+                        PopupMenuItem<String>(
+                          value: 'type_normal',
+                          child: Row(
+                            children: const [
+                              Icon(
+                                Icons.toggle_off_outlined,
+                                color: Colors.grey,
+                                size: 18,
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                'Ubah ke Tipe Normal',
+                                style: TextStyle(fontSize: 13),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
+                      if (item.itemType != 'progress')
+                        PopupMenuItem<String>(
+                          value: 'type_progress',
+                          child: Row(
+                            children: const [
+                              Icon(
+                                Icons.toggle_on_rounded,
+                                color: Colors.deepOrange,
+                                size: 18,
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                'Ubah ke Tipe Progress',
+                                style: TextStyle(fontSize: 13),
+                              ),
+                            ],
+                          ),
+                        ),
+                      if (item.itemType != 'countdown')
+                        PopupMenuItem<String>(
+                          value: 'type_countdown',
+                          child: Row(
+                            children: const [
+                              Icon(
+                                Icons.exposure_minus_1_rounded,
+                                color: Colors.deepOrange,
+                                size: 18,
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                'Ubah ke Tipe Hitung Mundur',
+                                style: TextStyle(fontSize: 13),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
                     const PopupMenuDivider(),
                     PopupMenuItem<String>(
                       value: 'delete',

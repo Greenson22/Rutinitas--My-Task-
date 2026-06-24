@@ -131,6 +131,9 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
                 item.linkedSubjectName!.isNotEmpty)) {
           continue;
         }
+        if (item.itemType == 'countdown') {
+          item.currentValue = 0; // Habis/0 berarti selesai
+        }
         item.progress = 'selesai';
         item.finishedDate = formattedDate;
         if (item.subMateri.isNotEmpty) markDoneRecursive(item.subMateri);
@@ -179,6 +182,16 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
             item.progress = 'belum';
             item.finishedDate = null;
           }
+        } else if (item.itemType == 'countdown') {
+          if (isDone) {
+            item.currentValue = 0; // Langsung habis
+            item.progress = 'selesai';
+            item.finishedDate = todayStr;
+          } else {
+            item.currentValue = item.targetValue; // Reset ke batas atas semula
+            item.progress = 'belum';
+            item.finishedDate = null;
+          }
         } else {
           item.progress = isDone ? 'selesai' : 'belum';
           item.finishedDate = isDone ? todayStr : null;
@@ -212,7 +225,7 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
       );
       return;
     }
-    if (target.itemType == 'progress') {
+    if (target.itemType == 'progress' || target.itemType == 'countdown') {
       showUpdateProgressValueDialog(target);
       return;
     }
@@ -234,6 +247,16 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
             item.finishedDate = todayStr;
           } else {
             item.currentValue = 0;
+            item.progress = 'belum';
+            item.finishedDate = null;
+          }
+        } else if (item.itemType == 'countdown') {
+          if (isDone) {
+            item.currentValue = 0;
+            item.progress = 'selesai';
+            item.finishedDate = todayStr;
+          } else {
+            item.currentValue = item.targetValue;
             item.progress = 'belum';
             item.finishedDate = null;
           }
@@ -407,7 +430,9 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
     getAllItemsFlattened(widget.subject.subMateri, allFlattenedItems);
     List<SubSubjectItem> progressOptions = allFlattenedItems
         .where(
-          (e) => e.itemType == 'progress' && e.subjectName != item.subjectName,
+          (e) =>
+              (e.itemType == 'progress' || e.itemType == 'countdown') &&
+              e.subjectName != item.subjectName,
         )
         .toList();
 
@@ -433,7 +458,9 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
           externalCardProgressItems,
         );
         externalCardProgressItems = externalCardProgressItems
-            .where((el) => el.itemType == 'progress')
+            .where(
+              (el) => el.itemType == 'progress' || el.itemType == 'countdown',
+            )
             .toList();
       } else {
         selectedExternalCard = null;
@@ -462,9 +489,10 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
                   ),
 
                   // =========================================================================
-                  // INPUT BARU: KHUSUS TAMPIL JIKA BERUPA LIST TIPE NILAI (PROGRESS)
+                  // INPUT BARU: KHUSUS TAMPIL JIKA BERUPA LIST TIPE NILAI (PROGRESS / COUNTDOWN)
                   // =========================================================================
-                  if (item.itemType == 'progress') ...[
+                  if (item.itemType == 'progress' ||
+                      item.itemType == 'countdown') ...[
                     const SizedBox(height: 16),
                     Row(
                       children: [
@@ -475,9 +503,11 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
                             inputFormatters: [
                               FilteringTextInputFormatter.digitsOnly,
                             ],
-                            decoration: const InputDecoration(
-                              labelText: 'Nilai Sekarang',
-                              border: OutlineInputBorder(),
+                            decoration: InputDecoration(
+                              labelText: item.itemType == 'countdown'
+                                  ? 'Sisa Nilai'
+                                  : 'Nilai Sekarang',
+                              border: const OutlineInputBorder(),
                             ),
                           ),
                         ),
@@ -498,9 +528,11 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
                             inputFormatters: [
                               FilteringTextInputFormatter.digitsOnly,
                             ],
-                            decoration: const InputDecoration(
-                              labelText: 'Target Nilai',
-                              border: OutlineInputBorder(),
+                            decoration: InputDecoration(
+                              labelText: item.itemType == 'countdown'
+                                  ? 'Nilai Awal'
+                                  : 'Target Nilai',
+                              border: const OutlineInputBorder(),
                             ),
                           ),
                         ),
@@ -545,7 +577,6 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
                                 sub.subjectName != widget.subject.subjectName,
                           )
                           .map((sub) {
-                            // SINKRONISASI DROPDOWN SEKSI: Berikan fallback aman jika seksi bawaan bernilai 'focus' atau kosong
                             String displaySection =
                                 (sub.section == 'focus' ||
                                     sub.section.trim().isEmpty)
@@ -573,7 +604,11 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
                             externalCardProgressItems,
                           );
                           externalCardProgressItems = externalCardProgressItems
-                              .where((el) => el.itemType == 'progress')
+                              .where(
+                                (el) =>
+                                    el.itemType == 'progress' ||
+                                    el.itemType == 'countdown',
+                              )
                               .toList();
                         }
                       });
@@ -597,7 +632,7 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
                       selectedExternalCard == null
                           ? 'Pilih Card dulu'
                           : (externalCardProgressItems.isEmpty
-                                ? 'Tidak ada item progress'
+                                ? 'Tidak ada item progress/countdown'
                                 : 'Pilih Item Target'),
                     ),
                     items: selectedExternalCard == null
@@ -761,7 +796,8 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
                           : localExternalItemName;
 
                       // === PROSES SIMPAN NILAI YANG SEKARANG & TARGET BARU ===
-                      if (item.itemType == 'progress') {
+                      if (item.itemType == 'progress' ||
+                          item.itemType == 'countdown') {
                         final int parsedCurrent =
                             int.tryParse(currentValController.text) ??
                             item.currentValue;
@@ -770,20 +806,31 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
                             item.targetValue;
 
                         item.currentValue = parsedCurrent;
-                        item.targetValue = parsedTarget > 0
-                            ? parsedTarget
-                            : 1; // Menghindari pembagian 0
+                        item.targetValue = parsedTarget > 0 ? parsedTarget : 1;
 
-                        // Menyesuaikan status penyelesaian berdasarkan nilai baru
-                        if (item.currentValue >= item.targetValue) {
-                          item.progress = 'selesai';
-                          if (item.finishedDate == null) {
-                            item.finishedDate =
-                                "${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}";
+                        if (item.itemType == 'countdown') {
+                          if (item.currentValue <= 0) {
+                            item.currentValue = 0;
+                            item.progress = 'selesai';
+                            if (item.finishedDate == null) {
+                              item.finishedDate =
+                                  "${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}";
+                            }
+                          } else {
+                            item.progress = 'belum';
+                            item.finishedDate = null;
                           }
                         } else {
-                          item.progress = 'belum';
-                          item.finishedDate = null;
+                          if (item.currentValue >= item.targetValue) {
+                            item.progress = 'selesai';
+                            if (item.finishedDate == null) {
+                              item.finishedDate =
+                                  "${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}";
+                            }
+                          } else {
+                            item.progress = 'belum';
+                            item.finishedDate = null;
+                          }
                         }
                       }
                     });
@@ -1143,7 +1190,7 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
       item.isDisabled = !item.isDisabled;
       if (item.isDisabled) {
         item.progress = 'belum';
-        item.currentValue = 0;
+        item.currentValue = item.itemType == 'countdown' ? item.targetValue : 0;
         item.finishedDate = null;
       }
       for (var r in widget.subject.subMateri) {
@@ -1375,8 +1422,21 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
     widget.onDataChanged();
   }
 
-  void handleToggleItemType(SubSubjectItem item) {
-    if (item.itemType == 'normal') {
+  // PERUBAHAN: Sekarang mendukung string dinamis dari popup menu untuk inisialisasi tipe baru
+  void handleToggleItemType(SubSubjectItem item, String targetType) {
+    if (targetType == 'normal') {
+      setState(() {
+        item.itemType = 'normal';
+        item.targetValue = 0;
+        item.currentValue = 0;
+        item.progress = 'belum';
+      });
+      for (var r in widget.subject.subMateri) {
+        r.updateStatusFromChildren();
+      }
+      updateSubjectOverallProgress();
+      widget.onDataChanged();
+    } else {
       final targetController = TextEditingController();
       showDialog(
         context: context,
@@ -1386,9 +1446,11 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
-              title: const Text(
-                'Set Target Angka Progres',
-                style: TextStyle(fontWeight: FontWeight.bold),
+              title: Text(
+                targetType == 'countdown'
+                    ? 'Set Target Angka Awal Hitung Mundur'
+                    : 'Set Target Angka Progres',
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               content: TextField(
                 controller: targetController,
@@ -1396,7 +1458,7 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
                 autofocus: true,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 decoration: const InputDecoration(
-                  labelText: 'Target Nil Value (Misal: 10, 1.000, 1.000.000)',
+                  labelText: 'Nil Value (Misal: 10, 1.000, 1.000.000)',
                   border: OutlineInputBorder(),
                 ),
                 onChanged: (val) {
@@ -1427,9 +1489,12 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
                     final int? target = int.tryParse(rawText);
                     if (target != null && target > 0) {
                       setState(() {
-                        item.itemType = 'progress';
+                        item.itemType = targetType;
                         item.targetValue = target;
-                        item.currentValue = 0;
+                        // Jika countdown, nilai sekarang dimulai dari target batas atasnya
+                        item.currentValue = targetType == 'countdown'
+                            ? target
+                            : 0;
                         item.progress = 'belum';
                       });
                       for (var r in widget.subject.subMateri) {
@@ -1453,18 +1518,6 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
           },
         ),
       );
-    } else {
-      setState(() {
-        item.itemType = 'normal';
-        item.targetValue = 0;
-        item.currentValue = 0;
-        item.progress = 'belum';
-      });
-      for (var r in widget.subject.subMateri) {
-        r.updateStatusFromChildren();
-      }
-      updateSubjectOverallProgress();
-      widget.onDataChanged();
     }
   }
 
@@ -1475,6 +1528,8 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
       (match) => '.',
     );
 
+    bool isCountdown = item.itemType == 'countdown';
+
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -1484,7 +1539,9 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
               borderRadius: BorderRadius.circular(16),
             ),
             title: Text(
-              'Input Angka Progres untuk "${item.subjectName}"',
+              isCountdown
+                  ? 'Input Angka Pengurang untuk "${item.subjectName}"'
+                  : 'Input Angka Tambahan untuk "${item.subjectName}"',
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             content: Column(
@@ -1492,7 +1549,9 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Progres saat ini: ${formatDialogNum(item.currentValue)} / ${formatDialogNum(item.targetValue)}',
+                  isCountdown
+                      ? 'Sisa saat ini: ${formatDialogNum(item.currentValue)}'
+                      : 'Progres saat ini: ${formatDialogNum(item.currentValue)} / ${formatDialogNum(item.targetValue)}',
                   style: const TextStyle(color: Colors.grey, fontSize: 13),
                 ),
                 const SizedBox(height: 12),
@@ -1501,9 +1560,11 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
                   keyboardType: TextInputType.number,
                   autofocus: true,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  decoration: const InputDecoration(
-                    labelText: 'Jumlah Angka Tambahan (Misal: 1.000)',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: isCountdown
+                        ? 'Jumlah Angka Pengurang (Misal: 5)'
+                        : 'Jumlah Angka Tambahan (Misal: 1.000)',
+                    border: const OutlineInputBorder(),
                   ),
                   onChanged: (val) {
                     if (val.isEmpty) return;
@@ -1539,19 +1600,33 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
                   if (addValue != null && addValue > 0) {
                     saveToHistory();
                     setState(() {
-                      // 1. Tambah nilai ke item utama saat ini
-                      item.currentValue = item.currentValue + addValue;
-                      if (item.currentValue >= item.targetValue) {
-                        item.progress = 'selesai';
-                        item.finishedDate =
-                            "${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}";
+                      if (isCountdown) {
+                        // Proses hitung mundur mengurangi angka
+                        item.currentValue = item.currentValue - addValue;
+                        if (item.currentValue <= 0) {
+                          item.currentValue = 0;
+                          item.progress = 'selesai';
+                          item.finishedDate =
+                              "${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}";
+                        } else {
+                          item.progress = 'belum';
+                          item.finishedDate = null;
+                        }
                       } else {
-                        item.progress = 'belum';
-                        item.finishedDate = null;
+                        // Proses tipe progres biasa menambahkan angka
+                        item.currentValue = item.currentValue + addValue;
+                        if (item.currentValue >= item.targetValue) {
+                          item.progress = 'selesai';
+                          item.finishedDate =
+                              "${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}";
+                        } else {
+                          item.progress = 'belum';
+                          item.finishedDate = null;
+                        }
                       }
 
                       // =========================================================================
-                      // AKSI OTOMATIS INTERNAL CARD
+                      // AKSI OTOMATIS INTERNAL CARD (Mengirimkan nilai perubahan riil murni addValue)
                       // =========================================================================
                       if (item.accumulatorItemName != null &&
                           item.accumulatorItemName!.isNotEmpty) {
@@ -1570,19 +1645,30 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
                         );
 
                         if (accumulatorTarget.subjectName.isNotEmpty) {
-                          accumulatorTarget.currentValue += addValue;
-
-                          // Sinkronisasi status progres pada elemen akumulator pengumpul
-                          if (accumulatorTarget.itemType == 'progress' &&
-                              accumulatorTarget.targetValue > 0) {
-                            if (accumulatorTarget.currentValue >=
-                                accumulatorTarget.targetValue) {
+                          if (accumulatorTarget.itemType == 'countdown') {
+                            accumulatorTarget.currentValue -= addValue;
+                            if (accumulatorTarget.currentValue <= 0) {
+                              accumulatorTarget.currentValue = 0;
                               accumulatorTarget.progress = 'selesai';
                               accumulatorTarget.finishedDate =
                                   "${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}";
                             } else {
                               accumulatorTarget.progress = 'belum';
                               accumulatorTarget.finishedDate = null;
+                            }
+                          } else {
+                            accumulatorTarget.currentValue += addValue;
+                            if (accumulatorTarget.itemType == 'progress' &&
+                                accumulatorTarget.targetValue > 0) {
+                              if (accumulatorTarget.currentValue >=
+                                  accumulatorTarget.targetValue) {
+                                accumulatorTarget.progress = 'selesai';
+                                accumulatorTarget.finishedDate =
+                                    "${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}";
+                              } else {
+                                accumulatorTarget.progress = 'belum';
+                                accumulatorTarget.finishedDate = null;
+                              }
                             }
                           }
                         }
@@ -1622,18 +1708,30 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
                           );
 
                           if (extItemTarget.subjectName.isNotEmpty) {
-                            extItemTarget.currentValue += addValue;
-
-                            if (extItemTarget.itemType == 'progress' &&
-                                extItemTarget.targetValue > 0) {
-                              if (extItemTarget.currentValue >=
-                                  extItemTarget.targetValue) {
+                            if (extItemTarget.itemType == 'countdown') {
+                              extItemTarget.currentValue -= addValue;
+                              if (extItemTarget.currentValue <= 0) {
+                                extItemTarget.currentValue = 0;
                                 extItemTarget.progress = 'selesai';
                                 extItemTarget.finishedDate =
                                     "${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}";
                               } else {
                                 extItemTarget.progress = 'belum';
                                 extItemTarget.finishedDate = null;
+                              }
+                            } else {
+                              extItemTarget.currentValue += addValue;
+                              if (extItemTarget.itemType == 'progress' &&
+                                  extItemTarget.targetValue > 0) {
+                                if (extItemTarget.currentValue >=
+                                    extItemTarget.targetValue) {
+                                  extItemTarget.progress = 'selesai';
+                                  extItemTarget.finishedDate =
+                                      "${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}";
+                                } else {
+                                  extItemTarget.progress = 'belum';
+                                  extItemTarget.finishedDate = null;
+                                }
                               }
                             }
 
@@ -1656,9 +1754,9 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
                   }
                 },
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
-                child: const Text(
-                  'Tambah',
-                  style: TextStyle(color: Colors.white),
+                child: Text(
+                  isCountdown ? 'Kurangi' : 'Tambah',
+                  style: const TextStyle(color: Colors.white),
                 ),
               ),
             ],
@@ -1668,9 +1766,6 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
     );
   }
 
-  // =========================================================================
-  // FITUR BARU: MANAJEMEN IMPOR DATA DENGAN PARSING JSON STRUKTUR SUB-MATERI
-  // =========================================================================
   void importSubMateriFromJson(String jsonString) {
     if (jsonString.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1698,7 +1793,6 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
           );
         }
 
-        // Terapkan setelan ekspansi default ke item yang baru saja diimpor
         _applyDefaultExpansion(
           widget.subject.subMateri,
           widget.subject.defaultExpanded,
@@ -1730,7 +1824,6 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
   void showImportJsonDialog() {
     final TextEditingController jsonFieldController = TextEditingController();
 
-    // Template JSON lengkap dengan key penampung struktur model data SubSubjectItem murni secara utuh
     const String completeJsonTemplate =
         '[\n'
         '  {\n'
@@ -1759,14 +1852,7 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
         '    "accumulatorItemName": null,\n'
         '    "linkedExternalCardName": null,\n'
         '    "linkedExternalItemName": null,\n'
-        '    "sub_materi": [\n'
-        '      {\n'
-        '        "nama_materi": "Anak Sub Materi 1",\n'
-        '        "progress": "belum",\n'
-        '        "itemType": "normal",\n'
-        '        "sub_materi": []\n'
-        '      }\n'
-        '    ]\n'
+        '    "sub_materi": []\n'
         '  }\n'
         ']';
 

@@ -419,21 +419,23 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
               ),
               Row(
                 children: [
-                  ElevatedButton.icon(
-                    onPressed: selectedItems.isEmpty
-                        ? null
-                        : () => showMoveSelectedItemsDialog(allFlattened),
-                    icon: const Icon(
-                      Icons.drive_file_move,
-                      color: Colors.white,
-                      size: 16,
-                    ),
-                    label: const Text(
-                      'Pindah',
-                      style: TextStyle(color: Colors.white, fontSize: 12),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue[700],
+                  ButtonTheme(
+                    child: ElevatedButton.icon(
+                      onPressed: selectedItems.isEmpty
+                          ? null
+                          : () => showMoveSelectedItemsDialog(allFlattened),
+                      icon: const Icon(
+                        Icons.drive_file_move,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                      label: const Text(
+                        'Pindah',
+                        style: TextStyle(color: Colors.white, fontSize: 12),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue[700],
+                      ),
                     ),
                   ),
                   const SizedBox(width: 6),
@@ -498,7 +500,12 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                           if (!item.isDisabled) {
                             item.progress = 'belum';
                             item.finishedDate = null;
-                            item.currentValue = 0;
+                            // === PERUBAHAN: Jika tipenya countdown, reset ke nilai targetValue bukan 0 ===
+                            if (item.itemType == 'countdown') {
+                              item.currentValue = item.targetValue;
+                            } else {
+                              item.currentValue = 0;
+                            }
                           }
                           resetRecursive(item.subMateri);
                         }
@@ -507,7 +514,6 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                       setState(() {
                         resetRecursive(widget.subject.subMateri);
 
-                        // --- INTEGRASI BARU: Jika tanggal aktif & bukan range, jadikan hari ini ---
                         if (widget.subject.isDateActive &&
                             widget.subject.dateType != 'range') {
                           final now = DateTime.now();
@@ -531,7 +537,12 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                           item.isDisabled = false;
                           item.progress = 'belum';
                           item.finishedDate = null;
-                          item.currentValue = 0;
+                          // === PERUBAHAN: Jika tipenya countdown, reset ke nilai targetValue bukan 0 ===
+                          if (item.itemType == 'countdown') {
+                            item.currentValue = item.targetValue;
+                          } else {
+                            item.currentValue = 0;
+                          }
                           forceResetAllRecursive(item.subMateri);
                         }
                       }
@@ -539,7 +550,6 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                       setState(() {
                         forceResetAllRecursive(widget.subject.subMateri);
 
-                        // --- INTEGRASI BARU: Jika tanggal aktif & bukan range, jadikan hari ini ---
                         if (widget.subject.isDateActive &&
                             widget.subject.dateType != 'range') {
                           final now = DateTime.now();

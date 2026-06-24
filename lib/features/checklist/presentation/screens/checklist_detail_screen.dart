@@ -405,7 +405,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(
-                        'Gagal menyimpan! Format atau parameter JSON tidak valid.\nDetail: $err',
+                        'Gagal menyimpan! Format atau parameter JSON tidak valid.\\nDetail: $err',
                       ),
                       backgroundColor: Colors.redAccent,
                       duration: const Duration(
@@ -642,13 +642,18 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
           // Jika memiliki anak (nested list), telusuri anak-anaknya saja tanpa menghitung induk
           count += _countFinishedItems(item.subMateri);
         } else {
-          // === PERUBAHAN: Hitung kontribusi proporsional jika bertipe progress/input angka ===
+          // === PERUBAHAN: Hitung kontribusi proporsional jika bertipe progress/countdown ===
           if (item.itemType == 'progress' && item.targetValue > 0) {
             double progressRatio = item.currentValue / item.targetValue;
             count += progressRatio.clamp(
               0.0,
               1.0,
             ); // Batasi rasio antara 0.0 - 1.0
+          } else if (item.itemType == 'countdown' && item.targetValue > 0) {
+            // Tipe hitung mundur: Kemajuan dihitung berdasarkan sisa yang sudah berkurang (Target - Saat Ini) / Target
+            double progressRatio =
+                (item.targetValue - item.currentValue) / item.targetValue;
+            count += progressRatio.clamp(0.0, 1.0);
           } else {
             // Hanya hitung item ujung (tanpa anak) yang status progressnya selesai
             if (item.progress == 'selesai') {
@@ -798,9 +803,6 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
 
           final section = currentGroup.allList[index];
 
-          // PERBAIKAN: Baris logika pengecekan 'hideHeader' dihapus agar seksi header
-          // selalu dirender dan tampil ke layar smartphone meskipun jumlah seksi hanya ada satu.
-
           return InteractiveSectionHeader(
             sectionName: section.sectionName,
             themeColor: Colors.teal[800]!,
@@ -909,15 +911,18 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                         color: Colors.redAccent,
                       ),
                       const SizedBox(width: 4),
-                      Flexible(
-                        child: Text(
-                          notePreviewText,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Color(subject.backgroundColor),
-                            fontStyle: FontStyle.italic,
+                      Theme(
+                        data: Theme.of(context),
+                        child: Flexible(
+                          child: Text(
+                            notePreviewText,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Color(subject.backgroundColor),
+                              fontStyle: FontStyle.italic,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
