@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart'; // Ditambahkan untuk mendeteksi kDebugMode
+import 'package:flutter/services.dart'; // TAMBAHAN: Diperlukan untuk interaksi Clipboard (Salin/Tempel JSON)
 import 'package:google_mobile_ads/google_mobile_ads.dart'; // Ditambahkan untuk SDK AdMob
 import '../../data/models/daily_model.dart';
 import '../controllers/checklist_detail_controller.dart';
@@ -204,6 +205,221 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
             TextButton(
               onPressed: () => Navigator.pop(dialogCtx),
               child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // =========================================================================
+  // FITUR UTAMA BARU: Dialog Editor Raw JSON Item Checklist (Sangat Interaktif)
+  // =========================================================================
+  void _showEditJsonDialog(DailySubject subject) {
+    final TextEditingController jsonController = TextEditingController();
+
+    // Transformasikan model subject saat ini menjadi raw teks JSON dengan Pretty Print (Indentation)
+    try {
+      final map = subject.toJson();
+      jsonController.text = const JsonEncoder.withIndent('  ').convert(map);
+    } catch (e) {
+      jsonController.text = "{}";
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.data_object_rounded, color: Colors.deepOrange),
+              SizedBox(width: 8),
+              Text(
+                'Edit Raw JSON Item',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            height:
+                MediaQuery.of(context).size.height *
+                0.62, // Mengisi 62% tinggi layar agar luas dan presisi
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Peringatan: Struktur JSON harus valid. Perubahan struktur sub-materi akan langsung diperbarui.',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.redAccent,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Menyediakan tombol interaktif Salin & Tempel cepat untuk meningkatkan UX
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(
+                            Icons.copy_all,
+                            color: Colors.indigo,
+                            size: 20,
+                          ),
+                          tooltip: 'Salin JSON',
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          onPressed: () async {
+                            await Clipboard.setData(
+                              ClipboardData(text: jsonController.text),
+                            );
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'JSON berhasil disalin ke clipboard!',
+                                  ),
+                                  duration: Duration(seconds: 1),
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                        const SizedBox(width: 14),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.paste,
+                            color: Colors.teal,
+                            size: 20,
+                          ),
+                          tooltip: 'Tempel JSON',
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          onPressed: () async {
+                            final clipboardData = await Clipboard.getData(
+                              Clipboard.kTextPlain,
+                            );
+                            if (clipboardData != null &&
+                                clipboardData.text != null) {
+                              jsonController.text = clipboardData.text!;
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: TextField(
+                    controller: jsonController,
+                    maxLines: null,
+                    expands: true,
+                    textAlignVertical: TextAlignVertical.top,
+                    style: const TextStyle(
+                      fontFamily: 'Courier',
+                      fontSize: 13,
+                      height: 1.3,
+                    ), // Font bergaya monospace koding
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      fillColor: Color(0xFFF8F9FA),
+                      filled: true,
+                      hintText:
+                          'Tempel atau ketik modifikasi struktur objek JSON disini...',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                try {
+                  final String rawInput = jsonController.text.trim();
+                  if (rawInput.isEmpty)
+                    throw Exception("Konten koding JSON tidak boleh kosong.");
+
+                  final decodedJson = jsonDecode(rawInput);
+                  if (decodedJson is! Map<String, dynamic>) {
+                    throw const FormatException(
+                      'Format root JSON utama wajib berupa Objek Map kriting {...}',
+                    );
+                  }
+
+                  // Melakukan parsing data instans baru untuk memvalidasi data model
+                  final parsedSubject = DailySubject.fromJson(decodedJson);
+
+                  setState(() {
+                    // Update field demi field untuk mempertahankan sinkronisasi visual Grid
+                    subject.subjectName = parsedSubject.subjectName;
+                    subject.progress = parsedSubject.progress;
+                    subject.subMateri = parsedSubject.subMateri;
+                    subject.backgroundColor = parsedSubject.backgroundColor;
+                    subject.textColor = parsedSubject.textColor;
+                    subject.progressBarColor = parsedSubject.progressBarColor;
+                    subject.icon = parsedSubject.icon;
+                    subject.isHidden = parsedSubject.isHidden;
+                    subject.type = parsedSubject.type;
+                    subject.noteContent = parsedSubject.noteContent;
+                    subject.date = parsedSubject.date;
+                    subject.isDateActive = parsedSubject.isDateActive;
+                    subject.dateType = parsedSubject.dateType;
+                    subject.endDate = parsedSubject.endDate;
+                    subject.isMarkdownEnabled = parsedSubject.isMarkdownEnabled;
+                    subject.defaultExpanded = parsedSubject.defaultExpanded;
+
+                    // Jalankan rekursif updateStatus agar kalkulasi bar progress ikut sinkron otomatis
+                    for (var root in subject.subMateri) {
+                      root.updateStatusFromChildren();
+                    }
+                  });
+
+                  saveGroupData(); // Tulis perubahan ke dalam file penyimpanan fisik
+                  Navigator.pop(context);
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Sempurna! Perubahan via JSON berhasil diterapkan.',
+                      ),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                } catch (err) {
+                  debugPrint("Gagal memproses pengeditan JSON: $err");
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Gagal menyimpan! Format atau parameter JSON tidak valid.\nDetail: $err',
+                      ),
+                      backgroundColor: Colors.redAccent,
+                      duration: const Duration(
+                        seconds: 4,
+                      ), // Waktu durasi lebih lama agar pengguna bisa menganalisis error kodingnya
+                    ),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
+              child: const Text(
+                'Simpan JSON',
+                style: TextStyle(color: Colors.white),
+              ),
             ),
           ],
         );
@@ -931,6 +1147,27 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                   ],
                 ),
               ),
+
+              // === SELESAI INTEGRASI MENU POPUP: AKSI EDIT RAW JSON CARD ===
+              const PopupMenuDivider(),
+              const PopupMenuItem<String>(
+                value: 'EDIT_RAW_JSON',
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.data_object_rounded,
+                      size: 18,
+                      color: Colors.deepOrange,
+                    ),
+                    SizedBox(width: 10),
+                    Text(
+                      'Edit Raw JSON',
+                      style: TextStyle(fontSize: 13, color: Colors.deepOrange),
+                    ),
+                  ],
+                ),
+              ),
+
               if (currentGroup.allList.length > 1 ||
                   _loadedAllGroups.length > 1)
                 const PopupMenuDivider(),
@@ -959,6 +1196,10 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
 
               if (value == 'DELETE_ACTION') {
                 deleteItemFromSection(originalSection.items, subject);
+              } else if (value == 'EDIT_RAW_JSON') {
+                _showEditJsonDialog(
+                  subject,
+                ); // Memicu Editor Dialog JSON interaktif yang baru dibuat
               } else if (value == 'CHOOSE_EXTERNAL_GROUP_DIALOG') {
                 _showTargetGroupSelectionDialog(
                   originalSection: originalSection,
