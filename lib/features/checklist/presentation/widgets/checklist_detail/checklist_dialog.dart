@@ -504,7 +504,17 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                         }
                       }
 
-                      setState(() => resetRecursive(widget.subject.subMateri));
+                      setState(() {
+                        resetRecursive(widget.subject.subMateri);
+
+                        // --- INTEGRASI BARU: Jika tanggal aktif & bukan range, jadikan hari ini ---
+                        if (widget.subject.isDateActive &&
+                            widget.subject.dateType != 'range') {
+                          final now = DateTime.now();
+                          widget.subject.date =
+                              "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+                        }
+                      });
                       updateSubjectOverallProgress();
                       widget.onDataChanged();
                     },
@@ -526,9 +536,17 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                         }
                       }
 
-                      setState(
-                        () => forceResetAllRecursive(widget.subject.subMateri),
-                      );
+                      setState(() {
+                        forceResetAllRecursive(widget.subject.subMateri);
+
+                        // --- INTEGRASI BARU: Jika tanggal aktif & bukan range, jadikan hari ini ---
+                        if (widget.subject.isDateActive &&
+                            widget.subject.dateType != 'range') {
+                          final now = DateTime.now();
+                          widget.subject.date =
+                              "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+                        }
+                      });
                       updateSubjectOverallProgress();
                       widget.onDataChanged();
 
