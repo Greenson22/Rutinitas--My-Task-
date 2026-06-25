@@ -1189,7 +1189,11 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                   context: context,
                   builder: (ctx) => ChangeColorDialog(
                     subject: widget.subject,
-                    onColorSaved: () => setState(() {}),
+                    onColorSaved: () {
+                      setState(() {});
+                      widget
+                          .onDataChanged(); // Menambahkan fungsi penyimpan data
+                    },
                   ),
                 ),
               ),
