@@ -55,10 +55,7 @@ class ChecklistTreeView extends StatelessWidget {
 
   // Fungsi pembantu untuk memformat angka dengan separator titik ribuan Indonesia
   String _formatNumber(int number) {
-    return number.toString().replaceAllWithRegExp(
-      RegExp(r'\B(?=(\d{3})+(?!\d))'),
-      '.',
-    );
+    return number.toString().replaceAll(RegExp(r'\B(?=(\d{3})+(?!\d))'), '.');
   }
 
   @override
@@ -176,18 +173,48 @@ class ChecklistTreeView extends StatelessWidget {
                                 ),
                               const SizedBox(width: 4),
                               Expanded(
-                                child: Text(
-                                  item.subjectName +
-                                      (isLinkedAndLocked ? ' 白' : '') +
-                                      (hasExternalCardLink ? ' 迫' : ''),
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: item.isDisabled
-                                        ? Colors.red.shade400
-                                        : Colors.black87,
-                                    decoration: item.isDisabled
-                                        ? TextDecoration.lineThrough
-                                        : null,
+                                child: RichText(
+                                  text: TextSpan(
+                                    text: item.subjectName,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontFamily:
+                                          'Roboto', // Memastikan fallback font aman
+                                      color: item.isDisabled
+                                          ? Colors.red.shade400
+                                          : Colors.black87,
+                                      decoration: item.isDisabled
+                                          ? TextDecoration.lineThrough
+                                          : null,
+                                    ),
+                                    children: [
+                                      if (isLinkedAndLocked)
+                                        const WidgetSpan(
+                                          alignment:
+                                              PlaceholderAlignment.middle,
+                                          child: Padding(
+                                            padding: EdgeInsets.only(left: 4.0),
+                                            child: Icon(
+                                              Icons.lock_outline,
+                                              size: 14,
+                                              color: Colors.amber,
+                                            ),
+                                          ),
+                                        ),
+                                      if (hasExternalCardLink)
+                                        const WidgetSpan(
+                                          alignment:
+                                              PlaceholderAlignment.middle,
+                                          child: Padding(
+                                            padding: EdgeInsets.only(left: 4.0),
+                                            child: Icon(
+                                              Icons.bolt,
+                                              size: 15,
+                                              color: Colors.amber,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
                                   ),
                                 ),
                               ),
@@ -271,32 +298,56 @@ class ChecklistTreeView extends StatelessWidget {
                                       const SizedBox(width: 4),
                                     ],
                                     Flexible(
-                                      child: Text(
-                                        item.subjectName +
-                                            (hasExternalCardLink ? ' 迫' : ''),
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontStyle:
-                                              !item.isExpanded &&
-                                                  item.subMateri.isNotEmpty
-                                              ? FontStyle.italic
-                                              : (item.isDisabled
-                                                    ? FontStyle.italic
-                                                    : null),
-                                          fontWeight: item.subMateri.isNotEmpty
-                                              ? FontWeight.w600
-                                              : FontWeight.normal,
-                                          decoration:
-                                              item.isDisabled || isChecked
-                                              ? TextDecoration.lineThrough
-                                              : null,
-                                          color: item.isDisabled
-                                              ? Colors.red.shade300
-                                              : (isLinkedAndLocked && !isChecked
-                                                    ? Colors.grey.shade700
-                                                    : (isChecked
-                                                          ? Colors.grey
-                                                          : Colors.black87)),
+                                      child: RichText(
+                                        text: TextSpan(
+                                          text: item.subjectName,
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontFamily: 'Roboto',
+                                            fontStyle:
+                                                !item.isExpanded &&
+                                                    item.subMateri.isNotEmpty
+                                                ? FontStyle.italic
+                                                : (item.isDisabled
+                                                      ? FontStyle.italic
+                                                      : null),
+                                            fontWeight:
+                                                item.subMateri.isNotEmpty
+                                                ? FontWeight.w600
+                                                : FontWeight.normal,
+                                            decoration:
+                                                item.isDisabled || isChecked
+                                                ? TextDecoration.lineThrough
+                                                : null,
+                                            color: item.isDisabled
+                                                ? Colors.red.shade300
+                                                : (isLinkedAndLocked &&
+                                                          !isChecked
+                                                      ? Colors.grey.shade700
+                                                      : (isChecked
+                                                            ? Colors.grey
+                                                            : Colors.black87)),
+                                          ),
+                                          children: [
+                                            if (hasExternalCardLink)
+                                              WidgetSpan(
+                                                alignment:
+                                                    PlaceholderAlignment.middle,
+                                                child: Padding(
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                        left: 4.0,
+                                                      ),
+                                                  child: Icon(
+                                                    Icons.bolt,
+                                                    size: 15,
+                                                    color: isChecked
+                                                        ? Colors.grey
+                                                        : Colors.amber[700],
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
                                         ),
                                       ),
                                     ),
@@ -555,11 +606,5 @@ class ChecklistTreeView extends StatelessWidget {
           ),
       ],
     );
-  }
-}
-
-extension on String {
-  String replaceAllWithRegExp(RegExp regExp, String replacement) {
-    return this.replaceAllMapped(regExp, (match) => replacement);
   }
 }
