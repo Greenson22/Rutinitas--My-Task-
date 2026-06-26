@@ -261,7 +261,7 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
           );
         },
         gridItemBuilder: (context, group, index, sectionItems, isLayoutEditMode) {
-          // UBAH BARIS INI: Ambil jumlah dokumen asli dari controller, bukan json
+          // Ambil jumlah dokumen asli dari controller, bukan json
           int totalDocsCount = _controller.groupFileCounts[group.id] ?? 0;
 
           return InteractiveGridCard(
@@ -287,23 +287,40 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
             onMoveRight: () =>
                 _controller.moveGroupOrder(sectionItems, index, 1),
             popupMenuItems: [
-              const PopupMenuItem(
+              // 1. MENU VISIBILITAS GROUP (Sembunyikan/Tampilkan Group)
+              PopupMenuItem(
                 value: 'toggle_visibility',
                 child: Row(
                   children: [
-                    Icon(Icons.visibility),
-                    SizedBox(width: 8),
-                    Text('Visibilitas'),
+                    Icon(
+                      group.isHidden ? Icons.visibility : Icons.visibility_off,
+                      size: 18,
+                      color: Colors.blueGrey,
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      group.isHidden ? 'Tampilkan Group' : 'Sembunyikan Group',
+                      style: const TextStyle(fontSize: 13),
+                    ),
                   ],
                 ),
               ),
-              const PopupMenuItem(
+              const PopupMenuDivider(), // Pembatas visual item menu berbahaya
+              // 2. MENU HAPUS GROUP
+              PopupMenuItem(
                 value: 'delete',
                 child: Row(
                   children: [
-                    Icon(Icons.delete, color: Colors.red),
-                    SizedBox(width: 8),
-                    Text('Hapus'),
+                    const Icon(
+                      Icons.delete_outline,
+                      size: 18,
+                      color: Colors.redAccent,
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Hapus Group',
+                      style: TextStyle(color: Colors.redAccent, fontSize: 13),
+                    ),
                   ],
                 ),
               ),
@@ -350,7 +367,7 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
-                    '$totalDocsCount File', // <-- Ubah label sedikit agar lebih akurat (opsional)
+                    '$totalDocsCount File',
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
