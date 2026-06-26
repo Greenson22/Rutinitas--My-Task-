@@ -1,4 +1,4 @@
-// lib/features/documents/presentation/screens/my_documents_screen.dart
+// lib/features/documents/presentation/screens/document_screen.dart
 import 'package:flutter/material.dart';
 import '../../../../core/presentation/widgets/drawer_menu.dart';
 import '../../../../core/presentation/widgets/grouped_section_layout.dart';

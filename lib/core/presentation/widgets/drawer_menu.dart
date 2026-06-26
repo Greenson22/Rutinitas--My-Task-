@@ -10,7 +10,7 @@ import '../../../features/data_center/data_center_screen.dart';
 import '../../../features/about/presentation/pages/about_page.dart';
 import '../../../features/task_master/presentation/widgets/settings_dialog.dart';
 import '../../../features/random/presentation/screens/random_screen.dart'; // IMPORT SCREEN BARU
-import '../../../features/documents/presentation/screens/my_documents_screen.dart'; // IMPORT SKRIN MYDOCUMENTS BARU
+import '../../../features/documents/presentation/screens/document_screen.dart'; // IMPORT SKRIN MYDOCUMENTS BARU
 import '../../services/storage_service.dart';
 
 class DrawerMenu extends StatefulWidget {
