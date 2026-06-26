@@ -18,7 +18,7 @@ class MyDocumentsScreen extends StatefulWidget {
 
 class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
   late DocumentsController _controller;
-  final Color _themeColor = Colors.blueGrey; // Warna tema khusus Documents
+  final Color _themeColor = Colors.blueGrey;
 
   @override
   void initState() {
@@ -37,8 +37,6 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
     _controller.dispose();
     super.dispose();
   }
-
-  // --- LOGIKA DIALOG (Serupa dengan Checklist) ---
 
   void _showSequentialAddDialog() {
     final sectionController = TextEditingController();
@@ -216,11 +214,10 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
               final updatedName = nameController.text.trim();
               final updatedIcon = iconController.text.trim();
               if (updatedName.isNotEmpty) {
-                setState(() {
-                  group.groupName = updatedName;
-                  group.icon = updatedIcon.isEmpty ? ' ' : updatedIcon;
-                });
+                group.groupName = updatedName;
+                group.icon = updatedIcon.isEmpty ? ' ' : updatedIcon;
                 await _controller.saveGroupDataToFile(group);
+                await _controller.loadGroupsData(); // Refresh UI Controller
                 if (mounted) Navigator.pop(context);
               }
             },
@@ -232,7 +229,6 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
     );
   }
 
-  // --- FITUR BARU: DIALOG KONFIRMASI HAPUS SEKSI SEPERTI DI NOTES ---
   Future<bool> _showConfirmDeleteSectionDialog(String sectionName) async {
     return await showDialog<bool>(
           context: context,
@@ -348,9 +344,8 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
             onToggleEdit: _controller.toggleSectionEditMode,
             onMoveUp: () => _controller.moveMainSectionOrder(sectionKey, -1),
             onMoveDown: () => _controller.moveMainSectionOrder(sectionKey, 1),
-            onEditName: () {}, // Tambahkan logika edit seksi jika diperlukan
+            onEditName: () {}, // Anda bisa menambahkan Edit Dialog nanti
             onDelete: () async {
-              // IMPLEMENTASI KONFIRMASI SEBELUM MENGHAPUS SEKSI
               final bool confirm = await _showConfirmDeleteSectionDialog(
                 sectionKey,
               );
@@ -425,16 +420,16 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
                     ),
                   ),
                   const PopupMenuDivider(),
-                  PopupMenuItem(
+                  const PopupMenuItem(
                     value: 'delete',
                     child: Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.delete_outline,
                           size: 18,
                           color: Colors.redAccent,
                         ),
-                        const SizedBox(width: 10),
+                        SizedBox(width: 10),
                         Text(
                           'Hapus Group',
                           style: TextStyle(

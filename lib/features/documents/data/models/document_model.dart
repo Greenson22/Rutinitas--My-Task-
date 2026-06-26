@@ -67,6 +67,7 @@ class DocumentGroup {
   String icon;
   String sectionCategory;
   bool isHidden;
+  int orderIndex; // <--- BARU: Menyimpan urutan posisi group
   List<DocumentSection> allList;
 
   DocumentGroup({
@@ -75,6 +76,7 @@ class DocumentGroup {
     required this.icon,
     required this.sectionCategory,
     this.isHidden = false,
+    this.orderIndex = 0, // <--- BARU: Default value urutan
     required this.allList,
   });
 
@@ -85,6 +87,7 @@ class DocumentGroup {
       icon: json['icon'] ?? '📁',
       sectionCategory: json['sectionCategory'] ?? 'Lainnya',
       isHidden: json['isHidden'] ?? false,
+      orderIndex: json['order_index'] ?? 0, // <--- BARU: Parsing dari JSON
       allList:
           (json['allList'] as List<dynamic>?)
               ?.map((section) => DocumentSection.fromJson(section))
@@ -100,6 +103,7 @@ class DocumentGroup {
       'icon': icon,
       'sectionCategory': sectionCategory,
       'isHidden': isHidden,
+      'order_index': orderIndex, // <--- BARU: Menyimpan ke JSON
       'allList': allList.map((section) => section.toJson()).toList(),
     };
   }
