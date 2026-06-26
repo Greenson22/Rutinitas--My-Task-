@@ -65,18 +65,20 @@ class DocumentGroup {
   String id;
   String groupName;
   String icon;
-  String sectionCategory;
+  String
+  sectionCategory; // Ini yang bertindak sebagai nama Seksi (seperti sectionName di notes)
   bool isHidden;
-  int orderIndex; // <--- BARU: Menyimpan urutan posisi group
+  int orderIndex;
   List<DocumentSection> allList;
 
   DocumentGroup({
     required this.id,
     required this.groupName,
     required this.icon,
-    required this.sectionCategory,
+    this.sectionCategory =
+        'Catatan Utama', // <--- DIUBAH: Berikan default 'Catatan Utama' jika baru dibuat
     this.isHidden = false,
-    this.orderIndex = 0, // <--- BARU: Default value urutan
+    this.orderIndex = 0,
     required this.allList,
   });
 
@@ -85,9 +87,15 @@ class DocumentGroup {
       id: json['id'] ?? '',
       groupName: json['groupName'] ?? 'Untitled Group',
       icon: json['icon'] ?? '📁',
-      sectionCategory: json['sectionCategory'] ?? 'Lainnya',
+      // <--- DIUBAH: Jika di JSON kosong atau bertuliskan "Lainnya", arahkan ke "Catatan Utama" agar seragam dengan Notes
+      sectionCategory:
+          (json['sectionCategory'] == null ||
+              json['sectionCategory'] == 'Lainnya' ||
+              json['sectionCategory'].toString().isEmpty)
+          ? 'Catatan Utama'
+          : json['sectionCategory'],
       isHidden: json['isHidden'] ?? false,
-      orderIndex: json['order_index'] ?? 0, // <--- BARU: Parsing dari JSON
+      orderIndex: json['order_index'] ?? 0,
       allList:
           (json['allList'] as List<dynamic>?)
               ?.map((section) => DocumentSection.fromJson(section))
@@ -101,9 +109,11 @@ class DocumentGroup {
       'id': id,
       'groupName': groupName,
       'icon': icon,
-      'sectionCategory': sectionCategory,
+      'sectionCategory': sectionCategory.isEmpty
+          ? 'Catatan Utama'
+          : sectionCategory, // <--- DIUBAH: Pastikan selalu tersimpan dengan benar
       'isHidden': isHidden,
-      'order_index': orderIndex, // <--- BARU: Menyimpan ke JSON
+      'order_index': orderIndex,
       'allList': allList.map((section) => section.toJson()).toList(),
     };
   }

@@ -38,6 +38,87 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
     super.dispose();
   }
 
+  // =========================================================================
+  // FITUR BARU: DIALOG PEMINDAHAN GRUP DOKUMEN KE SEKSI LAIN (PERSIS STYLE NOTES)
+  // =========================================================================
+  void _showMoveGroupSectionDialog(DocumentGroup group) {
+    if (group.id.startsWith("CORRUPTED_")) return;
+
+    // Kumpulkan seksi unik dari visible group
+    List<String> availableSections = _controller.groupedVisibleGroup.keys
+        .toList();
+
+    // Kumpulkan seksi dari hidden group jika ada seksi unik yang belum tercatat
+    for (var key in _controller.groupedHiddenGroup.keys) {
+      if (!availableSections.contains(key)) {
+        availableSections.add(key);
+      }
+    }
+
+    if (!availableSections.contains("Catatan Utama")) {
+      availableSections.add("Catatan Utama");
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Pindahkan "${group.groupName}" ke Seksi...'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: availableSections.length,
+              itemBuilder: (context, index) {
+                final sectionName = availableSections[index];
+                final bool isCurrentSection =
+                    group.sectionCategory == sectionName;
+                return ListTile(
+                  title: Text(sectionName),
+                  leading: Icon(
+                    isCurrentSection ? Icons.folder_special : Icons.folder_open,
+                    color: isCurrentSection ? _themeColor : Colors.grey,
+                  ),
+                  trailing: isCurrentSection
+                      ? Icon(Icons.check_circle, color: _themeColor)
+                      : null,
+                  selected: isCurrentSection,
+                  onTap: isCurrentSection
+                      ? null
+                      : () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          Navigator.pop(context);
+
+                          // Gunakan fungsi controller yang sudah ada untuk memindahkan data seksi
+                          await _controller.moveGroupToAnotherSection(
+                            group,
+                            sectionName.isEmpty ? "Catatan Utama" : sectionName,
+                          );
+
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Grup "${group.groupName}" berhasil dipindahkan ke seksi "$sectionName"',
+                              ),
+                              backgroundColor: _themeColor,
+                            ),
+                          );
+                        },
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Batal'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   void _showSequentialAddDialog() {
     final sectionController = TextEditingController();
     final formKey = GlobalKey<FormState>();
@@ -398,6 +479,23 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
                       ],
                     ),
                   ),
+                  // ---------------------------------------------------------
+                  // SUB-MENU BARU: OPSI PINDAH SEKSI PADA MENU POPUP KARTU
+                  // ---------------------------------------------------------
+                  const PopupMenuItem(
+                    value: 'move_section',
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.drive_file_move_outlined,
+                          size: 18,
+                          color: Colors.indigo,
+                        ),
+                        SizedBox(width: 10),
+                        Text('Pindahkan Seksi', style: TextStyle(fontSize: 13)),
+                      ],
+                    ),
+                  ),
                   PopupMenuItem(
                     value: 'toggle_visibility',
                     child: Row(
@@ -444,6 +542,9 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
                 onPopupSelected: (value) {
                   if (value == 'edit') {
                     _showEditGroupDialog(group);
+                  }
+                  if (value == 'move_section') {
+                    _showMoveGroupSectionDialog(group); // Pemicu Dialog Baru
                   }
                   if (value == 'toggle_visibility') {
                     _controller.toggleGroupVisibility(group);
