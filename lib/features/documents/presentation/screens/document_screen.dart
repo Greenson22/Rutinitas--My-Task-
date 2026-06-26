@@ -180,7 +180,6 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
     );
   }
 
-  // --- FITUR BARU: DIALOG EDIT NAMA & IKON GRUP SEPERTI DI NOTES ---
   void _showEditGroupDialog(DocumentGroup group) {
     final TextEditingController nameController = TextEditingController(
       text: group.groupName,
@@ -188,7 +187,6 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
     final TextEditingController iconController = TextEditingController(
       text: group.icon,
     );
-
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -220,7 +218,7 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
               if (updatedName.isNotEmpty) {
                 setState(() {
                   group.groupName = updatedName;
-                  group.icon = updatedIcon.isEmpty ? '📁' : updatedIcon;
+                  group.icon = updatedIcon.isEmpty ? ' ' : updatedIcon;
                 });
                 await _controller.saveGroupDataToFile(group);
                 if (mounted) Navigator.pop(context);
@@ -232,6 +230,47 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
         ],
       ),
     );
+  }
+
+  // --- FITUR BARU: DIALOG KONFIRMASI HAPUS SEKSI SEPERTI DI NOTES ---
+  Future<bool> _showConfirmDeleteSectionDialog(String sectionName) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
+                SizedBox(width: 8),
+                Text('Hapus Seksi?'),
+              ],
+            ),
+            content: Text(
+              'Apakah Anda yakin ingin menghapus seksi "$sectionName"? '
+              'Semua grup dan dokumen di dalam seksi ini akan dihapus permanen dari penyimpanan.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text(
+                  'Batal',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                child: const Text(
+                  'Hapus Semua',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        ) ??
+        false;
   }
 
   @override
@@ -310,143 +349,162 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
             onMoveUp: () => _controller.moveMainSectionOrder(sectionKey, -1),
             onMoveDown: () => _controller.moveMainSectionOrder(sectionKey, 1),
             onEditName: () {}, // Tambahkan logika edit seksi jika diperlukan
-            onDelete: () => _controller.deleteMainSection(sectionKey),
+            onDelete: () async {
+              // IMPLEMENTASI KONFIRMASI SEBELUM MENGHAPUS SEKSI
+              final bool confirm = await _showConfirmDeleteSectionDialog(
+                sectionKey,
+              );
+              if (confirm) {
+                _controller.deleteMainSection(sectionKey);
+              }
+            },
             onAddItem: () => _showAddGroupDialogAtSection(sectionKey),
           );
         },
-        gridItemBuilder: (context, group, index, sectionItems, isLayoutEditMode) {
-          // Ambil jumlah dokumen asli dari controller, bukan json
-          int totalDocsCount = _controller.groupFileCounts[group.id] ?? 0;
+        gridItemBuilder:
+            (context, group, index, sectionItems, isLayoutEditMode) {
+              int totalDocsCount = _controller.groupFileCounts[group.id] ?? 0;
 
-          return InteractiveGridCard(
-            themeColor: _themeColor,
-            isEditMode: isLayoutEditMode ? true : _controller.isPageEditMode,
-            isHiddenStyle: group.isHidden,
-            isFirst: index == 0,
-            isLast: index == sectionItems.length - 1,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => DocumentDetailScreen(
-                    group: group,
-                    baseDir: _controller.selectedBaseDir,
-                  ),
-                ),
-              ).then((_) => _controller.loadGroupsData());
-            },
-            onLongPress: _controller.togglePageEditMode,
-            onMoveLeft: () =>
-                _controller.moveGroupOrder(sectionItems, index, -1),
-            onMoveRight: () =>
-                _controller.moveGroupOrder(sectionItems, index, 1),
-            popupMenuItems: [
-              // 1. MENU UBAH NAMA & IKON (Ditambahkan Mengikuti Fitur Notes)
-              const PopupMenuItem(
-                value: 'edit',
-                child: Row(
-                  children: [
-                    Icon(Icons.edit, size: 18, color: Colors.teal),
-                    SizedBox(width: 10),
-                    Text('Ubah Nama & Ikon', style: TextStyle(fontSize: 13)),
-                  ],
-                ),
-              ),
-              // 2. MENU VISIBILITAS GROUP (Sembunyikan/Tampilkan Group)
-              PopupMenuItem(
-                value: 'toggle_visibility',
-                child: Row(
-                  children: [
-                    Icon(
-                      group.isHidden ? Icons.visibility : Icons.visibility_off,
-                      size: 18,
-                      color: Colors.blueGrey,
+              return InteractiveGridCard(
+                themeColor: _themeColor,
+                isEditMode: isLayoutEditMode
+                    ? true
+                    : _controller.isPageEditMode,
+                isHiddenStyle: group.isHidden,
+                isFirst: index == 0,
+                isLast: index == sectionItems.length - 1,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => DocumentDetailScreen(
+                        group: group,
+                        baseDir: _controller.selectedBaseDir,
+                      ),
                     ),
-                    const SizedBox(width: 10),
+                  ).then((_) => _controller.loadGroupsData());
+                },
+                onLongPress: _controller.togglePageEditMode,
+                onMoveLeft: () =>
+                    _controller.moveGroupOrder(sectionItems, index, -1),
+                onMoveRight: () =>
+                    _controller.moveGroupOrder(sectionItems, index, 1),
+                popupMenuItems: [
+                  const PopupMenuItem(
+                    value: 'edit',
+                    child: Row(
+                      children: [
+                        Icon(Icons.edit, size: 18, color: Colors.teal),
+                        SizedBox(width: 10),
+                        Text(
+                          'Ubah Nama & Ikon',
+                          style: TextStyle(fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'toggle_visibility',
+                    child: Row(
+                      children: [
+                        Icon(
+                          group.isHidden
+                              ? Icons.visibility
+                              : Icons.visibility_off,
+                          size: 18,
+                          color: Colors.blueGrey,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          group.isHidden
+                              ? 'Tampilkan Group'
+                              : 'Sembunyikan Group',
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuDivider(),
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.delete_outline,
+                          size: 18,
+                          color: Colors.redAccent,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Hapus Group',
+                          style: TextStyle(
+                            color: Colors.redAccent,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                onPopupSelected: (value) {
+                  if (value == 'edit') {
+                    _showEditGroupDialog(group);
+                  }
+                  if (value == 'toggle_visibility') {
+                    _controller.toggleGroupVisibility(group);
+                  }
+                  if (value == 'delete') {
+                    _controller.deleteGroup(group);
+                  }
+                },
+                content: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
                     Text(
-                      group.isHidden ? 'Tampilkan Group' : 'Sembunyikan Group',
-                      style: const TextStyle(fontSize: 13),
+                      group.icon,
+                      style: TextStyle(
+                        fontSize: 28,
+                        color: group.isHidden ? Colors.grey : Colors.black,
+                      ),
                     ),
-                  ],
-                ),
-              ),
-              const PopupMenuDivider(), // Pembatas visual item menu berbahaya
-              // 3. MENU HAPUS GROUP
-              PopupMenuItem(
-                value: 'delete',
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.delete_outline,
-                      size: 18,
-                      color: Colors.redAccent,
-                    ),
-                    const SizedBox(width: 10),
+                    const SizedBox(height: 8),
                     Text(
-                      'Hapus Group',
-                      style: TextStyle(color: Colors.redAccent, fontSize: 13),
+                      group.groupName,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: group.isHidden ? Colors.grey : Colors.black87,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: (group.isHidden ? Colors.grey : _themeColor)
+                            .withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '$totalDocsCount File',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: group.isHidden
+                              ? Colors.grey[700]
+                              : _themeColor,
+                        ),
+                      ),
                     ),
                   ],
                 ),
-              ),
-            ],
-            onPopupSelected: (value) {
-              if (value == 'edit') {
-                _showEditGroupDialog(group);
-              }
-              if (value == 'toggle_visibility') {
-                _controller.toggleGroupVisibility(group);
-              }
-              if (value == 'delete') {
-                _controller.deleteGroup(group);
-              }
+              );
             },
-            content: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  group.icon,
-                  style: TextStyle(
-                    fontSize: 28,
-                    color: group.isHidden ? Colors.grey : Colors.black,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  group.groupName,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    color: group.isHidden ? Colors.grey : Colors.black87,
-                  ),
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: (group.isHidden ? Colors.grey : _themeColor)
-                        .withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    '$totalDocsCount File',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: group.isHidden ? Colors.grey[700] : _themeColor,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
       ),
     );
   }
