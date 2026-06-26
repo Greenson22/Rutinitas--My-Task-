@@ -30,6 +30,9 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
   List<File> physicalFiles = [];
   bool isLoading = false;
 
+  // BARU: Menyimpan jenis pengurutan aktif ('manual', 'az', 'za')
+  String _currentSortType = 'manual';
+
   @override
   void initState() {
     super.initState();
@@ -53,11 +56,43 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
             .where((file) => !file.path.toLowerCase().endsWith('.json'))
             .toList();
       });
+
+      // BARU: Jalankan fungsi sort otomatis setiap kali data dimuat ulang dari storage
+      _handleSort(_currentSortType);
     } catch (e) {
       debugPrint("Gagal memuat daftar file fisik: $e");
     } finally {
       setState(() => isLoading = false);
     }
+  }
+
+  // =========================================================================
+  // FITUR BARU: LOGIKA PROSES PENGURUTAN DAFTAR DOKUMEN
+  // =========================================================================
+  void _handleSort(String sortType) {
+    setState(() {
+      _currentSortType = sortType;
+      if (sortType == 'az') {
+        // Mengurutkan nama file dari A ke Z (Case-Insensitive)
+        physicalFiles.sort((a, b) {
+          final nameA = a.path.split('/').last.toLowerCase();
+          final nameB = b.path.split('/').last.toLowerCase();
+          return nameA.compareTo(nameB);
+        });
+      } else if (sortType == 'za') {
+        // Mengurutkan nama file dari Z ke A (Case-Insensitive)
+        physicalFiles.sort((a, b) {
+          final nameA = a.path.split('/').last.toLowerCase();
+          final nameB = b.path.split('/').last.toLowerCase();
+          return nameB.compareTo(nameA);
+        });
+      } else {
+        // Mode Manual / Waktu: Mengurutkan berdasarkan tanggal modifikasi file (paling lama ke baru)
+        physicalFiles.sort((a, b) {
+          return a.lastModifiedSync().compareTo(b.lastModifiedSync());
+        });
+      }
+    });
   }
 
   Future<void> _importFileFromDevice() async {
@@ -171,9 +206,7 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
     );
   }
 
-  // --- FITUR BARU: Dialog Pilih Grup Tujuan (Massal / Individual) ---
   void _showMoveDocumentsDialog(List<File> filesToMove) async {
-    // Memastikan data allGroupRaw di controller sudah siap terisi
     await _documentsController.loadGroupsData();
     final List<DocumentGroup> availableGroups = _documentsController
         .getAvailableTargetGroups(widget.group.id);
@@ -361,6 +394,90 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
               enableAddButton: true,
               enableFavoriteSort: false,
               itemTitle: (file) => file.path.split('/').last,
+
+              // =========================================================================
+              // FITUR BARU: MENU DROP DOWN SORTING DI APPBAR
+              // =========================================================================
+              additionalAction: PopupMenuButton<String>(
+                icon: const Icon(Icons.sort_rounded, color: Colors.white),
+                tooltip: 'Urutkan Dokumen',
+                onSelected: _handleSort,
+                itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                  PopupMenuItem<String>(
+                    value: 'manual',
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.tune_rounded,
+                          color: _currentSortType == 'manual'
+                              ? Colors.blueGrey
+                              : Colors.grey,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Urutan Manual (Waktu)',
+                          style: TextStyle(
+                            fontWeight: _currentSortType == 'manual'
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem<String>(
+                    value: 'az',
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.sort_by_alpha_rounded,
+                          color: _currentSortType == 'az'
+                              ? Colors.blueGrey
+                              : Colors.grey,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Abjad: A ➔ Z',
+                          style: TextStyle(
+                            fontWeight: _currentSortType == 'az'
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem<String>(
+                    value: 'za',
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.sort_by_alpha_rounded,
+                          color: _currentSortType == 'za'
+                              ? Colors.blueGrey
+                              : Colors.grey,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Abjad: Z ➔ A',
+                          style: TextStyle(
+                            fontWeight: _currentSortType == 'za'
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
               itemSubtitle: (file) {
                 final String fileName = file.path.split('/').last;
                 final String extension = fileName.contains('.')
@@ -386,7 +503,6 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
                     ],
                   ),
                 ),
-                // --- SEKARANG: Opsi Menu Pindah Ditambahkan Secara Individual ---
                 const PopupMenuItem(
                   value: 'move',
                   child: Row(
@@ -423,7 +539,7 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
                 if (value == 'rename') {
                   _renamePhysicalFile(file);
                 } else if (value == 'move') {
-                  _showMoveDocumentsDialog([file]); // Pindah individual
+                  _showMoveDocumentsDialog([file]);
                 } else if (value == 'delete') {
                   _deletePhysicalFile(file);
                 }
@@ -431,7 +547,6 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
               onDeleteMassive: (selectedItems) async {
                 await _deleteMassiveFiles(selectedItems);
               },
-              // --- SEKARANG: Handler Pindah Massal Diaktifkan Melalui Tombol AppBar Kuning ---
               onMoveMassive: (selectedItems) {
                 _showMoveDocumentsDialog(selectedItems);
               },
