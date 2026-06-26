@@ -10,6 +10,7 @@ import '../../../features/data_center/data_center_screen.dart';
 import '../../../features/about/presentation/pages/about_page.dart';
 import '../../../features/task_master/presentation/widgets/settings_dialog.dart';
 import '../../../features/random/presentation/screens/random_screen.dart'; // IMPORT SCREEN BARU
+import '../../../features/documents/presentation/screens/my_documents_screen.dart'; // IMPORT SKRIN MYDOCUMENTS BARU
 import '../../services/storage_service.dart';
 
 class DrawerMenu extends StatefulWidget {
@@ -19,6 +20,7 @@ class DrawerMenu extends StatefulWidget {
   final bool isPromptActive;
   final bool isNotesActive;
   final bool isRandomActive; // TAMBAHKAN PROPERTI INI
+  final bool isDocumentsActive; // TAMBAHKAN PROPERTI UNTUK DOCUMENTS
 
   const DrawerMenu({
     super.key,
@@ -28,6 +30,7 @@ class DrawerMenu extends StatefulWidget {
     this.isPromptActive = false,
     this.isNotesActive = false,
     this.isRandomActive = false, // BERI DEFAULT VALUE FALSE
+    this.isDocumentsActive = false, // BERI DEFAULT VALUE FALSE UNTUK DOCUMENTS
   });
 
   @override
@@ -87,6 +90,8 @@ class _DrawerMenuState extends State<DrawerMenu> {
             ? const NotesScreen()
             : widget.isRandomActive
             ? const RandomScreen() // DUKUNG REFRESH DI RANDOM SCREEN
+            : widget.isDocumentsActive
+            ? const MyDocumentsScreen() // DUKUNG REFRESH DI DOCUMENTS SCREEN
             : const HomeScreen(),
       ),
     );
@@ -149,7 +154,8 @@ class _DrawerMenuState extends State<DrawerMenu> {
                 !widget.isDataCenterActive &&
                 !widget.isPromptActive &&
                 !widget.isNotesActive &&
-                !widget.isRandomActive,
+                !widget.isRandomActive &&
+                !widget.isDocumentsActive, // PASTIKAN MATI JIKA DOCUMENTS AKTIF
             onTap: () {
               Navigator.pop(context);
               Navigator.pushReplacement(
@@ -225,7 +231,7 @@ class _DrawerMenuState extends State<DrawerMenu> {
             },
           ),
 
-          // 6. TAMBAHAN: Menu Random Generator
+          // 6. Menu Random Generator
           _buildMenuTile(
             icon: Icons.casino_outlined,
             title: 'Random Generator',
@@ -241,7 +247,25 @@ class _DrawerMenuState extends State<DrawerMenu> {
             },
           ),
 
-          // 7. Menu Data Center (Utilitas Penyimpanan)
+          // 7. BARU: Menu My Documents
+          _buildMenuTile(
+            icon: Icons.description_outlined,
+            title: 'My Documents',
+            isActive: widget.isDocumentsActive,
+            onTap: () {
+              Navigator.pop(context);
+              if (!widget.isDocumentsActive) {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const MyDocumentsScreen(),
+                  ),
+                );
+              }
+            },
+          ),
+
+          // 8. Menu Data Center (Utilitas Penyimpanan)
           _buildMenuTile(
             icon: Icons.storage,
             title: 'Data Center',
@@ -261,7 +285,7 @@ class _DrawerMenuState extends State<DrawerMenu> {
 
           const Divider(),
 
-          // 8. Settings
+          // 9. Settings
           ListTile(
             leading: Icon(Icons.settings_outlined, color: Colors.blueGrey[700]),
             title: const Text(
@@ -280,7 +304,7 @@ class _DrawerMenuState extends State<DrawerMenu> {
 
           const Divider(),
 
-          // 9. About
+          // 10. About
           ListTile(
             leading: const Icon(Icons.info_outline, color: Colors.orangeAccent),
             title: const Text(
