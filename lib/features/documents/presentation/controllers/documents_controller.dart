@@ -250,4 +250,65 @@ class DocumentsController extends ChangeNotifier {
     groupedVisibleGroup = tempMap;
     notifyListeners();
   }
+
+  // =========================================================================
+  // FITUR BARU: MANAJEMEN PEMINDAHAN BERKAS ANTAR-GRUP
+  // =========================================================================
+
+  /// Mengambil daftar grup target yang tersedia untuk pemindahan (selain grup asal saat ini)
+  List<DocumentGroup> getAvailableTargetGroups(String currentGroupId) {
+    return allGroupRaw.where((group) => group.id != currentGroupId).toList();
+  }
+
+  /// Memindahkan kumpulan berkas fisik dari direktori asal ke direktori grup tujuan
+  Future<bool> movePhysicalFiles({
+    required List<File> filesToMove,
+    required String currentGroupId,
+    required String targetGroupId,
+  }) async {
+    if (filesToMove.isEmpty) return false;
+
+    try {
+      final String baseDir = await storageService.getBaseDirSetting();
+      final Directory targetDir = Directory(
+        '$baseDir/my_documents/$targetGroupId',
+      );
+
+      // Memastikan folder grup tujuan sudah tercipta secara fisik
+      if (!await targetDir.exists()) {
+        await targetDir.create(recursive: true);
+      }
+
+      for (var file in filesToMove) {
+        if (await file.exists()) {
+          final String fileName = file.path.split('/').last;
+          final String targetPath = '${targetDir.path}/$fileName';
+
+          String finalTargetPath = targetPath;
+          // Antipasti bentrok nama file: Jika file sudah ada di target, sisipkan timestamp pembeda
+          if (await File(targetPath).exists()) {
+            final int lastDot = fileName.lastIndexOf('.');
+            final String nameOnly = lastDot != -1
+                ? fileName.substring(0, lastDot)
+                : fileName;
+            final String ext = lastDot != -1 ? fileName.substring(lastDot) : '';
+            final String timestamp = DateTime.now().millisecondsSinceEpoch
+                .toString()
+                .substring(8);
+            finalTargetPath = '${targetDir.path}/${nameOnly}_$timestamp$ext';
+          }
+
+          // Proses pemindahan file I/O fisik
+          await file.rename(finalTargetPath);
+        }
+      }
+
+      // Muat ulang data terbaru agar jumlah file sinkron
+      await loadGroupsData();
+      return true;
+    } catch (e) {
+      debugPrint("Gagal memindahkan berkas fisik antar-grup: $e");
+      return false;
+    }
+  }
 }

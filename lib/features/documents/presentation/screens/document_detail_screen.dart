@@ -7,6 +7,7 @@ import '../../../../core/services/storage_service.dart';
 import '../../../../core/presentation/widgets/universal_empty_state.dart';
 import '../../../../core/presentation/widgets/base_detail_list_screen.dart';
 import '../../data/models/document_model.dart';
+import '../controllers/documents_controller.dart'; // <-- PASTIKAN IMPORT CONTROLLER
 
 class DocumentDetailScreen extends StatefulWidget {
   final DocumentGroup group;
@@ -24,6 +25,7 @@ class DocumentDetailScreen extends StatefulWidget {
 
 class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
   final StorageService storageService = StorageService();
+  late DocumentsController _documentsController; // <-- TAMBAHKAN VARIABEL
   late Directory groupDirectory;
   List<File> physicalFiles = [];
   bool isLoading = false;
@@ -31,6 +33,7 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
   @override
   void initState() {
     super.initState();
+    _documentsController = DocumentsController(); // <-- INISIALISASI CONTROLLER
     groupDirectory = Directory(
       '${widget.baseDir}/my_documents/${widget.group.id}',
     );
@@ -82,23 +85,15 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
       }
     } catch (e) {
       debugPrint("Gagal mengimpor berkas luar: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Terjadi kesalahan saat mengimpor file.'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
     } finally {
       setState(() => isLoading = false);
     }
   }
 
-  // --- FITUR BARU: Dialog & Logika Ganti Nama File (Rename) ---
   void _renamePhysicalFile(File file) {
     final String currentFullName = file.path.split('/').last;
     final int lastDotIndex = currentFullName.lastIndexOf('.');
 
-    // Pisahkan nama file utama dan ekstensinya (.pdf, .docx, dll)
     final String currentNameWithoutExt = lastDotIndex != -1
         ? currentFullName.substring(0, lastDotIndex)
         : currentFullName;
@@ -115,8 +110,8 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: const [
+        title: const Row(
+          children: [
             Icon(Icons.edit_note_rounded, color: Colors.blueGrey),
             SizedBox(width: 8),
             Text('Ubah Nama File'),
@@ -133,13 +128,10 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
               border: const OutlineInputBorder(),
             ),
             validator: (value) {
-              if (value == null || value.trim().isEmpty) {
+              if (value == null || value.trim().isEmpty)
                 return 'Nama file tidak boleh kosong';
-              }
-              // Menghindari karakter ilegal pada file system OS
-              if (value.contains(RegExp(r'[\\/:*?"<>|]'))) {
+              if (value.contains(RegExp(r'[\\/:*?"<>|]')))
                 return 'Nama mengandung karakter ilegal';
-              }
               return null;
             },
           ),
@@ -147,42 +139,24 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+            child: const Text('Batal'),
           ),
           ElevatedButton(
             onPressed: () async {
               if (!formKey.currentState!.validate()) return;
-
               final String newName = renameController.text.trim();
-              final String newFullName = '$newName$extension';
-              final String targetPath = '${groupDirectory.path}/$newFullName';
+              final String targetPath =
+                  '${groupDirectory.path}/$newName$extension';
 
               Navigator.pop(ctx);
               setState(() => isLoading = true);
-
               try {
-                if (await File(targetPath).exists()) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Gagal! File dengan nama tersebut sudah ada.',
-                      ),
-                      backgroundColor: Colors.orange,
-                    ),
-                  );
-                } else {
-                  // Eksekusi perubahan nama fisik file
+                if (!await File(targetPath).exists()) {
                   await file.rename(targetPath);
                   await _loadPhysicalFiles();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Nama file berhasil diubah!'),
-                      backgroundColor: Colors.teal,
-                    ),
-                  );
                 }
               } catch (e) {
-                debugPrint("Gagal mengubah nama file fisik: $e");
+                debugPrint("Gagal ganti nama: $e");
               } finally {
                 setState(() => isLoading = false);
               }
@@ -197,49 +171,123 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
     );
   }
 
+  // --- FITUR BARU: Dialog Pilih Grup Tujuan (Massal / Individual) ---
+  void _showMoveDocumentsDialog(List<File> filesToMove) async {
+    // Memastikan data allGroupRaw di controller sudah siap terisi
+    await _documentsController.loadGroupsData();
+    final List<DocumentGroup> availableGroups = _documentsController
+        .getAvailableTargetGroups(widget.group.id);
+
+    if (availableGroups.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Tidak ada grup dokumen lain yang tersedia sebagai tujuan.',
+          ),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.drive_file_move_outlined, color: Colors.blueGrey[800]),
+            const SizedBox(width: 10),
+            Text('Pindahkan ${filesToMove.length} Dokumen'),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: availableGroups.length,
+            itemBuilder: (context, index) {
+              final targetGroup = availableGroups[index];
+              return ListTile(
+                leading: Text(
+                  targetGroup.icon,
+                  style: const TextStyle(fontSize: 24),
+                ),
+                title: Text(targetGroup.groupName),
+                subtitle: Text('Kategori: ${targetGroup.sectionCategory}'),
+                onTap: () async {
+                  Navigator.pop(ctx); // Tutup dialog
+                  setState(() => isLoading = true);
+
+                  final bool success = await _documentsController
+                      .movePhysicalFiles(
+                        filesToMove: filesToMove,
+                        currentGroupId: widget.group.id,
+                        targetGroupId: targetGroup.id,
+                      );
+
+                  if (success) {
+                    await _loadPhysicalFiles();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Berhasil memindahkan dokumen ke "${targetGroup.groupName}"',
+                        ),
+                        backgroundColor: Colors.teal,
+                      ),
+                    );
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Gagal memindahkan beberapa berkas.'),
+                        backgroundColor: Colors.redAccent,
+                      ),
+                    );
+                  }
+                  setState(() => isLoading = false);
+                },
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _deletePhysicalFile(File file) async {
     final String fileName = file.path.split('/').last;
     final bool confirm = await _showConfirmDeleteDialog(
       title: 'Hapus File?',
-      content:
-          'Apakah Anda yakin ingin menghapus "$fileName" selamanya dari folder grup ini?',
+      content: 'Apakah Anda yakin ingin menghapus "$fileName" selamanya?',
     );
-
     if (confirm) {
-      try {
-        if (await file.exists()) {
-          await file.delete();
-          await _loadPhysicalFiles();
-        }
-      } catch (e) {
-        debugPrint("Gagal menghapus berkas dokumen: $e");
+      if (await file.exists()) {
+        await file.delete();
+        await _loadPhysicalFiles();
       }
     }
   }
 
   Future<void> _deleteMassiveFiles(List<File> selectedFiles) async {
     if (selectedFiles.isEmpty) return;
-
     final bool confirm = await _showConfirmDeleteDialog(
       title: 'Hapus Masal Berkas',
       content:
-          'Apakah Anda yakin ingin menghapus ${selectedFiles.length} file yang dipilih secara masal? Tindakan ini tidak dapat dibatalkan.',
+          'Apakah Anda yakin ingin menghapus ${selectedFiles.length} file secara masal?',
     );
-
     if (confirm) {
       setState(() => isLoading = true);
-      try {
-        for (var file in selectedFiles) {
-          if (await file.exists()) {
-            await file.delete();
-          }
-        }
-        await _loadPhysicalFiles();
-      } catch (e) {
-        debugPrint("Gagal menghapus berkas dokumen secara massal: $e");
-      } finally {
-        setState(() => isLoading = false);
+      for (var file in selectedFiles) {
+        if (await file.exists()) await file.delete();
       }
+      await _loadPhysicalFiles();
+      setState(() => isLoading = false);
     }
   }
 
@@ -250,24 +298,12 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
     return await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            title: Row(
-              children: const [
-                Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
-                SizedBox(width: 8),
-                Text('Konfirmasi Hapus'),
-              ],
-            ),
+            title: Text(title),
             content: Text(content),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: const Text(
-                  'Batal',
-                  style: TextStyle(color: Colors.grey),
-                ),
+                child: const Text('Batal'),
               ),
               ElevatedButton(
                 onPressed: () => Navigator.pop(context, true),
@@ -285,20 +321,9 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
 
   Future<void> _openDocumentFile(File file) async {
     try {
-      final result = await OpenFile.open(file.path);
-      if (result.type != ResultType.done) {
-        throw Exception(result.message);
-      }
+      await OpenFile.open(file.path);
     } catch (e) {
       debugPrint("Gagal membuka file: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Tidak ada aplikasi yang kompatibel untuk membuka file ini.',
-          ),
-          backgroundColor: Colors.orange,
-        ),
-      );
     }
   }
 
@@ -318,16 +343,11 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
               appBar: AppBar(
                 title: Text(widget.group.groupName),
                 backgroundColor: Colors.blueGrey[800],
-                leading: IconButton(
-                  icon: const Icon(Icons.arrow_back, color: Colors.white),
-                  onPressed: () => Navigator.pop(context),
-                ),
               ),
               body: UniversalEmptyState(
                 icon: Icons.drive_folder_upload_rounded,
                 title: 'Grup Dokumen Kosong',
-                description:
-                    'Belum ada berkas tersimpan di grup ini. Ketuk tombol di bawah untuk memasukkan file (PDF, Word, Excel, Gambar, dll).',
+                description: 'Belum ada berkas tersimpan di grup ini.',
                 buttonLabel: 'Masukkan File',
                 themeColor: Colors.blueGrey,
                 onPressed: _importFileFromDevice,
@@ -346,47 +366,15 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
                 final String extension = fileName.contains('.')
                     ? fileName.split('.').last.toUpperCase()
                     : 'FILE';
-
-                final int bytes = file.lengthSync();
-                final String fileSizeString = bytes >= 1024 * 1024
-                    ? '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB'
-                    : '${(bytes / 1024).toStringAsFixed(1)} KB';
-
-                return Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.blueGrey.shade50,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        extension.length > 4
-                            ? extension.substring(0, 4)
-                            : extension,
-                        style: const TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blueGrey,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      fileSizeString,
-                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                    ),
-                  ],
+                return Text(
+                  extension,
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
                 );
               },
               itemSearchString: (file) => file.path.split('/').last,
               itemIsFavorite: (file) => false,
               onAddPressed: _importFileFromDevice,
               onItemTap: _openDocumentFile,
-              // --- MODIFIKASI: Menambahkan Menu Ubah Nama (Rename) ---
               itemMenuBuilder: (file) => [
                 const PopupMenuItem(
                   value: 'rename',
@@ -395,6 +383,21 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
                       Icon(Icons.edit_outlined, size: 18, color: Colors.teal),
                       SizedBox(width: 10),
                       Text('Ubah Nama', style: TextStyle(fontSize: 13)),
+                    ],
+                  ),
+                ),
+                // --- SEKARANG: Opsi Menu Pindah Ditambahkan Secara Individual ---
+                const PopupMenuItem(
+                  value: 'move',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.drive_file_move_outlined,
+                        size: 18,
+                        color: Colors.indigo,
+                      ),
+                      SizedBox(width: 10),
+                      Text('Pindahkan Grup', style: TextStyle(fontSize: 13)),
                     ],
                   ),
                 ),
@@ -419,6 +422,8 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
               onItemMenuSelected: (value, file) {
                 if (value == 'rename') {
                   _renamePhysicalFile(file);
+                } else if (value == 'move') {
+                  _showMoveDocumentsDialog([file]); // Pindah individual
                 } else if (value == 'delete') {
                   _deletePhysicalFile(file);
                 }
@@ -426,15 +431,11 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
               onDeleteMassive: (selectedItems) async {
                 await _deleteMassiveFiles(selectedItems);
               },
+              // --- SEKARANG: Handler Pindah Massal Diaktifkan Melalui Tombol AppBar Kuning ---
+              onMoveMassive: (selectedItems) {
+                _showMoveDocumentsDialog(selectedItems);
+              },
             ),
-      floatingActionButton: physicalFiles.isNotEmpty
-          ? FloatingActionButton(
-              onPressed: _importFileFromDevice,
-              backgroundColor: Colors.blueGrey[800],
-              tooltip: 'Masukkan File',
-              child: const Icon(Icons.add, color: Colors.white),
-            )
-          : null,
     );
   }
 }
