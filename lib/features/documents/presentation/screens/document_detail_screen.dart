@@ -5,7 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:open_file/open_file.dart';
 import '../../../../core/services/storage_service.dart';
 import '../../../../core/presentation/widgets/universal_empty_state.dart';
-import '../../../../core/presentation/widgets/base_detail_list_screen.dart'; // <-- IMPORT BARU
+import '../../../../core/presentation/widgets/base_detail_list_screen.dart';
 import '../../data/models/document_model.dart';
 
 class DocumentDetailScreen extends StatefulWidget {
@@ -31,14 +31,12 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
   @override
   void initState() {
     super.initState();
-    // Path folder spesifik untuk grup ini
     groupDirectory = Directory(
       '${widget.baseDir}/my_documents/${widget.group.id}',
     );
     _loadPhysicalFiles();
   }
 
-  // Membaca file asli dari penyimpanan lokal grup
   Future<void> _loadPhysicalFiles() async {
     setState(() => isLoading = true);
     try {
@@ -47,7 +45,6 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
       }
       final List<FileSystemEntity> entities = groupDirectory.listSync();
       setState(() {
-        // Menampilkan semua file fisik KECUALI file konfigurasi .json
         physicalFiles = entities
             .whereType<File>()
             .where((file) => !file.path.toLowerCase().endsWith('.json'))
@@ -60,7 +57,6 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
     }
   }
 
-  // Alur memasukkan file luar (Import) ke dalam repositori aplikasi
   Future<void> _importFileFromDevice() async {
     try {
       FilePickerResult? result = await FilePicker.pickFiles(
@@ -73,7 +69,6 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
             File sourceFile = File(pickedFile.path!);
             String fileName = pickedFile.name;
             String targetPath = '${groupDirectory.path}/$fileName';
-            // Salin file ke dalam direktori khusus grup dokumen ini
             await sourceFile.copy(targetPath);
           }
         }
@@ -98,7 +93,110 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
     }
   }
 
-  // Menghapus file dokumen dari penyimpanan fisik internal grup (Individual)
+  // --- FITUR BARU: Dialog & Logika Ganti Nama File (Rename) ---
+  void _renamePhysicalFile(File file) {
+    final String currentFullName = file.path.split('/').last;
+    final int lastDotIndex = currentFullName.lastIndexOf('.');
+
+    // Pisahkan nama file utama dan ekstensinya (.pdf, .docx, dll)
+    final String currentNameWithoutExt = lastDotIndex != -1
+        ? currentFullName.substring(0, lastDotIndex)
+        : currentFullName;
+    final String extension = lastDotIndex != -1
+        ? currentFullName.substring(lastDotIndex)
+        : '';
+
+    final TextEditingController renameController = TextEditingController(
+      text: currentNameWithoutExt,
+    );
+    final GlobalKey<FormState> formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: const [
+            Icon(Icons.edit_note_rounded, color: Colors.blueGrey),
+            SizedBox(width: 8),
+            Text('Ubah Nama File'),
+          ],
+        ),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: renameController,
+            autofocus: true,
+            decoration: InputDecoration(
+              labelText: 'Nama File Baru',
+              suffixText: extension,
+              border: const OutlineInputBorder(),
+            ),
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return 'Nama file tidak boleh kosong';
+              }
+              // Menghindari karakter ilegal pada file system OS
+              if (value.contains(RegExp(r'[\\/:*?"<>|]'))) {
+                return 'Nama mengandung karakter ilegal';
+              }
+              return null;
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (!formKey.currentState!.validate()) return;
+
+              final String newName = renameController.text.trim();
+              final String newFullName = '$newName$extension';
+              final String targetPath = '${groupDirectory.path}/$newFullName';
+
+              Navigator.pop(ctx);
+              setState(() => isLoading = true);
+
+              try {
+                if (await File(targetPath).exists()) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Gagal! File dengan nama tersebut sudah ada.',
+                      ),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                } else {
+                  // Eksekusi perubahan nama fisik file
+                  await file.rename(targetPath);
+                  await _loadPhysicalFiles();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Nama file berhasil diubah!'),
+                      backgroundColor: Colors.teal,
+                    ),
+                  );
+                }
+              } catch (e) {
+                debugPrint("Gagal mengubah nama file fisik: $e");
+              } finally {
+                setState(() => isLoading = false);
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blueGrey[800],
+            ),
+            child: const Text('Simpan', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _deletePhysicalFile(File file) async {
     final String fileName = file.path.split('/').last;
     final bool confirm = await _showConfirmDeleteDialog(
@@ -119,7 +217,6 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
     }
   }
 
-  // Menghapus banyak file dokumen sekaligus (Massal)
   Future<void> _deleteMassiveFiles(List<File> selectedFiles) async {
     if (selectedFiles.isEmpty) return;
 
@@ -146,7 +243,6 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
     }
   }
 
-  // Helper dialog konfirmasi hapus dokumen
   Future<bool> _showConfirmDeleteDialog({
     required String title,
     required String content,
@@ -187,7 +283,6 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
         false;
   }
 
-  // Membuka file menggunakan intent / aplikasi default bawaan OS HP atau Desktop
   Future<void> _openDocumentFile(File file) async {
     try {
       final result = await OpenFile.open(file.path);
@@ -252,7 +347,6 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
                     ? fileName.split('.').last.toUpperCase()
                     : 'FILE';
 
-                // Hitung ukuran file secara dinamis
                 final int bytes = file.lengthSync();
                 final String fileSizeString = bytes >= 1024 * 1024
                     ? '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB'
@@ -292,7 +386,18 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
               itemIsFavorite: (file) => false,
               onAddPressed: _importFileFromDevice,
               onItemTap: _openDocumentFile,
+              // --- MODIFIKASI: Menambahkan Menu Ubah Nama (Rename) ---
               itemMenuBuilder: (file) => [
+                const PopupMenuItem(
+                  value: 'rename',
+                  child: Row(
+                    children: [
+                      Icon(Icons.edit_outlined, size: 18, color: Colors.teal),
+                      SizedBox(width: 10),
+                      Text('Ubah Nama', style: TextStyle(fontSize: 13)),
+                    ],
+                  ),
+                ),
                 const PopupMenuItem(
                   value: 'delete',
                   child: Row(
@@ -312,7 +417,9 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
                 ),
               ],
               onItemMenuSelected: (value, file) {
-                if (value == 'delete') {
+                if (value == 'rename') {
+                  _renamePhysicalFile(file);
+                } else if (value == 'delete') {
                   _deletePhysicalFile(file);
                 }
               },
