@@ -180,6 +180,60 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
     );
   }
 
+  // --- FITUR BARU: DIALOG EDIT NAMA & IKON GRUP SEPERTI DI NOTES ---
+  void _showEditGroupDialog(DocumentGroup group) {
+    final TextEditingController nameController = TextEditingController(
+      text: group.groupName,
+    );
+    final TextEditingController iconController = TextEditingController(
+      text: group.icon,
+    );
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Ubah Nama & Ikon Grup'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(labelText: 'Nama Grup Baru'),
+              autofocus: true,
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: iconController,
+              decoration: const InputDecoration(labelText: 'Ikon Emoji Baru'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final updatedName = nameController.text.trim();
+              final updatedIcon = iconController.text.trim();
+              if (updatedName.isNotEmpty) {
+                setState(() {
+                  group.groupName = updatedName;
+                  group.icon = updatedIcon.isEmpty ? '📁' : updatedIcon;
+                });
+                await _controller.saveGroupDataToFile(group);
+                if (mounted) Navigator.pop(context);
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: _themeColor),
+            child: const Text('Simpan', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final List<String> allKeys = _controller.groupedVisibleGroup.keys.toList();
@@ -287,7 +341,18 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
             onMoveRight: () =>
                 _controller.moveGroupOrder(sectionItems, index, 1),
             popupMenuItems: [
-              // 1. MENU VISIBILITAS GROUP (Sembunyikan/Tampilkan Group)
+              // 1. MENU UBAH NAMA & IKON (Ditambahkan Mengikuti Fitur Notes)
+              const PopupMenuItem(
+                value: 'edit',
+                child: Row(
+                  children: [
+                    Icon(Icons.edit, size: 18, color: Colors.teal),
+                    SizedBox(width: 10),
+                    Text('Ubah Nama & Ikon', style: TextStyle(fontSize: 13)),
+                  ],
+                ),
+              ),
+              // 2. MENU VISIBILITAS GROUP (Sembunyikan/Tampilkan Group)
               PopupMenuItem(
                 value: 'toggle_visibility',
                 child: Row(
@@ -306,7 +371,7 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
                 ),
               ),
               const PopupMenuDivider(), // Pembatas visual item menu berbahaya
-              // 2. MENU HAPUS GROUP
+              // 3. MENU HAPUS GROUP
               PopupMenuItem(
                 value: 'delete',
                 child: Row(
@@ -326,6 +391,9 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
               ),
             ],
             onPopupSelected: (value) {
+              if (value == 'edit') {
+                _showEditGroupDialog(group);
+              }
               if (value == 'toggle_visibility') {
                 _controller.toggleGroupVisibility(group);
               }
