@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../../core/services/storage_service.dart';
-import '../../../../core/utils/crypto_helper.dart';
 import '../../data/models/document_model.dart';
 
 class DocumentsController extends ChangeNotifier {
@@ -20,6 +19,9 @@ class DocumentsController extends ChangeNotifier {
   Map<String, List<DocumentGroup>> groupedVisibleGroup = {};
   Map<String, List<DocumentGroup>> groupedHiddenGroup = {};
 
+  // TAMBAHAN: Menyimpan jumlah file asli per grup
+  Map<String, int> groupFileCounts = {};
+
   DocumentsController() {
     loadGroupsData();
   }
@@ -33,8 +35,6 @@ class DocumentsController extends ChangeNotifier {
       List<File> files = await storageService.getAllDocumentGroups(
         selectedBaseDir,
       );
-      bool isEncrypted = await storageService.isEncryptionEnabled();
-      String? password = await storageService.getEncryptionPassword();
 
       List<DocumentGroup> loadedGroups = [];
       for (var f in files) {
@@ -42,24 +42,42 @@ class DocumentsController extends ChangeNotifier {
         String content = await f.readAsString();
         String fName = f.path.split('/').last.replaceAll('.json', '');
 
-        // Abaikan enkripsi sementara waktu sesuai request: "tidak diencrypt"
         final trimmed = content.trim();
         if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
           try {
             final map = jsonDecode(trimmed);
-            map['id'] = fName; // Selalu inject ID sesuai nama file fisik
+            map['id'] = fName;
             loadedGroups.add(DocumentGroup.fromJson(map));
           } catch (_) {}
         }
       }
 
       allGroupRaw = loadedGroups;
+      await _countPhysicalFiles(); // Hitung file asli
       _groupData();
     } catch (e) {
       debugPrint("Gagal memuat Document Groups: $e");
     } finally {
       isLoading = false;
       notifyListeners();
+    }
+  }
+
+  // LOGIKA BARU: Menghitung file dalam folder grup fisik (kecuali .json)
+  Future<void> _countPhysicalFiles() async {
+    groupFileCounts.clear();
+    for (var group in allGroupRaw) {
+      final dir = Directory('$selectedBaseDir/my_documents/${group.id}');
+      if (await dir.exists()) {
+        final files = dir
+            .listSync()
+            .whereType<File>()
+            .where((f) => !f.path.endsWith('.json'))
+            .toList();
+        groupFileCounts[group.id] = files.length;
+      } else {
+        groupFileCounts[group.id] = 0;
+      }
     }
   }
 
@@ -71,6 +89,12 @@ class DocumentsController extends ChangeNotifier {
       );
       String jsonStr = jsonEncode(group.toJson());
       await file.writeAsString(jsonStr);
+
+      // Buat folder fisik untuk grup ini jika belum ada
+      final dir = Directory('$selectedBaseDir/my_documents/${group.id}');
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+      }
       await loadGroupsData();
     } catch (e) {
       debugPrint("Gagal menyimpan Document Group: $e");
@@ -136,22 +160,13 @@ class DocumentsController extends ChangeNotifier {
       groupName: name,
       icon: icon,
       sectionCategory: section,
-      allList: [], // Group dokumen dimulai dengan list kosong
+      allList: [],
     );
     await saveGroupDataToFile(newGroup);
   }
 
-  Future<void> updateGroup(
-    DocumentGroup group,
-    String newName,
-    String newIcon,
-  ) async {
-    group.groupName = newName;
-    group.icon = newIcon;
-    await saveGroupDataToFile(group);
-  }
-
   Future<void> deleteGroup(DocumentGroup group) async {
+    // 1. Hapus JSON konfigurasi
     File targetFile = await storageService.getSpecificDocumentGroupFile(
       selectedBaseDir,
       group.id,
@@ -159,9 +174,15 @@ class DocumentsController extends ChangeNotifier {
     if (await targetFile.exists()) {
       await targetFile.delete();
     }
+    // 2. Hapus Folder Fisik beserta isinya
+    Directory groupDir = Directory('$selectedBaseDir/my_documents/${group.id}');
+    if (await groupDir.exists()) {
+      await groupDir.delete(recursive: true);
+    }
     await loadGroupsData();
   }
 
+  // --- SISA FUNGSI SAMA SEPERTI SEBELUMNYA (toggleGroupVisibility, moveGroupToAnotherSection, dll) ---
   Future<void> toggleGroupVisibility(DocumentGroup group) async {
     group.isHidden = !group.isHidden;
     await saveGroupDataToFile(group);
@@ -207,7 +228,6 @@ class DocumentsController extends ChangeNotifier {
   }
 
   void moveMainSectionOrder(String sectionKey, int direction) {
-    // Ambil daftar seksi saat ini
     final keys = groupedVisibleGroup.keys.toList();
     int index = keys.indexOf(sectionKey);
     if (index == -1) return;
@@ -215,10 +235,7 @@ class DocumentsController extends ChangeNotifier {
     int newIndex = index + direction;
     if (newIndex < 0 || newIndex >= keys.length) return;
 
-    // Logika pengurutan seksi pada manifes allGroupRaw berdasarkan kategori seksi
     final targetSectionKey = keys[newIndex];
-
-    // Kelompokkan ulang item berdasarkan urutan seksi baru
     final tempMap = <String, List<DocumentGroup>>{};
     for (var key in keys) {
       if (key == sectionKey) {

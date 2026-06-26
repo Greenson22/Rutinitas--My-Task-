@@ -261,13 +261,8 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
           );
         },
         gridItemBuilder: (context, group, index, sectionItems, isLayoutEditMode) {
-          // Menghitung jumlah total dokumen yang ada di dalam grup secara dinamis
-          int totalDocsCount = 0;
-          if (group.allList != null) {
-            for (var sec in group.allList) {
-              totalDocsCount += sec.items.length;
-            }
-          }
+          // UBAH BARIS INI: Ambil jumlah dokumen asli dari controller, bukan json
+          int totalDocsCount = _controller.groupFileCounts[group.id] ?? 0;
 
           return InteractiveGridCard(
             themeColor: _themeColor,
@@ -314,9 +309,12 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
               ),
             ],
             onPopupSelected: (value) {
-              if (value == 'toggle_visibility')
+              if (value == 'toggle_visibility') {
                 _controller.toggleGroupVisibility(group);
-              if (value == 'delete') _controller.deleteGroup(group);
+              }
+              if (value == 'delete') {
+                _controller.deleteGroup(group);
+              }
             },
             content: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -352,7 +350,7 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
-                    '$totalDocsCount Dokumen',
+                    '$totalDocsCount File', // <-- Ubah label sedikit agar lebih akurat (opsional)
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,

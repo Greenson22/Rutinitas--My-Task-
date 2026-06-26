@@ -1,7 +1,8 @@
 // lib/features/documents/presentation/screens/document_detail_screen.dart
-import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:open_file/open_file.dart';
 import '../../../../core/services/storage_service.dart';
 import '../../../../core/presentation/widgets/universal_empty_state.dart';
 import '../../data/models/document_model.dart';
@@ -22,86 +23,95 @@ class DocumentDetailScreen extends StatefulWidget {
 
 class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
   final StorageService storageService = StorageService();
-  late DocumentGroup currentGroup;
+  late Directory groupDirectory;
+  List<File> physicalFiles = [];
   bool isPageEditMode = false;
-  String searchQuery = '';
+  bool isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    currentGroup = widget.group;
+    // Path folder spesifik untuk grup ini: e.g., Documents/my_documents/{group_id}
+    groupDirectory = Directory(
+      '${widget.baseDir}/my_documents/${widget.group.id}',
+    );
+    _loadPhysicalFiles();
   }
 
-  Future<void> saveGroupData() async {
+  // Membaca file asli dari penyimpanan lokal grup
+  Future<void> _loadPhysicalFiles() async {
+    setState(() => isLoading = true);
     try {
-      File file = await storageService.getSpecificDocumentGroupFile(
-        widget.baseDir,
-        currentGroup.id,
-      );
-      String jsonStr = jsonEncode(currentGroup.toJson());
-      await file.writeAsString(jsonStr);
-      setState(() {});
+      if (!await groupDirectory.exists()) {
+        await groupDirectory.create(recursive: true);
+      }
+
+      final List<FileSystemEntity> entities = groupDirectory.listSync();
+      setState(() {
+        // PERBAIKAN UTAMA: Menampilkan semua file fisik KECUALI file konfigurasi .json
+        physicalFiles = entities
+            .whereType<File>()
+            .where((file) => !file.path.toLowerCase().endsWith('.json'))
+            .toList();
+      });
     } catch (e) {
-      debugPrint("Gagal menyimpan Document Detail: $e");
+      debugPrint("Gagal memuat daftar file fisik: $e");
+    } finally {
+      setState(() => isLoading = false);
     }
   }
 
-  void _showAddDocumentDialog() {
-    final titleController = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Buat Dokumen Baru'),
-        content: TextField(
-          controller: titleController,
-          autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'Judul Dokumen',
-            hintText: 'Contoh: Rapat Q3, Resep Kue...',
-            border: OutlineInputBorder(),
+  // Alur memasukkan file luar (Import) ke dalam repositori aplikasi
+  Future<void> _importFileFromDevice() async {
+    try {
+      FilePickerResult? result = await FilePicker.pickFiles(
+        allowMultiple: true,
+      );
+
+      if (result != null && result.files.isNotEmpty) {
+        setState(() => isLoading = true);
+        for (var pickedFile in result.files) {
+          if (pickedFile.path != null) {
+            File sourceFile = File(pickedFile.path!);
+            String fileName = pickedFile.name;
+            String targetPath = '${groupDirectory.path}/$fileName';
+
+            // Salin file ke dalam direktori khusus grup dokumen ini
+            await sourceFile.copy(targetPath);
+          }
+        }
+        await _loadPhysicalFiles();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Berhasil mengimpor dokumen!'),
+            backgroundColor: Colors.teal,
           ),
+        );
+      }
+    } catch (e) {
+      debugPrint("Gagal mengimpor berkas luar: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Terjadi kesalahan saat mengimpor file.'),
+          backgroundColor: Colors.redAccent,
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (titleController.text.trim().isNotEmpty) {
-                final newItem = DocumentItem(
-                  id: DateTime.now().millisecondsSinceEpoch.toString(),
-                  title: titleController.text.trim(),
-                  lastModified: DateTime.now().toIso8601String(),
-                );
-
-                if (currentGroup.allList.isEmpty) {
-                  currentGroup.allList.add(
-                    DocumentSection(sectionName: 'General', items: [newItem]),
-                  );
-                } else {
-                  currentGroup.allList.first.items.insert(0, newItem);
-                }
-
-                saveGroupData();
-                Navigator.pop(context);
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey),
-            child: const Text('Buat', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
+      );
+    } finally {
+      setState(() => isLoading = false);
+    }
   }
 
-  void _deleteItem(DocumentItem item) async {
+  // Menghapus file dokumen dari penyimpanan fisik internal grup
+  void _deletePhysicalFile(File file) async {
+    final String fileName = file.path.split('/').last;
     final bool confirm =
         await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Text('Hapus Dokumen?'),
-            content: Text('Hapus "${item.title}" selamanya?'),
+            title: const Text('Hapus File?'),
+            content: Text(
+              'Apakah Anda yakin ingin menghapus "$fileName" selamanya dari folder grup ini?',
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
@@ -118,79 +128,47 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
         false;
 
     if (confirm) {
-      setState(() {
-        for (var section in currentGroup.allList) {
-          section.items.removeWhere((i) => i.id == item.id);
+      try {
+        if (await file.exists()) {
+          await file.delete();
+          await _loadPhysicalFiles();
         }
-      });
-      saveGroupData();
+      } catch (e) {
+        debugPrint("Gagal menghapus berkas dokumen: $e");
+      }
     }
   }
 
-  // Fungsi untuk menampilkan editor/preview konten seperti notes
-  void _openDocumentContent(DocumentItem item) {
-    final contentController = TextEditingController(text: item.content);
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(item.title),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: TextField(
-            controller: contentController,
-            maxLines: 15,
-            decoration: const InputDecoration(
-              hintText: 'Mulai menulis isi dokumen...',
-              border: OutlineInputBorder(),
-              filled: true,
-              fillColor: Color(0xFFF9F9F9),
-            ),
+  // Membuka file menggunakan intent / aplikasi default bawaan OS HP atau Desktop
+  Future<void> _openDocumentFile(File file) async {
+    try {
+      final result = await OpenFile.open(file.path);
+      if (result.type != ResultType.done) {
+        throw Exception(result.message);
+      }
+    } catch (e) {
+      debugPrint("Gagal membuka file: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Tidak ada aplikasi yang kompatibel untuk membuka file ini.',
           ),
+          backgroundColor: Colors.orange,
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Tutup'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              setState(() {
-                item.content = contentController.text;
-                item.lastModified = DateTime.now().toIso8601String();
-              });
-              saveGroupData();
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Dokumen disimpan!'),
-                  backgroundColor: Colors.teal,
-                ),
-              );
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey),
-            child: const Text('Simpan', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    int totalItems = 0;
-    for (var section in currentGroup.allList) {
-      totalItems += section.items.length;
-    }
-
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
         title: Row(
           children: [
-            Text(currentGroup.icon, style: const TextStyle(fontSize: 22)),
+            Text(widget.group.icon, style: const TextStyle(fontSize: 22)),
             const SizedBox(width: 8),
-            Text(currentGroup.groupName),
+            Text(widget.group.groupName),
           ],
         ),
         backgroundColor: Colors.blueGrey[800],
@@ -201,78 +179,83 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
           ),
         ],
       ),
-      body: currentGroup.allList.isEmpty || totalItems == 0
+      body: isLoading
+          ? const Center(
+              child: CircularProgressIndicator(color: Colors.blueGrey),
+            )
+          : physicalFiles.isEmpty
           ? UniversalEmptyState(
-              icon: Icons.note_add_rounded,
+              icon: Icons.drive_folder_upload_rounded,
               title: 'Grup Dokumen Kosong',
               description:
-                  'Grup dokumen ini belum memiliki lembar kerja. Tambahkan dokumen baru sekarang.',
-              buttonLabel: 'Buat Dokumen',
+                  'Belum ada berkas tersimpan di grup ini. Ketuk tombol di bawah untuk memasukkan file (PDF, Word, Excel, Gambar, dll).',
+              buttonLabel: 'Masukkan File',
               themeColor: Colors.blueGrey,
-              onPressed: _showAddDocumentDialog,
+              onPressed: _importFileFromDevice,
             )
           : ListView.builder(
               padding: const EdgeInsets.all(12),
-              itemCount: currentGroup.allList.length,
-              itemBuilder: (context, sectionIndex) {
-                final section = currentGroup.allList[sectionIndex];
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (currentGroup.allList.length > 1)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 8,
-                          horizontal: 4,
-                        ),
-                        child: Text(
-                          section.sectionName.toUpperCase(),
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blueGrey,
-                          ),
+              itemCount: physicalFiles.length,
+              itemBuilder: (context, index) {
+                final File file = physicalFiles[index];
+                final String fileName = file.path.split('/').last;
+                final String extension = fileName.contains('.')
+                    ? fileName.split('.').last.toUpperCase()
+                    : 'FILE';
+
+                // Hitung ukuran file secara dinamis
+                final int bytes = file.lengthSync();
+                final String fileSizeString = bytes >= 1024 * 1024
+                    ? '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB'
+                    : '${(bytes / 1024).toStringAsFixed(1)} KB';
+
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: Colors.blueGrey.shade50,
+                      child: Text(
+                        extension.length > 3
+                            ? extension.substring(0, 3)
+                            : extension,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blueGrey,
                         ),
                       ),
-                    ...section.items.map((item) {
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        child: ListTile(
-                          leading: const Icon(
-                            Icons.description,
-                            color: Colors.blueGrey,
+                    ),
+                    title: Text(
+                      fileName,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Text(
+                      fileSizeString,
+                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                    ),
+                    trailing: isPageEditMode
+                        ? IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () => _deletePhysicalFile(file),
+                          )
+                        : const Icon(
+                            Icons.open_in_new_rounded,
+                            size: 20,
+                            color: Colors.grey,
                           ),
-                          title: Text(
-                            item.title,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          subtitle: Text(
-                            item.content.isEmpty
-                                ? 'Isi dokumen kosong...'
-                                : item.content.replaceAll('\n', ' '),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(color: Colors.grey[600]),
-                          ),
-                          trailing: isPageEditMode
-                              ? IconButton(
-                                  icon: const Icon(
-                                    Icons.delete,
-                                    color: Colors.red,
-                                  ),
-                                  onPressed: () => _deleteItem(item),
-                                )
-                              : const Icon(Icons.chevron_right),
-                          onTap: () => _openDocumentContent(item),
-                        ),
-                      );
-                    }).toList(),
-                  ],
+                    onTap: isPageEditMode
+                        ? null
+                        : () => _openDocumentFile(file),
+                  ),
                 );
               },
             ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _showAddDocumentDialog,
+        onPressed: _importFileFromDevice,
         backgroundColor: Colors.blueGrey,
+        tooltip: 'Masukkan File',
         child: const Icon(Icons.add, color: Colors.white),
       ),
     );

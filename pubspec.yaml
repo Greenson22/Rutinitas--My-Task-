@@ -58,6 +58,8 @@ dependencies:
   qr_flutter: ^4.1.0
 
   google_mobile_ads: ^5.0.0
+
+  open_file: ^3.3.2
   # shelf: ^1.4.1
   # shelf_web_socket: ^1.0.4
   # web_socket_channel: ^3.0.1
