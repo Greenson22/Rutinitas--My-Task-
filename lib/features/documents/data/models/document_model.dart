@@ -1,11 +1,73 @@
 // lib/features/documents/data/models/document_model.dart
 
+class DocumentItem {
+  String id;
+  String title;
+  String content;
+  String lastModified;
+  bool isHidden;
+
+  DocumentItem({
+    required this.id,
+    required this.title,
+    this.content = '',
+    required this.lastModified,
+    this.isHidden = false,
+  });
+
+  factory DocumentItem.fromJson(Map<String, dynamic> json) {
+    return DocumentItem(
+      id: json['id'] ?? '',
+      title: json['title'] ?? 'Untitled Document',
+      content: json['content'] ?? '',
+      lastModified: json['lastModified'] ?? DateTime.now().toIso8601String(),
+      isHidden: json['isHidden'] ?? false,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'content': content,
+      'lastModified': lastModified,
+      'isHidden': isHidden,
+    };
+  }
+}
+
+class DocumentSection {
+  String sectionName;
+  List<DocumentItem> items;
+
+  DocumentSection({required this.sectionName, required this.items});
+
+  factory DocumentSection.fromJson(Map<String, dynamic> json) {
+    return DocumentSection(
+      sectionName: json['sectionName'] ?? 'General',
+      items:
+          (json['items'] as List<dynamic>?)
+              ?.map((item) => DocumentItem.fromJson(item))
+              .toList() ??
+          [],
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'sectionName': sectionName,
+      'items': items.map((item) => item.toJson()).toList(),
+    };
+  }
+}
+
 class DocumentGroup {
   String id;
   String groupName;
   String icon;
   String sectionCategory;
   bool isHidden;
+  List<DocumentSection> allList;
 
   DocumentGroup({
     required this.id,
@@ -13,6 +75,7 @@ class DocumentGroup {
     required this.icon,
     required this.sectionCategory,
     this.isHidden = false,
+    required this.allList,
   });
 
   factory DocumentGroup.fromJson(Map<String, dynamic> json) {
@@ -22,6 +85,11 @@ class DocumentGroup {
       icon: json['icon'] ?? '📁',
       sectionCategory: json['sectionCategory'] ?? 'Lainnya',
       isHidden: json['isHidden'] ?? false,
+      allList:
+          (json['allList'] as List<dynamic>?)
+              ?.map((section) => DocumentSection.fromJson(section))
+              .toList() ??
+          [],
     );
   }
 
@@ -32,6 +100,7 @@ class DocumentGroup {
       'icon': icon,
       'sectionCategory': sectionCategory,
       'isHidden': isHidden,
+      'allList': allList.map((section) => section.toJson()).toList(),
     };
   }
 }

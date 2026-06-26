@@ -235,6 +235,38 @@ class StorageService {
   }
 
   // =========================================================================
+  // === MY DOCUMENTS STORAGE (Mendukung Struktur Group Tanpa Enkripsi) ===
+  // =========================================================================
+
+  Future<Directory> getDocumentsDir(String baseDirSetting) async {
+    final Directory documentsDir = Directory('$baseDirSetting/my_documents');
+    if (!await documentsDir.exists())
+      await documentsDir.create(recursive: true);
+    return documentsDir;
+  }
+
+  Future<List<File>> getAllDocumentGroups(String baseDirSetting) async {
+    final Directory documentsDir = await getDocumentsDir(baseDirSetting);
+    try {
+      List<FileSystemEntity> files = documentsDir.listSync();
+      return files
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.json'))
+          .toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  Future<File> getSpecificDocumentGroupFile(
+    String baseDirSetting,
+    String documentId,
+  ) async {
+    final Directory documentsDir = await getDocumentsDir(baseDirSetting);
+    return File('${documentsDir.path}/$documentId.json');
+  }
+
+  // =========================================================================
   // === JURNAL AKTIVITAS STORAGE (Mendukung Dekripsi Otomatis) ===
   // =========================================================================
 
@@ -473,6 +505,7 @@ class StorageService {
     allTargetFiles.addAll(await getAllChecklistGroups(baseDir));
     allTargetFiles.addAll(await getAllPromptGroups(baseDir));
     allTargetFiles.addAll(await getAllNoteGroups(baseDir));
+    // Dokumen sengaja dilewati dari perulangan migrasi enkripsi massal sesuai instruksi awal "tidak diencrypt"
 
     for (var file in allTargetFiles) {
       if (!await file.exists()) continue;

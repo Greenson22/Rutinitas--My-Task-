@@ -7,6 +7,7 @@ import '../../../../core/presentation/widgets/interactive_section_header.dart';
 import '../../../../core/presentation/widgets/universal_empty_state.dart';
 import '../../data/models/document_model.dart';
 import '../controllers/documents_controller.dart';
+import 'document_detail_screen.dart';
 
 class MyDocumentsScreen extends StatefulWidget {
   const MyDocumentsScreen({super.key});
@@ -254,12 +255,20 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
             onToggleEdit: _controller.toggleSectionEditMode,
             onMoveUp: () => _controller.moveMainSectionOrder(sectionKey, -1),
             onMoveDown: () => _controller.moveMainSectionOrder(sectionKey, 1),
-            onEditName: () {}, // Tambahkan logika edit seksi
+            onEditName: () {}, // Tambahkan logika edit seksi jika diperlukan
             onDelete: () => _controller.deleteMainSection(sectionKey),
             onAddItem: () => _showAddGroupDialogAtSection(sectionKey),
           );
         },
         gridItemBuilder: (context, group, index, sectionItems, isLayoutEditMode) {
+          // Menghitung jumlah total dokumen yang ada di dalam grup secara dinamis
+          int totalDocsCount = 0;
+          if (group.allList != null) {
+            for (var sec in group.allList) {
+              totalDocsCount += sec.items.length;
+            }
+          }
+
           return InteractiveGridCard(
             themeColor: _themeColor,
             isEditMode: isLayoutEditMode ? true : _controller.isPageEditMode,
@@ -267,13 +276,15 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
             isFirst: index == 0,
             isLast: index == sectionItems.length - 1,
             onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Buka isi dokumen untuk ${group.groupName} (Belum diimplementasi)',
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => DocumentDetailScreen(
+                    group: group,
+                    baseDir: _controller.selectedBaseDir,
                   ),
                 ),
-              );
+              ).then((_) => _controller.loadGroupsData());
             },
             onLongPress: _controller.togglePageEditMode,
             onMoveLeft: () =>
@@ -341,7 +352,7 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
-                    '0 Dokumen', // Placeholder karena isi belum ada
+                    '$totalDocsCount Dokumen',
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,

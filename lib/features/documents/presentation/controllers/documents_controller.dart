@@ -1,21 +1,80 @@
 // lib/features/documents/presentation/controllers/documents_controller.dart
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import '../../../../core/services/storage_service.dart';
+import '../../../../core/utils/crypto_helper.dart';
 import '../../data/models/document_model.dart';
 
 class DocumentsController extends ChangeNotifier {
+  final StorageService storageService = StorageService();
+
   bool isLoading = false;
   bool isPageEditMode = false;
   bool isSectionEditMode = false;
   bool showHiddenSection = false;
   String searchQuery = '';
+  String selectedBaseDir = 'Documents';
 
   List<DocumentGroup> allGroupRaw = [];
   Map<String, List<DocumentGroup>> groupedVisibleGroup = {};
   Map<String, List<DocumentGroup>> groupedHiddenGroup = {};
 
   DocumentsController() {
-    // Inisialisasi data awal (Mockup atau muat dari storage nantinya)
-    _groupData();
+    loadGroupsData();
+  }
+
+  Future<void> loadGroupsData() async {
+    isLoading = true;
+    notifyListeners();
+
+    try {
+      selectedBaseDir = await storageService.getBaseDirSetting();
+      List<File> files = await storageService.getAllDocumentGroups(
+        selectedBaseDir,
+      );
+      bool isEncrypted = await storageService.isEncryptionEnabled();
+      String? password = await storageService.getEncryptionPassword();
+
+      List<DocumentGroup> loadedGroups = [];
+      for (var f in files) {
+        if (!await f.exists()) continue;
+        String content = await f.readAsString();
+        String fName = f.path.split('/').last.replaceAll('.json', '');
+
+        // Abaikan enkripsi sementara waktu sesuai request: "tidak diencrypt"
+        final trimmed = content.trim();
+        if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+          try {
+            final map = jsonDecode(trimmed);
+            map['id'] = fName; // Selalu inject ID sesuai nama file fisik
+            loadedGroups.add(DocumentGroup.fromJson(map));
+          } catch (_) {}
+        }
+      }
+
+      allGroupRaw = loadedGroups;
+      _groupData();
+    } catch (e) {
+      debugPrint("Gagal memuat Document Groups: $e");
+    } finally {
+      isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> saveGroupDataToFile(DocumentGroup group) async {
+    try {
+      File file = await storageService.getSpecificDocumentGroupFile(
+        selectedBaseDir,
+        group.id,
+      );
+      String jsonStr = jsonEncode(group.toJson());
+      await file.writeAsString(jsonStr);
+      await loadGroupsData();
+    } catch (e) {
+      debugPrint("Gagal menyimpan Document Group: $e");
+    }
   }
 
   void _groupData() {
@@ -23,12 +82,10 @@ class DocumentsController extends ChangeNotifier {
     groupedHiddenGroup.clear();
 
     for (var group in allGroupRaw) {
-      // Filter Pencarian
       if (searchQuery.isNotEmpty &&
           !group.groupName.toLowerCase().contains(searchQuery.toLowerCase())) {
         continue;
       }
-
       if (group.isHidden) {
         groupedHiddenGroup
             .putIfAbsent(group.sectionCategory, () => [])
@@ -69,50 +126,71 @@ class DocumentsController extends ChangeNotifier {
     }
   }
 
-  void createGroupAtSection(String name, String icon, String section) {
+  Future<void> createGroupAtSection(
+    String name,
+    String icon,
+    String section,
+  ) async {
     final newGroup = DocumentGroup(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       groupName: name,
       icon: icon,
       sectionCategory: section,
+      allList: [], // Group dokumen dimulai dengan list kosong
     );
-    allGroupRaw.add(newGroup);
-    _groupData();
+    await saveGroupDataToFile(newGroup);
   }
 
-  void updateGroup(DocumentGroup group, String newName, String newIcon) {
+  Future<void> updateGroup(
+    DocumentGroup group,
+    String newName,
+    String newIcon,
+  ) async {
     group.groupName = newName;
     group.icon = newIcon;
-    _groupData();
+    await saveGroupDataToFile(group);
   }
 
-  void deleteGroup(DocumentGroup group) {
-    allGroupRaw.removeWhere((g) => g.id == group.id);
-    _groupData();
+  Future<void> deleteGroup(DocumentGroup group) async {
+    File targetFile = await storageService.getSpecificDocumentGroupFile(
+      selectedBaseDir,
+      group.id,
+    );
+    if (await targetFile.exists()) {
+      await targetFile.delete();
+    }
+    await loadGroupsData();
   }
 
-  void toggleGroupVisibility(DocumentGroup group) {
+  Future<void> toggleGroupVisibility(DocumentGroup group) async {
     group.isHidden = !group.isHidden;
-    _groupData();
+    await saveGroupDataToFile(group);
   }
 
-  void moveGroupToAnotherSection(DocumentGroup group, String newSection) {
+  Future<void> moveGroupToAnotherSection(
+    DocumentGroup group,
+    String newSection,
+  ) async {
     group.sectionCategory = newSection;
-    _groupData();
+    await saveGroupDataToFile(group);
   }
 
-  void updateMainSectionName(String oldName, String newName) {
+  Future<void> updateMainSectionName(String oldName, String newName) async {
     for (var group in allGroupRaw) {
       if (group.sectionCategory == oldName) {
         group.sectionCategory = newName;
+        await saveGroupDataToFile(group);
       }
     }
-    _groupData();
   }
 
-  void deleteMainSection(String sectionName) {
-    allGroupRaw.removeWhere((g) => g.sectionCategory == sectionName);
-    _groupData();
+  Future<void> deleteMainSection(String sectionName) async {
+    final groupsToDelete = allGroupRaw
+        .where((g) => g.sectionCategory == sectionName)
+        .toList();
+    for (var group in groupsToDelete) {
+      await deleteGroup(group);
+    }
   }
 
   void moveGroupOrder(
@@ -129,7 +207,30 @@ class DocumentsController extends ChangeNotifier {
   }
 
   void moveMainSectionOrder(String sectionKey, int direction) {
-    // Implementasi perpindahan seksi sesuai urutan map (Opsional untuk saat ini)
+    // Ambil daftar seksi saat ini
+    final keys = groupedVisibleGroup.keys.toList();
+    int index = keys.indexOf(sectionKey);
+    if (index == -1) return;
+
+    int newIndex = index + direction;
+    if (newIndex < 0 || newIndex >= keys.length) return;
+
+    // Logika pengurutan seksi pada manifes allGroupRaw berdasarkan kategori seksi
+    final targetSectionKey = keys[newIndex];
+
+    // Kelompokkan ulang item berdasarkan urutan seksi baru
+    final tempMap = <String, List<DocumentGroup>>{};
+    for (var key in keys) {
+      if (key == sectionKey) {
+        tempMap[targetSectionKey] = groupedVisibleGroup[targetSectionKey] ?? [];
+      } else if (key == targetSectionKey) {
+        tempMap[sectionKey] = groupedVisibleGroup[sectionKey] ?? [];
+      } else {
+        tempMap[key] = groupedVisibleGroup[key] ?? [];
+      }
+    }
+
+    groupedVisibleGroup = tempMap;
     notifyListeners();
   }
 }
