@@ -16,6 +16,9 @@ class BaseDetailListScreen<T> extends StatefulWidget {
   final String Function(T item)? itemSearchString;
   final bool Function(T item) itemIsFavorite;
 
+  // TAMBAHAN BARU: Parameter opsional untuk kustomisasi ikon kiri berdasarkan item berkas
+  final Widget Function(T item)? itemIconBuilder;
+
   final Widget? additionalAction; // Digunakan saat mode normal (misal: Sorting)
 
   final VoidCallback? onAddPressed;
@@ -45,6 +48,7 @@ class BaseDetailListScreen<T> extends StatefulWidget {
     required this.itemSubtitle,
     this.itemSearchString,
     required this.itemIsFavorite,
+    this.itemIconBuilder, // Registrasi parameter baru
     this.onAddPressed,
     this.onItemTap,
     this.onItemLongPress,
@@ -319,8 +323,9 @@ class _BaseDetailListScreenState<T> extends State<BaseDetailListScreen<T>> {
                             if (_isSelectMode) {
                               _toggleSelect(item);
                             } else {
-                              if (widget.onItemTap != null)
+                              if (widget.onItemTap != null) {
                                 widget.onItemTap!(item);
+                              }
                             }
                           },
                           onLongPress: () {
@@ -342,24 +347,27 @@ class _BaseDetailListScreenState<T> extends State<BaseDetailListScreen<T>> {
                                   ),
                                   const SizedBox(width: 12),
                                 ] else ...[
-                                  Container(
-                                    width: 44,
-                                    height: 44,
-                                    decoration: const BoxDecoration(
-                                      color: Color(0xFFE8EAF6),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: const Icon(
-                                      Icons.description_rounded,
-                                      color: Color(0xFF3F51B5),
-                                      size: 20,
-                                    ),
-                                  ),
+                                  // MODIFIKASI: Menggunakan custom itemIconBuilder jika disediakan, jika tidak pakai ikon default bawaan
+                                  widget.itemIconBuilder != null
+                                      ? widget.itemIconBuilder!(item)
+                                      : Container(
+                                          width: 44,
+                                          height: 44,
+                                          decoration: const BoxDecoration(
+                                            color: Color(0xFFE8EAF6),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Icon(
+                                            Icons.description_rounded,
+                                            color: Color(0xFF3F51B5),
+                                            size: 20,
+                                          ),
+                                        ),
                                   const SizedBox(width: 16),
                                 ],
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment:
+                                    crossAxisAlignment: // crossAxisAlignment
                                         CrossAxisAlignment.start,
                                     children: [
                                       Row(

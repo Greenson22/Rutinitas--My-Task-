@@ -89,7 +89,7 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
   }
 
   // =========================================================================
-  // HELPER FUNCTION: MENDAPATKAN IKON & WARNA BERDASARKAN EKSTENSI FILE (LENGKAP)
+  // HELPER FUNCTION 1: SEBELAH KIRI - CONTAINER CIRCLE + ICON SESUAI EKSTENSI
   // =========================================================================
   Widget _getFileIconWidget(String filePath) {
     final String fileName = filePath.split('/').last.toLowerCase();
@@ -98,38 +98,44 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
         : '';
 
     IconData iconData = Icons.insert_drive_file_rounded;
-    Color iconColor = Colors.grey;
+    Color iconColor = const Color(0xFF3F51B5);
+    Color bgColor = const Color(0xFFE8EAF6);
 
     switch (extension) {
       // Documents & Text
       case 'pdf':
         iconData = Icons.picture_as_pdf_rounded;
-        iconColor = Colors.redAccent;
+        iconColor = Colors.red.shade700;
+        bgColor = Colors.red.shade50;
         break;
       case 'doc':
       case 'docx':
       case 'odt':
       case 'rtf':
         iconData = Icons.description_rounded;
-        iconColor = Colors.blue;
+        iconColor = Colors.blue.shade700;
+        bgColor = Colors.blue.shade50;
         break;
       case 'xls':
       case 'xlsx':
       case 'ods':
       case 'csv':
         iconData = Icons.table_view_rounded;
-        iconColor = Colors.green;
+        iconColor = Colors.green.shade700;
+        bgColor = Colors.green.shade50;
         break;
       case 'ppt':
       case 'pptx':
       case 'odp':
         iconData = Icons.slideshow_rounded;
-        iconColor = Colors.orange;
+        iconColor = Colors.orange.shade700;
+        bgColor = Colors.orange.shade50;
         break;
       case 'txt':
       case 'log':
         iconData = Icons.article_rounded;
-        iconColor = Colors.blueGrey;
+        iconColor = Colors.blueGrey.shade700;
+        bgColor = Colors.blueGrey.shade50;
         break;
 
       // Images
@@ -142,7 +148,8 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
       case 'svg':
       case 'ico':
         iconData = Icons.image_rounded;
-        iconColor = Colors.purple;
+        iconColor = Colors.purple.shade700;
+        bgColor = Colors.purple.shade50;
         break;
 
       // Audio
@@ -154,7 +161,8 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
       case 'aac':
       case 'wma':
         iconData = Icons.audiotrack_rounded;
-        iconColor = Colors.teal;
+        iconColor = Colors.teal.shade700;
+        bgColor = Colors.teal.shade50;
         break;
 
       // Video
@@ -167,7 +175,8 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
       case 'webm':
       case '3gp':
         iconData = Icons.video_collection_rounded;
-        iconColor = Colors.red;
+        iconColor = Colors.red.shade900;
+        bgColor = Colors.red.shade100;
         break;
 
       // Archives / Compressed
@@ -177,7 +186,8 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
       case 'tar':
       case 'gz':
         iconData = Icons.folder_zip_rounded;
-        iconColor = Colors.amber[800]!;
+        iconColor = Colors.amber.shade900;
+        bgColor = Colors.amber.shade50;
         break;
 
       // Code / Programming
@@ -198,6 +208,7 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
       case 'json':
         iconData = Icons.code_rounded;
         iconColor = Colors.deepPurpleAccent;
+        bgColor = Colors.deepPurple.shade50;
         break;
 
       // Database
@@ -205,26 +216,78 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
       case 'sqlite':
       case 'sql':
         iconData = Icons.storage_rounded;
-        iconColor = Colors.blueGrey[700]!;
+        iconColor = Colors.blueGrey.shade900;
+        bgColor = Colors.blueGrey.shade100;
         break;
 
       // Executables / System
       case 'apk':
         iconData = Icons.android_rounded;
-        iconColor = Colors.lightGreen[700]!;
+        iconColor = Colors.lightGreen.shade800;
+        bgColor = Colors.lightGreen.shade50;
         break;
       case 'exe':
       case 'msi':
         iconData = Icons.laptop_windows_rounded;
-        iconColor = Colors.lightBlue[800]!;
+        iconColor = Colors.lightBlue.shade900;
+        bgColor = Colors.lightBlue.shade100;
         break;
 
       default:
         iconData = Icons.insert_drive_file_rounded;
-        iconColor = Colors.grey;
+        iconColor = Colors.grey.shade700;
+        bgColor = Colors.grey.shade200;
     }
 
-    return Icon(iconData, color: iconColor, size: 18);
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(color: bgColor, shape: BoxShape.circle),
+      child: Icon(iconData, color: iconColor, size: 20),
+    );
+  }
+
+  // =========================================================================
+  // HELPER FUNCTION 2: FORMALISASI UKURAN FILE (B, KB, MB, GB)
+  // =========================================================================
+  String _getFileSizeString(File file) {
+    try {
+      final int bytes = file.lengthSync();
+      if (bytes <= 0) return "0 B";
+      const suffixes = ["B", "KB", "MB", "GB", "TB"];
+      var i = (bytes.toString().length - 1) / 3;
+      int floorIndex = i.floor();
+      double num =
+          bytes /
+          (1024 *
+              floorIndex *
+              1024); // Menggunakan pembagian eksponensial sederhana
+      if (floorIndex == 0) num = bytes.toDouble();
+      if (floorIndex == 1) num = bytes / 1024;
+      if (floorIndex == 2) num = bytes / (1024 * 1024);
+      if (floorIndex == 3) num = bytes / (1024 * 1024 * 1024);
+
+      return "${num.toStringAsFixed(1)} ${suffixes[floorIndex]}";
+    } catch (_) {
+      return "0 B";
+    }
+  }
+
+  // =========================================================================
+  // HELPER FUNCTION 3: FORMALISASI TANGGAL FILE (YYYY-MM-DD HH:MM)
+  // =========================================================================
+  String _getFileDateString(File file) {
+    try {
+      final DateTime date = file.lastModifiedSync();
+      final String year = date.year.toString();
+      final String month = date.month.toString().padLeft(2, '0');
+      final String day = date.day.toString().padLeft(2, '0');
+      final String hour = date.hour.toString().padLeft(2, '0');
+      final String minute = date.minute.toString().padLeft(2, '0');
+      return "$year-$month-$day $hour:$minute";
+    } catch (_) {
+      return "-";
+    }
   }
 
   Future<void> _importFileFromDevice() async {
@@ -644,23 +707,19 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
               itemTitle: (file) => file.path.split('/').last,
 
               // =========================================================================
-              // SOLUSI: MEMASUKKAN IKON DINAMIS & TEKS EKSTENSI KE DALAM ITEMSUBTITLE
+              // MODIFIKASI 1: PASANG LOGIKA SEBELAH KIRI (MENGGANTI IKON BAWAAN)
+              // =========================================================================
+              itemIconBuilder: (file) => _getFileIconWidget(file.path),
+
+              // =========================================================================
+              // MODIFIKASI 2: SUBTITLE DIBAWAH NAMA FILE DIUBAH MENJADI UKURAN & TANGGAL
               // =========================================================================
               itemSubtitle: (file) {
-                final String fileName = file.path.split('/').last;
-                final String extension = fileName.contains('.')
-                    ? fileName.split('.').last.toUpperCase()
-                    : 'FILE';
-                return Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _getFileIconWidget(file.path),
-                    const SizedBox(width: 6),
-                    Text(
-                      extension,
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                  ],
+                final String sizeStr = _getFileSizeString(file);
+                final String dateStr = _getFileDateString(file);
+                return Text(
+                  "$sizeStr  •  $dateStr",
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
                 );
               },
 
