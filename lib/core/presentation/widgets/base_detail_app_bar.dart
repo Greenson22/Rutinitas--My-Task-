@@ -144,20 +144,26 @@ class BaseDetailAppBar extends StatelessWidget implements PreferredSizeWidget {
                 ? 'Sembunyikan Panel'
                 : 'Tampilkan Menu & Pencarian',
           ),
+        // =========================================================================
+        // PERBAIKAN: UTAMAKAN additionalAction JIKA DISEDIAKAN SAAT MODE SELEKSI
+        // =========================================================================
         if (isSelectMode) ...[
-          if (onMoveMassive != null)
-            IconButton(
-              icon: const Icon(Icons.drive_file_move, color: Colors.white),
-              onPressed: onMoveMassive,
-            ),
-          if (onDeleteMassive != null)
-            IconButton(
-              icon: const Icon(Icons.delete, color: Colors.white),
-              onPressed: onDeleteMassive,
-            ),
+          if (additionalAction != null)
+            additionalAction!
+          else ...[
+            if (onMoveMassive != null)
+              IconButton(
+                icon: const Icon(Icons.drive_file_move, color: Colors.white),
+                onPressed: onMoveMassive,
+              ),
+            if (onDeleteMassive != null)
+              IconButton(
+                icon: const Icon(Icons.delete, color: Colors.white),
+                onPressed: onDeleteMassive,
+              ),
+          ],
         ] else ...[
           if (additionalAction != null) additionalAction!,
-          // MODIFIKASI: Menghapus tombol duplikat sembunyikan panel (unfold_less_rounded) agar seragam menggunakan tombol utama di atas
         ],
       ],
       bottom: isSearchMode

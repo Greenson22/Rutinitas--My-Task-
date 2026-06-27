@@ -117,12 +117,8 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
     }
   }
 
-  // =========================================================================
-  // FITUR BARU: LOGIKA EKSPOR FILE KE FOLDER PILIHAN (LINUX & ANDROID)
-  // =========================================================================
   Future<void> _exportPhysicalFile(File file) async {
     try {
-      // Membuka native folder picker sesuai OS platform (Android / Linux)
       String? selectedDirectory = await FilePicker.getDirectoryPath();
 
       if (selectedDirectory != null && selectedDirectory.isNotEmpty) {
@@ -131,7 +127,6 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
         final String fileName = file.path.split('/').last;
         final String targetPath = '$selectedDirectory/$fileName';
 
-        // Lakukan penyalinan file fisik ke direktori eksternal terpilih
         await file.copy(targetPath);
 
         if (mounted) {
@@ -151,6 +146,49 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Gagal mengekspor berkas: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> _exportMassiveFiles(List<File> selectedFiles) async {
+    if (selectedFiles.isEmpty) return;
+    try {
+      String? selectedDirectory = await FilePicker.getDirectoryPath();
+      if (selectedDirectory != null && selectedDirectory.isNotEmpty) {
+        setState(() => isLoading = true);
+        int successCount = 0;
+
+        for (var file in selectedFiles) {
+          if (await file.exists()) {
+            final String fileName = file.path.split('/').last;
+            final String targetPath = '$selectedDirectory/$fileName';
+            await file.copy(targetPath);
+            successCount++;
+          }
+        }
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Berhasil mengekspor $successCount dari ${selectedFiles.length} berkas!',
+              ),
+              backgroundColor: Colors.teal,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint("Gagal melakukan ekspor masal: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal ekspor masal: $e'),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -429,11 +467,23 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
               enableAddButton: true,
               enableFavoriteSort: false,
               itemTitle: (file) => file.path.split('/').last,
+              // Perilaku menu pengurutan (Sorting) bawaan saat kondisi normal
               additionalAction: PopupMenuButton<String>(
-                icon: const Icon(Icons.sort_rounded, color: Colors.white),
-                tooltip: 'Urutkan Dokumen',
+                icon: const Icon(Icons.more_vert_rounded, color: Colors.white),
+                tooltip: 'Pilihan Menu',
                 onSelected: _handleSort,
                 itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                  const PopupMenuItem<String>(
+                    enabled: false,
+                    child: Text(
+                      'Urutkan Dokumen',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.indigo,
+                      ),
+                    ),
+                  ),
                   PopupMenuItem<String>(
                     value: 'manual',
                     child: Row(
@@ -547,9 +597,6 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
                     ],
                   ),
                 ),
-                // ---------------------------------------------------------
-                // OPSI MENU BARU: EKSPOR BERKAS
-                // ---------------------------------------------------------
                 const PopupMenuItem(
                   value: 'export',
                   child: Row(
@@ -584,16 +631,22 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
                 } else if (value == 'move') {
                   _showMoveDocumentsDialog([file]);
                 } else if (value == 'export') {
-                  _exportPhysicalFile(file); // Pemicu Ekspor Berkas
+                  _exportPhysicalFile(file);
                 } else if (value == 'delete') {
                   _deletePhysicalFile(file);
                 }
               },
+              // =========================================================================
+              // SEKARANG SELEKSI MASAL DIKONTROL PENUH SECARA DINAMIS OLEH PARENT UTAMA
+              // =========================================================================
               onDeleteMassive: (selectedItems) async {
                 await _deleteMassiveFiles(selectedItems);
               },
               onMoveMassive: (selectedItems) {
                 _showMoveDocumentsDialog(selectedItems);
+              },
+              onExportMassive: (selectedItems) async {
+                await _exportMassiveFiles(selectedItems);
               },
             ),
     );

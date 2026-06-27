@@ -1,6 +1,6 @@
 // lib/core/presentation/widgets/base_detail_list_screen.dart
 import 'package:flutter/material.dart';
-import 'base_detail_app_bar.dart'; // Import widget AppBar baru
+import 'base_detail_app_bar.dart';
 
 class BaseDetailListScreen<T> extends StatefulWidget {
   final String pageTitle;
@@ -12,23 +12,25 @@ class BaseDetailListScreen<T> extends StatefulWidget {
   final bool enableFavoriteSort;
 
   final String Function(T item) itemTitle;
-  final Widget Function(T item) itemSubtitle; // Ganti String menjadi Widget
-  final String Function(T item)?
-  itemSearchString; // Tambahkan untuk backup filter search
+  final Widget Function(T item) itemSubtitle;
+  final String Function(T item)? itemSearchString;
   final bool Function(T item) itemIsFavorite;
+
+  final Widget? additionalAction; // Digunakan saat mode normal (misal: Sorting)
 
   final VoidCallback? onAddPressed;
   final Function(T item)? onItemTap;
   final Function(T item)? onItemLongPress;
   final Function(List<T> selectedItems)? onDeleteMassive;
   final Function(List<T> selectedItems)? onMoveMassive;
+
+  // -------------------------------------------------------------------------
+  // TAMBAHAN: PARAMETER AKSI EKSPOR MASAL GENERIC
+  // -------------------------------------------------------------------------
+  final Function(List<T> selectedItems)? onExportMassive;
+
   final List<PopupMenuEntry<String>> Function(T item)? itemMenuBuilder;
   final Function(String value, T item)? onItemMenuSelected;
-
-  // =========================================================================
-  // FITUR BARU: DAFTARKAN PARAMATER ACTION TAMBAHAN UNTUK APPBAR
-  // =========================================================================
-  final Widget? additionalAction;
 
   const BaseDetailListScreen({
     super.key,
@@ -40,16 +42,17 @@ class BaseDetailListScreen<T> extends StatefulWidget {
     this.enableFavoriteSort = true,
     required this.itemTitle,
     required this.itemSubtitle,
-    this.itemSearchString, // Inisialisasi parameter baru
+    this.itemSearchString,
     required this.itemIsFavorite,
     this.onAddPressed,
     this.onItemTap,
     this.onItemLongPress,
     this.onDeleteMassive,
     this.onMoveMassive,
+    this.onExportMassive, // Inisialisasi parameter baru
     this.itemMenuBuilder,
     this.onItemMenuSelected,
-    this.additionalAction, // <-- Masukkan ke dalam konstruktor utama
+    this.additionalAction,
   });
 
   @override
@@ -108,20 +111,15 @@ class _BaseDetailListScreenState<T> extends State<BaseDetailListScreen<T>> {
 
   @override
   Widget build(BuildContext context) {
-    // LOGIKA FILTERING
     List<T> filteredItems = widget.items.where((item) {
       if (_searchQuery.isEmpty) return true;
       final title = widget.itemTitle(item).toLowerCase();
-
-      // Jika itemSearchString disediakan, gunakan teks tersebut untuk mencari data
       final subtitle = widget.itemSearchString != null
           ? widget.itemSearchString!(item).toLowerCase()
           : '';
-
       return title.contains(_searchQuery) || subtitle.contains(_searchQuery);
     }).toList();
 
-    // LOGIKA SORTING FAVORITE
     if (widget.enableFavoriteSort) {
       filteredItems.sort((a, b) {
         final aFav = widget.itemIsFavorite(a);
@@ -130,6 +128,88 @@ class _BaseDetailListScreenState<T> extends State<BaseDetailListScreen<T>> {
         if (!aFav && bFav) return 1;
         return 0;
       });
+    }
+
+    // =========================================================================
+    // LOGIKA DINAMIS: SELEKSI MENU BERDASARKAN MODE EDIT MASAL
+    // =========================================================================
+    Widget? activeAppBarAction = widget.additionalAction;
+
+    if (_isSelectMode) {
+      activeAppBarAction = PopupMenuButton<String>(
+        icon: const Icon(Icons.more_vert_rounded, color: Colors.white),
+        tooltip: 'Aksi Masal',
+        onSelected: (value) async {
+          final selectedCopy = List<T>.from(_selectedItems);
+          if (value == 'move_massive' && widget.onMoveMassive != null) {
+            widget.onMoveMassive!(selectedCopy);
+            _clearSelection();
+          } else if (value == 'export_massive' &&
+              widget.onExportMassive != null) {
+            await widget.onExportMassive!(selectedCopy);
+            _clearSelection();
+          } else if (value == 'delete_massive' &&
+              widget.onDeleteMassive != null) {
+            await widget.onDeleteMassive!(selectedCopy);
+            _clearSelection();
+          }
+        },
+        itemBuilder: (context) => [
+          const PopupMenuItem(
+            enabled: false,
+            child: Text(
+              'Aksi Pilihan Masal',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: Colors.orange,
+              ),
+            ),
+          ),
+          if (widget.onMoveMassive != null)
+            const PopupMenuItem(
+              value: 'move_massive',
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.drive_file_move_outlined,
+                    size: 18,
+                    color: Colors.indigo,
+                  ),
+                  SizedBox(width: 10),
+                  Text('Pindahkan Masal', style: TextStyle(fontSize: 13)),
+                ],
+              ),
+            ),
+          if (widget.onExportMassive != null)
+            const PopupMenuItem(
+              value: 'export_massive',
+              child: Row(
+                children: [
+                  Icon(Icons.output_rounded, size: 18, color: Colors.amber),
+                  SizedBox(width: 10),
+                  Text('Ekspor Masal', style: TextStyle(fontSize: 13)),
+                ],
+              ),
+            ),
+          if (widget.onDeleteMassive != null) ...[
+            const PopupMenuDivider(),
+            const PopupMenuItem(
+              value: 'delete_massive',
+              child: Row(
+                children: [
+                  Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
+                  SizedBox(width: 10),
+                  Text(
+                    'Hapus Masal',
+                    style: TextStyle(color: Colors.redAccent, fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      );
     }
 
     return Scaffold(
@@ -143,31 +223,8 @@ class _BaseDetailListScreenState<T> extends State<BaseDetailListScreen<T>> {
         enableMultiSelect: widget.enableMultiSelect,
         onClearSelection: _clearSelection,
         onToggleSearchMode: _handleToggleSearch,
-        onMoveMassive: widget.onMoveMassive != null
-            ? () {
-                // Berikan copy list datanya
-                widget.onMoveMassive!(List.from(_selectedItems));
-                _clearSelection();
-              }
-            : null,
-        onDeleteMassive: widget.onDeleteMassive != null
-            ? () async {
-                // PERBAIKAN: 1. Buat salinan (copy) list agar datanya tidak hilang dari referensi memori
-                final selectedCopy = List<T>.from(_selectedItems);
-
-                // PERBAIKAN: 2. Gunakan 'await' untuk menunggu proses hapus (termasuk dialog) benar-benar selesai
-                await widget.onDeleteMassive!(selectedCopy);
-
-                // PERBAIKAN: 3. Setelah selesai atau batal, barulah kita hilangkan pilihan (warna kuning)
-                if (mounted) {
-                  _clearSelection();
-                }
-              }
-            : null,
-        // =========================================================================
-        // PERBAIKAN UTAMA: Hubungkan parameter aksi kustom ke bodi BaseDetailAppBar
-        // =========================================================================
-        additionalAction: widget.additionalAction,
+        // Alihkan kontrol menu AppBar ke widget dinamis yang barusan dibuat
+        additionalAction: activeAppBarAction,
         searchBarContent: Row(
           children: [
             Expanded(
@@ -246,9 +303,8 @@ class _BaseDetailListScreenState<T> extends State<BaseDetailListScreen<T>> {
                             if (_isSelectMode) {
                               _toggleSelect(item);
                             } else {
-                              if (widget.onItemTap != null) {
+                              if (widget.onItemTap != null)
                                 widget.onItemTap!(item);
-                              }
                             }
                           },
                           onLongPress: () {
