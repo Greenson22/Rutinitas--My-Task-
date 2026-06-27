@@ -2,7 +2,7 @@
 
 import 'package:flutter/material.dart';
 import '../../../features/task_master/presentation/screens/task_master_screen.dart';
-import '../../../features/checklist/checklist_screen/checklist_screen.dart';
+import '../../../features/checklist/presentation/checklist_screen/checklist_screen.dart';
 import '../../../features/notes/presentation/screens/note_screen.dart';
 import '../../../features/jurnal_aktivitas/presentation/screens/jurnal_aktivitas_screen.dart';
 import '../../../features/prompt/presentation/screens/prompt_screen.dart';
