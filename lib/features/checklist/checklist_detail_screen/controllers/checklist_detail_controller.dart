@@ -6,9 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // TAMBAHAN: Diperlukan untuk utilitas interaksi Clipboard (Salin/Tempel)
 import '../../../../core/services/storage_service.dart';
 import '../../data/models/daily_model.dart';
-import '../widgets/checklist_detail/checklist_dialog.dart';
-import '../widgets/checklist_detail/add_checklist_subject_dialog.dart';
-import '../screens/checklist_detail_screen.dart';
+import '../widgets/checklist_dialog.dart';
+import '../widgets/add_checklist_subject_dialog.dart';
+import '../checklist_detail_screen.dart';
 
 abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
   final StorageService storageService = StorageService();

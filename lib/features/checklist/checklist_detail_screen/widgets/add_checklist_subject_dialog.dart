@@ -1,7 +1,7 @@
 // lib/features/daily/presentation/widgets/add_daily_subject_dialog.dart
 
 import 'package:flutter/material.dart';
-import '../../../data/models/daily_model.dart';
+import '../../data/models/daily_model.dart';
 import 'package:flutter/services.dart'; // <--- Tambahkan ini di baris paling atas file
 
 class AddDailySubjectDialog extends StatefulWidget {

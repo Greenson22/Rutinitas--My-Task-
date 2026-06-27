@@ -1,7 +1,7 @@
 // lib/features/daily/presentation/widgets/change_color_dialog.dart
 
 import 'package:flutter/material.dart';
-import '../../../../data/models/daily_model.dart';
+import '../../../data/models/daily_model.dart';
 
 class ChangeColorDialog extends StatefulWidget {
   final DailySubject subject;

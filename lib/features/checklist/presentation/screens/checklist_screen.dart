@@ -15,7 +15,7 @@ import '../../../../core/services/storage_service.dart'; // <--- IMPORT BARU KUN
 
 import '../../data/models/daily_model.dart';
 import '../controllers/daily_controller.dart';
-import 'checklist_detail_screen.dart';
+import '../../checklist_detail_screen/checklist_detail_screen.dart';
 
 class DailyScreen extends StatefulWidget {
   const DailyScreen({super.key});

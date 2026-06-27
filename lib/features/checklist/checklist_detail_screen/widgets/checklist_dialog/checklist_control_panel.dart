@@ -1,7 +1,7 @@
 // lib/features/daily/presentation/widgets/checklist_detail/checklist_control_panel.dart
 
 import 'package:flutter/material.dart';
-import '../../../../data/models/daily_model.dart';
+import '../../../data/models/daily_model.dart';
 
 class ChecklistControlPanel extends StatelessWidget {
   final DailySubject subject;
