@@ -83,6 +83,8 @@ class SharingServer {
                 String clientNotesZipBase64 = dateReceived['notes_zip'] ?? "";
                 String clientPromptsZipBase64 =
                     dateReceived['prompts_zip'] ?? "";
+                String clientDocsZipBase64 =
+                    dateReceived['documents_zip'] ?? "";
 
                 final Archive clientArchive = Archive();
                 List<int> tasksBytes = utf8.encode(clientTasks);
@@ -137,6 +139,22 @@ class SharingServer {
                       clientArchive.addFile(
                         ArchiveFile(
                           'prompts/${file.name}',
+                          file.content.length,
+                          file.content,
+                        ),
+                      );
+                    }
+                  }
+                }
+
+                if (clientDocsZipBase64.isNotEmpty) {
+                  List<int> docsBytes = base64Decode(clientDocsZipBase64);
+                  Archive docsArchive = ZipDecoder().decodeBytes(docsBytes);
+                  for (ArchiveFile file in docsArchive) {
+                    if (file.isFile) {
+                      clientArchive.addFile(
+                        ArchiveFile(
+                          file.name, // Format path sudah relatif 'my_documents/...'
                           file.content.length,
                           file.content,
                         ),
@@ -215,6 +233,59 @@ class SharingServer {
           return;
         }
 
+        // Tampilkan dialog konfirmasi dokumen
+        if (!context.mounted) return;
+        final bool? includeDocuments = await showDialog<bool>(
+          context: context,
+          builder: (ctx) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: Row(
+                children: const [
+                  Icon(Icons.share_rounded, color: Colors.teal),
+                  SizedBox(width: 8),
+                  Text('Kirim Data ke Client'),
+                ],
+              ),
+              content: const Text(
+                'Apakah Anda ingin menyertakan seluruh berkas fisik dari folder "My Documents" (PDF, Gambar, dll.) ke dalam paket transfer?\n\n*Catatan: Menyertakan dokumen dapat membuat proses transfer data membutuhkan waktu lebih lama.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, null),
+                  child: const Text(
+                    'Batal',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.indigo,
+                  ),
+                  child: const Text(
+                    'Tanpa Dokumen',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+                  child: const Text(
+                    'Sertakan Dokumen',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+
+        // Jika user menekan luar dialog atau membatalkan, hentikan eksekusi
+        if (includeDocuments == null) return;
+
         String currentDir = await _storageService.getBaseDirSetting();
         File fileTasks = await _storageService.getTargetJsonFile(currentDir);
         String tasksContent = await fileTasks.exists()
@@ -280,6 +351,34 @@ class SharingServer {
             ? base64Encode(promptsZipBytes)
             : "";
 
+        String documentsBase64Content = "";
+        if (includeDocuments) {
+          final Directory documentsDir = Directory('$currentDir/my_documents');
+          if (await documentsDir.exists()) {
+            final Archive docArchive = Archive();
+            final List<FileSystemEntity> entities = documentsDir.listSync(
+              recursive: true,
+            );
+            for (var entity in entities) {
+              if (entity is File) {
+                String relativePath = entity.path.substring(
+                  documentsDir.parent.path.length + 1,
+                );
+                relativePath = relativePath.replaceAll('\\', '/');
+
+                final List<int> fileBytes = await entity.readAsBytes();
+                docArchive.addFile(
+                  ArchiveFile(relativePath, fileBytes.length, fileBytes),
+                );
+              }
+            }
+            final List<int>? docZipBytes = ZipEncoder().encode(docArchive);
+            if (docZipBytes != null) {
+              documentsBase64Content = base64Encode(docZipBytes);
+            }
+          }
+        }
+
         Map<String, dynamic> sendBigPackage = {
           'tipe_pesan': 'data_transfer',
           'task_master': tasksContent,
@@ -287,6 +386,7 @@ class SharingServer {
           'checklist_zip': zipBase64Content,
           'notes_zip': notesBase64Content,
           'prompts_zip': promptsBase64Content,
+          'documents_zip': documentsBase64Content,
         };
 
         for (var socket in clientActiveList) {
@@ -333,8 +433,7 @@ class SharingServer {
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment
-                      .center, // Pusatkan kontainer untuk estetika QR
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Container(
                       width: double.infinity,
@@ -357,7 +456,6 @@ class SharingServer {
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 10),
-                          // PERBAIKAN: Membungkus QrImageView dengan SizedBox berukuran pasti (160x160) untuk mengatasi error Intrinsic Dimensions
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(

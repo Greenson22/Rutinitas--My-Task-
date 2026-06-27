@@ -34,7 +34,6 @@ class SharingClient {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // MODIFIKASI: Menggunakan Row agar ada tombol scan barcode di sebelah kanan input text
                 Row(
                   children: [
                     Expanded(
@@ -53,7 +52,6 @@ class SharingClient {
                       ),
                       tooltip: 'Scan QR / Barcode IP',
                       onPressed: () async {
-                        // Buka halaman scanner dan tunggu hasilnya
                         final String? scannedIp = await Navigator.push<String>(
                           context,
                           MaterialPageRoute(
@@ -61,7 +59,6 @@ class SharingClient {
                           ),
                         );
 
-                        // Jika hasil scan tidak null, masukkan ke dalam controller dan update state dialog
                         if (scannedIp != null && scannedIp.trim().isNotEmpty) {
                           setDialogState(() {
                             ipController.text = scannedIp.trim();
@@ -173,6 +170,59 @@ class SharingClient {
       Future<void> fungsiKirimDataClient() async {
         if (!isStillConnected) return;
 
+        // Tampilkan dialog konfirmasi dokumen di sisi client
+        if (!context.mounted) return;
+        final bool? includeDocuments = await showDialog<bool>(
+          context: context,
+          builder: (ctx) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: Row(
+                children: const [
+                  Icon(Icons.share_rounded, color: Colors.teal),
+                  SizedBox(width: 8),
+                  Text('Kirim Data ke Server'),
+                ],
+              ),
+              content: const Text(
+                'Apakah Anda ingin menyertakan seluruh berkas fisik dari folder "My Documents" (PDF, Gambar, dll.) ke dalam paket transfer?\n\n*Catatan: Menyertakan dokumen dapat membuat proses transfer data membutuhkan waktu lebih lama.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, null),
+                  child: const Text(
+                    'Batal',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.indigo,
+                  ),
+                  child: const Text(
+                    'Tanpa Dokumen',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+                  child: const Text(
+                    'Sertakan Dokumen',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+
+        // Jika user menekan batal, batalkan pengiriman
+        if (includeDocuments == null) return;
+
         String currentDir = await _storageService.getBaseDirSetting();
         File fileTasks = await _storageService.getTargetJsonFile(currentDir);
         String kontenTasks = await fileTasks.exists()
@@ -236,6 +286,34 @@ class SharingClient {
             ? base64Encode(promptsZipBytes)
             : "";
 
+        String kontenDocsBase64 = "";
+        if (includeDocuments) {
+          final Directory documentsDir = Directory('$currentDir/my_documents');
+          if (await documentsDir.exists()) {
+            final Archive docArchive = Archive();
+            final List<FileSystemEntity> entities = documentsDir.listSync(
+              recursive: true,
+            );
+            for (var entity in entities) {
+              if (entity is File) {
+                String relativePath = entity.path.substring(
+                  documentsDir.parent.path.length + 1,
+                );
+                relativePath = relativePath.replaceAll('\\', '/');
+
+                final List<int> fileBytes = await entity.readAsBytes();
+                docArchive.addFile(
+                  ArchiveFile(relativePath, fileBytes.length, fileBytes),
+                );
+              }
+            }
+            final List<int>? docZipBytes = ZipEncoder().encode(docArchive);
+            if (docZipBytes != null) {
+              kontenDocsBase64 = base64Encode(docZipBytes);
+            }
+          }
+        }
+
         Map<String, dynamic> paketBesarClient = {
           'tipe_pesan': 'data_transfer',
           'task_master': kontenTasks,
@@ -243,6 +321,7 @@ class SharingClient {
           'checklist_zip': kontenZipBase64,
           'notes_zip': kontenNotesBase64,
           'prompts_zip': kontenPromptsBase64,
+          'documents_zip': kontenDocsBase64,
         };
 
         channel.sink.add(jsonEncode(paketBesarClient));
@@ -289,6 +368,8 @@ class SharingClient {
                   String serverNotesZipBase64 = dataDiterima['notes_zip'] ?? "";
                   String serverPromptsZipBase64 =
                       dataDiterima['prompts_zip'] ?? "";
+                  String serverDocsZipBase64 =
+                      dataDiterima['documents_zip'] ?? "";
 
                   final Archive backupArchive = Archive();
                   List<int> tasksBytes = utf8.encode(serverTasks);
@@ -355,6 +436,24 @@ class SharingClient {
                         backupArchive.addFile(
                           ArchiveFile(
                             'prompts/${file.name}',
+                            file.content.length,
+                            file.content,
+                          ),
+                        );
+                      }
+                    }
+                  }
+
+                  if (serverDocsZipBase64.isNotEmpty) {
+                    List<int> docsZipBytes = base64Decode(serverDocsZipBase64);
+                    Archive docsArchive = ZipDecoder().decodeBytes(
+                      docsZipBytes,
+                    );
+                    for (ArchiveFile file in docsArchive) {
+                      if (file.isFile) {
+                        backupArchive.addFile(
+                          ArchiveFile(
+                            file.name, // Format path sudah relatif 'my_documents/...'
                             file.content.length,
                             file.content,
                           ),
@@ -546,7 +645,6 @@ class SharingClient {
   }
 }
 
-// PERBAIKAN TOTAL: Menggunakan basis UI Stateful sederhana sesuai struktur BarcodeCapture versi terbaru Anda
 class QRScannerScreen extends StatefulWidget {
   const QRScannerScreen({super.key});
 
@@ -571,7 +669,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
         title: const Text('Scan QR Code Server'),
         backgroundColor: Colors.indigo,
         actions: [
-          // Kontrol Senter Manual berbasis State Lokal (Bebas dari error kompilasi properti)
           IconButton(
             icon: Icon(
               _isTorchOn ? Icons.flash_on : Icons.flash_off,
@@ -584,7 +681,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               });
             },
           ),
-          // Kontrol Pembalik Kamera
           IconButton(
             icon: const Icon(Icons.flip_camera_ios_rounded),
             onPressed: () => controller.switchCamera(),
@@ -594,14 +690,12 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       backgroundColor: Colors.black,
       body: MobileScanner(
         controller: controller,
-        // DITERAPKAN: Menggunakan pencocokan model BarcodeCapture persis seperti dokumentasi resmi Anda
         onDetect: (BarcodeCapture capture) {
           final Barcode? barcode = capture.barcodes.firstOrNull;
           if (barcode != null) {
             final String? code = barcode.rawValue;
             if (code != null && code.trim().isNotEmpty) {
-              controller
-                  .stop(); // Hentikan engine kamera sebelum berpindah layar
+              controller.stop();
               Navigator.pop(context, code.trim());
             }
           }
