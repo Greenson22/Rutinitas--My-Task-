@@ -144,11 +144,41 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
   // HELPER FUNCTION 1: SEBELAH KIRI - CONTAINER CIRCLE + ICON SESUAI EKSTENSI
   // =========================================================================
   Widget _getFileIconWidget(String filePath) {
+    final File file = File(filePath);
     final String fileName = filePath.split('/').last.toLowerCase();
     final String extension = fileName.contains('.')
         ? fileName.split('.').last
         : '';
 
+    // 1. CEK EKSTENSI GAMBAR UNTUK MEMBERIKAN THUMBNAIL NYATA
+    const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
+    if (imageExtensions.contains(extension)) {
+      return Container(
+        width: 44,
+        height: 44,
+        decoration: const BoxDecoration(
+          shape: BoxShape.circle,
+          color: Color(0xFFF5F5F5),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(22),
+          child: Image.file(
+            file,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              // Fallback ikon jika gambar gagal dimuat (misal korup atau permission)
+              return const Icon(
+                Icons.broken_image_rounded,
+                color: Colors.grey,
+                size: 20,
+              );
+            },
+          ),
+        ),
+      );
+    }
+
+    // 2. DEFINE VALUE SEPERTI BIASA UNTUK NON-GAMBAR
     IconData iconData = Icons.insert_drive_file_rounded;
     Color iconColor = const Color(0xFF3F51B5);
     Color bgColor = const Color(0xFFE8EAF6);
@@ -188,20 +218,6 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
         iconData = Icons.article_rounded;
         iconColor = Colors.blueGrey.shade700;
         bgColor = Colors.blueGrey.shade50;
-        break;
-
-      // Images
-      case 'jpg':
-      case 'jpeg':
-      case 'png':
-      case 'gif':
-      case 'bmp':
-      case 'webp':
-      case 'svg':
-      case 'ico':
-        iconData = Icons.image_rounded;
-        iconColor = Colors.purple.shade700;
-        bgColor = Colors.purple.shade50;
         break;
 
       // Audio
