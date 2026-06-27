@@ -21,7 +21,11 @@ class MyDocumentsScreen extends StatefulWidget {
 
 class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
   late DocumentsController _controller;
-  final Color _themeColor = Colors.blueGrey;
+
+  // =========================================================================
+  // PERUBAHAN WARNA TEMA: Disamakan menggunakan Colors.indigo seperti di Notes
+  // =========================================================================
+  final Color _themeColor = Colors.indigo;
 
   // Variabel kontrol untuk Banner AdMob
   BannerAd? _bannerAd;
@@ -31,14 +35,12 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
   String get adUnitId {
     if (Platform.isAndroid) {
       if (kDebugMode) {
-        // ID Test Resmi dari Google untuk pengujian iklan Banner Android
         return 'ca-app-pub-3940256099942544/6300978111';
       } else {
-        // Ad Unit ID resmi yang diberikan oleh user
         return 'ca-app-pub-5320800343545863/5518848739';
       }
     }
-    return ''; // Kosongkan jika berjalan di Desktop / platform non-Android agar tidak crash
+    return '';
   }
 
   @override
@@ -46,14 +48,11 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
     super.initState();
     _controller = DocumentsController();
     _controller.addListener(_onControllerNotify);
-
-    // Panggil fungsi pemuatan iklan banner
     _loadBannerAd();
   }
 
-  // Fungsi untuk mengunduh iklan banner AdMob
   void _loadBannerAd() {
-    if (adUnitId.isEmpty) return; // Batalkan jika bukan platform Android
+    if (adUnitId.isEmpty) return;
 
     _bannerAd = BannerAd(
       adUnitId: adUnitId,
@@ -81,22 +80,16 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
   void dispose() {
     _controller.removeListener(_onControllerNotify);
     _controller.dispose();
-    _bannerAd
-        ?.dispose(); // Hancurkan objek iklan dari memori saat halaman ditutup untuk mencegah kebocoran memori
+    _bannerAd?.dispose();
     super.dispose();
   }
 
-  // =========================================================================
-  // FITUR BARU: DIALOG PEMINDAHAN GRUP DOKUMEN KE SEKSI LAIN (PERSIS STYLE NOTES)
-  // =========================================================================
   void _showMoveGroupSectionDialog(DocumentGroup group) {
     if (group.id.startsWith("CORRUPTED_")) return;
 
-    // Kumpulkan seksi unik dari visible group
     List<String> availableSections = _controller.groupedVisibleGroup.keys
         .toList();
 
-    // Kumpulkan seksi dari hidden group jika ada seksi unik yang belum tercatat
     for (var key in _controller.groupedHiddenGroup.keys) {
       if (!availableSections.contains(key)) {
         availableSections.add(key);
@@ -137,7 +130,6 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
                           final messenger = ScaffoldMessenger.of(context);
                           Navigator.pop(context);
 
-                          // Gunakan fungsi controller yang sudah ada untuk memindahkan data seksi
                           await _controller.moveGroupToAnotherSection(
                             group,
                             sectionName.isEmpty ? "Catatan Utama" : sectionName,
@@ -237,7 +229,8 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
                 Navigator.pop(context);
               }
             },
-            child: const Text('Simpan'),
+            style: ElevatedButton.styleFrom(backgroundColor: _themeColor),
+            child: const Text('Simpan', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -344,9 +337,9 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
               final updatedIcon = iconController.text.trim();
               if (updatedName.isNotEmpty) {
                 group.groupName = updatedName;
-                group.icon = updatedIcon.isEmpty ? ' ' : updatedIcon;
+                group.icon = updatedIcon.isEmpty ? '📁' : updatedIcon;
                 await _controller.saveGroupDataToFile(group);
-                await _controller.loadGroupsData(); // Refresh UI Controller
+                await _controller.loadGroupsData();
                 if (mounted) Navigator.pop(context);
               }
             },
@@ -432,21 +425,22 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
         ),
 
         // =========================================================================
-        // FITUR BARU: INDIKATOR GEMBOK TERBUKA (TANPA ENKRIPSI) PERSIS STYLE NOTES
+        // SINKRONISASI APPBAR ACTION: Menampilkan Status Enkripsi sistem seperti di Notes
+        // Karena Modul Dokumen tidak dienkripsi, menggunakan ikon gembok terbuka berwarna teal transparan
         // =========================================================================
         appBarTrailingAction: Padding(
           padding: const EdgeInsets.only(right: 8.0),
           child: Tooltip(
-            message: 'Tidak Terenkripsi',
+            message: 'Dekripsi Sistem Aktif (Teks Biasa)',
             child: Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: _themeColor.withOpacity(0.2),
+                color: Colors.teal.withOpacity(0.2),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
-                Icons.lock_open_rounded,
-                color: Colors.white70,
+                Icons.lock_open,
+                color: Colors.tealAccent,
                 size: 18,
               ),
             ),
@@ -470,27 +464,49 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
             color: Colors.white,
           ),
           tooltip: _controller.showHiddenSection
-              ? 'Sembunyikan'
-              : 'Tampilkan Tersembunyi',
+              ? 'Sembunyikan Grup Nonaktif'
+              : 'Tampilkan Grup Tersembunyi',
           onPressed: _controller.toggleShowHiddenSection,
         ),
         sectionHeaderBuilder: (context, index, sectionKey, isLayoutEditMode) {
           if (index >= visibleKeysCount) {
             String originalName = sectionKey.replaceAll('_hidden_key', '');
-            return Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-              child: Text(
-                '$originalName (Tersembunyi)',
-                style: const TextStyle(fontSize: 12, color: Colors.blueGrey),
-              ),
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (index == visibleKeysCount)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 16.0,
+                      vertical: 8.0,
+                    ),
+                    child: Divider(thickness: 2, color: Colors.grey),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                  child: Text(
+                    '$originalName (Tersembunyi)',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.blueGrey,
+                    ),
+                  ),
+                ),
+              ],
             );
           }
 
+          // =========================================================================
+          // PERUBAHAN UTAMA: Mengaktifkan Huruf Besar Seksi (`isUpperCase: true`)
+          // Menyamakan warna tema, state edit, serta perilaku tukar urutan persisten
+          // =========================================================================
           return InteractiveSectionHeader(
             sectionName: sectionKey,
             themeColor: _themeColor,
             isEditMode: isLayoutEditMode ? true : _controller.isSectionEditMode,
-            isUpperCase: false,
+            isUpperCase:
+                true, // <--- SEKARANG MENJADI HURUF BESAR SEPERTI DI NOTES
             isFirst: index == 0,
             isLast: index == visibleKeysCount - 1,
             onToggleEdit: _controller.toggleSectionEditMode,
@@ -508,170 +524,152 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
             onAddItem: () => _showAddGroupDialogAtSection(sectionKey),
           );
         },
-        gridItemBuilder:
-            (context, group, index, sectionItems, isLayoutEditMode) {
-              int totalDocsCount = _controller.groupFileCounts[group.id] ?? 0;
+        gridItemBuilder: (context, group, index, sectionItems, isLayoutEditMode) {
+          int totalDocsCount = _controller.groupFileCounts[group.id] ?? 0;
 
-              return InteractiveGridCard(
-                themeColor: _themeColor,
-                isEditMode: isLayoutEditMode
-                    ? true
-                    : _controller.isPageEditMode,
-                isHiddenStyle: group.isHidden,
-                isFirst: index == 0,
-                isLast: index == sectionItems.length - 1,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => DocumentDetailScreen(
-                        group: group,
-                        baseDir: _controller.selectedBaseDir,
-                      ),
-                    ),
-                  ).then((_) => _controller.loadGroupsData());
-                },
-                onLongPress: _controller.togglePageEditMode,
-                onMoveLeft: () =>
-                    _controller.moveGroupOrder(sectionItems, index, -1),
-                onMoveRight: () =>
-                    _controller.moveGroupOrder(sectionItems, index, 1),
-                popupMenuItems: [
-                  const PopupMenuItem(
-                    value: 'edit',
-                    child: Row(
-                      children: [
-                        Icon(Icons.edit, size: 18, color: Colors.teal),
-                        SizedBox(width: 10),
-                        Text(
-                          'Ubah Nama & Ikon',
-                          style: TextStyle(fontSize: 13),
-                        ),
-                      ],
-                    ),
+          // =========================================================================
+          // RE-DESIGN KARTU GRID: Sepenuhnya disamakan dengan struktur & warna Notes
+          // =========================================================================
+          return InteractiveGridCard(
+            themeColor: _themeColor,
+            isEditMode: isLayoutEditMode ? true : _controller.isPageEditMode,
+            isHiddenStyle: group.isHidden,
+            isFirst: index == 0,
+            isLast: index == sectionItems.length - 1,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => DocumentDetailScreen(
+                    group: group,
+                    baseDir: _controller.selectedBaseDir,
                   ),
-                  const PopupMenuItem(
-                    value: 'move_section',
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.drive_file_move_outlined,
-                          size: 18,
-                          color: Colors.indigo,
-                        ),
-                        SizedBox(width: 10),
-                        Text('Pindahkan Seksi', style: TextStyle(fontSize: 13)),
-                      ],
-                    ),
-                  ),
-                  PopupMenuItem(
-                    value: 'toggle_visibility',
-                    child: Row(
-                      children: [
-                        Icon(
-                          group.isHidden
-                              ? Icons.visibility
-                              : Icons.visibility_off,
-                          size: 18,
-                          color: Colors.blueGrey,
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          group.isHidden
-                              ? 'Tampilkan Group'
-                              : 'Sembunyikan Group',
-                          style: const TextStyle(fontSize: 13),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const PopupMenuDivider(),
-                  const PopupMenuItem(
-                    value: 'delete',
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.delete_outline,
-                          size: 18,
-                          color: Colors.redAccent,
-                        ),
-                        SizedBox(width: 10),
-                        Text(
-                          'Hapus Group',
-                          style: TextStyle(
-                            color: Colors.redAccent,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-                onPopupSelected: (value) {
-                  if (value == 'edit') {
-                    _showEditGroupDialog(group);
-                  }
-                  if (value == 'move_section') {
-                    _showMoveGroupSectionDialog(group);
-                  }
-                  if (value == 'toggle_visibility') {
-                    _controller.toggleGroupVisibility(group);
-                  }
-                  if (value == 'delete') {
-                    _controller.deleteGroup(group);
-                  }
-                },
-                content: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                ),
+              ).then((_) => _controller.loadGroupsData());
+            },
+            onLongPress: _controller.togglePageEditMode,
+            onMoveLeft: () =>
+                _controller.moveGroupOrder(sectionItems, index, -1),
+            onMoveRight: () =>
+                _controller.moveGroupOrder(sectionItems, index, 1),
+            popupMenuItems: [
+              const PopupMenuItem(
+                value: 'edit',
+                child: Row(
                   children: [
-                    Text(
-                      group.icon,
-                      style: TextStyle(
-                        fontSize: 28,
-                        color: group.isHidden ? Colors.grey : Colors.black,
-                      ),
+                    Icon(Icons.edit, size: 18, color: Colors.teal),
+                    SizedBox(width: 10),
+                    Text('Ubah Nama & Ikon', style: TextStyle(fontSize: 13)),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'move_section',
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.drive_file_move_outlined,
+                      size: 18,
+                      color: Colors.indigo,
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      group.groupName,
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        color: group.isHidden ? Colors.grey : Colors.black87,
-                      ),
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    SizedBox(width: 10),
+                    Text('Pindahkan Seksi', style: TextStyle(fontSize: 13)),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'toggle_visibility',
+                child: Row(
+                  children: [
+                    Icon(
+                      group.isHidden ? Icons.visibility : Icons.visibility_off,
+                      size: 18,
+                      color: Colors.blueGrey,
                     ),
-                    const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: (group.isHidden ? Colors.grey : _themeColor)
-                            .withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        '$totalDocsCount File',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: group.isHidden
-                              ? Colors.grey[700]
-                              : _themeColor,
-                        ),
-                      ),
+                    const SizedBox(width: 10),
+                    Text(
+                      group.isHidden ? 'Tampilkan Grup' : 'Sembunyikan Grup',
+                      style: const TextStyle(fontSize: 13),
                     ),
                   ],
                 ),
-              );
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'delete',
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.delete_outline,
+                      size: 18,
+                      color: Colors.redAccent,
+                    ),
+                    SizedBox(width: 10),
+                    Text(
+                      'Hapus Grup',
+                      style: TextStyle(color: Colors.redAccent, fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            onPopupSelected: (value) {
+              if (value == 'edit') {
+                _showEditGroupDialog(group);
+              }
+              if (value == 'move_section') {
+                _showMoveGroupSectionDialog(group);
+              }
+              if (value == 'toggle_visibility') {
+                _controller.toggleGroupVisibility(group);
+              }
+              if (value == 'delete') {
+                _controller.deleteGroup(group);
+              }
             },
+            content: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  group.icon.isEmpty ? '📁' : group.icon,
+                  style: const TextStyle(fontSize: 32),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  group.groupName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _themeColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '$totalDocsCount File',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: _themeColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
 
-      // IMPLEMENTASI LAYOUT FOOTER BANNER ADMOB KHUSUS ANDROID
       bottomNavigationBar:
           _isAdLoaded && _bannerAd != null && Platform.isAndroid
           ? SafeArea(
