@@ -1,3 +1,4 @@
+// lib/features/data_center/presentation/local_sharing/doc_sync_helper.dart
 import 'dart:convert';
 import 'dart:io';
 import 'package:archive/archive_io.dart';
@@ -27,6 +28,24 @@ class DocManifestItem {
 
 class DocSyncHelper {
   static BuildContext? _activeProgressContext;
+  static ValueNotifier<String>? _activeStatusNotifier;
+
+  // PERBAIKAN: Helper mendaftarkan dialog aktif & notifier dari pemicu awal
+  static void registerActiveDialog(
+    BuildContext ctx,
+    ValueNotifier<String> notifier,
+  ) {
+    _activeProgressContext = ctx;
+    _activeStatusNotifier = notifier;
+  }
+
+  static void dismissActiveDialog() {
+    if (_activeProgressContext != null && _activeProgressContext!.mounted) {
+      Navigator.pop(_activeProgressContext!);
+      _activeProgressContext = null;
+      _activeStatusNotifier = null;
+    }
+  }
 
   static Future<List<DocManifestItem>> createManifest(String baseDir) async {
     final Directory docDir = Directory('$baseDir/my_documents');
@@ -81,7 +100,6 @@ class DocSyncHelper {
         }
       }
     }
-
     return {'delete': toDelete, 'request': toRequest};
   }
 
@@ -126,6 +144,7 @@ class DocSyncHelper {
     required Map<String, dynamic> timestamps,
   }) async {
     if (zipBase64.isEmpty) return 0;
+
     final Directory docDir = Directory('$baseDir/my_documents');
     if (!await docDir.exists()) await docDir.create(recursive: true);
 
@@ -136,8 +155,9 @@ class DocSyncHelper {
     for (ArchiveFile file in archive) {
       if (file.isFile) {
         final outFile = File('${docDir.path}/${file.name}');
-        if (!await outFile.parent.exists())
+        if (!await outFile.parent.exists()) {
           await outFile.parent.create(recursive: true);
+        }
         await outFile.writeAsBytes(file.content as List<int>, flush: true);
 
         if (timestamps.containsKey(file.name)) {
@@ -151,14 +171,7 @@ class DocSyncHelper {
     return count;
   }
 
-  static void _dismissActiveDialog() {
-    if (_activeProgressContext != null && _activeProgressContext!.mounted) {
-      Navigator.pop(_activeProgressContext!);
-      _activeProgressContext = null;
-    }
-  }
-
-  // PUSAT PENANGANI PESAN WEBSOCKET (SEKARANG DENGAN DUKUNGAN RESET STATUS LOADING UTAMA)
+  // PUSAT PENANGANAN PESAN WEBSOCKET MIRRORING
   static Future<bool> handleDocSyncStream({
     required String pesanMasuk,
     required dynamic socketSink,
@@ -172,8 +185,7 @@ class DocSyncHelper {
       Function(BuildContext),
     )
     showProgressDialog,
-    Function(bool)?
-    onLoadingStatusChanged, // Callback opsional dari Client untuk mematikan loading screen utama
+    Function(bool)? onLoadingStatusChanged,
   }) async {
     try {
       Map<String, dynamic> data = jsonDecode(pesanMasuk);
@@ -182,20 +194,18 @@ class DocSyncHelper {
       if (!tipe.startsWith('doc_sync_')) return false;
 
       if (tipe == 'doc_sync_init') {
-        _dismissActiveDialog();
-
+        dismissActiveDialog();
         final statusNotifier = ValueNotifier<String>(
           'Memeriksa katalog dokumen masuk...',
         );
+
         if (context.mounted) {
           showProgressDialog(
             context,
             'Menerima Cermin Dokumen',
             statusNotifier,
             false,
-            (c) {
-              _activeProgressContext = c;
-            },
+            (c) => registerActiveDialog(c, statusNotifier),
           );
         }
 
@@ -203,23 +213,26 @@ class DocSyncHelper {
         List<DocManifestItem> senderManifest = rawSender
             .map((x) => DocManifestItem.fromJson(x))
             .toList();
+
         String currentDir = await storageService.getBaseDirSetting();
         List<DocManifestItem> localManifest = await createManifest(currentDir);
 
         statusNotifier.value = 'Melakukan sensus komparasi berkas...';
+
         final rekonsiliasi = reconcile(
           senderManifest: senderManifest,
           receiverManifest: localManifest,
         );
+
         List<String> toDelete = rekonsiliasi['delete']!;
         List<String> toRequest = rekonsiliasi['request']!;
 
         if (toDelete.isNotEmpty && localManifest.isNotEmpty) {
           double deleteRatio = toDelete.length / localManifest.length;
           if (deleteRatio >= 0.30 || senderManifest.isEmpty) {
-            _dismissActiveDialog();
-
+            dismissActiveDialog();
             if (!context.mounted) return true;
+
             bool? confirmed = await showDialog<bool>(
               context: context,
               barrierDismissible: false,
@@ -231,7 +244,7 @@ class DocSyncHelper {
                   children: [
                     Icon(Icons.warning_amber_rounded, color: Colors.red),
                     SizedBox(width: 8),
-                    Text('⚠️ Peringatan Kritis!'),
+                    Text('  Peringatan Kritis!'),
                   ],
                 ),
                 content: Text(
@@ -278,9 +291,7 @@ class DocSyncHelper {
                 'Menerima Cermin Dokumen',
                 statusNotifier,
                 false,
-                (c) {
-                  _activeProgressContext = c;
-                },
+                (c) => registerActiveDialog(c, statusNotifier),
               );
             }
           }
@@ -292,15 +303,16 @@ class DocSyncHelper {
         }
 
         if (toRequest.isEmpty) {
-          _dismissActiveDialog();
-          if (onLoadingStatusChanged != null)
-            onLoadingStatusChanged(false); // Pastikan status loading utama mati
+          dismissActiveDialog(); // Tutup loading di sisi Klien karena sudah identik
+          if (onLoadingStatusChanged != null) onLoadingStatusChanged(false);
+
           socketSink.add(
             jsonEncode({
               'tipe_pesan': 'doc_sync_done',
               'msg': 'Sempurna! Seluruh dokumen sudah identik.',
             }),
           );
+
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -319,31 +331,39 @@ class DocSyncHelper {
               'requested_files': toRequest,
             }),
           );
+          // JANGAN panggil dismissActiveDialog() di sini agar animasi loading tetap berjalan
         }
         return true;
       } else if (tipe == 'doc_sync_request_delta') {
         List<dynamic> reqFiles = data['requested_files'] ?? [];
         List<String> toSend = reqFiles.map((e) => e.toString()).toList();
 
-        final statusNotifier = ValueNotifier<String>(
-          'Membungkus ${toSend.length} dokumen...',
-        );
-        if (context.mounted) {
-          showProgressDialog(
-            context,
-            'Mengirim Paket Delta',
-            statusNotifier,
-            true,
-            (c) {
-              _activeProgressContext = c;
-            },
+        // Update teks dialog pengirim yang sedang terbuka
+        if (_activeProgressContext != null && _activeStatusNotifier != null) {
+          _activeStatusNotifier!.value =
+              'Membungkus ${toSend.length} dokumen...';
+        } else {
+          final statusNotifier = ValueNotifier<String>(
+            'Membungkus ${toSend.length} dokumen...',
           );
+          if (context.mounted) {
+            showProgressDialog(
+              context,
+              'Mengirim Paket Delta',
+              statusNotifier,
+              true,
+              (c) => registerActiveDialog(c, statusNotifier),
+            );
+          }
         }
 
         String currentDir = await storageService.getBaseDirSetting();
         final deltaPackage = await packageRequestedFiles(currentDir, toSend);
 
-        statusNotifier.value = 'Menyemburkan data nirkabel...';
+        if (_activeStatusNotifier != null) {
+          _activeStatusNotifier!.value = 'Menyemburkan data nirkabel...';
+        }
+
         socketSink.add(
           jsonEncode({
             'tipe_pesan': 'doc_sync_payload',
@@ -351,24 +371,25 @@ class DocSyncHelper {
             'timestamps': deltaPackage['timestamps'],
           }),
         );
-
-        _dismissActiveDialog();
+        // HAPUS penutupan dialog di sini! Biarkan pengirim menunggu konfirmasi doc_sync_done
         if (onLoadingStatusChanged != null) onLoadingStatusChanged(false);
         return true;
       } else if (tipe == 'doc_sync_payload') {
-        final statusNotifier = ValueNotifier<String>(
-          'Menerapkan berkas delta...',
-        );
-        if (_activeProgressContext == null && context.mounted) {
-          showProgressDialog(
-            context,
-            'Menerapkan Berkas Delta',
-            statusNotifier,
-            false,
-            (c) {
-              _activeProgressContext = c;
-            },
+        if (_activeProgressContext != null && _activeStatusNotifier != null) {
+          _activeStatusNotifier!.value = 'Menerapkan berkas delta...';
+        } else {
+          final statusNotifier = ValueNotifier<String>(
+            'Menerapkan berkas delta...',
           );
+          if (context.mounted) {
+            showProgressDialog(
+              context,
+              'Menerapkan Berkas Delta',
+              statusNotifier,
+              false,
+              (c) => registerActiveDialog(c, statusNotifier),
+            );
+          }
         }
 
         String currentDir = await storageService.getBaseDirSetting();
@@ -378,11 +399,8 @@ class DocSyncHelper {
           timestamps: data['timestamps'] ?? {},
         );
 
-        _dismissActiveDialog();
-        if (onLoadingStatusChanged != null)
-          onLoadingStatusChanged(
-            false,
-          ); // <--- KUNCI PENYELESAIAN: Matikan loading utama screen target setelah ekstraksi payload
+        dismissActiveDialog(); // Klien selesai mengekstrak payload, langsung tutup dialog!
+        if (onLoadingStatusChanged != null) onLoadingStatusChanged(false);
 
         socketSink.add(
           jsonEncode({
@@ -390,11 +408,12 @@ class DocSyncHelper {
             'msg': 'Berhasil memperbarui $count dokumen baru!',
           }),
         );
+
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                '🪞 Sinkronisasi cermin selesai! ($count berkas diperbarui)',
+                '  Sinkronisasi cermin selesai! ($count berkas diperbarui)',
               ),
               backgroundColor: Colors.teal,
             ),
@@ -402,37 +421,35 @@ class DocSyncHelper {
         }
         return true;
       } else if (tipe == 'doc_sync_done') {
-        _dismissActiveDialog();
-        if (onLoadingStatusChanged != null)
-          onLoadingStatusChanged(
-            false,
-          ); // <--- KUNCI PENYELESAIAN: Matikan loading utama screen pemicu awal setelah konformasi selesai mendarat
+        dismissActiveDialog(); // Pengirim menerima balasan selesai, langsung tutup dialog!
+        if (onLoadingStatusChanged != null) onLoadingStatusChanged(false);
+
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('🪞 ${data['msg']}'),
+              content: Text('  ${data['msg']}'),
               backgroundColor: Colors.teal,
             ),
           );
         }
         return true;
       } else if (tipe == 'doc_sync_abort') {
-        _dismissActiveDialog();
+        dismissActiveDialog();
         if (onLoadingStatusChanged != null) onLoadingStatusChanged(false);
+
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('⚠️ Sinkronisasi dibatalkan: ${data['reason']}'),
+              content: Text('  Sinkronisasi dibatalkan: ${data['reason']}'),
               backgroundColor: Colors.redAccent,
             ),
           );
         }
         return true;
       }
-
       return false;
     } catch (e) {
-      _dismissActiveDialog();
+      dismissActiveDialog();
       if (onLoadingStatusChanged != null) onLoadingStatusChanged(false);
       debugPrint("DocSyncHelper Error: $e");
       return false;

@@ -1,3 +1,4 @@
+// lib/features/data_center/presentation/local_sharing/sharing_server.dart
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -6,13 +7,12 @@ import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_web_socket/shelf_web_socket.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../../../core/services/storage_service.dart';
-import 'doc_sync_helper.dart'; // Impor berkas bantu sinkronisasi dokumen cerdas
+import 'doc_sync_helper.dart';
 
 class SharingServer {
   final StorageService _storageService = StorageService();
   HttpServer? _serverEksternal;
 
-  // VISUALISASI LOADING PROGRESS DIALOG MODERN & INDAH
   void _showTransferProgressDialog({
     required BuildContext context,
     required String title,
@@ -168,27 +168,23 @@ class SharingServer {
         backgroundColor: Colors.indigo,
       ),
     );
-
     try {
       String localIp = await _getLocalIpAddress();
-
       if (_serverEksternal != null) {
         await _serverEksternal!.close(force: true);
       }
-
       List<dynamic> clientActiveList = [];
       StateSetter? dialogState;
 
       var handler = webSocketHandler((dynamic webSocket, dynamic protocol) {
         final String clientId =
             "Client_${webSocket.hashCode.toString().substring(0, 4)}";
-
         clientActiveList.add(webSocket);
         if (dialogState != null) dialogState!(() {});
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('🔌 [$clientId] Berhasil Terhubung ke Server!'),
+            content: Text('  [$clientId] Berhasil Terhubung ke Server!'),
             backgroundColor: Colors.green[800],
             duration: const Duration(seconds: 3),
           ),
@@ -201,7 +197,6 @@ class SharingServer {
 
         webSocket.stream.listen(
           (pesanMasuk) async {
-            // PENCEGAT UTAMA: Periksa jika aliran data merupakan bagian dari cermin dokumen cerdas
             bool handledByDocSync = await DocSyncHelper.handleDocSyncStream(
               pesanMasuk: pesanMasuk,
               socketSink: webSocket.sink,
@@ -222,7 +217,6 @@ class SharingServer {
             final statusNotifier = ValueNotifier<String>(
               'Menginisialisasi penerimaan...',
             );
-
             try {
               Map<String, dynamic> dateReceived = jsonDecode(pesanMasuk);
               if (dateReceived['tipe_pesan'] == 'data_transfer') {
@@ -235,7 +229,6 @@ class SharingServer {
                     onReady: (ctx) => progressCtx = ctx,
                   );
                 }
-
                 statusNotifier.value = 'Membaca paket enkripsi masuk...';
                 String clientTasks = dateReceived['task_master'];
                 String clientJurnal = dateReceived['jurnal_aktivitas'];
@@ -252,7 +245,6 @@ class SharingServer {
                 clientArchive.addFile(
                   ArchiveFile('my_tasks.json', tasksBytes.length, tasksBytes),
                 );
-
                 List<int> jurnalBytes = utf8.encode(clientJurnal);
                 clientArchive.addFile(
                   ArchiveFile('time_log.json', jurnalBytes.length, jurnalBytes),
@@ -274,7 +266,6 @@ class SharingServer {
                     }
                   }
                 }
-
                 if (clientNotesZipBase64.isNotEmpty) {
                   statusNotifier.value =
                       'Memproses berkas modul Catatan (Notes)...';
@@ -292,7 +283,6 @@ class SharingServer {
                     }
                   }
                 }
-
                 if (clientPromptsZipBase64.isNotEmpty) {
                   statusNotifier.value =
                       'Memproses berkas kecerdasan buatan AI...';
@@ -312,7 +302,6 @@ class SharingServer {
                     }
                   }
                 }
-
                 if (clientDocsZipBase64.isNotEmpty) {
                   statusNotifier.value =
                       'Menyusun dokumen & struktur fisik media...';
@@ -345,17 +334,12 @@ class SharingServer {
                     baseDir,
                     namaZipDinamis,
                   );
-
                   statusNotifier.value =
                       'Menulis cadangan ke penyimpanan internal...';
                   await fileZipTarget.writeAsBytes(finalZipBytes);
-
                   onDataReceived();
-
-                  if (progressCtx != null && progressCtx!.mounted) {
+                  if (progressCtx != null && progressCtx!.mounted)
                     Navigator.pop(progressCtx!);
-                  }
-
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(
@@ -365,15 +349,13 @@ class SharingServer {
                     ),
                   );
                 } else {
-                  if (progressCtx != null && progressCtx!.mounted) {
+                  if (progressCtx != null && progressCtx!.mounted)
                     Navigator.pop(progressCtx!);
-                  }
                 }
               }
             } catch (err) {
-              if (progressCtx != null && progressCtx!.mounted) {
+              if (progressCtx != null && progressCtx!.mounted)
                 Navigator.pop(progressCtx!);
-              }
               debugPrint("Server gagal memproses pesan: $err");
             }
           },
@@ -383,7 +365,7 @@ class SharingServer {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
-                  '❌ [$clientId] Koneksi Terputus atau Tiba-tiba Hilang.',
+                  '  [$clientId] Koneksi Terputus atau Tiba-tiba Hilang.',
                 ),
                 backgroundColor: Colors.red[700],
                 duration: const Duration(seconds: 4),
@@ -416,63 +398,56 @@ class SharingServer {
           );
           return;
         }
-
         if (!context.mounted) return;
         final bool? includeDocuments = await showDialog<bool>(
           context: context,
-          builder: (ctx) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              title: Row(
-                children: const [
-                  Icon(Icons.share_rounded, color: Colors.teal),
-                  SizedBox(width: 8),
-                  Text('Kirim Data ke Client'),
-                ],
-              ),
-              content: const Text(
-                'Apakah Anda ingin menyertakan seluruh berkas fisik dari folder "My Documents" (PDF, Gambar, dll.) ke dalam paket transfer?\n\n*Catatan: Menyertakan dokumen dapat membuat proses transfer data membutuhkan waktu lebih lama.',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx, null),
-                  child: const Text(
-                    'Batal',
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: () => Navigator.pop(ctx, false),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.indigo,
-                  ),
-                  child: const Text(
-                    'Tanpa Dokumen',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: () => Navigator.pop(ctx, true),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
-                  child: const Text(
-                    'Sertakan Dokumen',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
+          builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Row(
+              children: [
+                Icon(Icons.share_rounded, color: Colors.teal),
+                SizedBox(width: 8),
+                Text('Kirim Data ke Client'),
               ],
-            );
-          },
+            ),
+            content: const Text(
+              'Apakah Anda ingin menyertakan seluruh berkas fisik dari folder "My Documents" (PDF, Gambar, dll.) ke dalam paket transfer?\n\n*Catatan: Menyertakan dokumen dapat membuat proses transfer data membutuhkan waktu lebih lama.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, null),
+                child: const Text(
+                  'Batal',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
+                child: const Text(
+                  'Tanpa Dokumen',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+                child: const Text(
+                  'Sertakan Dokumen',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
         );
-
         if (includeDocuments == null) return;
 
         BuildContext? progressCtx;
         final statusNotifier = ValueNotifier<String>(
           'Mempersiapkan pengiriman data...',
         );
-
         if (context.mounted) {
           _showTransferProgressDialog(
             context: context,
@@ -482,7 +457,6 @@ class SharingServer {
             onReady: (ctx) => progressCtx = ctx,
           );
         }
-
         try {
           statusNotifier.value = 'Membaca berkas Task Master & Jurnal...';
           String currentDir = await _storageService.getBaseDirSetting();
@@ -490,7 +464,6 @@ class SharingServer {
           String tasksContent = await fileTasks.exists()
               ? await fileTasks.readAsString()
               : "{}";
-
           File fileJurnal = await _storageService.getJurnalJsonFile(currentDir);
           String journalContent = await fileJurnal.exists()
               ? await fileJurnal.readAsString()
@@ -568,10 +541,9 @@ class SharingServer {
               );
               for (var entity in entities) {
                 if (entity is File) {
-                  String relativePath = entity.path.substring(
-                    documentsDir.parent.path.length + 1,
-                  );
-                  relativePath = relativePath.replaceAll('\\', '/');
+                  String relativePath = entity.path
+                      .substring(documentsDir.parent.path.length + 1)
+                      .replaceAll('\\', '/');
                   final List<int> fileBytes = await entity.readAsBytes();
                   docArchive.addFile(
                     ArchiveFile(relativePath, fileBytes.length, fileBytes),
@@ -579,9 +551,8 @@ class SharingServer {
                 }
               }
               final List<int>? docZipBytes = ZipEncoder().encode(docArchive);
-              if (docZipBytes != null) {
+              if (docZipBytes != null)
                 documentsBase64Content = base64Encode(docZipBytes);
-              }
             }
           }
 
@@ -596,15 +567,11 @@ class SharingServer {
             'prompts_zip': promptsBase64Content,
             'documents_zip': documentsBase64Content,
           };
-
           for (var socket in clientActiveList) {
             socket.sink.add(jsonEncode(sendBigPackage));
           }
-
-          if (progressCtx != null && progressCtx!.mounted) {
+          if (progressCtx != null && progressCtx!.mounted)
             Navigator.pop(progressCtx!);
-          }
-
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
@@ -614,18 +581,15 @@ class SharingServer {
             ),
           );
         } catch (e) {
-          if (progressCtx != null && progressCtx!.mounted) {
+          if (progressCtx != null && progressCtx!.mounted)
             Navigator.pop(progressCtx!);
-          }
           debugPrint("Gagal mengirim data dari server: $e");
         }
       }
 
-      // FUNGSI INTI BARU: Memicu Pembuatan Katalog Cermin dari Server menuju Client Terhubung
+      // PERBAIKAN: Pemicu Cermin Dokumen Server ke Client
       Future<void> triggerDocumentMirrorToClients() async {
         if (clientActiveList.isEmpty) return;
-
-        BuildContext? progressCtx;
         final statusNotifier = ValueNotifier<String>(
           'Memindai & membuat katalog berkas Server...',
         );
@@ -636,30 +600,23 @@ class SharingServer {
             title: 'Sinkronisasi Cermin Dokumen',
             statusNotifier: statusNotifier,
             isSending: true,
-            onReady: (ctx) => progressCtx = ctx,
+            onReady: (ctx) =>
+                DocSyncHelper.registerActiveDialog(ctx, statusNotifier),
           );
         }
-
         try {
           String currentDir = await _storageService.getBaseDirSetting();
           final manifest = await DocSyncHelper.createManifest(currentDir);
-
           Map<String, dynamic> initPayload = {
             'tipe_pesan': 'doc_sync_init',
             'manifest': manifest.map((m) => m.toJson()).toList(),
           };
-
           for (var socket in clientActiveList) {
             socket.sink.add(jsonEncode(initPayload));
           }
-
-          if (progressCtx != null && progressCtx!.mounted) {
-            Navigator.pop(progressCtx!);
-          }
+          // Penutupan dialog dini dihapus dari sini!
         } catch (e) {
-          if (progressCtx != null && progressCtx!.mounted) {
-            Navigator.pop(progressCtx!);
-          }
+          DocSyncHelper.dismissActiveDialog();
           debugPrint("Gagal menginisialisasi cermin dokumen server: $e");
         }
       }
@@ -672,7 +629,6 @@ class SharingServer {
           builder: (context, setDialogState) {
             dialogState = setDialogState;
             bool adaClient = clientActiveList.isNotEmpty;
-
             return AlertDialog(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
@@ -732,14 +688,12 @@ class SharingServer {
                                 version: QrVersions.auto,
                                 size: 160.0,
                                 gapless: false,
-                                errorStateBuilder: (cxt, err) {
-                                  return const Center(
-                                    child: Text(
-                                      'Gagal memuat QR Code',
-                                      style: TextStyle(color: Colors.red),
-                                    ),
-                                  );
-                                },
+                                errorStateBuilder: (cxt, err) => const Center(
+                                  child: Text(
+                                    'Gagal memuat QR Code',
+                                    style: TextStyle(color: Colors.red),
+                                  ),
+                                ),
                               ),
                             ),
                           ),
@@ -843,8 +797,6 @@ class SharingServer {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.teal[700],
                           foregroundColor: Colors.white,
-                          disabledBackgroundColor: Colors.grey[200],
-                          disabledForegroundColor: Colors.grey[400],
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
@@ -858,7 +810,6 @@ class SharingServer {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    // TOMBOL AKSI BARU: Memicu One-Way Mirror Berbasis Katalog Dokumen
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
@@ -868,8 +819,6 @@ class SharingServer {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.indigo[600],
                           foregroundColor: Colors.white,
-                          disabledBackgroundColor: Colors.grey[200],
-                          disabledForegroundColor: Colors.grey[400],
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
@@ -877,7 +826,7 @@ class SharingServer {
                         ),
                         icon: const Icon(Icons.flip_camera_android_rounded),
                         label: const Text(
-                          '🪞 Cermin Dokumen ke Client',
+                          '  Cermin Dokumen ke Client',
                           style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ),
@@ -906,9 +855,7 @@ class SharingServer {
             );
           },
         ),
-      ).then((_) {
-        dialogState = null;
-      });
+      ).then((_) => dialogState = null);
     } catch (e) {
       debugPrint("Gagal menyiapkan server dua arah: $e");
     }

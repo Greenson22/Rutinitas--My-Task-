@@ -1,3 +1,4 @@
+// lib/features/data_center/presentation/local_sharing/sharing_client.dart
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -5,12 +6,11 @@ import 'package:archive/archive_io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../../../core/services/storage_service.dart';
-import 'doc_sync_helper.dart'; // Impor berkas bantu sinkronisasi dokumen cerdas
+import 'doc_sync_helper.dart';
 
 class SharingClient {
   final StorageService _storageService = StorageService();
 
-  // VISUALISASI LOADING PROGRESS DIALOG MODERN & INDAH
   void _showTransferProgressDialog({
     required BuildContext context,
     required String title,
@@ -148,7 +148,6 @@ class SharingClient {
     final ipController = TextEditingController(
       text: ipHistory.isNotEmpty ? ipHistory.first : '',
     );
-
     if (!context.mounted) return;
 
     showDialog(
@@ -185,11 +184,10 @@ class SharingClient {
                             builder: (context) => const QRScannerScreen(),
                           ),
                         );
-
                         if (scannedIp != null && scannedIp.trim().isNotEmpty) {
-                          setDialogState(() {
-                            ipController.text = scannedIp.trim();
-                          });
+                          setDialogState(
+                            () => ipController.text = scannedIp.trim(),
+                          );
                         }
                       },
                     ),
@@ -231,9 +229,8 @@ class SharingClient {
                               );
                               setDialogState(() {
                                 ipHistory.remove(savedIp);
-                                if (ipController.text == savedIp) {
+                                if (ipController.text == savedIp)
                                   ipController.clear();
-                                }
                               });
                             },
                           ),
@@ -288,7 +285,6 @@ class SharingClient {
   }) async {
     final urlWebSocket = 'ws://$alamatIP:8090';
     onLoadingStatusChanged(true);
-
     try {
       final channel = WebSocketChannel.connect(Uri.parse(urlWebSocket));
       bool isDialogOpened = false;
@@ -297,63 +293,56 @@ class SharingClient {
 
       Future<void> fungsiKirimDataClient() async {
         if (!isStillConnected) return;
-
         if (!context.mounted) return;
         final bool? includeDocuments = await showDialog<bool>(
           context: context,
-          builder: (ctx) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              title: Row(
-                children: const [
-                  Icon(Icons.share_rounded, color: Colors.teal),
-                  SizedBox(width: 8),
-                  Text('Kirim Data ke Server'),
-                ],
-              ),
-              content: const Text(
-                'Apakah Anda ingin menyertakan seluruh berkas fisik dari folder "My Documents" (PDF, Gambar, dll.) ke dalam paket transfer?\n\n*Catatan: Menyertakan dokumen dapat membuat proses transfer data membutuhkan waktu lebih lama.',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx, null),
-                  child: const Text(
-                    'Batal',
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: () => Navigator.pop(ctx, false),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.indigo,
-                  ),
-                  child: const Text(
-                    'Tanpa Dokumen',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: () => Navigator.pop(ctx, true),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
-                  child: const Text(
-                    'Sertakan Dokumen',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
+          builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Row(
+              children: [
+                Icon(Icons.share_rounded, color: Colors.teal),
+                SizedBox(width: 8),
+                Text('Kirim Data ke Server'),
               ],
-            );
-          },
+            ),
+            content: const Text(
+              'Apakah Anda ingin menyertakan seluruh berkas fisik dari folder "My Documents" (PDF, Gambar, dll.) ke dalam paket transfer?\n\n*Catatan: Menyertakan dokumen dapat membuat proses transfer data membutuhkan waktu lebih lama.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, null),
+                child: const Text(
+                  'Batal',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
+                child: const Text(
+                  'Tanpa Dokumen',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+                child: const Text(
+                  'Sertakan Dokumen',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
         );
-
         if (includeDocuments == null) return;
 
         BuildContext? progressCtx;
         final statusNotifier = ValueNotifier<String>(
           'Mempersiapkan pengiriman data...',
         );
-
         if (context.mounted) {
           _showTransferProgressDialog(
             context: context,
@@ -363,7 +352,6 @@ class SharingClient {
             onReady: (ctx) => progressCtx = ctx,
           );
         }
-
         try {
           statusNotifier.value = 'Membaca berkas Task Master & Jurnal...';
           String currentDir = await _storageService.getBaseDirSetting();
@@ -371,7 +359,6 @@ class SharingClient {
           String kontenTasks = await fileTasks.exists()
               ? await fileTasks.readAsString()
               : "{}";
-
           File fileJurnal = await _storageService.getJurnalJsonFile(currentDir);
           String kontenJurnal = await fileJurnal.exists()
               ? await fileJurnal.readAsString()
@@ -449,10 +436,9 @@ class SharingClient {
               );
               for (var entity in entities) {
                 if (entity is File) {
-                  String relativePath = entity.path.substring(
-                    documentsDir.parent.path.length + 1,
-                  );
-                  relativePath = relativePath.replaceAll('\\', '/');
+                  String relativePath = entity.path
+                      .substring(documentsDir.parent.path.length + 1)
+                      .replaceAll('\\', '/');
                   final List<int> fileBytes = await entity.readAsBytes();
                   docArchive.addFile(
                     ArchiveFile(relativePath, fileBytes.length, fileBytes),
@@ -460,9 +446,8 @@ class SharingClient {
                 }
               }
               final List<int>? docZipBytes = ZipEncoder().encode(docArchive);
-              if (docZipBytes != null) {
+              if (docZipBytes != null)
                 kontenDocsBase64 = base64Encode(docZipBytes);
-              }
             }
           }
 
@@ -477,13 +462,9 @@ class SharingClient {
             'prompts_zip': kontenPromptsBase64,
             'documents_zip': kontenDocsBase64,
           };
-
           channel.sink.add(jsonEncode(paketBesarClient));
-
-          if (progressCtx != null && progressCtx!.mounted) {
+          if (progressCtx != null && progressCtx!.mounted)
             Navigator.pop(progressCtx!);
-          }
-
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Data Anda sukses dikirimkan ke Server!'),
@@ -491,18 +472,15 @@ class SharingClient {
             ),
           );
         } catch (e) {
-          if (progressCtx != null && progressCtx!.mounted) {
+          if (progressCtx != null && progressCtx!.mounted)
             Navigator.pop(progressCtx!);
-          }
           debugPrint("Gagal mengirim data dari client: $e");
         }
       }
 
-      // FUNGSI INTI BARU: Memicu Pembuatan Katalog Cermin dari Client menuju Server
+      // PERBAIKAN: Pemicu Cermin Dokumen Client ke Server
       Future<void> triggerDocumentMirrorToServer() async {
         if (!isStillConnected) return;
-
-        BuildContext? progressCtx;
         final statusNotifier = ValueNotifier<String>(
           'Memindai & membuat katalog berkas Client...',
         );
@@ -513,28 +491,21 @@ class SharingClient {
             title: 'Sinkronisasi Cermin Dokumen',
             statusNotifier: statusNotifier,
             isSending: true,
-            onReady: (ctx) => progressCtx = ctx,
+            onReady: (ctx) =>
+                DocSyncHelper.registerActiveDialog(ctx, statusNotifier),
           );
         }
-
         try {
           String currentDir = await _storageService.getBaseDirSetting();
           final manifest = await DocSyncHelper.createManifest(currentDir);
-
           Map<String, dynamic> initPayload = {
             'tipe_pesan': 'doc_sync_init',
             'manifest': manifest.map((m) => m.toJson()).toList(),
           };
-
           channel.sink.add(jsonEncode(initPayload));
-
-          if (progressCtx != null && progressCtx!.mounted) {
-            Navigator.pop(progressCtx!);
-          }
+          // Penutupan dialog dini dihapus dari sini!
         } catch (e) {
-          if (progressCtx != null && progressCtx!.mounted) {
-            Navigator.pop(progressCtx!);
-          }
+          DocSyncHelper.dismissActiveDialog();
           debugPrint("Gagal menginisialisasi cermin dokumen client: $e");
         }
       }
@@ -558,7 +529,6 @@ class SharingClient {
           )
           .listen(
             (pesanMasuk) async {
-              // PENCEGAT UTAMA: Meneruskan callback onLoadingStatusChanged agar loading screen bisa ditutup total saat cermin dokumen selesai
               bool handledByDocSync = await DocSyncHelper.handleDocSyncStream(
                 pesanMasuk: pesanMasuk,
                 socketSink: channel.sink,
@@ -572,8 +542,7 @@ class SharingClient {
                       isSending: isSend,
                       onReady: onRdy,
                     ),
-                onLoadingStatusChanged:
-                    onLoadingStatusChanged, // <-- INTERUPSI MATIKAN LOADING DI SINI
+                onLoadingStatusChanged: onLoadingStatusChanged,
               );
               if (handledByDocSync) return;
 
@@ -582,14 +551,8 @@ class SharingClient {
               final statusNotifier = ValueNotifier<String>(
                 'Menginisialisasi penerimaan...',
               );
-
               try {
                 Map<String, dynamic> dataDiterima = jsonDecode(pesanMasuk);
-
-                if (dataDiterima['tipe_pesan'] == 'koneksi_terkonfirmasi') {
-                  debugPrint("Jabat tangan sukses. Pipa data penerima stabil.");
-                }
-
                 if (dataDiterima['tipe_pesan'] == 'data_transfer') {
                   if (context.mounted) {
                     _showTransferProgressDialog(
@@ -600,7 +563,6 @@ class SharingClient {
                       onReady: (ctx) => progressCtx = ctx,
                     );
                   }
-
                   statusNotifier.value = 'Membaca paket data masuk...';
                   String serverTasks = dataDiterima['task_master'];
                   String serverJurnal = dataDiterima['jurnal_aktivitas'];
@@ -617,7 +579,6 @@ class SharingClient {
                   backupArchive.addFile(
                     ArchiveFile('my_tasks.json', tasksBytes.length, tasksBytes),
                   );
-
                   List<int> jurnalBytes = utf8.encode(serverJurnal);
                   backupArchive.addFile(
                     ArchiveFile(
@@ -634,7 +595,7 @@ class SharingClient {
                       checklistZipBytes,
                     );
                     for (ArchiveFile file in checklistArchive) {
-                      if (file.isFile) {
+                      if (file.isFile)
                         backupArchive.addFile(
                           ArchiveFile(
                             'my_checklist/${file.name}',
@@ -642,10 +603,8 @@ class SharingClient {
                             file.content,
                           ),
                         );
-                      }
                     }
                   }
-
                   if (serverNotesZipBase64.isNotEmpty) {
                     statusNotifier.value =
                         'Memproses berkas modul Catatan (Notes)...';
@@ -656,7 +615,7 @@ class SharingClient {
                       notesZipBytes,
                     );
                     for (ArchiveFile file in notesArchive) {
-                      if (file.isFile) {
+                      if (file.isFile)
                         backupArchive.addFile(
                           ArchiveFile(
                             'notes/${file.name}',
@@ -664,10 +623,8 @@ class SharingClient {
                             file.content,
                           ),
                         );
-                      }
                     }
                   }
-
                   if (serverPromptsZipBase64.isNotEmpty) {
                     statusNotifier.value = 'Memproses pustaka Prompt AI...';
                     List<int> promptsZipBytes = base64Decode(
@@ -677,7 +634,7 @@ class SharingClient {
                       promptsZipBytes,
                     );
                     for (ArchiveFile file in promptsArchive) {
-                      if (file.isFile) {
+                      if (file.isFile)
                         backupArchive.addFile(
                           ArchiveFile(
                             'prompts/${file.name}',
@@ -685,10 +642,8 @@ class SharingClient {
                             file.content,
                           ),
                         );
-                      }
                     }
                   }
-
                   if (serverDocsZipBase64.isNotEmpty) {
                     statusNotifier.value =
                         'Menyusun berkas dokumen fisik media...';
@@ -697,7 +652,7 @@ class SharingClient {
                       docsZipBytes,
                     );
                     for (ArchiveFile file in docsArchive) {
-                      if (file.isFile) {
+                      if (file.isFile)
                         backupArchive.addFile(
                           ArchiveFile(
                             file.name,
@@ -705,7 +660,6 @@ class SharingClient {
                             file.content,
                           ),
                         );
-                      }
                     }
                   }
 
@@ -714,12 +668,10 @@ class SharingClient {
                     backupArchive,
                   );
                   if (finalZipBytes == null) {
-                    if (progressCtx != null && progressCtx!.mounted) {
+                    if (progressCtx != null && progressCtx!.mounted)
                       Navigator.pop(progressCtx!);
-                    }
                     return;
                   }
-
                   String namaZipDinamis = getFormattedFileName(
                     'server_backup',
                     'zip',
@@ -728,31 +680,24 @@ class SharingClient {
                     baseDir,
                     namaZipDinamis,
                   );
-
                   statusNotifier.value =
                       'Menulis berkas cadangan ke memori HP...';
                   await fileZipTarget.writeAsBytes(finalZipBytes);
-
                   onDataReceived();
-
-                  if (progressCtx != null && progressCtx!.mounted) {
+                  if (progressCtx != null && progressCtx!.mounted)
                     Navigator.pop(progressCtx!);
-                  }
-
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(
                         'Sukses menerima berkas dari Server! Disimpan: $namaZipDinamis',
                       ),
                       backgroundColor: Colors.teal,
-                      duration: const Duration(seconds: 3),
                     ),
                   );
                 }
               } catch (e) {
-                if (progressCtx != null && progressCtx!.mounted) {
+                if (progressCtx != null && progressCtx!.mounted)
                   Navigator.pop(progressCtx!);
-                }
                 debugPrint("Client gagal memproses data: $e");
               }
 
@@ -813,7 +758,7 @@ class SharingClient {
                               child: Text(
                                 isStillConnected
                                     ? 'Anda bisa memantau proses penerimaan otomatis, atau memilih metode sinkronisasi data lokal nirkabel HP ini ke Server.'
-                                    : '⚠️ Hubungan terputus akibat server mati atau jaringan terganggu.',
+                                    : '  Hubungan terputus akibat server mati atau jaringan terganggu.',
                                 style: TextStyle(
                                   fontSize: 12,
                                   height: 1.4,
@@ -832,7 +777,6 @@ class SharingClient {
                                     : null,
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.indigo,
-                                  disabledBackgroundColor: Colors.grey[200],
                                 ),
                                 icon: const Icon(
                                   Icons.upload_file,
@@ -853,14 +797,13 @@ class SharingClient {
                                     : null,
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.teal[700],
-                                  disabledBackgroundColor: Colors.grey[200],
                                 ),
                                 icon: const Icon(
                                   Icons.flip_camera_android_rounded,
                                   color: Colors.white,
                                 ),
                                 label: const Text(
-                                  '🪞 Cermin Dokumen ke Server',
+                                  '  Cermin Dokumen ke Server',
                                   style: TextStyle(color: Colors.white),
                                 ),
                               ),
@@ -897,7 +840,7 @@ class SharingClient {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text(
-                    '❌ Hubungan ke Server terputus secara tiba-tiba!',
+                    '  Hubungan ke Server terputus secara tiba-tiba!',
                   ),
                   backgroundColor: Colors.redAccent,
                 ),
@@ -931,7 +874,6 @@ class SharingClient {
 
 class QRScannerScreen extends StatefulWidget {
   const QRScannerScreen({super.key});
-
   @override
   State<QRScannerScreen> createState() => _QRScannerScreenState();
 }
@@ -960,9 +902,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
             ),
             onPressed: () {
               controller.toggleTorch();
-              setState(() {
-                _isTorchOn = !_isTorchOn;
-              });
+              setState(() => _isTorchOn = !_isTorchOn);
             },
           ),
           IconButton(
