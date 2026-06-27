@@ -79,7 +79,7 @@ class BackupTabState extends State<BackupTab> {
 
   void _backupAllFeature() async {
     try {
-      // 1. Tampilkan dialog konfirmasi pilihan kustom
+      // Tampilkan dialog konfirmasi pilihan kustom
       final bool? includeDocuments = await showDialog<bool>(
         context: context,
         builder: (ctx) {
@@ -199,14 +199,12 @@ class BackupTabState extends State<BackupTab> {
           final List<FileSystemEntity> entities = documentsDir.listSync(
             recursive: true,
           );
-
           for (var entity in entities) {
             if (entity is File) {
               // Dapatkan relative path agar struktur folder di dalam ZIP terjaga (e.g., my_documents/id_grup/file.pdf)
               String relativePath = entity.path.substring(
                 documentsDir.parent.path.length + 1,
               );
-
               // Standardisasi karakter pembatas folder agar kompatibel saat dibuka di OS manapun
               relativePath = relativePath.replaceAll('\\', '/');
 
@@ -636,6 +634,135 @@ class BackupTabState extends State<BackupTab> {
     }
   }
 
+  // =========================================================================
+  // BARU: FITUR INDIVIDUAL EXPORT & IMPORT UNTUK DOCUMENTS (JSON + FILE FISIK)
+  // =========================================================================
+  void _exportDocumentsIndividual() async {
+    try {
+      List<File> documentGroupFiles = await _storageService
+          .getAllDocumentGroups(_baseDir);
+      final Directory documentsDir = Directory('$_baseDir/my_documents');
+
+      if (documentGroupFiles.isEmpty && !await documentsDir.exists()) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Tidak ada data Documents untuk diekspor.'),
+          ),
+        );
+        return;
+      }
+
+      final Archive archive = Archive();
+
+      // 1. Masukkan berkas metadata JSON grup dokumen ke root ZIP internal
+      for (var f in documentGroupFiles) {
+        archive.addFile(
+          ArchiveFile(
+            f.path.split('/').last,
+            f.lengthSync(),
+            await f.readAsBytes(),
+          ),
+        );
+      }
+
+      // 2. Masukkan folder fisik dokumen beserta seluruh subfolder di dalamnya
+      if (await documentsDir.exists()) {
+        final List<FileSystemEntity> entities = documentsDir.listSync(
+          recursive: true,
+        );
+        for (var entity in entities) {
+          if (entity is File) {
+            String relativePath = entity.path.substring(
+              documentsDir.parent.path.length + 1,
+            );
+            relativePath = relativePath.replaceAll('\\', '/');
+
+            final List<int> fileBytes = await entity.readAsBytes();
+            archive.addFile(
+              ArchiveFile(relativePath, fileBytes.length, fileBytes),
+            );
+          }
+        }
+      }
+
+      final List<int>? zip = ZipEncoder().encode(archive);
+      if (zip == null) return;
+
+      String name = _getFormattedFileName('documents_individual_backup', 'zip');
+      File tmp = File('${Directory.systemTemp.path}/$name')
+        ..writeAsBytesSync(zip);
+
+      if (Platform.isLinux) {
+        String? path = await FilePicker.saveFile(
+          dialogTitle: 'Simpan Documents (ZIP)',
+          fileName: name,
+          type: FileType.custom,
+          allowedExtensions: ['zip'],
+        );
+        if (path != null) await tmp.copy(path);
+      } else {
+        await Share.shareXFiles([
+          XFile(tmp.path),
+        ], text: 'Backup Dokumen & Struktur Grup (ZIP)');
+      }
+    } catch (e) {
+      debugPrint("Gagal ekspor individual Documents: $e");
+    }
+  }
+
+  void _importDocumentsIndividual() async {
+    try {
+      FilePickerResult? res = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['zip'],
+      );
+
+      if (res != null && res.files.single.path != null) {
+        File selectedZipFile = File(res.files.single.path!);
+        List<int> bytes = await selectedZipFile.readAsBytes();
+        Archive archive = ZipDecoder().decodeBytes(bytes);
+
+        final Directory rootDocDir = await _storageService.getDocumentsDir(
+          _baseDir,
+        );
+
+        int hitungJson = 0;
+        int hitungFileFisik = 0;
+
+        for (ArchiveFile file in archive) {
+          if (file.isFile) {
+            if (file.name.endsWith('.json') && !file.name.contains('/')) {
+              // Simpan skema grup di folder root dokumen utama
+              File targetJson = File('${rootDocDir.path}/${file.name}');
+              await targetJson.writeAsBytes(file.content);
+              hitungJson++;
+            } else if (file.name.startsWith('my_documents/')) {
+              // Ekstrak struktur folder fisik beserta isinya
+              File targetFisik = File('$_baseDir/${file.name}');
+              if (!targetFisik.parent.existsSync()) {
+                targetFisik.parent.createSync(recursive: true);
+              }
+              await targetFisik.writeAsBytes(file.content);
+              hitungFileFisik++;
+            }
+          }
+        }
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Berhasil mengimpor $hitungJson grup dan $hitungFileFisik berkas fisik dokumen!',
+            ),
+            backgroundColor: Colors.teal,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint("Gagal import individual Documents: $e");
+    }
+  }
+
   Future<bool> _showConfirmDeleteDialog({
     required String title,
     required String content,
@@ -723,6 +850,14 @@ class BackupTabState extends State<BackupTab> {
                   Icons.smart_toy,
                   _exportPromptsIndividual,
                   _importPromptsIndividual,
+                ),
+                const SizedBox(width: 16),
+                // BARU: TOMBOL KE-6 UNTUK DOKUMEN SESUAI KEBUTUHAN BARIS GRID
+                _buildCompactButton(
+                  'Documents',
+                  Icons.description,
+                  _exportDocumentsIndividual,
+                  _importDocumentsIndividual,
                 ),
               ],
             ),
