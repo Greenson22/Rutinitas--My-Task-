@@ -1,7 +1,9 @@
 // lib/features/documents/presentation/screens/document_detail_screen.dart
 import 'dart:io';
+import 'package:flutter/foundation.dart'; // Ditambahkan untuk mendeteksi kDebugMode
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart'; // Ditambahkan untuk SDK AdMob
 import 'package:open_file/open_file.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../../core/services/storage_service.dart';
@@ -33,6 +35,24 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
 
   String _currentSortType = 'manual';
 
+  // Variabel kontrol untuk Banner AdMob
+  BannerAd? _bannerAd;
+  bool _isAdLoaded = false;
+
+  // Getter adaptif untuk menentukan Ad Unit ID Iklan Banner
+  String get adUnitId {
+    if (Platform.isAndroid) {
+      if (kDebugMode) {
+        // ID Test Resmi dari Google untuk pengujian iklan Banner Android
+        return 'ca-app-pub-3940256099942544/6300978111';
+      } else {
+        // GANTI dengan Ad Unit ID asli Anda dari dasbor AdMob khusus halaman detail dokumen saat rilis nanti
+        return 'ca-app-pub-5320800343545863/5518848739';
+      }
+    }
+    return ''; // Kosongkan jika berjalan di Desktop / platform non-Android agar tidak crash
+  }
+
   @override
   void initState() {
     super.initState();
@@ -41,6 +61,38 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
       '${widget.baseDir}/my_documents/${widget.group.id}',
     );
     _loadPhysicalFiles();
+
+    // Panggil fungsi pemuatan iklan banner
+    _loadBannerAd();
+  }
+
+  // Fungsi untuk mengunduh iklan banner AdMob
+  void _loadBannerAd() {
+    if (adUnitId.isEmpty) return; // Batalkan jika bukan platform Android
+
+    _bannerAd = BannerAd(
+      adUnitId: adUnitId,
+      request: const AdRequest(),
+      size: AdSize.banner,
+      listener: BannerAdListener(
+        onAdLoaded: (ad) {
+          setState(() {
+            _isAdLoaded = true;
+          });
+        },
+        onAdFailedToLoad: (ad, err) {
+          debugPrint('Iklan Banner Document Detail gagal dimuat: $err');
+          ad.dispose();
+        },
+      ),
+    )..load();
+  }
+
+  @override
+  void dispose() {
+    _bannerAd
+        ?.dispose(); // Hancurkan objek iklan dari memori saat halaman ditutup untuk mencegah kebocoran memori
+    super.dispose();
   }
 
   Future<void> _loadPhysicalFiles() async {
@@ -786,6 +838,17 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
                 themeColor: Colors.blueGrey,
                 onPressed: _importFileFromDevice,
               ),
+              // IMPLEMENTASI FOOTER AD BANNER PADA KONDISI DATA KOSONG
+              bottomNavigationBar:
+                  _isAdLoaded && _bannerAd != null && Platform.isAndroid
+                  ? SafeArea(
+                      child: SizedBox(
+                        width: _bannerAd!.size.width.toDouble(),
+                        height: _bannerAd!.size.height.toDouble(),
+                        child: AdWidget(ad: _bannerAd!),
+                      ),
+                    )
+                  : const SizedBox.shrink(),
             )
           : BaseDetailListScreen<File>(
               pageTitle: pageTitleWithIcon,
@@ -996,6 +1059,17 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
                 await _shareMassiveFiles(selectedItems);
               },
             ),
+      // IMPLEMENTASI LAYOUT FOOTER BANNER ADMOB KHUSUS ANDROID
+      bottomNavigationBar:
+          _isAdLoaded && _bannerAd != null && Platform.isAndroid
+          ? SafeArea(
+              child: SizedBox(
+                width: _bannerAd!.size.width.toDouble(),
+                height: _bannerAd!.size.height.toDouble(),
+                child: AdWidget(ad: _bannerAd!),
+              ),
+            )
+          : const SizedBox.shrink(),
     );
   }
 }

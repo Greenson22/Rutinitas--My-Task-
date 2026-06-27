@@ -1,5 +1,8 @@
 // lib/features/documents/presentation/screens/document_screen.dart
+import 'dart:io'; // Ditambahkan untuk mengecek platform
+import 'package:flutter/foundation.dart'; // Ditambahkan untuk mendeteksi kDebugMode
 import 'package:flutter/material.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart'; // Ditambahkan untuk SDK AdMob
 import '../../../../core/presentation/widgets/drawer_menu.dart';
 import '../../../../core/presentation/widgets/grouped_section_layout.dart';
 import '../../../../core/presentation/widgets/interactive_grid_card.dart';
@@ -20,11 +23,54 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
   late DocumentsController _controller;
   final Color _themeColor = Colors.blueGrey;
 
+  // Variabel kontrol untuk Banner AdMob
+  BannerAd? _bannerAd;
+  bool _isAdLoaded = false;
+
+  // Getter adaptif untuk menentukan Ad Unit ID Iklan Banner
+  String get adUnitId {
+    if (Platform.isAndroid) {
+      if (kDebugMode) {
+        // ID Test Resmi dari Google untuk pengujian iklan Banner Android
+        return 'ca-app-pub-3940256099942544/6300978111';
+      } else {
+        // Ad Unit ID resmi yang diberikan oleh user
+        return 'ca-app-pub-5320800343545863/5518848739';
+      }
+    }
+    return ''; // Kosongkan jika berjalan di Desktop / platform non-Android agar tidak crash
+  }
+
   @override
   void initState() {
     super.initState();
     _controller = DocumentsController();
     _controller.addListener(_onControllerNotify);
+
+    // Panggil fungsi pemuatan iklan banner
+    _loadBannerAd();
+  }
+
+  // Fungsi untuk mengunduh iklan banner AdMob
+  void _loadBannerAd() {
+    if (adUnitId.isEmpty) return; // Batalkan jika bukan platform Android
+
+    _bannerAd = BannerAd(
+      adUnitId: adUnitId,
+      request: const AdRequest(),
+      size: AdSize.banner,
+      listener: BannerAdListener(
+        onAdLoaded: (ad) {
+          setState(() {
+            _isAdLoaded = true;
+          });
+        },
+        onAdFailedToLoad: (ad, err) {
+          debugPrint('Iklan Banner Documents gagal dimuat: $err');
+          ad.dispose();
+        },
+      ),
+    )..load();
   }
 
   void _onControllerNotify() {
@@ -35,6 +81,8 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
   void dispose() {
     _controller.removeListener(_onControllerNotify);
     _controller.dispose();
+    _bannerAd
+        ?.dispose(); // Hancurkan objek iklan dari memori saat halaman ditutup untuk mencegah kebocoran memori
     super.dispose();
   }
 
@@ -448,7 +496,7 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
             onToggleEdit: _controller.toggleSectionEditMode,
             onMoveUp: () => _controller.moveMainSectionOrder(sectionKey, -1),
             onMoveDown: () => _controller.moveMainSectionOrder(sectionKey, 1),
-            onEditName: () {}, // Anda bisa menambahkan Edit Dialog nanti
+            onEditName: () {},
             onDelete: () async {
               final bool confirm = await _showConfirmDeleteSectionDialog(
                 sectionKey,
@@ -502,9 +550,6 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
                       ],
                     ),
                   ),
-                  // ---------------------------------------------------------
-                  // SUB-MENU BARU: OPSI PINDAH SEKSI PADA MENU POPUP KARTU
-                  // ---------------------------------------------------------
                   const PopupMenuItem(
                     value: 'move_section',
                     child: Row(
@@ -567,7 +612,7 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
                     _showEditGroupDialog(group);
                   }
                   if (value == 'move_section') {
-                    _showMoveGroupSectionDialog(group); // Pemicu Dialog Baru
+                    _showMoveGroupSectionDialog(group);
                   }
                   if (value == 'toggle_visibility') {
                     _controller.toggleGroupVisibility(group);
@@ -625,6 +670,18 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
               );
             },
       ),
+
+      // IMPLEMENTASI LAYOUT FOOTER BANNER ADMOB KHUSUS ANDROID
+      bottomNavigationBar:
+          _isAdLoaded && _bannerAd != null && Platform.isAndroid
+          ? SafeArea(
+              child: SizedBox(
+                width: _bannerAd!.size.width.toDouble(),
+                height: _bannerAd!.size.height.toDouble(),
+                child: AdWidget(ad: _bannerAd!),
+              ),
+            )
+          : const SizedBox.shrink(),
     );
   }
 }
