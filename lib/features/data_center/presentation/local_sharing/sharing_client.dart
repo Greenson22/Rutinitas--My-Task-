@@ -136,6 +136,7 @@ class SharingClient {
     );
   }
 
+  // PERBAIKAN: Tunggu dialog input ditutup total agar tidak terjadi bentrokan transisi rute
   void showConnectDialog({
     required BuildContext context,
     required String baseDir,
@@ -150,7 +151,7 @@ class SharingClient {
     );
     if (!context.mounted) return;
 
-    showDialog(
+    final String? selectedIp = await showDialog<String>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) {
@@ -253,16 +254,11 @@ class SharingClient {
                   String targetIp = ipController.text.trim();
                   if (targetIp.isNotEmpty) {
                     await _storageService.saveIpToHistory(targetIp);
-                    if (!context.mounted) return;
-                    Navigator.pop(ctx);
-                    _receiveDataFromServerProcess(
-                      alamatIP: targetIp,
-                      context: context,
-                      baseDir: baseDir,
-                      getFormattedFileName: getFormattedFileName,
-                      onLoadingStatusChanged: onLoadingStatusChanged,
-                      onDataReceived: onDataReceived,
-                    );
+                    if (ctx.mounted)
+                      Navigator.pop(
+                        ctx,
+                        targetIp,
+                      ); // Kembalikan IP & tutup dialog 100%!
                   }
                 },
                 child: const Text('Hubungkan & Ambil'),
@@ -272,6 +268,18 @@ class SharingClient {
         },
       ),
     );
+
+    // Setelah layar bersih tanpa sisa animasi dialog ketik IP, baru koneksi dimulai
+    if (selectedIp != null && selectedIp.isNotEmpty && context.mounted) {
+      _receiveDataFromServerProcess(
+        alamatIP: selectedIp,
+        context: context,
+        baseDir: baseDir,
+        getFormattedFileName: getFormattedFileName,
+        onLoadingStatusChanged: onLoadingStatusChanged,
+        onDataReceived: onDataReceived,
+      );
+    }
   }
 
   void _receiveDataFromServerProcess({
@@ -478,7 +486,7 @@ class SharingClient {
         }
       }
 
-      // PERBAIKAN: Pemicu Cermin Dokumen Client ke Server
+      // Pemicu Cermin Dokumen Client ke Server
       Future<void> triggerDocumentMirrorToServer() async {
         if (!isStillConnected) return;
         final statusNotifier = ValueNotifier<String>(
@@ -486,13 +494,11 @@ class SharingClient {
         );
 
         if (context.mounted) {
-          _showTransferProgressDialog(
+          DocSyncHelper.showSyncDialog(
             context: context,
             title: 'Sinkronisasi Cermin Dokumen',
             statusNotifier: statusNotifier,
             isSending: true,
-            onReady: (ctx) =>
-                DocSyncHelper.registerActiveDialog(ctx, statusNotifier),
           );
         }
         try {
@@ -503,9 +509,8 @@ class SharingClient {
             'manifest': manifest.map((m) => m.toJson()).toList(),
           };
           channel.sink.add(jsonEncode(initPayload));
-          // Penutupan dialog dini dihapus dari sini!
         } catch (e) {
-          DocSyncHelper.dismissActiveDialog();
+          DocSyncHelper.closeSyncDialog(context);
           debugPrint("Gagal menginisialisasi cermin dokumen client: $e");
         }
       }
@@ -534,14 +539,6 @@ class SharingClient {
                 socketSink: channel.sink,
                 context: context,
                 storageService: _storageService,
-                showProgressDialog: (ctx, title, notif, isSend, onRdy) =>
-                    _showTransferProgressDialog(
-                      context: ctx,
-                      title: title,
-                      statusNotifier: notif,
-                      isSending: isSend,
-                      onReady: onRdy,
-                    ),
                 onLoadingStatusChanged: onLoadingStatusChanged,
               );
               if (handledByDocSync) return;
@@ -646,7 +643,7 @@ class SharingClient {
                   }
                   if (serverDocsZipBase64.isNotEmpty) {
                     statusNotifier.value =
-                        'Menyusun berkas dokumen fisik media...';
+                        'Menyusun berkas dokumen media fisik...';
                     List<int> docsZipBytes = base64Decode(serverDocsZipBase64);
                     Archive docsArchive = ZipDecoder().decodeBytes(
                       docsZipBytes,
@@ -681,7 +678,7 @@ class SharingClient {
                     namaZipDinamis,
                   );
                   statusNotifier.value =
-                      'Menulis berkas cadangan ke memori HP...';
+                      'Menulis cadangan ke penyimpanan internal...';
                   await fileZipTarget.writeAsBytes(finalZipBytes);
                   onDataReceived();
                   if (progressCtx != null && progressCtx!.mounted)
@@ -689,7 +686,7 @@ class SharingClient {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(
-                        'Sukses menerima berkas dari Server! Disimpan: $namaZipDinamis',
+                        'Sukses menerima data dari Server! Tersimpan: $namaZipDinamis',
                       ),
                       backgroundColor: Colors.teal,
                     ),

@@ -27,23 +27,155 @@ class DocManifestItem {
 }
 
 class DocSyncHelper {
-  static BuildContext? _activeProgressContext;
-  static ValueNotifier<String>? _activeStatusNotifier;
+  static bool _isSyncDialogOpen = false;
+  static ValueNotifier<String>? _currentStatusNotifier;
 
-  // PERBAIKAN: Helper mendaftarkan dialog aktif & notifier dari pemicu awal
-  static void registerActiveDialog(
-    BuildContext ctx,
-    ValueNotifier<String> notifier,
-  ) {
-    _activeProgressContext = ctx;
-    _activeStatusNotifier = notifier;
+  // PERBAIKAN: Manajemen Dialog Mandiri yang Deterministik (Anti-Stuck)
+  static void showSyncDialog({
+    required BuildContext context,
+    required String title,
+    required ValueNotifier<String> statusNotifier,
+    required bool isSending,
+  }) {
+    if (_isSyncDialogOpen) {
+      _currentStatusNotifier = statusNotifier;
+      return;
+    }
+    _isSyncDialogOpen = true;
+    _currentStatusNotifier = statusNotifier;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      useRootNavigator: true,
+      builder: (dialogCtx) {
+        final accentColor = isSending ? Colors.teal : Colors.indigo;
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          content: Padding(
+            padding: const EdgeInsets.symmetric(
+              vertical: 12.0,
+              horizontal: 8.0,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 90,
+                  height: 90,
+                  decoration: BoxDecoration(
+                    color: accentColor.withOpacity(0.08),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(
+                        width: 76,
+                        height: 76,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 5,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            accentColor,
+                          ),
+                          backgroundColor: accentColor.withOpacity(0.1),
+                        ),
+                      ),
+                      Icon(
+                        isSending
+                            ? Icons.swap_vertical_circle_outlined
+                            : Icons.cloud_download_rounded,
+                        size: 40,
+                        color: accentColor,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.indigo[900],
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                ValueListenableBuilder<String>(
+                  valueListenable: statusNotifier,
+                  builder: (context, status, child) {
+                    return Text(
+                      status,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
+                      ),
+                      textAlign: TextAlign.center,
+                    );
+                  },
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: accentColor.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            accentColor,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        isSending ? 'PROSES MENGIRIM...' : 'PROSES MENERIMA...',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: accentColor,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    ).then((_) {
+      _isSyncDialogOpen = false;
+      _currentStatusNotifier = null;
+    });
   }
 
-  static void dismissActiveDialog() {
-    if (_activeProgressContext != null && _activeProgressContext!.mounted) {
-      Navigator.pop(_activeProgressContext!);
-      _activeProgressContext = null;
-      _activeStatusNotifier = null;
+  static void updateStatus(String status) {
+    if (_currentStatusNotifier != null) {
+      _currentStatusNotifier!.value = status;
+    }
+  }
+
+  static void closeSyncDialog(BuildContext context) {
+    if (_isSyncDialogOpen && context.mounted) {
+      Navigator.of(context, rootNavigator: true).pop();
+      _isSyncDialogOpen = false;
+      _currentStatusNotifier = null;
     }
   }
 
@@ -177,14 +309,6 @@ class DocSyncHelper {
     required dynamic socketSink,
     required BuildContext context,
     required StorageService storageService,
-    required Function(
-      BuildContext,
-      String,
-      ValueNotifier<String>,
-      bool,
-      Function(BuildContext),
-    )
-    showProgressDialog,
     Function(bool)? onLoadingStatusChanged,
   }) async {
     try {
@@ -194,18 +318,17 @@ class DocSyncHelper {
       if (!tipe.startsWith('doc_sync_')) return false;
 
       if (tipe == 'doc_sync_init') {
-        dismissActiveDialog();
+        closeSyncDialog(context);
         final statusNotifier = ValueNotifier<String>(
           'Memeriksa katalog dokumen masuk...',
         );
 
         if (context.mounted) {
-          showProgressDialog(
-            context,
-            'Menerima Cermin Dokumen',
-            statusNotifier,
-            false,
-            (c) => registerActiveDialog(c, statusNotifier),
+          showSyncDialog(
+            context: context,
+            title: 'Menerima Cermin Dokumen',
+            statusNotifier: statusNotifier,
+            isSending: false,
           );
         }
 
@@ -230,7 +353,7 @@ class DocSyncHelper {
         if (toDelete.isNotEmpty && localManifest.isNotEmpty) {
           double deleteRatio = toDelete.length / localManifest.length;
           if (deleteRatio >= 0.30 || senderManifest.isEmpty) {
-            dismissActiveDialog();
+            closeSyncDialog(context);
             if (!context.mounted) return true;
 
             bool? confirmed = await showDialog<bool>(
@@ -286,12 +409,11 @@ class DocSyncHelper {
             }
 
             if (context.mounted) {
-              showProgressDialog(
-                context,
-                'Menerima Cermin Dokumen',
-                statusNotifier,
-                false,
-                (c) => registerActiveDialog(c, statusNotifier),
+              showSyncDialog(
+                context: context,
+                title: 'Menerima Cermin Dokumen',
+                statusNotifier: statusNotifier,
+                isSending: false,
               );
             }
           }
@@ -303,7 +425,9 @@ class DocSyncHelper {
         }
 
         if (toRequest.isEmpty) {
-          dismissActiveDialog(); // Tutup loading di sisi Klien karena sudah identik
+          closeSyncDialog(
+            context,
+          ); // Langsung tutup di sisi Klien karena identik
           if (onLoadingStatusChanged != null) onLoadingStatusChanged(false);
 
           socketSink.add(
@@ -331,28 +455,24 @@ class DocSyncHelper {
               'requested_files': toRequest,
             }),
           );
-          // JANGAN panggil dismissActiveDialog() di sini agar animasi loading tetap berjalan
         }
         return true;
       } else if (tipe == 'doc_sync_request_delta') {
         List<dynamic> reqFiles = data['requested_files'] ?? [];
         List<String> toSend = reqFiles.map((e) => e.toString()).toList();
 
-        // Update teks dialog pengirim yang sedang terbuka
-        if (_activeProgressContext != null && _activeStatusNotifier != null) {
-          _activeStatusNotifier!.value =
-              'Membungkus ${toSend.length} dokumen...';
+        if (_isSyncDialogOpen) {
+          updateStatus('Membungkus ${toSend.length} dokumen...');
         } else {
           final statusNotifier = ValueNotifier<String>(
             'Membungkus ${toSend.length} dokumen...',
           );
           if (context.mounted) {
-            showProgressDialog(
-              context,
-              'Mengirim Paket Delta',
-              statusNotifier,
-              true,
-              (c) => registerActiveDialog(c, statusNotifier),
+            showSyncDialog(
+              context: context,
+              title: 'Mengirim Paket Delta',
+              statusNotifier: statusNotifier,
+              isSending: true,
             );
           }
         }
@@ -360,9 +480,7 @@ class DocSyncHelper {
         String currentDir = await storageService.getBaseDirSetting();
         final deltaPackage = await packageRequestedFiles(currentDir, toSend);
 
-        if (_activeStatusNotifier != null) {
-          _activeStatusNotifier!.value = 'Menyemburkan data nirkabel...';
-        }
+        updateStatus('Menyemburkan data nirkabel...');
 
         socketSink.add(
           jsonEncode({
@@ -371,23 +489,21 @@ class DocSyncHelper {
             'timestamps': deltaPackage['timestamps'],
           }),
         );
-        // HAPUS penutupan dialog di sini! Biarkan pengirim menunggu konfirmasi doc_sync_done
         if (onLoadingStatusChanged != null) onLoadingStatusChanged(false);
         return true;
       } else if (tipe == 'doc_sync_payload') {
-        if (_activeProgressContext != null && _activeStatusNotifier != null) {
-          _activeStatusNotifier!.value = 'Menerapkan berkas delta...';
+        if (_isSyncDialogOpen) {
+          updateStatus('Menerapkan berkas delta...');
         } else {
           final statusNotifier = ValueNotifier<String>(
             'Menerapkan berkas delta...',
           );
           if (context.mounted) {
-            showProgressDialog(
-              context,
-              'Menerapkan Berkas Delta',
-              statusNotifier,
-              false,
-              (c) => registerActiveDialog(c, statusNotifier),
+            showSyncDialog(
+              context: context,
+              title: 'Menerapkan Berkas Delta',
+              statusNotifier: statusNotifier,
+              isSending: false,
             );
           }
         }
@@ -399,7 +515,7 @@ class DocSyncHelper {
           timestamps: data['timestamps'] ?? {},
         );
 
-        dismissActiveDialog(); // Klien selesai mengekstrak payload, langsung tutup dialog!
+        closeSyncDialog(context); // Klien selesai menerapkan berkas delta!
         if (onLoadingStatusChanged != null) onLoadingStatusChanged(false);
 
         socketSink.add(
@@ -421,7 +537,7 @@ class DocSyncHelper {
         }
         return true;
       } else if (tipe == 'doc_sync_done') {
-        dismissActiveDialog(); // Pengirim menerima balasan selesai, langsung tutup dialog!
+        closeSyncDialog(context); // Pengirim menerima balasan selesai!
         if (onLoadingStatusChanged != null) onLoadingStatusChanged(false);
 
         if (context.mounted) {
@@ -434,7 +550,7 @@ class DocSyncHelper {
         }
         return true;
       } else if (tipe == 'doc_sync_abort') {
-        dismissActiveDialog();
+        closeSyncDialog(context);
         if (onLoadingStatusChanged != null) onLoadingStatusChanged(false);
 
         if (context.mounted) {
@@ -449,7 +565,7 @@ class DocSyncHelper {
       }
       return false;
     } catch (e) {
-      dismissActiveDialog();
+      closeSyncDialog(context);
       if (onLoadingStatusChanged != null) onLoadingStatusChanged(false);
       debugPrint("DocSyncHelper Error: $e");
       return false;

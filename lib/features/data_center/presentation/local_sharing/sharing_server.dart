@@ -202,14 +202,6 @@ class SharingServer {
               socketSink: webSocket.sink,
               context: context,
               storageService: _storageService,
-              showProgressDialog: (ctx, title, notif, isSend, onRdy) =>
-                  _showTransferProgressDialog(
-                    context: ctx,
-                    title: title,
-                    statusNotifier: notif,
-                    isSending: isSend,
-                    onReady: onRdy,
-                  ),
             );
             if (handledByDocSync) return;
 
@@ -587,7 +579,7 @@ class SharingServer {
         }
       }
 
-      // PERBAIKAN: Pemicu Cermin Dokumen Server ke Client
+      // Pemicu Cermin Dokumen Server ke Client
       Future<void> triggerDocumentMirrorToClients() async {
         if (clientActiveList.isEmpty) return;
         final statusNotifier = ValueNotifier<String>(
@@ -595,13 +587,11 @@ class SharingServer {
         );
 
         if (context.mounted) {
-          _showTransferProgressDialog(
+          DocSyncHelper.showSyncDialog(
             context: context,
             title: 'Sinkronisasi Cermin Dokumen',
             statusNotifier: statusNotifier,
             isSending: true,
-            onReady: (ctx) =>
-                DocSyncHelper.registerActiveDialog(ctx, statusNotifier),
           );
         }
         try {
@@ -614,9 +604,8 @@ class SharingServer {
           for (var socket in clientActiveList) {
             socket.sink.add(jsonEncode(initPayload));
           }
-          // Penutupan dialog dini dihapus dari sini!
         } catch (e) {
-          DocSyncHelper.dismissActiveDialog();
+          DocSyncHelper.closeSyncDialog(context);
           debugPrint("Gagal menginisialisasi cermin dokumen server: $e");
         }
       }
