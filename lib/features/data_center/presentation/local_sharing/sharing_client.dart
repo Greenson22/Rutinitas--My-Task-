@@ -5,6 +5,7 @@ import 'package:archive/archive_io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../../../core/services/storage_service.dart';
+import 'doc_sync_helper.dart'; // Impor berkas bantu sinkronisasi dokumen cerdas
 
 class SharingClient {
   final StorageService _storageService = StorageService();
@@ -230,8 +231,9 @@ class SharingClient {
                               );
                               setDialogState(() {
                                 ipHistory.remove(savedIp);
-                                if (ipController.text == savedIp)
+                                if (ipController.text == savedIp) {
                                   ipController.clear();
+                                }
                               });
                             },
                           ),
@@ -489,9 +491,51 @@ class SharingClient {
             ),
           );
         } catch (e) {
-          if (progressCtx != null && progressCtx!.mounted)
+          if (progressCtx != null && progressCtx!.mounted) {
             Navigator.pop(progressCtx!);
+          }
           debugPrint("Gagal mengirim data dari client: $e");
+        }
+      }
+
+      // FUNGSI INTI BARU: Memicu Pembuatan Katalog Cermin dari Client menuju Server
+      Future<void> triggerDocumentMirrorToServer() async {
+        if (!isStillConnected) return;
+
+        BuildContext? progressCtx;
+        final statusNotifier = ValueNotifier<String>(
+          'Memindai & membuat katalog berkas Client...',
+        );
+
+        if (context.mounted) {
+          _showTransferProgressDialog(
+            context: context,
+            title: 'Sinkronisasi Cermin Dokumen',
+            statusNotifier: statusNotifier,
+            isSending: true,
+            onReady: (ctx) => progressCtx = ctx,
+          );
+        }
+
+        try {
+          String currentDir = await _storageService.getBaseDirSetting();
+          final manifest = await DocSyncHelper.createManifest(currentDir);
+
+          Map<String, dynamic> initPayload = {
+            'tipe_pesan': 'doc_sync_init',
+            'manifest': manifest.map((m) => m.toJson()).toList(),
+          };
+
+          channel.sink.add(jsonEncode(initPayload));
+
+          if (progressCtx != null && progressCtx!.mounted) {
+            Navigator.pop(progressCtx!);
+          }
+        } catch (e) {
+          if (progressCtx != null && progressCtx!.mounted) {
+            Navigator.pop(progressCtx!);
+          }
+          debugPrint("Gagal menginisialisasi cermin dokumen client: $e");
         }
       }
 
@@ -515,6 +559,24 @@ class SharingClient {
           .listen(
             (pesanMasuk) async {
               onLoadingStatusChanged(false);
+
+              // PENCEGAT UTAMA: Periksa jika aliran data merupakan bagian dari cermin dokumen cerdas
+              bool handledByDocSync = await DocSyncHelper.handleDocSyncStream(
+                pesanMasuk: pesanMasuk,
+                socketSink: channel.sink,
+                context: context,
+                storageService: _storageService,
+                showProgressDialog: (ctx, title, notif, isSend, onRdy) =>
+                    _showTransferProgressDialog(
+                      context: ctx,
+                      title: title,
+                      statusNotifier: notif,
+                      isSending: isSend,
+                      onReady: onRdy,
+                    ),
+              );
+              if (handledByDocSync) return;
+
               BuildContext? progressCtx;
               final statusNotifier = ValueNotifier<String>(
                 'Menginisialisasi penerimaan...',
@@ -651,8 +713,9 @@ class SharingClient {
                     backupArchive,
                   );
                   if (finalZipBytes == null) {
-                    if (progressCtx != null && progressCtx!.mounted)
+                    if (progressCtx != null && progressCtx!.mounted) {
                       Navigator.pop(progressCtx!);
+                    }
                     return;
                   }
 
@@ -686,8 +749,9 @@ class SharingClient {
                   );
                 }
               } catch (e) {
-                if (progressCtx != null && progressCtx!.mounted)
+                if (progressCtx != null && progressCtx!.mounted) {
                   Navigator.pop(progressCtx!);
+                }
                 debugPrint("Client gagal memproses data: $e");
               }
 
@@ -747,7 +811,7 @@ class SharingClient {
                               ),
                               child: Text(
                                 isStillConnected
-                                    ? 'Anda bisa memantau proses penerimaan otomatis, atau mengirim balik data lokal HP ini ke Server.'
+                                    ? 'Anda bisa memantau proses penerimaan otomatis, atau memilih metode sinkronisasi data lokal nirkabel HP ini ke Server.'
                                     : '⚠️ Hubungan terputus akibat server mati atau jaringan terganggu.',
                                 style: TextStyle(
                                   fontSize: 12,
@@ -774,7 +838,29 @@ class SharingClient {
                                   color: Colors.white,
                                 ),
                                 label: const Text(
-                                  'Kirim Data Saya Ke Server',
+                                  'Kirim Full Backup Ke Server',
+                                  style: TextStyle(color: Colors.white),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            // TOMBOL AKSI BARU: Memicu One-Way Mirror Berbasis Katalog Dokumen menuju Server
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                onPressed: isStillConnected
+                                    ? () => triggerDocumentMirrorToServer()
+                                    : null,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.teal[700],
+                                  disabledBackgroundColor: Colors.grey[200],
+                                ),
+                                icon: const Icon(
+                                  Icons.flip_camera_android_rounded,
+                                  color: Colors.white,
+                                ),
+                                label: const Text(
+                                  '🪞 Cermin Dokumen ke Server',
                                   style: TextStyle(color: Colors.white),
                                 ),
                               ),

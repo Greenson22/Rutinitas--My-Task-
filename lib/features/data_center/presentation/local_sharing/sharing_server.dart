@@ -6,6 +6,7 @@ import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_web_socket/shelf_web_socket.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../../../core/services/storage_service.dart';
+import 'doc_sync_helper.dart'; // Impor berkas bantu sinkronisasi dokumen cerdas
 
 class SharingServer {
   final StorageService _storageService = StorageService();
@@ -200,6 +201,23 @@ class SharingServer {
 
         webSocket.stream.listen(
           (pesanMasuk) async {
+            // PENCEGAT UTAMA: Periksa jika aliran data merupakan bagian dari cermin dokumen cerdas
+            bool handledByDocSync = await DocSyncHelper.handleDocSyncStream(
+              pesanMasuk: pesanMasuk,
+              socketSink: webSocket.sink,
+              context: context,
+              storageService: _storageService,
+              showProgressDialog: (ctx, title, notif, isSend, onRdy) =>
+                  _showTransferProgressDialog(
+                    context: ctx,
+                    title: title,
+                    statusNotifier: notif,
+                    isSending: isSend,
+                    onReady: onRdy,
+                  ),
+            );
+            if (handledByDocSync) return;
+
             BuildContext? progressCtx;
             final statusNotifier = ValueNotifier<String>(
               'Menginisialisasi penerimaan...',
@@ -347,13 +365,15 @@ class SharingServer {
                     ),
                   );
                 } else {
-                  if (progressCtx != null && progressCtx!.mounted)
+                  if (progressCtx != null && progressCtx!.mounted) {
                     Navigator.pop(progressCtx!);
+                  }
                 }
               }
             } catch (err) {
-              if (progressCtx != null && progressCtx!.mounted)
+              if (progressCtx != null && progressCtx!.mounted) {
                 Navigator.pop(progressCtx!);
+              }
               debugPrint("Server gagal memproses pesan: $err");
             }
           },
@@ -594,9 +614,53 @@ class SharingServer {
             ),
           );
         } catch (e) {
-          if (progressCtx != null && progressCtx!.mounted)
+          if (progressCtx != null && progressCtx!.mounted) {
             Navigator.pop(progressCtx!);
+          }
           debugPrint("Gagal mengirim data dari server: $e");
+        }
+      }
+
+      // FUNGSI INTI BARU: Memicu Pembuatan Katalog Cermin dari Server menuju Client Terhubung
+      Future<void> triggerDocumentMirrorToClients() async {
+        if (clientActiveList.isEmpty) return;
+
+        BuildContext? progressCtx;
+        final statusNotifier = ValueNotifier<String>(
+          'Memindai & membuat katalog berkas Server...',
+        );
+
+        if (context.mounted) {
+          _showTransferProgressDialog(
+            context: context,
+            title: 'Sinkronisasi Cermin Dokumen',
+            statusNotifier: statusNotifier,
+            isSending: true,
+            onReady: (ctx) => progressCtx = ctx,
+          );
+        }
+
+        try {
+          String currentDir = await _storageService.getBaseDirSetting();
+          final manifest = await DocSyncHelper.createManifest(currentDir);
+
+          Map<String, dynamic> initPayload = {
+            'tipe_pesan': 'doc_sync_init',
+            'manifest': manifest.map((m) => m.toJson()).toList(),
+          };
+
+          for (var socket in clientActiveList) {
+            socket.sink.add(jsonEncode(initPayload));
+          }
+
+          if (progressCtx != null && progressCtx!.mounted) {
+            Navigator.pop(progressCtx!);
+          }
+        } catch (e) {
+          if (progressCtx != null && progressCtx!.mounted) {
+            Navigator.pop(progressCtx!);
+          }
+          debugPrint("Gagal menginisialisasi cermin dokumen server: $e");
         }
       }
 
@@ -618,7 +682,7 @@ class SharingServer {
                   Icon(Icons.wifi_tethering, color: Colors.indigo[700]),
                   const SizedBox(width: 8),
                   Text(
-                    'Server Sharing Aktif',
+                    'Server Sharing Active',
                     style: TextStyle(
                       color: Colors.indigo[900],
                       fontWeight: FontWeight.bold,
@@ -763,7 +827,7 @@ class SharingServer {
                     const SizedBox(height: 16),
                     Text(
                       adaClient
-                          ? 'Silakan tekan tombol di bawah jika Anda ingin mendistribusikan data lokal ke perangkat yang terhubung.'
+                          ? 'Silakan pilih metode pengiriman data lokal nirkabel ke perangkat client di bawah ini.'
                           : 'Server siap menerima koneksi pipa baru secara lokal dari aplikasi client.',
                       style: TextStyle(
                         fontSize: 12,
@@ -788,7 +852,32 @@ class SharingServer {
                         ),
                         icon: const Icon(Icons.send_and_archive),
                         label: const Text(
-                          'Kirim Data Ke Client',
+                          'Kirim Full Backup Ke Client',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // TOMBOL AKSI BARU: Memicu One-Way Mirror Berbasis Katalog Dokumen
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: adaClient
+                            ? () => triggerDocumentMirrorToClients()
+                            : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.indigo[600],
+                          foregroundColor: Colors.white,
+                          disabledBackgroundColor: Colors.grey[200],
+                          disabledForegroundColor: Colors.grey[400],
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                        ),
+                        icon: const Icon(Icons.flip_camera_android_rounded),
+                        label: const Text(
+                          '🪞 Cermin Dokumen ke Client',
                           style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ),
