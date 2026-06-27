@@ -4,12 +4,138 @@ import 'package:flutter/material.dart';
 import 'package:archive/archive_io.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_web_socket/shelf_web_socket.dart';
-import 'package:qr_flutter/qr_flutter.dart'; // DITAMBAHKAN
+import 'package:qr_flutter/qr_flutter.dart';
 import '../../../../core/services/storage_service.dart';
 
 class SharingServer {
   final StorageService _storageService = StorageService();
   HttpServer? _serverEksternal;
+
+  // VISUALISASI LOADING PROGRESS DIALOG MODERN & INDAH
+  void _showTransferProgressDialog({
+    required BuildContext context,
+    required String title,
+    required ValueNotifier<String> statusNotifier,
+    required bool isSending,
+    required Function(BuildContext) onReady,
+  }) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogCtx) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => onReady(dialogCtx));
+        final accentColor = isSending ? Colors.teal : Colors.indigo;
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          content: Padding(
+            padding: const EdgeInsets.symmetric(
+              vertical: 12.0,
+              horizontal: 8.0,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 90,
+                  height: 90,
+                  decoration: BoxDecoration(
+                    color: accentColor.withOpacity(0.08),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(
+                        width: 76,
+                        height: 76,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 5,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            accentColor,
+                          ),
+                          backgroundColor: accentColor.withOpacity(0.1),
+                        ),
+                      ),
+                      Icon(
+                        isSending
+                            ? Icons.swap_vertical_circle_outlined
+                            : Icons.cloud_download_rounded,
+                        size: 40,
+                        color: accentColor,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.indigo[900],
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                ValueListenableBuilder<String>(
+                  valueListenable: statusNotifier,
+                  builder: (context, status, child) {
+                    return Text(
+                      status,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
+                      ),
+                      textAlign: TextAlign.center,
+                    );
+                  },
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: accentColor.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            accentColor,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        isSending ? 'PROSES MENGIRIM...' : 'PROSES MENERIMA...',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: accentColor,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   Future<String> _getLocalIpAddress() async {
     try {
@@ -74,9 +200,25 @@ class SharingServer {
 
         webSocket.stream.listen(
           (pesanMasuk) async {
+            BuildContext? progressCtx;
+            final statusNotifier = ValueNotifier<String>(
+              'Menginisialisasi penerimaan...',
+            );
+
             try {
               Map<String, dynamic> dateReceived = jsonDecode(pesanMasuk);
               if (dateReceived['tipe_pesan'] == 'data_transfer') {
+                if (context.mounted) {
+                  _showTransferProgressDialog(
+                    context: context,
+                    title: 'Menerima Data Aplikasi',
+                    statusNotifier: statusNotifier,
+                    isSending: false,
+                    onReady: (ctx) => progressCtx = ctx,
+                  );
+                }
+
+                statusNotifier.value = 'Membaca paket enkripsi masuk...';
                 String clientTasks = dateReceived['task_master'];
                 String clientJurnal = dateReceived['jurnal_aktivitas'];
                 String clientZipBase64 = dateReceived['checklist_zip'];
@@ -86,6 +228,7 @@ class SharingServer {
                 String clientDocsZipBase64 =
                     dateReceived['documents_zip'] ?? "";
 
+                statusNotifier.value = 'Mengekstrak berkas inti data...';
                 final Archive clientArchive = Archive();
                 List<int> tasksBytes = utf8.encode(clientTasks);
                 clientArchive.addFile(
@@ -98,6 +241,7 @@ class SharingServer {
                 );
 
                 if (clientZipBase64.isNotEmpty) {
+                  statusNotifier.value = 'Memproses data modul Checklist...';
                   List<int> chkBytes = base64Decode(clientZipBase64);
                   Archive checklistArchive = ZipDecoder().decodeBytes(chkBytes);
                   for (ArchiveFile file in checklistArchive) {
@@ -114,6 +258,8 @@ class SharingServer {
                 }
 
                 if (clientNotesZipBase64.isNotEmpty) {
+                  statusNotifier.value =
+                      'Memproses berkas modul Catatan (Notes)...';
                   List<int> notesBytes = base64Decode(clientNotesZipBase64);
                   Archive notesArchive = ZipDecoder().decodeBytes(notesBytes);
                   for (ArchiveFile file in notesArchive) {
@@ -130,6 +276,8 @@ class SharingServer {
                 }
 
                 if (clientPromptsZipBase64.isNotEmpty) {
+                  statusNotifier.value =
+                      'Memproses berkas kecerdasan buatan AI...';
                   List<int> promptsBytes = base64Decode(clientPromptsZipBase64);
                   Archive promptsArchive = ZipDecoder().decodeBytes(
                     promptsBytes,
@@ -148,13 +296,15 @@ class SharingServer {
                 }
 
                 if (clientDocsZipBase64.isNotEmpty) {
+                  statusNotifier.value =
+                      'Menyusun dokumen & struktur fisik media...';
                   List<int> docsBytes = base64Decode(clientDocsZipBase64);
                   Archive docsArchive = ZipDecoder().decodeBytes(docsBytes);
                   for (ArchiveFile file in docsArchive) {
                     if (file.isFile) {
                       clientArchive.addFile(
                         ArchiveFile(
-                          file.name, // Format path sudah relatif 'my_documents/...'
+                          file.name,
                           file.content.length,
                           file.content,
                         ),
@@ -163,6 +313,8 @@ class SharingServer {
                   }
                 }
 
+                statusNotifier.value =
+                    'Menyusun paket berkas arsip final (.zip)...';
                 final List<int>? finalZipBytes = ZipEncoder().encode(
                   clientArchive,
                 );
@@ -175,9 +327,16 @@ class SharingServer {
                     baseDir,
                     namaZipDinamis,
                   );
+
+                  statusNotifier.value =
+                      'Menulis cadangan ke penyimpanan internal...';
                   await fileZipTarget.writeAsBytes(finalZipBytes);
 
                   onDataReceived();
+
+                  if (progressCtx != null && progressCtx!.mounted) {
+                    Navigator.pop(progressCtx!);
+                  }
 
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -187,9 +346,14 @@ class SharingServer {
                       backgroundColor: Colors.teal,
                     ),
                   );
+                } else {
+                  if (progressCtx != null && progressCtx!.mounted)
+                    Navigator.pop(progressCtx!);
                 }
               }
             } catch (err) {
+              if (progressCtx != null && progressCtx!.mounted)
+                Navigator.pop(progressCtx!);
               debugPrint("Server gagal memproses pesan: $err");
             }
           },
@@ -233,7 +397,6 @@ class SharingServer {
           return;
         }
 
-        // Tampilkan dialog konfirmasi dokumen
         if (!context.mounted) return;
         final bool? includeDocuments = await showDialog<bool>(
           context: context,
@@ -283,124 +446,158 @@ class SharingServer {
           },
         );
 
-        // Jika user menekan luar dialog atau membatalkan, hentikan eksekusi
         if (includeDocuments == null) return;
 
-        String currentDir = await _storageService.getBaseDirSetting();
-        File fileTasks = await _storageService.getTargetJsonFile(currentDir);
-        String tasksContent = await fileTasks.exists()
-            ? await fileTasks.readAsString()
-            : "{}";
-
-        File fileJurnal = await _storageService.getJurnalJsonFile(currentDir);
-        String journalContent = await fileJurnal.exists()
-            ? await fileJurnal.readAsString()
-            : "[]";
-
-        List<File> groupFiles = await _storageService.getAllChecklistGroups(
-          currentDir,
+        BuildContext? progressCtx;
+        final statusNotifier = ValueNotifier<String>(
+          'Mempersiapkan pengiriman data...',
         );
-        final Archive archive = Archive();
-        for (var file in groupFiles) {
-          archive.addFile(
-            ArchiveFile(
-              file.path.split('/').last,
-              file.lengthSync(),
-              await file.readAsBytes(),
-            ),
+
+        if (context.mounted) {
+          _showTransferProgressDialog(
+            context: context,
+            title: 'Mengirim Data Ke Client',
+            statusNotifier: statusNotifier,
+            isSending: true,
+            onReady: (ctx) => progressCtx = ctx,
           );
         }
-        final List<int>? zipBytes = ZipEncoder().encode(archive);
-        String zipBase64Content = zipBytes != null
-            ? base64Encode(zipBytes)
-            : "";
 
-        List<File> noteFiles = await _storageService.getAllNoteGroups(
-          currentDir,
-        );
-        final Archive notesArchive = Archive();
-        for (var file in noteFiles) {
-          notesArchive.addFile(
-            ArchiveFile(
-              file.path.split('/').last,
-              file.lengthSync(),
-              await file.readAsBytes(),
-            ),
+        try {
+          statusNotifier.value = 'Membaca berkas Task Master & Jurnal...';
+          String currentDir = await _storageService.getBaseDirSetting();
+          File fileTasks = await _storageService.getTargetJsonFile(currentDir);
+          String tasksContent = await fileTasks.exists()
+              ? await fileTasks.readAsString()
+              : "{}";
+
+          File fileJurnal = await _storageService.getJurnalJsonFile(currentDir);
+          String journalContent = await fileJurnal.exists()
+              ? await fileJurnal.readAsString()
+              : "[]";
+
+          statusNotifier.value = 'Mengompresi data Checklist (ZIP)...';
+          List<File> groupFiles = await _storageService.getAllChecklistGroups(
+            currentDir,
           );
-        }
-        final List<int>? notesZipBytes = ZipEncoder().encode(notesArchive);
-        String notesBase64Content = notesZipBytes != null
-            ? base64Encode(notesZipBytes)
-            : "";
-
-        List<File> promptFiles = await _storageService.getAllPromptGroups(
-          currentDir,
-        );
-        final Archive promptsArchive = Archive();
-        for (var file in promptFiles) {
-          promptsArchive.addFile(
-            ArchiveFile(
-              file.path.split('/').last,
-              file.lengthSync(),
-              await file.readAsBytes(),
-            ),
-          );
-        }
-        final List<int>? promptsZipBytes = ZipEncoder().encode(promptsArchive);
-        String promptsBase64Content = promptsZipBytes != null
-            ? base64Encode(promptsZipBytes)
-            : "";
-
-        String documentsBase64Content = "";
-        if (includeDocuments) {
-          final Directory documentsDir = Directory('$currentDir/my_documents');
-          if (await documentsDir.exists()) {
-            final Archive docArchive = Archive();
-            final List<FileSystemEntity> entities = documentsDir.listSync(
-              recursive: true,
+          final Archive archive = Archive();
+          for (var file in groupFiles) {
+            archive.addFile(
+              ArchiveFile(
+                file.path.split('/').last,
+                file.lengthSync(),
+                await file.readAsBytes(),
+              ),
             );
-            for (var entity in entities) {
-              if (entity is File) {
-                String relativePath = entity.path.substring(
-                  documentsDir.parent.path.length + 1,
-                );
-                relativePath = relativePath.replaceAll('\\', '/');
+          }
+          final List<int>? zipBytes = ZipEncoder().encode(archive);
+          String zipBase64Content = zipBytes != null
+              ? base64Encode(zipBytes)
+              : "";
 
-                final List<int> fileBytes = await entity.readAsBytes();
-                docArchive.addFile(
-                  ArchiveFile(relativePath, fileBytes.length, fileBytes),
-                );
+          statusNotifier.value = 'Mengompresi data Catatan/Notes...';
+          List<File> noteFiles = await _storageService.getAllNoteGroups(
+            currentDir,
+          );
+          final Archive notesArchive = Archive();
+          for (var file in noteFiles) {
+            notesArchive.addFile(
+              ArchiveFile(
+                file.path.split('/').last,
+                file.lengthSync(),
+                await file.readAsBytes(),
+              ),
+            );
+          }
+          final List<int>? notesZipBytes = ZipEncoder().encode(notesArchive);
+          String notesBase64Content = notesZipBytes != null
+              ? base64Encode(notesZipBytes)
+              : "";
+
+          statusNotifier.value = 'Mengompresi pustaka Prompt AI...';
+          List<File> promptFiles = await _storageService.getAllPromptGroups(
+            currentDir,
+          );
+          final Archive promptsArchive = Archive();
+          for (var file in promptFiles) {
+            promptsArchive.addFile(
+              ArchiveFile(
+                file.path.split('/').last,
+                file.lengthSync(),
+                await file.readAsBytes(),
+              ),
+            );
+          }
+          final List<int>? promptsZipBytes = ZipEncoder().encode(
+            promptsArchive,
+          );
+          String promptsBase64Content = promptsZipBytes != null
+              ? base64Encode(promptsZipBytes)
+              : "";
+
+          String documentsBase64Content = "";
+          if (includeDocuments) {
+            statusNotifier.value = 'Mengompresi berkas fisik media kustom...';
+            final Directory documentsDir = Directory(
+              '$currentDir/my_documents',
+            );
+            if (await documentsDir.exists()) {
+              final Archive docArchive = Archive();
+              final List<FileSystemEntity> entities = documentsDir.listSync(
+                recursive: true,
+              );
+              for (var entity in entities) {
+                if (entity is File) {
+                  String relativePath = entity.path.substring(
+                    documentsDir.parent.path.length + 1,
+                  );
+                  relativePath = relativePath.replaceAll('\\', '/');
+                  final List<int> fileBytes = await entity.readAsBytes();
+                  docArchive.addFile(
+                    ArchiveFile(relativePath, fileBytes.length, fileBytes),
+                  );
+                }
+              }
+              final List<int>? docZipBytes = ZipEncoder().encode(docArchive);
+              if (docZipBytes != null) {
+                documentsBase64Content = base64Encode(docZipBytes);
               }
             }
-            final List<int>? docZipBytes = ZipEncoder().encode(docArchive);
-            if (docZipBytes != null) {
-              documentsBase64Content = base64Encode(docZipBytes);
-            }
           }
-        }
 
-        Map<String, dynamic> sendBigPackage = {
-          'tipe_pesan': 'data_transfer',
-          'task_master': tasksContent,
-          'jurnal_aktivitas': journalContent,
-          'checklist_zip': zipBase64Content,
-          'notes_zip': notesBase64Content,
-          'prompts_zip': promptsBase64Content,
-          'documents_zip': documentsBase64Content,
-        };
+          statusNotifier.value =
+              'Mengirimkan paket enkripsi data via nirkabel...';
+          Map<String, dynamic> sendBigPackage = {
+            'tipe_pesan': 'data_transfer',
+            'task_master': tasksContent,
+            'jurnal_aktivitas': journalContent,
+            'checklist_zip': zipBase64Content,
+            'notes_zip': notesBase64Content,
+            'prompts_zip': promptsBase64Content,
+            'documents_zip': documentsBase64Content,
+          };
 
-        for (var socket in clientActiveList) {
-          socket.sink.add(jsonEncode(sendBigPackage));
-        }
+          for (var socket in clientActiveList) {
+            socket.sink.add(jsonEncode(sendBigPackage));
+          }
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Berhasil mengirim data ke ${clientActiveList.length} Client!',
+          if (progressCtx != null && progressCtx!.mounted) {
+            Navigator.pop(progressCtx!);
+          }
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Berhasil mengirim data ke ${clientActiveList.length} Client!',
+              ),
+              backgroundColor: Colors.teal,
             ),
-            backgroundColor: Colors.teal,
-          ),
-        );
+          );
+        } catch (e) {
+          if (progressCtx != null && progressCtx!.mounted)
+            Navigator.pop(progressCtx!);
+          debugPrint("Gagal mengirim data dari server: $e");
+        }
       }
 
       if (!context.mounted) return;
