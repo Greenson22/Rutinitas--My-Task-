@@ -297,6 +297,9 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
       );
       if (result != null && result.files.isNotEmpty) {
         setState(() => isLoading = true);
+
+        int successCount = 0;
+
         for (var pickedFile in result.files) {
           if (pickedFile.path != null) {
             File sourceFile = File(pickedFile.path!);
@@ -308,26 +311,103 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
             String targetPath = '${groupDirectory.path}/$fileName';
             File targetFile = File(targetPath);
 
-            // 2. Salin file ke direktori aplikasi
+            // LOGIKA KONFIRMASI JIKA FILE SUDAH ADA
+            if (await targetFile.exists()) {
+              // Sembunyikan loading sejenak agar dialog terlihat jelas
+              setState(() => isLoading = false);
+
+              String? choice = await _showDuplicateConflictDialog(fileName);
+
+              setState(() => isLoading = true);
+
+              if (choice == 'cancel' || choice == null) {
+                continue; // Lewati file ini, lanjut ke file berikutnya jika ada
+              }
+
+              if (choice == 'copy') {
+                // Pemisahan Nama dan Ekstensi File untuk membuat format (1), (2), dst.
+                final int lastDotIndex = fileName.lastIndexOf('.');
+                final String nameWithoutExt = lastDotIndex != -1
+                    ? fileName.substring(0, lastDotIndex)
+                    : fileName;
+                final String extension = lastDotIndex != -1
+                    ? fileName.substring(lastDotIndex)
+                    : '';
+
+                int counter = 1;
+                while (await targetFile.exists()) {
+                  targetPath =
+                      '${groupDirectory.path}/$nameWithoutExt ($counter)$extension';
+                  targetFile = File(targetPath);
+                  counter++;
+                }
+              }
+              // Jika memilih 'overwrite', targetPath tetap sama dan langsung ditimpah
+            }
+
+            // 2. Salin file ke direktori aplikasi (baik menimpah atau membuat salinan baru)
             await sourceFile.copy(targetPath);
 
             // 3. Setel ulang waktu modifikasi file baru agar sama dengan yang asli
             await targetFile.setLastModified(originalLastModified);
+            successCount++;
           }
         }
+
         await _loadPhysicalFiles();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Berhasil mengimpor dokumen!'),
-            backgroundColor: Colors.teal,
-          ),
-        );
+
+        if (successCount > 0 && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Berhasil mengimpor $successCount dokumen!'),
+              backgroundColor: Colors.teal,
+            ),
+          );
+        }
       }
     } catch (e) {
       debugPrint("Gagal mengimpor berkas luar: $e");
     } finally {
-      setState(() => isLoading = false);
+      if (mounted) setState(() => isLoading = false);
     }
+  }
+
+  Future<String?> _showDuplicateConflictDialog(String fileName) async {
+    return await showDialog<String>(
+      context: context,
+      barrierDismissible: false, // Pengguna wajib memilih opsi
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange),
+            SizedBox(width: 8),
+            Text('File Sudah Ada'),
+          ],
+        ),
+        content: Text(
+          'Berkas dengan nama "$fileName" sudah ada di grup ini. Apa yang ingin Anda lakukan?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'cancel'),
+            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'copy'),
+            child: const Text(
+              'Buat Salinan',
+              style: TextStyle(color: Colors.teal),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, 'overwrite'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text('Timpah', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _exportPhysicalFile(File file) async {
