@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:open_file/open_file.dart';
-import 'package:share_plus/share_plus.dart'; // <-- TAMBAHAN: Untuk fitur bagikan file ke sistem OS Android/Linux
+import 'package:share_plus/share_plus.dart';
 import '../../../../core/services/storage_service.dart';
 import '../../../../core/presentation/widgets/universal_empty_state.dart';
 import '../../../../core/presentation/widgets/base_detail_list_screen.dart';
@@ -199,14 +199,10 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
     }
   }
 
-  // =========================================================================
-  // FITUR BARU: LOGIKA MEMBAGIKAN BERKAS KE SYSTEM OS (WHATSAPP, DLL)
-  // =========================================================================
   Future<void> _sharePhysicalFile(File file) async {
     try {
       if (await file.exists()) {
         final String fileName = file.path.split('/').last;
-        // Menggunakan XFile dari paket share_plus untuk membagikan file fisik
         await Share.shareXFiles([
           XFile(file.path),
         ], text: 'Membagikan berkas: $fileName');
@@ -225,7 +221,6 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
           xFilesToShare.add(XFile(file.path));
         }
       }
-
       if (xFilesToShare.isNotEmpty) {
         await Share.shareXFiles(
           xFilesToShare,
@@ -506,9 +501,15 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
               enableAddButton: true,
               enableFavoriteSort: false,
               itemTitle: (file) => file.path.split('/').last,
+              // =========================================================================
+              // PERBAIKAN UTAMA: GANTI IKON TITIK TIGA MENJADI IKON GARIS HORIZONTAL 3 (SORT)
+              // =========================================================================
               additionalAction: PopupMenuButton<String>(
-                icon: const Icon(Icons.more_vert_rounded, color: Colors.white),
-                tooltip: 'Pilihan Menu',
+                icon: const Icon(
+                  Icons.sort_rounded,
+                  color: Colors.white,
+                ), // <-- Diubah di sini
+                tooltip: 'Urutkan Dokumen',
                 onSelected: _handleSort,
                 itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
                   const PopupMenuItem<String>(
@@ -645,9 +646,6 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
                     ],
                   ),
                 ),
-                // ---------------------------------------------------------
-                // OPSI MENU BARU: BAGIKAN BERKAS (SHARE SATUAN)
-                // ---------------------------------------------------------
                 const PopupMenuItem(
                   value: 'share',
                   child: Row(
@@ -684,7 +682,7 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
                 } else if (value == 'export') {
                   _exportPhysicalFile(file);
                 } else if (value == 'share') {
-                  _sharePhysicalFile(file); // Pemicu share berkas tunggal
+                  _sharePhysicalFile(file);
                 } else if (value == 'delete') {
                   _deletePhysicalFile(file);
                 }
@@ -698,9 +696,6 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
               onExportMassive: (selectedItems) async {
                 await _exportMassiveFiles(selectedItems);
               },
-              // ---------------------------------------------------------
-              // INTEGRASI TERINTEGRASI: HANDLER KUSTOM BAGIKAN MASAL DI PARENT WIDGET
-              // ---------------------------------------------------------
               onShareMassive: (selectedItems) async {
                 await _shareMassiveFiles(selectedItems);
               },
