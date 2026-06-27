@@ -77,6 +77,114 @@ class BackupTabState extends State<BackupTab> {
     return "${prefix}_${tanggal}_${namaHari}_$waktu.$extension";
   }
 
+  // =========================================================================
+  // HELPER FUNCTION: DIALOG PROGRESS BACKUP REAL-TIME (MENCEGAH UI FREEZE)
+  // =========================================================================
+  void _showBackupProgressDialog({
+    required BuildContext context,
+    required String title,
+    required ValueNotifier<String> statusNotifier,
+    required Function(BuildContext) onReady,
+  }) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogCtx) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => onReady(dialogCtx));
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          content: Padding(
+            padding: const EdgeInsets.symmetric(
+              vertical: 12.0,
+              horizontal: 8.0,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 90,
+                  height: 90,
+                  decoration: BoxDecoration(
+                    color: Colors.teal.withOpacity(0.08),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(
+                        width: 76,
+                        height: 76,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 5,
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            Colors.teal,
+                          ),
+                          backgroundColor: Colors.teal.withOpacity(0.1),
+                        ),
+                      ),
+                      const Icon(
+                        Icons.backup_outlined,
+                        size: 40,
+                        color: Colors.teal,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.indigo[900],
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                ValueListenableBuilder<String>(
+                  valueListenable: statusNotifier,
+                  builder: (context, status, child) {
+                    return Text(
+                      status,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
+                      ),
+                      textAlign: TextAlign.center,
+                    );
+                  },
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.teal.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  child: const Text(
+                    'PROSES MEMBUAT CADANGAN...',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.teal,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   void _backupAllFeature() async {
     try {
       // Tampilkan dialog konfirmasi pilihan kustom
@@ -131,20 +239,40 @@ class BackupTabState extends State<BackupTab> {
       // Jika user menekan tombol Batal atau menutup dialog tanpa memilih, hentikan proses
       if (includeDocuments == null) return;
 
+      // INISIALISASI DIALOG PROGRESS REAL-TIME
+      BuildContext? progressCtx;
+      final statusNotifier = ValueNotifier<String>('Menginisialisasi modul...');
+
+      if (mounted) {
+        _showBackupProgressDialog(
+          context: context,
+          title: 'Membuat Cadangan Data',
+          statusNotifier: statusNotifier,
+          onReady: (ctx) => progressCtx = ctx,
+        );
+      }
+
+      statusNotifier.value = 'Membaca berkas Task Master...';
       File fileTasks = await _storageService.getTargetJsonFile(_baseDir);
       String kontenTasks = await fileTasks.exists()
           ? await fileTasks.readAsString()
           : "{}";
 
+      statusNotifier.value = 'Membaca data Jurnal...';
       File fileJurnal = await _storageService.getJurnalJsonFile(_baseDir);
       String kontenJurnal = await fileJurnal.exists()
           ? await fileJurnal.readAsString()
           : "[]";
 
+      statusNotifier.value = 'Mengumpulkan data Checklist...';
       List<File> hubFiles = await _storageService.getAllChecklistGroups(
         _baseDir,
       );
+
+      statusNotifier.value = 'Mengumpulkan catatan harian (Notes)...';
       List<File> noteFiles = await _storageService.getAllNoteGroups(_baseDir);
+
+      statusNotifier.value = 'Mengumpulkan data Prompts AI...';
       List<File> promptFiles = await _storageService.getAllPromptGroups(
         _baseDir,
       );
@@ -191,34 +319,52 @@ class BackupTabState extends State<BackupTab> {
         );
       }
 
-      // Logika tambahan untuk memasukkan Folder Dokumen secara terstruktur
+      // Logika tambahan untuk memasukkan Folder Dokumen secara terstruktur dengan progress real-time
       if (includeDocuments == true) {
         final Directory documentsDir = Directory('$_baseDir/my_documents');
         if (await documentsDir.exists()) {
-          // List seluruh isi subfolder dan file fisik secara rekursif
+          statusNotifier.value = 'Memindai seluruh isi subfolder dokumen...';
           final List<FileSystemEntity> entities = documentsDir.listSync(
             recursive: true,
           );
-          for (var entity in entities) {
-            if (entity is File) {
-              // Dapatkan relative path agar struktur folder di dalam ZIP terjaga (e.g., my_documents/id_grup/file.pdf)
-              String relativePath = entity.path.substring(
-                documentsDir.parent.path.length + 1,
-              );
-              // Standardisasi karakter pembatas folder agar kompatibel saat dibuka di OS manapun
-              relativePath = relativePath.replaceAll('\\', '/');
 
-              final List<int> fileBytes = await entity.readAsBytes();
-              backupArchive.addFile(
-                ArchiveFile(relativePath, fileBytes.length, fileBytes),
-              );
-            }
+          final List<File> filesToProcess = entities.whereType<File>().toList();
+          int totalFiles = filesToProcess.length;
+
+          for (int i = 0; i < totalFiles; i++) {
+            final File file = filesToProcess[i];
+            final String namaFileReal = file.path.split('/').last;
+
+            // Memperbarui UI progress setiap file yang diproses agar tidak disangka hang/crash
+            statusNotifier.value =
+                'Mengompresi dokumen [${i + 1}/$totalFiles]\n$namaFileReal';
+
+            // Dapatkan relative path agar struktur folder di dalam ZIP terjaga
+            String relativePath = file.path.substring(
+              documentsDir.parent.path.length + 1,
+            );
+            // Standardisasi karakter pembatas folder agar kompatibel saat dibuka di OS manapun
+            relativePath = relativePath.replaceAll('\\', '/');
+
+            final List<int> fileBytes = await file.readAsBytes();
+            backupArchive.addFile(
+              ArchiveFile(relativePath, fileBytes.length, fileBytes),
+            );
           }
         }
       }
 
+      statusNotifier.value =
+          'Mengonversi dan menyusun berkas arsip ZIP final...';
+      // Jeda mikro agar UI sempat merender teks status penyusunan ZIP
+      await Future.delayed(const Duration(milliseconds: 100));
+
       final List<int>? finalZipBytes = ZipEncoder().encode(backupArchive);
-      if (finalZipBytes == null) return;
+      if (finalZipBytes == null) {
+        if (progressCtx != null && progressCtx!.mounted)
+          Navigator.pop(progressCtx!);
+        return;
+      }
 
       // Berikan penanda nama arsip yang jelas berdasarkan pilihan pengguna
       String prefixName = includeDocuments
@@ -226,11 +372,17 @@ class BackupTabState extends State<BackupTab> {
           : 'local_backup_core';
       String namaZipDinamis = _getFormattedFileName(prefixName, 'zip');
 
+      statusNotifier.value = 'Menulis berkas cadangan ke penyimpanan HP...';
       File fileZipTarget = await _storageService.getLocalBackupZipFile(
         _baseDir,
         namaZipDinamis,
       );
       await fileZipTarget.writeAsBytes(finalZipBytes);
+
+      // Tutup progress dialog sesaat setelah file selesai ditulis
+      if (progressCtx != null && progressCtx!.mounted) {
+        Navigator.pop(progressCtx!);
+      }
 
       _loadLocalBackups();
       if (!mounted) return;
@@ -552,8 +704,9 @@ class BackupTabState extends State<BackupTab> {
       if (res != null && res.files.isNotEmpty) {
         Directory dir = await _storageService.getNotesDir(_baseDir);
         for (var pf in res.files) {
-          if (pf.path != null)
+          if (pf.path != null) {
             File(pf.path!).copySync('${dir.path}/${pf.name}');
+          }
         }
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -621,8 +774,9 @@ class BackupTabState extends State<BackupTab> {
       if (res != null && res.files.isNotEmpty) {
         Directory dir = await _storageService.getPromptDir(_baseDir);
         for (var pf in res.files) {
-          if (pf.path != null)
+          if (pf.path != null) {
             File(pf.path!).copySync('${dir.path}/${pf.name}');
+          }
         }
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -634,9 +788,6 @@ class BackupTabState extends State<BackupTab> {
     }
   }
 
-  // =========================================================================
-  // PERBAIKAN: FITUR INDIVIDUAL EXPORT & IMPORT UNTUK DOCUMENTS (TANPA DOUBLE JSON)
-  // =========================================================================
   void _exportDocumentsIndividual() async {
     try {
       final Directory documentsDir = Directory('$_baseDir/my_documents');
@@ -665,7 +816,6 @@ class BackupTabState extends State<BackupTab> {
 
       for (var entity in entities) {
         if (entity is File) {
-          // Buat path relatif langsung mempertahankan struktur "my_documents/..."
           String relativePath = entity.path.substring(
             documentsDir.parent.path.length + 1,
           );
@@ -717,12 +867,10 @@ class BackupTabState extends State<BackupTab> {
 
         int hitungFile = 0;
 
-        // Ekstrak langsung mengikuti path "my_documents/..." yang ada di dalam ZIP
         for (ArchiveFile file in archive) {
           if (file.isFile) {
             File targetFile = File('$_baseDir/${file.name}');
 
-            // Buat direktori folder grup atau subfolder jika belum tersedia
             if (!targetFile.parent.existsSync()) {
               targetFile.parent.createSync(recursive: true);
             }
@@ -792,7 +940,6 @@ class BackupTabState extends State<BackupTab> {
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: 16),
       children: [
-        // MENAMPILKAN BANNER STATUS RESTORE TERAKHIR DI SINI
         LastRestoreBanner(lastRestoreInfo: widget.lastRestoreInfo),
 
         Padding(
@@ -836,7 +983,6 @@ class BackupTabState extends State<BackupTab> {
                   _importPromptsIndividual,
                 ),
                 const SizedBox(width: 16),
-                // TOMBOL KE-6 UNTUK DOKUMEN SESUAI KEBUTUHAN BARIS GRID
                 _buildCompactButton(
                   'Documents',
                   Icons.description,
@@ -909,8 +1055,9 @@ class BackupTabState extends State<BackupTab> {
                                 );
                                 if (confirm) {
                                   for (var file in _selectedFiles) {
-                                    if (await file.exists())
+                                    if (await file.exists()) {
                                       await file.delete();
+                                    }
                                   }
                                   setState(() {
                                     _selectedFiles.clear();
