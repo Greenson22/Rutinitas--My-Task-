@@ -6,7 +6,7 @@ import '../../../features/checklist/presentation/checklist_screen/checklist_scre
 import '../../../features/notes/presentation/screens/note_screen.dart';
 import '../../../features/jurnal_aktivitas/presentation/screens/jurnal_aktivitas_screen.dart';
 import '../../../features/prompt/presentation/screens/prompt_screen.dart';
-import '../../../features/data_center/data_center_screen.dart';
+import '../../../features/data_center/presentation/data_center_screen.dart';
 import '../../../features/about/presentation/pages/about_page.dart';
 import '../../../features/task_master/presentation/widgets/settings_dialog.dart';
 import '../../../features/random/presentation/screens/random_screen.dart'; // IMPORT SCREEN BARU
