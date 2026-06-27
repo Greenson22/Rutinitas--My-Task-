@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart'; // Ditambahkan untuk mendeteksi kDebug
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart'; // Ditambahkan untuk SDK AdMob
-import 'package:open_file/open_file.dart';
+import 'package:open_filex/open_filex.dart'; // DIUBAH: Menggunakan open_filex untuk kompatibilitas instalasi APK yang lebih baik
 import 'package:share_plus/share_plus.dart';
 import '../../../../core/services/storage_service.dart';
 import '../../../../core/presentation/widgets/universal_empty_state.dart';
@@ -47,7 +47,7 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
         return 'ca-app-pub-3940256099942544/6300978111';
       } else {
         // GANTI dengan Ad Unit ID asli Anda dari dasbor AdMob khusus halaman detail dokumen saat rilis nanti
-        return 'ca-app-pub-5320800343545863/5518848739';
+        return 'ca-app-pub-5320800343545863/2360156750';
       }
     }
     return ''; // Kosongkan jika berjalan di Desktop / platform non-Android agar tidak crash
@@ -805,9 +805,23 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
         false;
   }
 
+  // =========================================================================
+  // PENANGANAN UTAMA: Membuka berkas menggunakan open_filex & memaksa tipe MIME APK
+  // =========================================================================
   Future<void> _openDocumentFile(File file) async {
     try {
-      await OpenFile.open(file.path);
+      final String filePath = file.path.toLowerCase();
+
+      if (filePath.endsWith('.apk')) {
+        // DIUBAH: Menggunakan OpenFilex untuk memaksa tipe MIME package archive Android agar memicu menu instalasi
+        await OpenFilex.open(
+          file.path,
+          type: "application/vnd.android.package-archive",
+        );
+      } else {
+        // Untuk file umum lainnya dibuka menggunakan aplikasi default bawaan sistem
+        await OpenFilex.open(file.path);
+      }
     } catch (e) {
       debugPrint("Gagal membuka file: $e");
     }
