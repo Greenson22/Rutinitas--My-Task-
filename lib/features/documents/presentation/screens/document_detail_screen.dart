@@ -300,9 +300,19 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
         for (var pickedFile in result.files) {
           if (pickedFile.path != null) {
             File sourceFile = File(pickedFile.path!);
+
+            // 1. Ambil waktu modifikasi asli dari file asal sebelum disalin
+            DateTime originalLastModified = await sourceFile.lastModified();
+
             String fileName = pickedFile.name;
             String targetPath = '${groupDirectory.path}/$fileName';
+            File targetFile = File(targetPath);
+
+            // 2. Salin file ke direktori aplikasi
             await sourceFile.copy(targetPath);
+
+            // 3. Setel ulang waktu modifikasi file baru agar sama dengan yang asli
+            await targetFile.setLastModified(originalLastModified);
           }
         }
         await _loadPhysicalFiles();
