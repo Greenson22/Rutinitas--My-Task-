@@ -79,6 +79,58 @@ class BackupTabState extends State<BackupTab> {
 
   void _backupAllFeature() async {
     try {
+      // 1. Tampilkan dialog konfirmasi pilihan kustom
+      final bool? includeDocuments = await showDialog<bool>(
+        context: context,
+        builder: (ctx) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Row(
+              children: const [
+                Icon(Icons.backup_outlined, color: Colors.teal),
+                SizedBox(width: 8),
+                Text('Buat Cadangan Baru'),
+              ],
+            ),
+            content: const Text(
+              'Apakah Anda ingin menyertakan seluruh berkas fisik dari folder "My Documents" (PDF, Gambar, dll.) ke dalam file cadangan?\n\n*Catatan: Menyertakan dokumen dapat membuat ukuran file cadangan menjadi lebih besar.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, null), // Menekan luar/batal
+                child: const Text(
+                  'Batal',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () =>
+                    Navigator.pop(ctx, false), // Backup tanpa dokumen
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
+                child: const Text(
+                  'Tanpa Dokumen',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () =>
+                    Navigator.pop(ctx, true), // Backup dengan dokumen
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+                child: const Text(
+                  'Sertakan Dokumen',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          );
+        },
+      );
+
+      // Jika user menekan tombol Batal atau menutup dialog tanpa memilih, hentikan proses
+      if (includeDocuments == null) return;
+
       File fileTasks = await _storageService.getTargetJsonFile(_baseDir);
       String kontenTasks = await fileTasks.exists()
           ? await fileTasks.readAsString()
@@ -139,10 +191,42 @@ class BackupTabState extends State<BackupTab> {
         );
       }
 
+      // Logika tambahan untuk memasukkan Folder Dokumen secara terstruktur
+      if (includeDocuments == true) {
+        final Directory documentsDir = Directory('$_baseDir/my_documents');
+        if (await documentsDir.exists()) {
+          // List seluruh isi subfolder dan file fisik secara rekursif
+          final List<FileSystemEntity> entities = documentsDir.listSync(
+            recursive: true,
+          );
+
+          for (var entity in entities) {
+            if (entity is File) {
+              // Dapatkan relative path agar struktur folder di dalam ZIP terjaga (e.g., my_documents/id_grup/file.pdf)
+              String relativePath = entity.path.substring(
+                documentsDir.parent.path.length + 1,
+              );
+
+              // Standardisasi karakter pembatas folder agar kompatibel saat dibuka di OS manapun
+              relativePath = relativePath.replaceAll('\\', '/');
+
+              final List<int> fileBytes = await entity.readAsBytes();
+              backupArchive.addFile(
+                ArchiveFile(relativePath, fileBytes.length, fileBytes),
+              );
+            }
+          }
+        }
+      }
+
       final List<int>? finalZipBytes = ZipEncoder().encode(backupArchive);
       if (finalZipBytes == null) return;
 
-      String namaZipDinamis = _getFormattedFileName('local_backup', 'zip');
+      // Berikan penanda nama arsip yang jelas berdasarkan pilihan pengguna
+      String prefixName = includeDocuments
+          ? 'local_backup_full'
+          : 'local_backup_core';
+      String namaZipDinamis = _getFormattedFileName(prefixName, 'zip');
 
       File fileZipTarget = await _storageService.getLocalBackupZipFile(
         _baseDir,
