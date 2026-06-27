@@ -124,6 +124,7 @@ class LocalSharingTabState extends State<LocalSharingTab> {
         // MENAMPILKAN BANNER STATUS RESTORE TERAKHIR DI SINI
         LastRestoreBanner(lastRestoreInfo: widget.lastRestoreInfo),
 
+        // PERBAIKAN TAMPILAN: Mengubah bentuk ListTile menjadi Button Row Modern
         Card(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -137,52 +138,60 @@ class LocalSharingTabState extends State<LocalSharingTab> {
                   'Kirim & Terima Data Lokal',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
-                const Divider(),
-                ListTile(
-                  leading: const CircleAvatar(child: Icon(Icons.cloud_upload)),
-                  title: const Text('Mode Pengirim (Server)'),
-                  trailing: ElevatedButton(
-                    onPressed: () {
-                      _sharingServer.startServer(
-                        context: context,
-                        baseDir: _baseDir,
-                        getFormattedFileName: _getFormattedFileName,
-                        onDataReceived: () {
-                          refreshServerBackups();
-                          widget.onDataSynchronized();
-                        },
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.indigo,
-                    ),
-                    child: const Text('Kirim File'),
-                  ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Transfer seluruh isi folder utama secara wireless antar perangkat dalam satu jaringan Wi-Fi.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
                 ),
-                const Divider(),
-                ListTile(
-                  leading: const CircleAvatar(
-                    child: Icon(Icons.cloud_download),
-                  ),
-                  title: const Text('Mode Penerima (Client)'),
-                  trailing: ElevatedButton(
-                    onPressed: () {
-                      _sharingClient.showConnectDialog(
-                        context: context,
-                        baseDir: _baseDir,
-                        getFormattedFileName: _getFormattedFileName,
-                        onLoadingStatusChanged: widget.onLoadingStatusChanged,
-                        onDataReceived: () {
-                          refreshServerBackups();
-                          widget.onDataSynchronized();
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          _sharingServer.startServer(
+                            context: context,
+                            baseDir: _baseDir,
+                            getFormattedFileName: _getFormattedFileName,
+                            onDataReceived: () {
+                              refreshServerBackups();
+                              widget.onDataSynchronized();
+                            },
+                          );
                         },
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.teal,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.teal,
+                          foregroundColor: Colors.white,
+                        ),
+                        icon: const Icon(Icons.wifi_tethering),
+                        label: const Text('Aktifkan Server'),
+                      ),
                     ),
-                    child: const Text('Terima File'),
-                  ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          _sharingClient.showConnectDialog(
+                            context: context,
+                            baseDir: _baseDir,
+                            getFormattedFileName: _getFormattedFileName,
+                            onLoadingStatusChanged:
+                                widget.onLoadingStatusChanged,
+                            onDataReceived: () {
+                              refreshServerBackups();
+                              widget.onDataSynchronized();
+                            },
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.indigo,
+                          foregroundColor: Colors.white,
+                        ),
+                        icon: const Icon(Icons.add_to_home_screen),
+                        label: const Text('Hubungkan'),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
