@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:open_file/open_file.dart';
+import 'package:share_plus/share_plus.dart'; // <-- TAMBAHAN: Untuk fitur bagikan file ke sistem OS Android/Linux
 import '../../../../core/services/storage_service.dart';
 import '../../../../core/presentation/widgets/universal_empty_state.dart';
 import '../../../../core/presentation/widgets/base_detail_list_screen.dart';
@@ -195,6 +196,44 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
       }
     } finally {
       if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  // =========================================================================
+  // FITUR BARU: LOGIKA MEMBAGIKAN BERKAS KE SYSTEM OS (WHATSAPP, DLL)
+  // =========================================================================
+  Future<void> _sharePhysicalFile(File file) async {
+    try {
+      if (await file.exists()) {
+        final String fileName = file.path.split('/').last;
+        // Menggunakan XFile dari paket share_plus untuk membagikan file fisik
+        await Share.shareXFiles([
+          XFile(file.path),
+        ], text: 'Membagikan berkas: $fileName');
+      }
+    } catch (e) {
+      debugPrint("Gagal membagikan berkas: $e");
+    }
+  }
+
+  Future<void> _shareMassiveFiles(List<File> selectedFiles) async {
+    if (selectedFiles.isEmpty) return;
+    try {
+      List<XFile> xFilesToShare = [];
+      for (var file in selectedFiles) {
+        if (await file.exists()) {
+          xFilesToShare.add(XFile(file.path));
+        }
+      }
+
+      if (xFilesToShare.isNotEmpty) {
+        await Share.shareXFiles(
+          xFilesToShare,
+          text: 'Membagikan ${xFilesToShare.length} berkas dokumen.',
+        );
+      }
+    } catch (e) {
+      debugPrint("Gagal membagikan beberapa berkas secara masal: $e");
     }
   }
 
@@ -467,7 +506,6 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
               enableAddButton: true,
               enableFavoriteSort: false,
               itemTitle: (file) => file.path.split('/').last,
-              // Perilaku menu pengurutan (Sorting) bawaan saat kondisi normal
               additionalAction: PopupMenuButton<String>(
                 icon: const Icon(Icons.more_vert_rounded, color: Colors.white),
                 tooltip: 'Pilihan Menu',
@@ -607,6 +645,19 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
                     ],
                   ),
                 ),
+                // ---------------------------------------------------------
+                // OPSI MENU BARU: BAGIKAN BERKAS (SHARE SATUAN)
+                // ---------------------------------------------------------
+                const PopupMenuItem(
+                  value: 'share',
+                  child: Row(
+                    children: [
+                      Icon(Icons.share_rounded, size: 18, color: Colors.blue),
+                      SizedBox(width: 10),
+                      Text('Bagikan Berkas', style: TextStyle(fontSize: 13)),
+                    ],
+                  ),
+                ),
                 const PopupMenuItem(
                   value: 'delete',
                   child: Row(
@@ -632,13 +683,12 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
                   _showMoveDocumentsDialog([file]);
                 } else if (value == 'export') {
                   _exportPhysicalFile(file);
+                } else if (value == 'share') {
+                  _sharePhysicalFile(file); // Pemicu share berkas tunggal
                 } else if (value == 'delete') {
                   _deletePhysicalFile(file);
                 }
               },
-              // =========================================================================
-              // SEKARANG SELEKSI MASAL DIKONTROL PENUH SECARA DINAMIS OLEH PARENT UTAMA
-              // =========================================================================
               onDeleteMassive: (selectedItems) async {
                 await _deleteMassiveFiles(selectedItems);
               },
@@ -647,6 +697,12 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
               },
               onExportMassive: (selectedItems) async {
                 await _exportMassiveFiles(selectedItems);
+              },
+              // ---------------------------------------------------------
+              // INTEGRASI TERINTEGRASI: HANDLER KUSTOM BAGIKAN MASAL DI PARENT WIDGET
+              // ---------------------------------------------------------
+              onShareMassive: (selectedItems) async {
+                await _shareMassiveFiles(selectedItems);
               },
             ),
     );

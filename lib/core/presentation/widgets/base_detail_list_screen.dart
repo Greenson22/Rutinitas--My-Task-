@@ -25,9 +25,10 @@ class BaseDetailListScreen<T> extends StatefulWidget {
   final Function(List<T> selectedItems)? onMoveMassive;
 
   // -------------------------------------------------------------------------
-  // TAMBAHAN: PARAMETER AKSI EKSPOR MASAL GENERIC
+  // PENINGKATAN: PARAMETER AKSI MASAL DUKUNGAN EKSPOR DAN BAGIKAN GENERIC
   // -------------------------------------------------------------------------
   final Function(List<T> selectedItems)? onExportMassive;
+  final Function(List<T> selectedItems)? onShareMassive; // <-- TAMBAHAN BARU
 
   final List<PopupMenuEntry<String>> Function(T item)? itemMenuBuilder;
   final Function(String value, T item)? onItemMenuSelected;
@@ -49,7 +50,8 @@ class BaseDetailListScreen<T> extends StatefulWidget {
     this.onItemLongPress,
     this.onDeleteMassive,
     this.onMoveMassive,
-    this.onExportMassive, // Inisialisasi parameter baru
+    this.onExportMassive,
+    this.onShareMassive, // Inisialisasi parameter baru ke konstruktor
     this.itemMenuBuilder,
     this.onItemMenuSelected,
     this.additionalAction,
@@ -148,6 +150,10 @@ class _BaseDetailListScreenState<T> extends State<BaseDetailListScreen<T>> {
               widget.onExportMassive != null) {
             await widget.onExportMassive!(selectedCopy);
             _clearSelection();
+          } else if (value == 'share_massive' &&
+              widget.onShareMassive != null) {
+            await widget.onShareMassive!(selectedCopy);
+            _clearSelection();
           } else if (value == 'delete_massive' &&
               widget.onDeleteMassive != null) {
             await widget.onDeleteMassive!(selectedCopy);
@@ -192,6 +198,17 @@ class _BaseDetailListScreenState<T> extends State<BaseDetailListScreen<T>> {
                 ],
               ),
             ),
+          if (widget.onShareMassive != null)
+            const PopupMenuItem(
+              value: 'share_massive',
+              child: Row(
+                children: [
+                  Icon(Icons.share_rounded, size: 18, color: Colors.blue),
+                  SizedBox(width: 10),
+                  Text('Bagikan Masal', style: TextStyle(fontSize: 13)),
+                ],
+              ),
+            ),
           if (widget.onDeleteMassive != null) ...[
             const PopupMenuDivider(),
             const PopupMenuItem(
@@ -223,7 +240,6 @@ class _BaseDetailListScreenState<T> extends State<BaseDetailListScreen<T>> {
         enableMultiSelect: widget.enableMultiSelect,
         onClearSelection: _clearSelection,
         onToggleSearchMode: _handleToggleSearch,
-        // Alihkan kontrol menu AppBar ke widget dinamis yang barusan dibuat
         additionalAction: activeAppBarAction,
         searchBarContent: Row(
           children: [
