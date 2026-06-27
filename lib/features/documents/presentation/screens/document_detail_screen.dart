@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart'; // Ditambahkan untuk mendeteksi kDebug
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart'; // Ditambahkan untuk SDK AdMob
-import 'package:open_filex/open_filex.dart'; // DIUBAH: Menggunakan open_filex untuk kompatibilitas instalasi APK yang lebih baik
+import 'package:open_file/open_file.dart'; // MENGGUNAKAN open_file biasa untuk mengatasi konflik duplikasi class
 import 'package:share_plus/share_plus.dart';
 import '../../../../core/services/storage_service.dart';
 import '../../../../core/presentation/widgets/universal_empty_state.dart';
@@ -822,21 +822,21 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
   }
 
   // =========================================================================
-  // PENANGANAN UTAMA: Membuka berkas menggunakan open_filex & memaksa tipe MIME APK
+  // PENANGANAN UTAMA: Membuka berkas menggunakan open_file & memaksa tipe MIME APK
   // =========================================================================
   Future<void> _openDocumentFile(File file) async {
     try {
       final String filePath = file.path.toLowerCase();
 
       if (filePath.endsWith('.apk')) {
-        // DIUBAH: Menggunakan OpenFilex untuk memaksa tipe MIME package archive Android agar memicu menu instalasi
-        await OpenFilex.open(
+        // MODIFIKASI: Menggunakan OpenFile biasa untuk memicu menu instalasi APK
+        await OpenFile.open(
           file.path,
           type: "application/vnd.android.package-archive",
         );
       } else {
-        // Untuk file umum lainnya dibuka menggunakan aplikasi default bawaan sistem
-        await OpenFilex.open(file.path);
+        // Menggunakan OpenFile biasa untuk tipe file umum lainnya
+        await OpenFile.open(file.path);
       }
     } catch (e) {
       debugPrint("Gagal membuka file: $e");
