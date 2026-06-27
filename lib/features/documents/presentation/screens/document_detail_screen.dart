@@ -88,6 +88,145 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
     });
   }
 
+  // =========================================================================
+  // HELPER FUNCTION: MENDAPATKAN IKON & WARNA BERDASARKAN EKSTENSI FILE (LENGKAP)
+  // =========================================================================
+  Widget _getFileIconWidget(String filePath) {
+    final String fileName = filePath.split('/').last.toLowerCase();
+    final String extension = fileName.contains('.')
+        ? fileName.split('.').last
+        : '';
+
+    IconData iconData = Icons.insert_drive_file_rounded;
+    Color iconColor = Colors.grey;
+
+    switch (extension) {
+      // Documents & Text
+      case 'pdf':
+        iconData = Icons.picture_as_pdf_rounded;
+        iconColor = Colors.redAccent;
+        break;
+      case 'doc':
+      case 'docx':
+      case 'odt':
+      case 'rtf':
+        iconData = Icons.description_rounded;
+        iconColor = Colors.blue;
+        break;
+      case 'xls':
+      case 'xlsx':
+      case 'ods':
+      case 'csv':
+        iconData = Icons.table_view_rounded;
+        iconColor = Colors.green;
+        break;
+      case 'ppt':
+      case 'pptx':
+      case 'odp':
+        iconData = Icons.slideshow_rounded;
+        iconColor = Colors.orange;
+        break;
+      case 'txt':
+      case 'log':
+        iconData = Icons.article_rounded;
+        iconColor = Colors.blueGrey;
+        break;
+
+      // Images
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+      case 'gif':
+      case 'bmp':
+      case 'webp':
+      case 'svg':
+      case 'ico':
+        iconData = Icons.image_rounded;
+        iconColor = Colors.purple;
+        break;
+
+      // Audio
+      case 'mp3':
+      case 'wav':
+      case 'm4a':
+      case 'flac':
+      case 'ogg':
+      case 'aac':
+      case 'wma':
+        iconData = Icons.audiotrack_rounded;
+        iconColor = Colors.teal;
+        break;
+
+      // Video
+      case 'mp4':
+      case 'mkv':
+      case 'avi':
+      case 'mov':
+      case 'wmv':
+      case 'flv':
+      case 'webm':
+      case '3gp':
+        iconData = Icons.video_collection_rounded;
+        iconColor = Colors.red;
+        break;
+
+      // Archives / Compressed
+      case 'zip':
+      case 'rar':
+      case '7z':
+      case 'tar':
+      case 'gz':
+        iconData = Icons.folder_zip_rounded;
+        iconColor = Colors.amber[800]!;
+        break;
+
+      // Code / Programming
+      case 'dart':
+      case 'java':
+      case 'py':
+      case 'js':
+      case 'ts':
+      case 'html':
+      case 'css':
+      case 'cpp':
+      case 'c':
+      case 'kt':
+      case 'swift':
+      case 'php':
+      case 'xml':
+      case 'yaml':
+      case 'json':
+        iconData = Icons.code_rounded;
+        iconColor = Colors.deepPurpleAccent;
+        break;
+
+      // Database
+      case 'db':
+      case 'sqlite':
+      case 'sql':
+        iconData = Icons.storage_rounded;
+        iconColor = Colors.blueGrey[700]!;
+        break;
+
+      // Executables / System
+      case 'apk':
+        iconData = Icons.android_rounded;
+        iconColor = Colors.lightGreen[700]!;
+        break;
+      case 'exe':
+      case 'msi':
+        iconData = Icons.laptop_windows_rounded;
+        iconColor = Colors.lightBlue[800]!;
+        break;
+
+      default:
+        iconData = Icons.insert_drive_file_rounded;
+        iconColor = Colors.grey;
+    }
+
+    return Icon(iconData, color: iconColor, size: 18);
+  }
+
   Future<void> _importFileFromDevice() async {
     try {
       FilePickerResult? result = await FilePicker.pickFiles(
@@ -270,10 +409,12 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
               border: const OutlineInputBorder(),
             ),
             validator: (value) {
-              if (value == null || value.trim().isEmpty)
+              if (value == null || value.trim().isEmpty) {
                 return 'Nama file tidak boleh kosong';
-              if (value.contains(RegExp(r'[\\/:*?"<>|]')))
+              }
+              if (value.contains(RegExp(r'[\\/:*?"<>|]'))) {
                 return 'Nama mengandung karakter ilegal';
+              }
               return null;
             },
           ),
@@ -501,14 +642,30 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
               enableAddButton: true,
               enableFavoriteSort: false,
               itemTitle: (file) => file.path.split('/').last,
+
               // =========================================================================
-              // PERBAIKAN UTAMA: GANTI IKON TITIK TIGA MENJADI IKON GARIS HORIZONTAL 3 (SORT)
+              // SOLUSI: MEMASUKKAN IKON DINAMIS & TEKS EKSTENSI KE DALAM ITEMSUBTITLE
               // =========================================================================
+              itemSubtitle: (file) {
+                final String fileName = file.path.split('/').last;
+                final String extension = fileName.contains('.')
+                    ? fileName.split('.').last.toUpperCase()
+                    : 'FILE';
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _getFileIconWidget(file.path),
+                    const SizedBox(width: 6),
+                    Text(
+                      extension,
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  ],
+                );
+              },
+
               additionalAction: PopupMenuButton<String>(
-                icon: const Icon(
-                  Icons.sort_rounded,
-                  color: Colors.white,
-                ), // <-- Diubah di sini
+                icon: const Icon(Icons.sort_rounded, color: Colors.white),
                 tooltip: 'Urutkan Dokumen',
                 onSelected: _handleSort,
                 itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
@@ -597,16 +754,6 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
                   ),
                 ],
               ),
-              itemSubtitle: (file) {
-                final String fileName = file.path.split('/').last;
-                final String extension = fileName.contains('.')
-                    ? fileName.split('.').last.toUpperCase()
-                    : 'FILE';
-                return Text(
-                  extension,
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                );
-              },
               itemSearchString: (file) => file.path.split('/').last,
               itemIsFavorite: (file) => false,
               onAddPressed: _importFileFromDevice,
