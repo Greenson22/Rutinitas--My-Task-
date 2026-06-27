@@ -635,15 +635,13 @@ class BackupTabState extends State<BackupTab> {
   }
 
   // =========================================================================
-  // BARU: FITUR INDIVIDUAL EXPORT & IMPORT UNTUK DOCUMENTS (JSON + FILE FISIK)
+  // PERBAIKAN: FITUR INDIVIDUAL EXPORT & IMPORT UNTUK DOCUMENTS (TANPA DOUBLE JSON)
   // =========================================================================
   void _exportDocumentsIndividual() async {
     try {
-      List<File> documentGroupFiles = await _storageService
-          .getAllDocumentGroups(_baseDir);
       final Directory documentsDir = Directory('$_baseDir/my_documents');
 
-      if (documentGroupFiles.isEmpty && !await documentsDir.exists()) {
+      if (!await documentsDir.exists()) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Tidak ada data Documents untuk diekspor.'),
@@ -652,36 +650,31 @@ class BackupTabState extends State<BackupTab> {
         return;
       }
 
-      final Archive archive = Archive();
+      final List<FileSystemEntity> entities = documentsDir.listSync(
+        recursive: true,
+      );
 
-      // 1. Masukkan berkas metadata JSON grup dokumen ke root ZIP internal
-      for (var f in documentGroupFiles) {
-        archive.addFile(
-          ArchiveFile(
-            f.path.split('/').last,
-            f.lengthSync(),
-            await f.readAsBytes(),
-          ),
+      if (entities.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Folder Documents kosong.')),
         );
+        return;
       }
 
-      // 2. Masukkan folder fisik dokumen beserta seluruh subfolder di dalamnya
-      if (await documentsDir.exists()) {
-        final List<FileSystemEntity> entities = documentsDir.listSync(
-          recursive: true,
-        );
-        for (var entity in entities) {
-          if (entity is File) {
-            String relativePath = entity.path.substring(
-              documentsDir.parent.path.length + 1,
-            );
-            relativePath = relativePath.replaceAll('\\', '/');
+      final Archive archive = Archive();
 
-            final List<int> fileBytes = await entity.readAsBytes();
-            archive.addFile(
-              ArchiveFile(relativePath, fileBytes.length, fileBytes),
-            );
-          }
+      for (var entity in entities) {
+        if (entity is File) {
+          // Buat path relatif langsung mempertahankan struktur "my_documents/..."
+          String relativePath = entity.path.substring(
+            documentsDir.parent.path.length + 1,
+          );
+          relativePath = relativePath.replaceAll('\\', '/');
+
+          final List<int> fileBytes = await entity.readAsBytes();
+          archive.addFile(
+            ArchiveFile(relativePath, fileBytes.length, fileBytes),
+          );
         }
       }
 
@@ -722,29 +715,20 @@ class BackupTabState extends State<BackupTab> {
         List<int> bytes = await selectedZipFile.readAsBytes();
         Archive archive = ZipDecoder().decodeBytes(bytes);
 
-        final Directory rootDocDir = await _storageService.getDocumentsDir(
-          _baseDir,
-        );
+        int hitungFile = 0;
 
-        int hitungJson = 0;
-        int hitungFileFisik = 0;
-
+        // Ekstrak langsung mengikuti path "my_documents/..." yang ada di dalam ZIP
         for (ArchiveFile file in archive) {
           if (file.isFile) {
-            if (file.name.endsWith('.json') && !file.name.contains('/')) {
-              // Simpan skema grup di folder root dokumen utama
-              File targetJson = File('${rootDocDir.path}/${file.name}');
-              await targetJson.writeAsBytes(file.content);
-              hitungJson++;
-            } else if (file.name.startsWith('my_documents/')) {
-              // Ekstrak struktur folder fisik beserta isinya
-              File targetFisik = File('$_baseDir/${file.name}');
-              if (!targetFisik.parent.existsSync()) {
-                targetFisik.parent.createSync(recursive: true);
-              }
-              await targetFisik.writeAsBytes(file.content);
-              hitungFileFisik++;
+            File targetFile = File('$_baseDir/${file.name}');
+
+            // Buat direktori folder grup atau subfolder jika belum tersedia
+            if (!targetFile.parent.existsSync()) {
+              targetFile.parent.createSync(recursive: true);
             }
+
+            await targetFile.writeAsBytes(file.content);
+            hitungFile++;
           }
         }
 
@@ -752,7 +736,7 @@ class BackupTabState extends State<BackupTab> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Berhasil mengimpor $hitungJson grup dan $hitungFileFisik berkas fisik dokumen!',
+              'Berhasil mengekstrak $hitungFile berkas ke folder my_documents!',
             ),
             backgroundColor: Colors.teal,
           ),
@@ -852,7 +836,7 @@ class BackupTabState extends State<BackupTab> {
                   _importPromptsIndividual,
                 ),
                 const SizedBox(width: 16),
-                // BARU: TOMBOL KE-6 UNTUK DOKUMEN SESUAI KEBUTUHAN BARIS GRID
+                // TOMBOL KE-6 UNTUK DOKUMEN SESUAI KEBUTUHAN BARIS GRID
                 _buildCompactButton(
                   'Documents',
                   Icons.description,
