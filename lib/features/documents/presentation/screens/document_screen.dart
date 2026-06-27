@@ -382,6 +382,29 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
           themeColor: _themeColor,
           onPressed: _showSequentialAddDialog,
         ),
+
+        // =========================================================================
+        // FITUR BARU: INDIKATOR GEMBOK TERBUKA (TANPA ENKRIPSI) PERSIS STYLE NOTES
+        // =========================================================================
+        appBarTrailingAction: Padding(
+          padding: const EdgeInsets.only(right: 8.0),
+          child: Tooltip(
+            message: 'Tidak Terenkripsi',
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: _themeColor.withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.lock_open_rounded,
+                color: Colors.white70,
+                size: 18,
+              ),
+            ),
+          ),
+        ),
+
         sectionKeys: allKeys,
         groupedItems: allItems,
         isSelectMode: false,
