@@ -1,7 +1,7 @@
 // lib/features/daily/presentation/widgets/daily_category_card.dart
 
 import 'package:flutter/material.dart';
-import '../../../../task_master/data/models/task_model.dart';
+import '../../../task_master/data/models/task_model.dart';
 
 class DailyCategoryCard extends StatelessWidget {
   final TaskCategory category;
