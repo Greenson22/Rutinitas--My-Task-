@@ -558,9 +558,7 @@ class SharingClient {
           )
           .listen(
             (pesanMasuk) async {
-              onLoadingStatusChanged(false);
-
-              // PENCEGAT UTAMA: Periksa jika aliran data merupakan bagian dari cermin dokumen cerdas
+              // PENCEGAT UTAMA: Meneruskan callback onLoadingStatusChanged agar loading screen bisa ditutup total saat cermin dokumen selesai
               bool handledByDocSync = await DocSyncHelper.handleDocSyncStream(
                 pesanMasuk: pesanMasuk,
                 socketSink: channel.sink,
@@ -574,9 +572,12 @@ class SharingClient {
                       isSending: isSend,
                       onReady: onRdy,
                     ),
+                onLoadingStatusChanged:
+                    onLoadingStatusChanged, // <-- INTERUPSI MATIKAN LOADING DI SINI
               );
               if (handledByDocSync) return;
 
+              onLoadingStatusChanged(false);
               BuildContext? progressCtx;
               final statusNotifier = ValueNotifier<String>(
                 'Menginisialisasi penerimaan...',
@@ -844,7 +845,6 @@ class SharingClient {
                               ),
                             ),
                             const SizedBox(height: 8),
-                            // TOMBOL AKSI BARU: Memicu One-Way Mirror Berbasis Katalog Dokumen menuju Server
                             SizedBox(
                               width: double.infinity,
                               child: ElevatedButton.icon(
