@@ -7,7 +7,7 @@ import '../../../../core/services/storage_service.dart';
 import '../../../../core/presentation/widgets/universal_empty_state.dart';
 import '../../../../core/presentation/widgets/base_detail_list_screen.dart';
 import '../../data/models/document_model.dart';
-import '../controllers/documents_controller.dart'; // <-- PASTIKAN IMPORT CONTROLLER
+import '../controllers/documents_controller.dart';
 
 class DocumentDetailScreen extends StatefulWidget {
   final DocumentGroup group;
@@ -25,18 +25,17 @@ class DocumentDetailScreen extends StatefulWidget {
 
 class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
   final StorageService storageService = StorageService();
-  late DocumentsController _documentsController; // <-- TAMBAHKAN VARIABEL
+  late DocumentsController _documentsController;
   late Directory groupDirectory;
   List<File> physicalFiles = [];
   bool isLoading = false;
 
-  // BARU: Menyimpan jenis pengurutan aktif ('manual', 'az', 'za')
   String _currentSortType = 'manual';
 
   @override
   void initState() {
     super.initState();
-    _documentsController = DocumentsController(); // <-- INISIALISASI CONTROLLER
+    _documentsController = DocumentsController();
     groupDirectory = Directory(
       '${widget.baseDir}/my_documents/${widget.group.id}',
     );
@@ -57,7 +56,6 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
             .toList();
       });
 
-      // BARU: Jalankan fungsi sort otomatis setiap kali data dimuat ulang dari storage
       _handleSort(_currentSortType);
     } catch (e) {
       debugPrint("Gagal memuat daftar file fisik: $e");
@@ -66,28 +64,22 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
     }
   }
 
-  // =========================================================================
-  // FITUR BARU: LOGIKA PROSES PENGURUTAN DAFTAR DOKUMEN
-  // =========================================================================
   void _handleSort(String sortType) {
     setState(() {
       _currentSortType = sortType;
       if (sortType == 'az') {
-        // Mengurutkan nama file dari A ke Z (Case-Insensitive)
         physicalFiles.sort((a, b) {
           final nameA = a.path.split('/').last.toLowerCase();
           final nameB = b.path.split('/').last.toLowerCase();
           return nameA.compareTo(nameB);
         });
       } else if (sortType == 'za') {
-        // Mengurutkan nama file dari Z ke A (Case-Insensitive)
         physicalFiles.sort((a, b) {
           final nameA = a.path.split('/').last.toLowerCase();
           final nameB = b.path.split('/').last.toLowerCase();
           return nameB.compareTo(nameA);
         });
       } else {
-        // Mode Manual / Waktu: Mengurutkan berdasarkan tanggal modifikasi file (paling lama ke baru)
         physicalFiles.sort((a, b) {
           return a.lastModifiedSync().compareTo(b.lastModifiedSync());
         });
@@ -122,6 +114,49 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
       debugPrint("Gagal mengimpor berkas luar: $e");
     } finally {
       setState(() => isLoading = false);
+    }
+  }
+
+  // =========================================================================
+  // FITUR BARU: LOGIKA EKSPOR FILE KE FOLDER PILIHAN (LINUX & ANDROID)
+  // =========================================================================
+  Future<void> _exportPhysicalFile(File file) async {
+    try {
+      // Membuka native folder picker sesuai OS platform (Android / Linux)
+      String? selectedDirectory = await FilePicker.getDirectoryPath();
+
+      if (selectedDirectory != null && selectedDirectory.isNotEmpty) {
+        setState(() => isLoading = true);
+
+        final String fileName = file.path.split('/').last;
+        final String targetPath = '$selectedDirectory/$fileName';
+
+        // Lakukan penyalinan file fisik ke direktori eksternal terpilih
+        await file.copy(targetPath);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Berhasil mengekspor "$fileName" ke direktori tujuan!',
+              ),
+              backgroundColor: Colors.teal,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint("Gagal mengekspor berkas: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal mengekspor berkas: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => isLoading = false);
     }
   }
 
@@ -249,7 +284,7 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
                 title: Text(targetGroup.groupName),
                 subtitle: Text('Kategori: ${targetGroup.sectionCategory}'),
                 onTap: () async {
-                  Navigator.pop(ctx); // Tutup dialog
+                  Navigator.pop(ctx);
                   setState(() => isLoading = true);
 
                   final bool success = await _documentsController
@@ -394,10 +429,6 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
               enableAddButton: true,
               enableFavoriteSort: false,
               itemTitle: (file) => file.path.split('/').last,
-
-              // =========================================================================
-              // FITUR BARU: MENU DROP DOWN SORTING DI APPBAR
-              // =========================================================================
               additionalAction: PopupMenuButton<String>(
                 icon: const Icon(Icons.sort_rounded, color: Colors.white),
                 tooltip: 'Urutkan Dokumen',
@@ -477,7 +508,6 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
                   ),
                 ],
               ),
-
               itemSubtitle: (file) {
                 final String fileName = file.path.split('/').last;
                 final String extension = fileName.contains('.')
@@ -517,6 +547,19 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
                     ],
                   ),
                 ),
+                // ---------------------------------------------------------
+                // OPSI MENU BARU: EKSPOR BERKAS
+                // ---------------------------------------------------------
+                const PopupMenuItem(
+                  value: 'export',
+                  child: Row(
+                    children: [
+                      Icon(Icons.output_rounded, size: 18, color: Colors.amber),
+                      SizedBox(width: 10),
+                      Text('Ekspor Berkas', style: TextStyle(fontSize: 13)),
+                    ],
+                  ),
+                ),
                 const PopupMenuItem(
                   value: 'delete',
                   child: Row(
@@ -540,6 +583,8 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
                   _renamePhysicalFile(file);
                 } else if (value == 'move') {
                   _showMoveDocumentsDialog([file]);
+                } else if (value == 'export') {
+                  _exportPhysicalFile(file); // Pemicu Ekspor Berkas
                 } else if (value == 'delete') {
                   _deletePhysicalFile(file);
                 }
