@@ -5,7 +5,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/services/storage_service.dart';
-import '../../../../core/utils/crypto_helper.dart';
+import '../../../../core/utils/crypto_helper.dart'; // Dipertahankan untuk Jurnal
 import '../../../jurnal_aktivitas/data/models/time_log_model.dart';
 import '../../data/models/task_model.dart';
 
@@ -67,6 +67,7 @@ class TaskMasterController {
       if (await fileJurnal.exists()) {
         String jsonString = await fileJurnal.readAsString();
 
+        // Fitur enkripsi tetap aktif khusus untuk modul Jurnal Aktivitas
         bool isEncrypted = await storageService.isEncryptionEnabled();
         String? password = await storageService.getEncryptionPassword();
         if (isEncrypted &&
@@ -121,14 +122,22 @@ class TaskMasterController {
       selectedBaseDir = await storageService.getBaseDirSetting();
       jsonFile = await storageService.getTargetJsonFile(selectedBaseDir);
       fullJsonPath = jsonFile.path;
-      String jsonString = await storageService.loadOrInitializeJson(jsonFile);
 
-      bool isEncrypted = await storageService.isEncryptionEnabled();
-      String? password = await storageService.getEncryptionPassword();
-      if (isEncrypted &&
-          password != null &&
-          !jsonString.trim().startsWith('{')) {
-        jsonString = CryptoHelper.decrypt(jsonString, password);
+      // Mengabaikan pemuatan terenkripsi. Baca langsung sebagai teks biasa (Plain Text).
+      if (!await jsonFile.exists()) {
+        await jsonFile.create(recursive: true);
+        await jsonFile.writeAsString(jsonEncode({'categories': []}));
+      }
+
+      String jsonString = await jsonFile.readAsString();
+
+      // Fallback: Jika pengguna baru saja bermigrasi dan file lama masih terenkripsi,
+      // kita bantu dekripsi sekali agar tidak langsung crash, lalu simpan ulang sebagai plain text.
+      if (!jsonString.trim().startsWith('{')) {
+        String? password = await storageService.getEncryptionPassword();
+        if (password != null) {
+          jsonString = CryptoHelper.decrypt(jsonString, password);
+        }
       }
 
       final Map<String, dynamic> parsedMap = jsonDecode(jsonString);
@@ -158,19 +167,12 @@ class TaskMasterController {
       isLoading = false;
       isFileCorrupted = true;
       onUpdate();
-      debugPrint("Error loading data: $e");
+      debugPrint("Error loading data Task Master: $e");
 
       if (jsonFile != null && onCorrupted != null) {
         onCorrupted(jsonFile);
       }
     }
-  }
-
-  void handleManualUnlockSuccess(List<TaskCategory> categories) async {
-    isFileCorrupted = false;
-    allCategoriesRaw = categories;
-    await kalkulasiTotalJurnalHariIni();
-    processCategoriesDisplay();
   }
 
   Future<void> forceResetNewFile(File jsonFile) async {
@@ -179,22 +181,10 @@ class TaskMasterController {
     onUpdate();
 
     try {
-      bool isEncrypted = await storageService.isEncryptionEnabled();
-      String? password = await storageService.getEncryptionPassword();
-
       String rawJson = jsonEncode({'categories': []});
-
-      if (isEncrypted && password != null) {
-        rawJson = CryptoHelper.encrypt(rawJson, password);
-      } else {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool('is_encrypted', false);
-        await prefs.remove('encryption_password');
-      }
-
       await jsonFile.writeAsString(rawJson);
     } catch (e) {
-      debugPrint("Gagal membuat/mengeksekusi file baru: $e");
+      debugPrint("Gagal mereset file: $e");
       isFileCorrupted = true;
     } finally {
       await initStorageAndLoadData();
@@ -293,20 +283,13 @@ class TaskMasterController {
     await initStorageAndLoadData();
   }
 
-  // --- HAK CIPTA OPTIMISASI DI SINI ---
   Future<bool> incrementTaskCount(TaskItem task, BuildContext context) async {
-    // 1. UPDATE INSTAN KE MEMORI & REAL-TIME REFRESH UI (Tanpa Lag)
     task.count += 1;
     task.countToday += 1;
     task.date = getTodayDateString();
-
-    // Perbarui UI lokal secara instan agar efek klik terasa instan
     processCategoriesDisplay();
 
-    // 2. JALANKAN PROSES I/O FILE SECARA BACK-GROUND (TIDAK DITUNGGU DENGAN AWAIT)
     saveAllCategoriesToFile(shouldRefresh: false);
-
-    // Proses pencatatan jurnal dijalankan di background
     _add30MinutesToJurnal(task.id, context);
 
     return true;
@@ -386,21 +369,16 @@ class TaskMasterController {
           );
           await storageService.saveJsonData(JurnalFile, updatedJsonContent);
 
-          // Sinkronisasi total durasi setelah penyimpanan background sukses
           await kalkulasiTotalJurnalHariIni();
 
           if (context.mounted) {
-            ScaffoldMessenger.of(
-              context,
-            ).hideCurrentSnackBar(); // Hapus snackbar lama agar responsif
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
                   'Terhubung! "$updatedJurnalTaskName" di Jurnal +$minutesToAdd mnt.',
                 ),
-                duration: const Duration(
-                  seconds: 1,
-                ), // Durasi dipersingkat agar bersih
+                duration: const Duration(seconds: 1),
                 backgroundColor: Colors.teal[800],
               ),
             );
@@ -409,7 +387,6 @@ class TaskMasterController {
         }
       }
 
-      // Jika tugas tidak terhubung ke jurnal
       if (context.mounted) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
@@ -434,19 +411,20 @@ class TaskMasterController {
       'categories': allCategoriesRaw.map((cat) => cat.toJson()).toList(),
     };
 
-    // OPTIMISASI: Gunakan jsonEncode standar (Tanpa .withIndent) jika shouldRefresh = false
-    // agar pembentukan string ke enkripsi melesat jauh lebih cepat.
     final String updatedJsonString = shouldRefresh
         ? const JsonEncoder.withIndent('  ').convert(updatedMap)
         : jsonEncode(updatedMap);
 
     try {
       File jsonFile = await storageService.getTargetJsonFile(selectedBaseDir);
-      await storageService.saveJsonData(jsonFile, updatedJsonString);
+
+      // Dipaksa menyimpan sebagai plain text JSON langsung ke disk device
+      await jsonFile.writeAsString(updatedJsonString);
+
       if (shouldRefresh) {
         await initStorageAndLoadData();
       } else {
-        processCategoriesDisplay(); // Update UI dari data lokal memori RAM
+        processCategoriesDisplay();
       }
     } catch (e) {
       debugPrint("Error saving categories: $e");

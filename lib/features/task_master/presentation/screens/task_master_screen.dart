@@ -3,18 +3,16 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart'; // Ditambahkan untuk mendeteksi kDebugMode
-import 'package:google_mobile_ads/google_mobile_ads.dart'; // Ditambahkan untuk SDK AdMob
+import 'package:flutter/foundation.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:rutinitasku/core/presentation/widgets/base_detail_app_bar.dart';
 import '../../../../core/presentation/widgets/drawer_menu.dart';
 import '../../../../core/presentation/widgets/universal_empty_state.dart';
-import '../../../../core/utils/crypto_helper.dart';
 import '../../data/models/task_model.dart';
 import '../controllers/task_master_controller.dart';
 import '../widgets/add_category_dialog.dart';
 import '../widgets/category_grid.dart';
 import '../widgets/corrupted_empty_state.dart';
-import '../widgets/settings_dialog.dart';
 import '../widgets/task_summary_header.dart';
 import '../widgets/tasks_dialog.dart';
 
@@ -29,22 +27,18 @@ class _HomeScreenState extends State<HomeScreen> {
   late TaskMasterController _controller;
   late TextEditingController _searchController;
 
-  // Variabel untuk kontrol Banner AdMob
   BannerAd? _bannerAd;
   bool _isAdLoaded = false;
 
-  // Getter adaptif untuk menentukan Ad Unit ID
   String get adUnitId {
     if (Platform.isAndroid) {
       if (kDebugMode) {
-        // ID Test Resmi dari Google untuk pengujian iklan Banner Android
         return 'ca-app-pub-3940256099942544/6300978111';
       } else {
-        // GANTI dengan Ad Unit ID asli Anda dari dasbor AdMob saat rilis nanti
         return 'ca-app-pub-5320800343545863/3489307539';
       }
     }
-    return ''; // Kosongkan jika berjalan di Desktop (Windows/Linux/macOS) agar tidak crash
+    return '';
   }
 
   @override
@@ -52,32 +46,27 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _searchController = TextEditingController();
 
-    // Inisialisasi controller dengan callback setState lokal
     _controller = TaskMasterController(
       onUpdate: () {
         if (mounted) setState(() {});
       },
     );
 
-    // PERBAIKAN: Memberikan jeda mikro asinkron (150ms) setelah frame pertama dirender.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future.delayed(const Duration(milliseconds: 150), () {
         if (mounted) {
           _controller.initStorageAndLoadData(
-            onCorrupted: (jsonFile) => _showDecryptionErrorDialog(jsonFile),
+            onCorrupted: (jsonFile) => _showErrorFileDialog(jsonFile),
           );
         }
       });
     });
 
-    // Panggil fungsi pemuatan iklan banner
     _loadBannerAd();
   }
 
-  // Fungsi untuk memuat iklan banner
   void _loadBannerAd() {
-    if (adUnitId.isEmpty)
-      return; // Batalkan jika bukan platform Android atau ID kosong
+    if (adUnitId.isEmpty) return;
 
     _bannerAd = BannerAd(
       adUnitId: adUnitId,
@@ -100,12 +89,11 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _searchController.dispose();
-    _bannerAd
-        ?.dispose(); // Pastikan objek iklan dihancurkan untuk mencegah kebocoran memori
+    _bannerAd?.dispose();
     super.dispose();
   }
 
-  void _showDecryptionErrorDialog(File jsonFile) {
+  void _showErrorFileDialog(File jsonFile) {
     showDialog(
       context: context,
       barrierDismissible: true,
@@ -113,178 +101,31 @@ class _HomeScreenState extends State<HomeScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Row(
           children: [
-            Icon(Icons.lock_outline, color: Colors.redAccent),
+            Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
             SizedBox(width: 8),
-            Text('Berkas Terkunci / Rusak'),
+            Text('Berkas Format Lama'),
           ],
         ),
         content: const Text(
-          'Aplikasi gagal membaca data Task Master. Berkas ini mungkin dienkripsi dengan PIN lain, atau format data rusak.',
+          'Aplikasi mendeteksi data Task Master lama yang terenkripsi. Tekan reset untuk memperbarui ke format teks biasa baru.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Tutup', style: TextStyle(color: Colors.grey)),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _showManualUnlockDialog(jsonFile);
-            },
-            child: const Text(
-              'Buka Kunci (Input PIN)',
-              style: TextStyle(
-                color: Colors.indigo,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(ctx);
-              final bool confirmNew = await _showConfirmResetDialog() ?? false;
-
-              if (confirmNew) {
-                _controller.forceResetNewFile(jsonFile);
-              } else {
-                _showDecryptionErrorDialog(jsonFile);
-              }
+              _controller.forceResetNewFile(jsonFile);
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
             child: const Text(
-              'Buat Baru',
+              'Reset / Buat Baru',
               style: TextStyle(color: Colors.white),
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Future<bool?> _showConfirmResetDialog() {
-    return showDialog<bool>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: const Text('Buat Baru?'),
-        content: const Text(
-          'Semua data lama di dalam berkas Task Master ini akan dihapus total dan diganti dengan struktur baru yang kosong. Tindakan ini tidak bisa dibatalkan!',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(c, false),
-            child: const Text('Batal'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(c, true),
-            child: const Text(
-              'Ya, Hapus & Reset',
-              style: TextStyle(color: Colors.red),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showManualUnlockDialog(File jsonFile) {
-    final passController = TextEditingController();
-    bool obscureText = true;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setModalState) => AlertDialog(
-          title: const Text('Masukkan Kata Sandi'),
-          content: TextField(
-            controller: passController,
-            obscureText: obscureText,
-            decoration: InputDecoration(
-              labelText: 'Kata Sandi Dekripsi',
-              border: const OutlineInputBorder(),
-              isDense: true,
-              suffixIcon: IconButton(
-                icon: Icon(
-                  obscureText ? Icons.visibility : Icons.visibility_off,
-                  size: 20,
-                ),
-                onPressed: () =>
-                    setModalState(() => obscureText = !obscureText),
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-                _showDecryptionErrorDialog(jsonFile);
-              },
-              child: const Text(
-                'Kembali',
-                style: TextStyle(color: Colors.grey),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final input = passController.text.trim();
-                if (input.isEmpty) return;
-
-                try {
-                  String encryptedContent = await jsonFile.readAsString();
-                  String decrypted = CryptoHelper.decrypt(
-                    encryptedContent,
-                    input,
-                  );
-
-                  final parsed = jsonDecode(decrypted);
-                  if (parsed is Map && parsed.containsKey('categories')) {
-                    Navigator.pop(ctx);
-                    final List<dynamic> catList = parsed['categories'] ?? [];
-                    List<TaskCategory> loaded = catList
-                        .map((json) => TaskCategory.fromJson(json))
-                        .toList();
-
-                    _controller.handleManualUnlockSuccess(loaded);
-
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Buka kunci data sukses!'),
-                        backgroundColor: Colors.teal,
-                      ),
-                    );
-                    return;
-                  }
-                  throw const FormatException();
-                } catch (_) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Kata sandi salah atau struktur data rusak!',
-                      ),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
-              child: const Text(
-                'Buka Data',
-                style: TextStyle(color: Colors.white),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showSettingsDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => SettingsDialog(
-        currentBaseDir: _controller.selectedBaseDir,
-        onSave: (newDir) => _controller.updateUbuntuStorage(newDir),
-        onEncryptionToggled: () => _controller.initStorageAndLoadData(),
       ),
     );
   }
@@ -337,10 +178,8 @@ class _HomeScreenState extends State<HomeScreen> {
         onMoveTaskCategory: (task, source, target) async {
           source.tasks.removeWhere((t) => t.id == task.id);
           target.tasks.add(task);
-
           await _controller.saveAllCategoriesToFile(shouldRefresh: false);
           _controller.processCategoriesDisplay();
-
           if (context.mounted) {
             Navigator.pop(context);
           }
@@ -388,7 +227,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final targetTotalController = TextEditingController(text: '0');
     int selectedType = 0;
     final formKey = GlobalKey<FormState>();
-
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -524,6 +362,7 @@ class _HomeScreenState extends State<HomeScreen> {
         enableMultiSelect: false,
         onMoveMassive: () {},
         onDeleteMassive: () {},
+        // PERUBAHAN: Menghilangkan icon pengaturan jika tidak sedang mode pencarian
         additionalAction: _controller.internalSearchMode
             ? IconButton(
                 icon: Icon(
@@ -534,7 +373,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 onPressed: _controller.toggleHiddenSection,
               )
-            : null,
+            : const SizedBox.shrink(),
         searchBarContent: Row(
           children: [
             Expanded(
@@ -575,7 +414,7 @@ class _HomeScreenState extends State<HomeScreen> {
               onRecoveryPressed: () async {
                 File jsonFile = await _controller.storageService
                     .getTargetJsonFile(_controller.selectedBaseDir);
-                _showDecryptionErrorDialog(jsonFile);
+                _showErrorFileDialog(jsonFile);
               },
             )
           : _controller.allCategoriesRaw.isEmpty
@@ -654,8 +493,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 );
               },
             ),
-
-      // INTEGRASI FOOTER AD BANNER DI SINI
       bottomNavigationBar:
           _isAdLoaded && _bannerAd != null && Platform.isAndroid
           ? SafeArea(
