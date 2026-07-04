@@ -1,9 +1,11 @@
 // lib/features/jurnal_aktivitas/presentation/screens/jurnal_aktivitas_screen.dart
+import 'dart:convert'; // TAMBAHAN: Diperlukan untuk melakukan jsonDecode & jsonEncode
 import 'dart:io';
 import 'package:flutter/foundation.dart'; // Ditambahkan untuk mendeteksi kDebugMode
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart'; // Ditambahkan untuk SDK AdMob
 import '../../../../core/presentation/widgets/drawer_menu.dart';
+import '../../../../core/services/storage_service.dart'; // TAMBAHAN: Diperlukan untuk akses konfigurasi penyimpanan berkas
 import '../../../../core/utils/crypto_helper.dart';
 import '../../data/models/time_log_model.dart';
 import '../controllers/jurnal_aktivitas_controller.dart';
@@ -96,6 +98,185 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     _bannerAd
         ?.dispose(); // Hancurkan objek iklan dari memori saat halaman ditutup untuk mencegah kebocoran memori
     super.dispose();
+  }
+
+  // --- FITUR BARU: Dialog Editor Raw JSON Langsung jurnal_aktivitas.json ---
+  void _showEditRawJsonDialog() async {
+    final StorageService storageService = StorageService();
+    File targetFile = await _controller.getJurnalFile();
+
+    if (!await targetFile.exists()) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('File master jurnal tidak ditemukan!'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    String rawContent = await targetFile.readAsString();
+    String displayContent = rawContent.trim();
+    String? decryptionError;
+
+    // Coba dekripsi jika konten terenkripsi (tidak diawali [ atau {)
+    if (!displayContent.startsWith('{') && !displayContent.startsWith('[')) {
+      String? password = await storageService.getEncryptionPassword();
+      if (password != null && password.isNotEmpty) {
+        try {
+          displayContent = CryptoHelper.decrypt(displayContent, password);
+        } catch (e) {
+          decryptionError =
+              "Gagal mendekripsi otomatis berkas. Kata sandi salah atau data korup.\nDetail: $e";
+          debugPrint("Dekripsi gagal untuk preview raw JSON jurnal: $e");
+        }
+      } else {
+        decryptionError =
+            "Berkas ini terenkripsi, namun tidak ditemukan kata sandi aktif pada sesi sistem.";
+      }
+    }
+
+    // Rapikan format JSON jika berhasil didekripsi/dibaca secara normal
+    try {
+      final parsed = jsonDecode(displayContent);
+      displayContent = const JsonEncoder.withIndent('  ').convert(parsed);
+    } catch (_) {}
+
+    final TextEditingController jsonController = TextEditingController(
+      text: displayContent,
+    );
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit File Jurnal (JSON)'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (decryptionError != null) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: Colors.redAccent.withOpacity(0.3),
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(
+                        Icons.warning_amber_rounded,
+                        color: Colors.redAccent,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          decryptionError,
+                          style: const TextStyle(
+                            color: Colors.redAccent,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const Text(
+                'Perhatian: Mengubah isi file secara sembarangan dapat merusak seluruh struktur riwayat log waktu jurnal.',
+                style: TextStyle(fontSize: 11, color: Colors.grey),
+              ),
+              const SizedBox(height: 6),
+              Expanded(
+                child: TextField(
+                  controller: jsonController,
+                  maxLines: null,
+                  expands: true,
+                  textAlignVertical: TextAlignVertical.top,
+                  keyboardType: TextInputType.multiline,
+                  style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    hintText: 'Struktur JSON Jurnal...',
+                    contentPadding: EdgeInsets.all(10),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final newContent = jsonController.text;
+              // Validasi sintaks JSON sebelum disimpan
+              try {
+                jsonDecode(newContent);
+              } catch (e) {
+                final bool confirm =
+                    await showDialog<bool>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('JSON Tidak Valid'),
+                        content: Text(
+                          'Terdapat kesalahan format JSON:\n$e\n\nApakah Anda yakin ingin tetap menyimpannya?',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text('Batal'),
+                          ),
+                          ElevatedButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                            ),
+                            child: const Text('Tetap Simpan'),
+                          ),
+                        ],
+                      ),
+                    ) ??
+                    false;
+
+                if (!confirm) return;
+              }
+              // Simpan berkas master jurnal dengan enkripsi otomatis jika pengaturan aktif
+              await storageService.saveJsonData(targetFile, newContent);
+              if (mounted) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'File jurnal_aktivitas.json berhasil diperbarui!',
+                    ),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+                _triggerLoadData(); // Muat ulang data ke UI secara instan
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
+            child: const Text('Simpan', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   // --- LOGIKA DIALOG INTERAKSI (PRODUKSI WIDGET POPUP) ---
@@ -725,6 +906,12 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
         title: const Text('Jurnal Aktivitas'),
         backgroundColor: Colors.indigo[700],
         actions: [
+          // MODIFIKASI/TAMBAHAN: Tombol Akses Editor JSON Langsung berada di posisi pertama actions
+          IconButton(
+            icon: const Icon(Icons.data_object, color: Colors.white),
+            tooltip: 'Edit File JSON Jurnal Langsung',
+            onPressed: _showEditRawJsonDialog,
+          ),
           // TOMBOL BARU: Mengonfigurasi limit penambahan default menit
           IconButton(
             icon: const Icon(Icons.timer_outlined, color: Colors.white),
