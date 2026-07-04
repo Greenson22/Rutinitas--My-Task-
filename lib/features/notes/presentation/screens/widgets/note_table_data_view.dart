@@ -168,9 +168,7 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
     }
 
     String fullType = widget.currentFieldTypes[key] ?? 'String';
-    String type = fullType
-        .split(':')
-        .first; // <-- BARU: Mengambil kata dasar tipe data (misal 'Option')
+    String type = fullType.split(':').first;
 
     InputDecoration inputDecoration = InputDecoration(
       isDense: true,
@@ -251,9 +249,6 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
       );
     }
 
-    // =========================================================================
-    // LOGIKA BARU: DROPDOWN SELECT UNTUK FIELD TIPE OPTION
-    // =========================================================================
     if (type == 'Option') {
       List<String> options = [];
       if (fullType.contains(':')) {
@@ -269,7 +264,6 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
         options = ['-'];
       }
 
-      // Validasi agar nilai saat ini selalu sinkron dengan daftar opsi yang tersedia
       if (!options.contains(controller.text)) {
         controller.text = options.first;
       }
@@ -654,9 +648,6 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
 
   @override
   Widget build(BuildContext context) {
-    // =========================================================================
-    // LOGIKA FILTER: MENYARING BARIS BERDASARKAN QUERY PENCARIAN
-    // =========================================================================
     final List<MapEntry<int, Map<String, TextEditingController>>> filteredRows =
         widget.tableRows.asMap().entries.where((entry) {
           if (_searchQuery.isEmpty) return true;
@@ -735,177 +726,197 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(12.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Input Data Baru',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.teal,
-                                ),
-                              ),
-                              const Divider(),
-                              ...widget.currentFieldKeys.map((key) {
-                                final fullType =
-                                    widget.currentFieldTypes[key] ?? 'String';
-                                final displayType = fullType
-                                    .split(':')
-                                    .first; // Visual pembersih nama tipe data
 
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 8.0),
-                                  child: Row(
-                                    children: [
-                                      SizedBox(
-                                        width: 100,
-                                        child: Text(
-                                          "$key ($displayType)",
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                      Expanded(
-                                        child: _buildInputField(
-                                          key,
-                                          widget.formControllers[key]!,
-                                          isFormInput: true,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }).toList(),
-
-                              const SizedBox(height: 8),
-                              const Text(
-                                'Posisi Sisip Data:',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Row(
+                        // =========================================================================
+                        // PERBAIKAN UTAMA: Membungkus seluruh isi Card agar bisa tergulir bersama
+                        // =========================================================================
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxHeight:
+                                MediaQuery.of(context).size.height *
+                                0.42, // Batasi tinggi form agar proporsional
+                          ),
+                          child: SingleChildScrollView(
+                            child: Padding(
+                              padding: const EdgeInsets.all(12.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Expanded(
-                                    flex: 2,
-                                    child: DropdownButtonFormField<String>(
-                                      value: _insertPosition,
-                                      decoration: InputDecoration(
-                                        isDense: true,
-                                        contentPadding:
-                                            const EdgeInsets.symmetric(
-                                              horizontal: 10,
-                                              vertical: 8,
-                                            ),
-                                        border: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            6,
-                                          ),
-                                        ),
-                                      ),
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        color: Colors.black,
-                                      ),
-                                      items: const [
-                                        DropdownMenuItem(
-                                          value: 'Paling Bawah',
-                                          child: Text('Paling Bawah'),
-                                        ),
-                                        DropdownMenuItem(
-                                          value: 'Paling Atas',
-                                          child: Text('Paling Atas'),
-                                        ),
-                                        DropdownMenuItem(
-                                          value: 'Setelah Baris Tertentu',
-                                          child: Text('Setelah Baris...'),
-                                        ),
-                                      ],
-                                      onChanged: (val) {
-                                        if (val != null)
-                                          setState(() => _insertPosition = val);
-                                      },
+                                  const Text(
+                                    'Input Data Baru',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.teal,
                                     ),
                                   ),
-                                  if (_insertPosition ==
-                                          'Setelah Baris Tertentu' &&
-                                      widget.tableRows.isNotEmpty) ...[
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      flex: 2,
-                                      child: DropdownButtonFormField<int>(
-                                        value:
-                                            _targetRowIndex <
-                                                widget.tableRows.length
-                                            ? _targetRowIndex
-                                            : 0,
-                                        decoration: InputDecoration(
-                                          isDense: true,
-                                          contentPadding:
-                                              const EdgeInsets.symmetric(
-                                                horizontal: 10,
-                                                vertical: 8,
+                                  const Divider(),
+
+                                  // Merender seluruh field langsung di dalam Column utama ScrollView
+                                  ...widget.currentFieldKeys.map((key) {
+                                    final fullType =
+                                        widget.currentFieldTypes[key] ??
+                                        'String';
+                                    final displayType = fullType
+                                        .split(':')
+                                        .first;
+
+                                    return Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 8.0,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          SizedBox(
+                                            width: 100,
+                                            child: Text(
+                                              "$key ($displayType)",
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w500,
                                               ),
-                                          border: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              6,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
                                             ),
                                           ),
-                                        ),
-                                        style: const TextStyle(
-                                          fontSize: 13,
-                                          color: Colors.black,
-                                        ),
-                                        items: List.generate(
-                                          widget.tableRows.length,
-                                          (i) {
-                                            return DropdownMenuItem(
-                                              value: i,
-                                              child: Text('Baris ${i + 1}'),
-                                            );
+                                          Expanded(
+                                            child: _buildInputField(
+                                              key,
+                                              widget.formControllers[key]!,
+                                              isFormInput: true,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }).toList(),
+
+                                  const SizedBox(height: 8),
+                                  const Text(
+                                    'Posisi Sisip Data:',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        flex: 2,
+                                        child: DropdownButtonFormField<String>(
+                                          value: _insertPosition,
+                                          decoration: InputDecoration(
+                                            isDense: true,
+                                            contentPadding:
+                                                const EdgeInsets.symmetric(
+                                                  horizontal: 10,
+                                                  vertical: 8,
+                                                ),
+                                            border: OutlineInputBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
+                                            ),
+                                          ),
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            color: Colors.black,
+                                          ),
+                                          items: const [
+                                            DropdownMenuItem(
+                                              value: 'Paling Bawah',
+                                              child: Text('Paling Bawah'),
+                                            ),
+                                            DropdownMenuItem(
+                                              value: 'Paling Atas',
+                                              child: Text('Paling Atas'),
+                                            ),
+                                            DropdownMenuItem(
+                                              value: 'Setelah Baris Tertentu',
+                                              child: Text('Setelah Baris...'),
+                                            ),
+                                          ],
+                                          onChanged: (val) {
+                                            if (val != null)
+                                              setState(
+                                                () => _insertPosition = val,
+                                              );
                                           },
                                         ),
-                                        onChanged: (val) {
-                                          if (val != null)
-                                            setState(
-                                              () => _targetRowIndex = val,
-                                            );
-                                        },
+                                      ),
+                                      if (_insertPosition ==
+                                              'Setelah Baris Tertentu' &&
+                                          widget.tableRows.isNotEmpty) ...[
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          flex: 2,
+                                          child: DropdownButtonFormField<int>(
+                                            value:
+                                                _targetRowIndex <
+                                                    widget.tableRows.length
+                                                ? _targetRowIndex
+                                                : 0,
+                                            decoration: InputDecoration(
+                                              isDense: true,
+                                              contentPadding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 10,
+                                                    vertical: 8,
+                                                  ),
+                                              border: OutlineInputBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(6),
+                                              ),
+                                            ),
+                                            style: const TextStyle(
+                                              fontSize: 13,
+                                              color: Colors.black,
+                                            ),
+                                            items: List.generate(
+                                              widget.tableRows.length,
+                                              (i) {
+                                                return DropdownMenuItem(
+                                                  value: i,
+                                                  child: Text('Baris ${i + 1}'),
+                                                );
+                                              },
+                                            ),
+                                            onChanged: (val) {
+                                              if (val != null)
+                                                setState(
+                                                  () => _targetRowIndex = val,
+                                                );
+                                            },
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+
+                                  // Tombol simpan kini berada di paling bawah ScrollView,
+                                  // sehingga akan ikut tergulir ketika field di atasnya banyak.
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: ElevatedButton.icon(
+                                      onPressed: _submitFormRow,
+                                      icon: const Icon(
+                                        Icons.check,
+                                        color: Colors.white,
+                                        size: 18,
+                                      ),
+                                      label: const Text(
+                                        'Simpan ke Tabel',
+                                        style: TextStyle(color: Colors.white),
+                                      ),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.teal,
                                       ),
                                     ),
-                                  ],
+                                  ),
                                 ],
                               ),
-                              const SizedBox(height: 12),
-
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  onPressed: _submitFormRow,
-                                  icon: const Icon(
-                                    Icons.check,
-                                    color: Colors.white,
-                                    size: 18,
-                                  ),
-                                  label: const Text(
-                                    'Simpan ke Tabel',
-                                    style: TextStyle(color: Colors.white),
-                                  ),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.teal,
-                                  ),
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
                         ),
                       ),
