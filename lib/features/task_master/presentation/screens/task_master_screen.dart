@@ -233,7 +233,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ElevatedButton(
             onPressed: () async {
               final newContent = jsonController.text;
-
               // Validasi JSON sebelum disimpan
               try {
                 jsonDecode(newContent);
@@ -265,13 +264,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 if (!confirm) return;
               }
-
               // Simpan berkas master dengan enkripsi otomatis jika pengaturan aktif
               await _controller.storageService.saveJsonData(
                 targetFile,
                 newContent,
               );
-
               if (mounted) {
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -330,7 +327,6 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: () async {
               Navigator.pop(ctx);
               final bool confirmNew = await _showConfirmResetDialog() ?? false;
-
               if (confirmNew) {
                 _controller.forceResetNewFile(jsonFile);
               } else {
@@ -376,7 +372,6 @@ class _HomeScreenState extends State<HomeScreen> {
   void _showManualUnlockDialog(File jsonFile) {
     final passController = TextEditingController();
     bool obscureText = true;
-
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -415,14 +410,12 @@ class _HomeScreenState extends State<HomeScreen> {
               onPressed: () async {
                 final input = passController.text.trim();
                 if (input.isEmpty) return;
-
                 try {
                   String encryptedContent = await jsonFile.readAsString();
                   String decrypted = CryptoHelper.decrypt(
                     encryptedContent,
                     input,
                   );
-
                   final parsed = jsonDecode(decrypted);
                   if (parsed is Map && parsed.containsKey('categories')) {
                     Navigator.pop(ctx);
@@ -430,9 +423,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     List<TaskCategory> loaded = catList
                         .map((json) => TaskCategory.fromJson(json))
                         .toList();
-
                     _controller.handleManualUnlockSuccess(loaded);
-
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('Buka kunci data sukses!'),
@@ -524,10 +515,8 @@ class _HomeScreenState extends State<HomeScreen> {
         onMoveTaskCategory: (task, source, target) async {
           source.tasks.removeWhere((t) => t.id == task.id);
           target.tasks.add(task);
-
           await _controller.saveAllCategoriesToFile(shouldRefresh: false);
           _controller.processCategoriesDisplay();
-
           if (context.mounted) {
             Navigator.pop(context);
           }
@@ -575,7 +564,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final targetTotalController = TextEditingController(text: '0');
     int selectedType = 0;
     final formKey = GlobalKey<FormState>();
-
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -711,16 +699,16 @@ class _HomeScreenState extends State<HomeScreen> {
         enableMultiSelect: false,
         onMoveMassive: () {},
         onDeleteMassive: () {},
-        // === MODIFIKASI: Menambahkan tombol Edit JSON tepat di sebelah kiri tombol Sembunyikan Panel ===
+        // === MODIFIKASI SELESAI: Tombol Edit JSON Hanya Muncul Secara Kondisional Saat Mode Search/Expand Panel Aktif ===
         additionalAction: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            IconButton(
-              icon: const Icon(Icons.data_object, color: Colors.white),
-              tooltip: 'Edit File JSON Langsung',
-              onPressed: _showEditRawJsonDialog,
-            ),
-            if (_controller.internalSearchMode)
+            if (_controller.internalSearchMode) ...[
+              IconButton(
+                icon: const Icon(Icons.data_object, color: Colors.white),
+                tooltip: 'Edit File JSON Langsung',
+                onPressed: _showEditRawJsonDialog,
+              ),
               IconButton(
                 icon: Icon(
                   _controller.showHiddenSection
@@ -730,6 +718,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 onPressed: _controller.toggleHiddenSection,
               ),
+            ],
           ],
         ),
         searchBarContent: Row(
@@ -851,7 +840,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 );
               },
             ),
-
       // INTEGRASI FOOTER AD BANNER DI SINI
       bottomNavigationBar:
           _isAdLoaded && _bannerAd != null && Platform.isAndroid
