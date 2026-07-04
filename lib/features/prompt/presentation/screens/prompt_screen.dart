@@ -239,6 +239,202 @@ class _PromptScreenState extends State<PromptScreen> {
     );
   }
 
+  // --- FITUR BARU: Dialog Editor Raw JSON Langsung dengan Informasi Galat Enkripsi ---
+  void _showEditRawJsonDialog(PromptGroup group) async {
+    String targetId = group.id;
+    bool isCorrupted = targetId.startsWith("CORRUPTED_");
+
+    if (isCorrupted) {
+      targetId = targetId.replaceFirst(RegExp(r'CORRUPTED_\d+_'), '');
+    }
+
+    final baseDir = await _storageService.getBaseDirSetting();
+    File targetFile = await _storageService.getSpecificPromptFile(
+      baseDir,
+      targetId,
+    );
+
+    if (!await targetFile.exists()) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('File fisik tidak ditemukan!'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    String rawContent = await targetFile.readAsString();
+    String displayContent = rawContent.trim();
+    String? decryptionError; // Menyimpan informasi kesalahan dekripsi jika ada
+
+    // Coba dekripsi jika konten bukan plain JSON (tidak diawali { atau [)
+    if (!displayContent.startsWith('{') && !displayContent.startsWith('[')) {
+      String? password = await _storageService.getEncryptionPassword();
+      if (password != null && password.isNotEmpty) {
+        try {
+          displayContent = CryptoHelper.decrypt(displayContent, password);
+        } catch (e) {
+          decryptionError =
+              "Gagal mendekripsi otomatis berkas. Kata sandi salah atau data korup.\nDetail: $e";
+          debugPrint("Dekripsi gagal untuk preview raw JSON prompt: $e");
+        }
+      } else {
+        decryptionError =
+            "Berkas ini terenkripsi, namun tidak ditemukan kata sandi aktif pada sesi sistem.";
+      }
+    }
+
+    // Rapikan format JSON jika berhasil didekripsi/dibaca secara normal
+    try {
+      final parsed = jsonDecode(displayContent);
+      displayContent = _storageService.formatJsonPretty(parsed);
+    } catch (_) {
+      // Biarkan string aslinya jika gagal di-parse agar bisa diteliti kerusakannya oleh user
+    }
+
+    final TextEditingController jsonController = TextEditingController(
+      text: displayContent,
+    );
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit File .json Langsung'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (decryptionError != null) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: Colors.redAccent.withOpacity(0.3),
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(
+                        Icons.warning_amber_rounded,
+                        color: Colors.redAccent,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          decryptionError!,
+                          style: const TextStyle(
+                            color: Colors.redAccent,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const Text(
+                'Perhatian: Mengubah isi file secara sembarangan dapat merusak struktur data aplikasi.',
+                style: TextStyle(fontSize: 11, color: Colors.grey),
+              ),
+              const SizedBox(height: 6),
+              Expanded(
+                child: TextField(
+                  controller: jsonController,
+                  maxLines: null,
+                  expands: true,
+                  textAlignVertical: TextAlignVertical.top,
+                  keyboardType: TextInputType.multiline,
+                  style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    hintText: 'Struktur JSON...',
+                    contentPadding: EdgeInsets.all(10),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final newContent = jsonController.text;
+
+              // Validasi JSON yang diedit sebelum disimpan
+              try {
+                jsonDecode(newContent);
+              } catch (e) {
+                final bool confirm =
+                    await showDialog<bool>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('JSON Tidak Valid'),
+                        content: Text(
+                          'Terdapat kesalahan format JSON:\n$e\n\nApakah Anda yakin ingin tetap menyimpannya?',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text('Batal'),
+                          ),
+                          ElevatedButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                            ),
+                            child: const Text('Tetap Simpan'),
+                          ),
+                        ],
+                      ),
+                    ) ??
+                    false;
+
+                if (!confirm) return; // Batal simpan
+              }
+
+              // Simpan menggunakan savePromptGroup agar otomatis terenkripsi kembali jika enkripsi aktif
+              await _storageService.savePromptGroup(
+                baseDir,
+                targetId,
+                newContent,
+              );
+
+              if (mounted) {
+                Navigator.pop(context); // Tutup dialog editor
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('File JSON berhasil diperbarui!'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+                _controller.loadAllPrompts(context); // Refresh UI
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
+            child: const Text('Simpan', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showSequentialAddDialog() {
     final sectionController = TextEditingController();
     final formKey = GlobalKey<FormState>();
@@ -811,6 +1007,23 @@ class _PromptScreenState extends State<PromptScreen> {
                           ),
                         ),
                         const PopupMenuItem(
+                          value: 'edit_raw_json',
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.data_object,
+                                size: 18,
+                                color: Colors.blue,
+                              ),
+                              SizedBox(width: 10),
+                              Text(
+                                'Edit File .json',
+                                style: TextStyle(fontSize: 13),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const PopupMenuItem(
                           value: 'delete_corrupted',
                           child: Row(
                             children: [
@@ -834,6 +1047,8 @@ class _PromptScreenState extends State<PromptScreen> {
                       onPopupSelected: (value) async {
                         if (value == 'decrypt') {
                           _showManualDecryptDialog(promptGroup);
+                        } else if (value == 'edit_raw_json') {
+                          _showEditRawJsonDialog(promptGroup);
                         } else if (value == 'delete_corrupted') {
                           _showDeleteGroupItemDialog(promptGroup);
                         }
@@ -933,6 +1148,23 @@ class _PromptScreenState extends State<PromptScreen> {
                         ),
                       ),
                       const PopupMenuItem(
+                        value: 'edit_raw_json',
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.data_object,
+                              size: 18,
+                              color: Colors.blue,
+                            ),
+                            SizedBox(width: 10),
+                            Text(
+                              'Edit File .json',
+                              style: TextStyle(fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const PopupMenuItem(
                         value: 'move_section',
                         child: Row(
                           children: [
@@ -995,6 +1227,8 @@ class _PromptScreenState extends State<PromptScreen> {
                     onPopupSelected: (value) async {
                       if (value == 'edit') {
                         _showEditGroupDialog(promptGroup);
+                      } else if (value == 'edit_raw_json') {
+                        _showEditRawJsonDialog(promptGroup);
                       } else if (value == 'move_section') {
                         _showMoveSectionDialog(promptGroup);
                       } else if (value == 'toggle_visibility') {
