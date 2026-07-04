@@ -21,6 +21,8 @@ class SharingClient {
     showDialog(
       context: context,
       barrierDismissible: false,
+      useRootNavigator:
+          true, // <--- PERBAIKAN: Memaksa dialog berada di root navigator
       builder: (dialogCtx) {
         WidgetsBinding.instance.addPostFrameCallback((_) => onReady(dialogCtx));
         final accentColor = isSending ? Colors.teal : Colors.indigo;
@@ -471,8 +473,12 @@ class SharingClient {
             'documents_zip': kontenDocsBase64,
           };
           channel.sink.add(jsonEncode(paketBesarClient));
-          if (progressCtx != null && progressCtx!.mounted)
-            Navigator.pop(progressCtx!);
+
+          // PERBAIKAN: Tutup menggunakan rootNavigator
+          if (progressCtx != null && progressCtx!.mounted) {
+            Navigator.of(progressCtx!, rootNavigator: true).pop();
+          }
+
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Data Anda sukses dikirimkan ke Server!'),
@@ -480,8 +486,10 @@ class SharingClient {
             ),
           );
         } catch (e) {
-          if (progressCtx != null && progressCtx!.mounted)
-            Navigator.pop(progressCtx!);
+          // PERBAIKAN: Tutup menggunakan rootNavigator
+          if (progressCtx != null && progressCtx!.mounted) {
+            Navigator.of(progressCtx!, rootNavigator: true).pop();
+          }
           debugPrint("Gagal mengirim data dari client: $e");
         }
       }
@@ -665,8 +673,10 @@ class SharingClient {
                     backupArchive,
                   );
                   if (finalZipBytes == null) {
-                    if (progressCtx != null && progressCtx!.mounted)
-                      Navigator.pop(progressCtx!);
+                    // PERBAIKAN: Tutup menggunakan rootNavigator
+                    if (progressCtx != null && progressCtx!.mounted) {
+                      Navigator.of(progressCtx!, rootNavigator: true).pop();
+                    }
                     return;
                   }
                   String namaZipDinamis = getFormattedFileName(
@@ -681,8 +691,12 @@ class SharingClient {
                       'Menulis cadangan ke penyimpanan internal...';
                   await fileZipTarget.writeAsBytes(finalZipBytes);
                   onDataReceived();
-                  if (progressCtx != null && progressCtx!.mounted)
-                    Navigator.pop(progressCtx!);
+
+                  // PERBAIKAN: Tutup menggunakan rootNavigator
+                  if (progressCtx != null && progressCtx!.mounted) {
+                    Navigator.of(progressCtx!, rootNavigator: true).pop();
+                  }
+
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(
@@ -693,8 +707,10 @@ class SharingClient {
                   );
                 }
               } catch (e) {
-                if (progressCtx != null && progressCtx!.mounted)
-                  Navigator.pop(progressCtx!);
+                // PERBAIKAN: Tutup menggunakan rootNavigator
+                if (progressCtx != null && progressCtx!.mounted) {
+                  Navigator.of(progressCtx!, rootNavigator: true).pop();
+                }
                 debugPrint("Client gagal memproses data: $e");
               }
 

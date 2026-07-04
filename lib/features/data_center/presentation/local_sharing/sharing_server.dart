@@ -23,6 +23,8 @@ class SharingServer {
     showDialog(
       context: context,
       barrierDismissible: false,
+      useRootNavigator:
+          true, // <--- PERBAIKAN: Memaksa dialog berada di root navigator
       builder: (dialogCtx) {
         WidgetsBinding.instance.addPostFrameCallback((_) => onReady(dialogCtx));
         final accentColor = isSending ? Colors.teal : Colors.indigo;
@@ -330,8 +332,12 @@ class SharingServer {
                       'Menulis cadangan ke penyimpanan internal...';
                   await fileZipTarget.writeAsBytes(finalZipBytes);
                   onDataReceived();
-                  if (progressCtx != null && progressCtx!.mounted)
-                    Navigator.pop(progressCtx!);
+
+                  // PERBAIKAN: Tutup menggunakan rootNavigator
+                  if (progressCtx != null && progressCtx!.mounted) {
+                    Navigator.of(progressCtx!, rootNavigator: true).pop();
+                  }
+
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(
@@ -341,13 +347,17 @@ class SharingServer {
                     ),
                   );
                 } else {
-                  if (progressCtx != null && progressCtx!.mounted)
-                    Navigator.pop(progressCtx!);
+                  // PERBAIKAN: Tutup menggunakan rootNavigator
+                  if (progressCtx != null && progressCtx!.mounted) {
+                    Navigator.of(progressCtx!, rootNavigator: true).pop();
+                  }
                 }
               }
             } catch (err) {
-              if (progressCtx != null && progressCtx!.mounted)
-                Navigator.pop(progressCtx!);
+              // PERBAIKAN: Tutup menggunakan rootNavigator
+              if (progressCtx != null && progressCtx!.mounted) {
+                Navigator.of(progressCtx!, rootNavigator: true).pop();
+              }
               debugPrint("Server gagal memproses pesan: $err");
             }
           },
@@ -562,8 +572,12 @@ class SharingServer {
           for (var socket in clientActiveList) {
             socket.sink.add(jsonEncode(sendBigPackage));
           }
-          if (progressCtx != null && progressCtx!.mounted)
-            Navigator.pop(progressCtx!);
+
+          // PERBAIKAN: Tutup menggunakan rootNavigator
+          if (progressCtx != null && progressCtx!.mounted) {
+            Navigator.of(progressCtx!, rootNavigator: true).pop();
+          }
+
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
@@ -573,8 +587,10 @@ class SharingServer {
             ),
           );
         } catch (e) {
-          if (progressCtx != null && progressCtx!.mounted)
-            Navigator.pop(progressCtx!);
+          // PERBAIKAN: Tutup menggunakan rootNavigator
+          if (progressCtx != null && progressCtx!.mounted) {
+            Navigator.of(progressCtx!, rootNavigator: true).pop();
+          }
           debugPrint("Gagal mengirim data dari server: $e");
         }
       }
