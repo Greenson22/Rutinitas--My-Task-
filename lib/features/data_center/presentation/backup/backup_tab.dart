@@ -1259,6 +1259,11 @@ class BackupTabState extends State<BackupTab> {
                             onSelected: (value) async {
                               if (value == 'export_folder') {
                                 _exportBackupToCustomFolder(file);
+                              } else if (value == 'share_backup') {
+                                // BARU: Mengirim berkas cadangan ke luar aplikasi (WhatsApp, Telegram, dll)
+                                await Share.shareXFiles([
+                                  XFile(file.path),
+                                ], text: 'Berkas Cadangan Aplikasi: $fileName');
                               } else if (value == 'delete_backup') {
                                 final bool
                                 confirm = await _showConfirmDeleteDialog(
@@ -1282,6 +1287,20 @@ class BackupTabState extends State<BackupTab> {
                                     size: 20,
                                   ),
                                   title: Text('Simpan ke Folder Kustom'),
+                                  contentPadding: EdgeInsets.zero,
+                                  dense: true,
+                                ),
+                              ),
+                              const PopupMenuDivider(),
+                              const PopupMenuItem<String>(
+                                value: 'share_backup',
+                                child: ListTile(
+                                  leading: Icon(
+                                    Icons.share_outlined,
+                                    color: Colors.teal,
+                                    size: 20,
+                                  ),
+                                  title: Text('Bagikan Berkas'),
                                   contentPadding: EdgeInsets.zero,
                                   dense: true,
                                 ),
