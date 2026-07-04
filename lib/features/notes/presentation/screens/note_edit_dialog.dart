@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:qr_flutter/qr_flutter.dart'; // <--- Impor library QR Flutter
 import '../../models/note_model.dart';
 import '../controllers/note_detail_controller.dart';
 import '../../../../core/presentation/widgets/base_popup_dialog.dart';
@@ -30,7 +31,7 @@ class _NoteEditDialogState extends State<NoteEditDialog>
   late TextEditingController _titleController;
   late TextEditingController _contentController;
   late TextEditingController
-  _backContentController; // <--- BARU: Controller Sisi Belakang
+  _backContentController; // <--- Controller Sisi Belakang
   late List<String> _currentFieldKeys;
   late Map<String, String> _currentFieldTypes;
   final List<Map<String, TextEditingController>> _tableRows = [];
@@ -42,6 +43,9 @@ class _NoteEditDialogState extends State<NoteEditDialog>
   int? _sortColumnIndex;
   bool _isAscending = true;
   bool _isMarkdownEnabled = false;
+
+  // STATE BARU: Mode seleksi QR langsung pada tabel
+  bool _isQrSelectMode = false;
 
   // ANIMASI STATE BARU
   late AnimationController _flipController;
@@ -64,7 +68,7 @@ class _NoteEditDialogState extends State<NoteEditDialog>
     );
     _backContentController = TextEditingController(
       text: _editableNote?.backContent ?? '',
-    ); // <--- BARU
+    );
 
     _currentFieldKeys = List.from(_editableNote?.fieldKeys ?? []);
     _currentFieldTypes = Map.from(_editableNote?.fieldTypes ?? {});
@@ -74,11 +78,8 @@ class _NoteEditDialogState extends State<NoteEditDialog>
 
     _titleController.addListener(_triggerChange);
     _contentController.addListener(_triggerChange);
-    _backContentController.addListener(
-      _triggerChange,
-    ); // <--- BARU: Pantau Perubahan Belakang
+    _backContentController.addListener(_triggerChange);
 
-    // Inisialisasi Kontroler Animasi Flip (Mulus 400ms)
     _flipController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 400),
@@ -113,7 +114,6 @@ class _NoteEditDialogState extends State<NoteEditDialog>
     }
   }
 
-  // Fungsi Pemicu Putaran Animasi Sisi Kartu
   void _toggleFlip() {
     if (_isFrontSide) {
       _flipController.forward();
@@ -125,12 +125,85 @@ class _NoteEditDialogState extends State<NoteEditDialog>
     });
   }
 
+  // =========================================================================
+  // FITUR BARU: DIALOG TAMPILAN QR CODE DARI SEL YANG DIKETUK
+  // =========================================================================
+  void _showQrCodeDialog(String cellText) {
+    if (cellText.isEmpty || cellText == '-') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Sel kosong atau berupa strip (-). Silakan pilih sel yang terisi.',
+          ),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => BasePopupDialog(
+        title: const Text(
+          'QR Code Sel Tabel',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+        ),
+        themeColor: Colors.indigo,
+        titleColor: Colors.white,
+        content: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Konten Sel: "$cellText"',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: QrImageView(
+                  data: cellText,
+                  version: QrVersions.auto,
+                  size: 200.0,
+                  gapless: false,
+                  errorStateBuilder: (cxt, err) {
+                    return const Center(
+                      child: Text(
+                        'Gagal memuat QR Code.',
+                        style: TextStyle(color: Colors.red),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _titleController.dispose();
     _contentController.dispose();
-    _backContentController.dispose(); // <--- BARU
-    _flipController.dispose(); // <--- BARU
+    _backContentController.dispose();
+    _flipController.dispose();
     for (var row in _tableRows) {
       row.values.forEach((c) => c.dispose());
     }
@@ -146,8 +219,7 @@ class _NoteEditDialogState extends State<NoteEditDialog>
       currentType: _currentType,
       titleController: _titleController,
       contentController: _contentController,
-      backContentController:
-          _backContentController, // <--- BARU: Teruskan Controller Belakang
+      backContentController: _backContentController,
       currentFieldKeys: _currentFieldKeys,
       currentFieldTypes: _currentFieldTypes,
       tableRows: _tableRows,
@@ -187,7 +259,7 @@ class _NoteEditDialogState extends State<NoteEditDialog>
           ],
         ),
         content: const Text(
-          'Apakah Anda ingin menyimpan perubahan pada catatan ini sebelum menutup?',
+          'Apakah Anda ingin menyimpan perubahan sebelum menutup?',
         ),
         actions: [
           TextButton(
@@ -267,9 +339,6 @@ class _NoteEditDialogState extends State<NoteEditDialog>
                           controller: _titleController,
                           autofocus: true,
                           cursorColor: Colors.amberAccent,
-                          cursorWidth: 2.0,
-                          cursorRadius: const Radius.circular(2),
-                          textAlignVertical: TextAlignVertical.center,
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 16,
@@ -282,20 +351,6 @@ class _NoteEditDialogState extends State<NoteEditDialog>
                               fontWeight: FontWeight.normal,
                             ),
                             border: InputBorder.none,
-                            enabledBorder: UnderlineInputBorder(
-                              borderSide: BorderSide(
-                                color: Colors.white24,
-                                width: 1.0,
-                              ),
-                            ),
-                            focusedBorder: UnderlineInputBorder(
-                              borderSide: BorderSide(
-                                color: Colors.tealAccent,
-                                width: 1.5,
-                              ),
-                            ),
-                            isDense: true,
-                            contentPadding: EdgeInsets.only(bottom: 6.0),
                           ),
                         )
                       : Text(
@@ -312,8 +367,42 @@ class _NoteEditDialogState extends State<NoteEditDialog>
                 const SizedBox(width: 8),
 
                 // ========================================================
-                // FITUR BARU: TOMBOL ROTASI / FLIP DUA SISI
+                // MODIFIKASI: TOMBOL QR CODE (MENGAKTIFKAN MODE PILIH LANGSUNG DI TABEL)
                 // ========================================================
+                if (_currentType == 'table') ...[
+                  IconButton(
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    icon: Icon(
+                      Icons.qr_code_2_rounded,
+                      color: _isQrSelectMode
+                          ? Colors.amberAccent
+                          : Colors.tealAccent,
+                      size: 22,
+                    ),
+                    tooltip: _isQrSelectMode
+                        ? 'Matikan Mode QR'
+                        : 'Pilih Sel Langsung ke QR Code',
+                    onPressed: () {
+                      setState(() {
+                        _isQrSelectMode = !_isQrSelectMode;
+                      });
+                      ScaffoldMessenger.of(context).clearSnackBars();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            _isQrSelectMode
+                                ? 'Mode QR Aktif! Ketuk sel data pada tabel di bawah untuk membuat QR Code.'
+                                : 'Mode QR dinonaktifkan.',
+                          ),
+                          duration: const Duration(seconds: 3),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 10),
+                ],
+
                 IconButton(
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
@@ -329,7 +418,6 @@ class _NoteEditDialogState extends State<NoteEditDialog>
                 ),
                 const SizedBox(width: 10),
 
-                // Switch MD hanya muncul saat tipe 'text' DAN sedang dalam MODE EDIT DAN berada di SISI DEPAN
                 if (_currentType == 'text' && !_isViewMode && _isFrontSide) ...[
                   Row(
                     mainAxisSize: MainAxisSize.min,
@@ -347,13 +435,8 @@ class _NoteEditDialogState extends State<NoteEditDialog>
                         child: Switch(
                           value: _isMarkdownEnabled,
                           activeColor: Colors.tealAccent,
-                          activeTrackColor: Colors.teal.shade700,
-                          inactiveThumbColor: Colors.white70,
-                          inactiveTrackColor: Colors.white24,
                           onChanged: (value) {
-                            setState(() {
-                              _isMarkdownEnabled = value;
-                            });
+                            setState(() => _isMarkdownEnabled = value);
                             _triggerChange();
                           },
                         ),
@@ -362,7 +445,6 @@ class _NoteEditDialogState extends State<NoteEditDialog>
                   ),
                   const SizedBox(width: 4),
                 ],
-                // Logika Tampilan Tombol berdasarkan View Mode
                 if (_isViewMode) ...[
                   IconButton(
                     padding: EdgeInsets.zero,
@@ -402,7 +484,6 @@ class _NoteEditDialogState extends State<NoteEditDialog>
                           ),
                     const SizedBox(width: 10),
                   ],
-                  // Ganti tipe data hanya diizinkan di Sisi Depan
                   if (_isFrontSide) ...[
                     IconButton(
                       padding: EdgeInsets.zero,
@@ -453,31 +534,19 @@ class _NoteEditDialogState extends State<NoteEditDialog>
             ),
             themeColor: Colors.indigo,
             titleColor: Colors.white,
-
-            // ========================================================
-            // EKSEKUSI ANIMASI FLIP BERPUTAR 3D PERSPEKTIF
-            // ========================================================
             content: AnimatedBuilder(
               animation: _flipController,
               builder: (context, child) {
-                final double angle =
-                    _flipController.value *
-                    3.141592653589793; // Pi Radian (180 derajat)
-                final bool isBackRendering =
-                    angle >= 1.5707963267948966; // Melewati 90 Derajat
+                final double angle = _flipController.value * 3.141592653589793;
+                final bool isBackRendering = angle >= 1.5707963267948966;
 
                 return Transform(
                   transform: Matrix4.identity()
-                    ..setEntry(
-                      3,
-                      2,
-                      0.001,
-                    ) // Nilai Perspektif 3D Kedalaman Lubang Layar
-                    ..rotateY(angle), // Pembalikan Horizontal Sumbu Y
+                    ..setEntry(3, 2, 0.001)
+                    ..rotateY(angle),
                   alignment: Alignment.center,
                   child: isBackRendering
                       ? Transform(
-                          // Balik internal teks sisi belakang agar tidak terrender cermin terbalik
                           transform: Matrix4.identity()
                             ..rotateY(3.141592653589793),
                           alignment: Alignment.center,
@@ -499,9 +568,8 @@ class _NoteEditDialogState extends State<NoteEditDialog>
                     onPressed: () async {
                       if (_hasChanges) {
                         final shouldPop = await _showExitConfirmationDialog();
-                        if (shouldPop && context.mounted) {
+                        if (shouldPop && context.mounted)
                           Navigator.pop(context);
-                        }
                       } else {
                         Navigator.pop(context);
                       }
@@ -523,9 +591,6 @@ class _NoteEditDialogState extends State<NoteEditDialog>
     );
   }
 
-  // =========================================================================
-  // SUB-WIDGET SISI DEPAN (STRUKTUR BAWAAN ASLI)
-  // =========================================================================
   Widget _buildFrontSideContent() {
     return Container(
       height: MediaQuery.of(context).size.height * 0.65,
@@ -541,69 +606,26 @@ class _NoteEditDialogState extends State<NoteEditDialog>
                                 ? '*Catatan kosong.*'
                                 : _contentController.text,
                             selectable: true,
-                            styleSheet:
-                                MarkdownStyleSheet.fromTheme(
-                                  Theme.of(context),
-                                ).copyWith(
-                                  p: const TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.black87,
-                                    height: 1.5,
-                                  ),
-                                  h1: const TextStyle(
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.indigo,
-                                  ),
-                                  h2: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.indigo,
-                                  ),
-                                  h3: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.indigo,
-                                  ),
-                                  code: TextStyle(
-                                    backgroundColor: Colors.grey[200],
-                                    color: Colors.red[700],
-                                  ),
-                                  codeblockDecoration: BoxDecoration(
-                                    color: Colors.grey[900],
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                ),
                           )
                         : TextField(
                             controller: _contentController,
                             readOnly: true,
                             maxLines: null,
                             expands: true,
-                            textAlignVertical: TextAlignVertical.top,
-                            decoration: InputDecoration(
-                              hintText: 'Catatan kosong.',
-                              hintStyle: TextStyle(color: Colors.grey[400]),
+                            decoration: const InputDecoration(
                               border: InputBorder.none,
-                              contentPadding: EdgeInsets.zero,
                             ),
                           ))
                   : TextField(
                       controller: _contentController,
                       maxLines: null,
                       expands: true,
-                      textAlignVertical: TextAlignVertical.top,
                       style: TextStyle(
                         fontFamily: _isMarkdownEnabled ? 'Courier' : null,
                         fontSize: 14,
                       ),
-                      decoration: InputDecoration(
-                        hintText: _isMarkdownEnabled
-                            ? 'Tulis atau paste catatan Anda di sini (Mendukung Markdown)...'
-                            : 'Tulis catatan Anda di sini...',
-                        hintStyle: TextStyle(color: Colors.grey[400]),
+                      decoration: const InputDecoration(
                         border: InputBorder.none,
-                        contentPadding: EdgeInsets.zero,
                       ),
                     ),
             )
@@ -620,6 +642,13 @@ class _NoteEditDialogState extends State<NoteEditDialog>
                 isAscending: _isAscending,
                 onChanged: _triggerChange,
                 isViewMode: true,
+                isQrSelectMode: _isQrSelectMode, // <--- Oper State Mode QR
+                onCellTapForQr: (text) {
+                  _showQrCodeDialog(text);
+                  setState(
+                    () => _isQrSelectMode = false,
+                  ); // Nonaktifkan setelah memilih
+                },
                 onSortChanged: (index, ascending) {
                   setState(() {
                     _sortColumnIndex = index;
@@ -636,7 +665,6 @@ class _NoteEditDialogState extends State<NoteEditDialog>
                     color: Colors.white,
                     child: const TabBar(
                       labelColor: Colors.indigo,
-                      unselectedLabelColor: Colors.grey,
                       indicatorColor: Colors.indigo,
                       tabs: [
                         Tab(
@@ -663,6 +691,12 @@ class _NoteEditDialogState extends State<NoteEditDialog>
                           isAscending: _isAscending,
                           onChanged: _triggerChange,
                           isViewMode: false,
+                          isQrSelectMode:
+                              _isQrSelectMode, // <--- Oper State Mode QR
+                          onCellTapForQr: (text) {
+                            _showQrCodeDialog(text);
+                            setState(() => _isQrSelectMode = false);
+                          },
                           onSortChanged: (index, ascending) {
                             setState(() {
                               _sortColumnIndex = index;
@@ -687,26 +721,15 @@ class _NoteEditDialogState extends State<NoteEditDialog>
     );
   }
 
-  // =========================================================================
-  // SUB-WIDGET SISI BELAKANG (CATATAN BALIK KARTU BARU)
-  // =========================================================================
   Widget _buildBackSideContent() {
     return Container(
       height: MediaQuery.of(context).size.height * 0.65,
-      color: Colors
-          .blueGrey[50], // Latar belakang abu biru lembut pembeda dimensi kartu
+      color: Colors.blueGrey[50],
       padding: const EdgeInsets.all(16.0),
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(8),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 6,
-              offset: const Offset(0, 3),
-            ),
-          ],
         ),
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -755,25 +778,13 @@ class _NoteEditDialogState extends State<NoteEditDialog>
                 controller: _backContentController,
                 maxLines: null,
                 expands: true,
-                readOnly:
-                    _isViewMode, // Mengunci input ketikan jika berada di dalam View Mode saja
-                textAlignVertical: TextAlignVertical.top,
+                readOnly: _isViewMode,
                 style: const TextStyle(
                   fontSize: 14,
                   fontStyle: FontStyle.italic,
                   color: Colors.black87,
                 ),
-                decoration: InputDecoration(
-                  hintText: _isViewMode
-                      ? 'Tidak ada catatan di balik lembar ini.'
-                      : 'Tulis atau tempel informasi pelengkap di balik catatan ini...',
-                  hintStyle: TextStyle(
-                    color: Colors.grey[400],
-                    fontStyle: FontStyle.normal,
-                  ),
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.zero,
-                ),
+                decoration: const InputDecoration(border: InputBorder.none),
               ),
             ),
           ],

@@ -15,6 +15,10 @@ class NoteTableDataView extends StatefulWidget {
   final Function(int?, bool) onSortChanged;
   final bool isViewMode;
 
+  // FITUR BARU: Parameter penerima status mode QR dan fungsi callback eksekusi Tap
+  final bool isQrSelectMode;
+  final Function(String)? onCellTapForQr;
+
   const NoteTableDataView({
     super.key,
     required this.controller,
@@ -27,6 +31,8 @@ class NoteTableDataView extends StatefulWidget {
     required this.onChanged,
     required this.onSortChanged,
     this.isViewMode = false,
+    this.isQrSelectMode = false, // <--- BARU: Default mati
+    this.onCellTapForQr, // <--- BARU
   });
 
   @override
@@ -1222,21 +1228,50 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
                                           ),
                                         ),
                                         ...widget.currentFieldKeys.map((key) {
+                                          final String cellText =
+                                              row[key]?.text ?? '';
+
                                           return DataCell(
-                                            Container(
-                                              width: widget.isViewMode
-                                                  ? null
-                                                  : 160,
-                                              padding: EdgeInsets.symmetric(
-                                                vertical: widget.isViewMode
-                                                    ? 0
-                                                    : 4,
-                                              ),
-                                              child: _buildInputField(
-                                                key,
-                                                row[key]!,
-                                                rowIndex: index,
-                                                isFormInput: false,
+                                            // =========================================================================
+                                            // MODIFIKASI UTAMA: DETEKSI TAP SEL SECARA LANGSUNG DI LAPISAN TERLUAR DATA
+                                            // =========================================================================
+                                            GestureDetector(
+                                              behavior: HitTestBehavior.opaque,
+                                              onTap:
+                                                  widget.isQrSelectMode &&
+                                                      widget.onCellTapForQr !=
+                                                          null
+                                                  ? () =>
+                                                        widget.onCellTapForQr!(
+                                                          cellText,
+                                                        )
+                                                  : null, // Jika Mode QR mati, interaksi input text berjalan normal bawaan asli
+                                              child: Container(
+                                                width: widget.isViewMode
+                                                    ? null
+                                                    : 160,
+                                                padding: EdgeInsets.symmetric(
+                                                  vertical: widget.isViewMode
+                                                      ? 0
+                                                      : 4,
+                                                ),
+                                                // Berikan warna latar belakang transparan kekuningan saat mode seleksi QR Code aktif
+                                                color: widget.isQrSelectMode
+                                                    ? Colors.amber.withOpacity(
+                                                        0.08,
+                                                      )
+                                                    : Colors.transparent,
+                                                child: IgnorePointer(
+                                                  // Mengunci pointer elemen di dalamnya agar GestureDetector lapisan terluar menangkap event tap secara sempurna
+                                                  ignoring:
+                                                      widget.isQrSelectMode,
+                                                  child: _buildInputField(
+                                                    key,
+                                                    row[key]!,
+                                                    rowIndex: index,
+                                                    isFormInput: false,
+                                                  ),
+                                                ),
                                               ),
                                             ),
                                           );
