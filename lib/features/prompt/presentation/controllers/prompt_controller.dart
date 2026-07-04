@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:rutinitasku/core/services/storage_service.dart';
-import 'package:rutinitasku/core/utils/crypto_helper.dart';
+import 'package:rutinitasku/core/utils/crypto_helper.dart'; // <--- MEMASTIKAN IMPORT CRYPTO HELPER TERSEDIA
 import '../../data/models/prompt_model.dart';
 
 class PromptController extends ChangeNotifier {
@@ -109,7 +109,7 @@ class PromptController extends ChangeNotifier {
   }
 
   // =========================================================================
-  // PERBAIKAN LOGIKA MUAT DATA (HANYA MEMUAT PLAIN TEXT)
+  // PERBAIKAN LOGIKA MUAT DATA (MENDUKUNG DEKRIPSI & SINKRONISASI OTOMATIS)
   // =========================================================================
   Future<void> loadAllPrompts(BuildContext context) async {
     _isLoading = true;
@@ -118,7 +118,13 @@ class PromptController extends ChangeNotifier {
       final baseDir = await _storageService.getBaseDirSetting();
       final files = await _storageService.getAllPromptGroups(baseDir);
 
+      // Ambil status konfigurasi enkripsi master sistem saat ini
+      bool isEncrypted = await _storageService.isEncryptionEnabled();
+      String? password = await _storageService.getEncryptionPassword();
+
       List<PromptGroup> loadedGroups = [];
+      List<String> autoEncryptedFiles =
+          []; // Penampung nama file untuk SnackNar sinkronisasi
 
       for (var file in files) {
         if (!await file.exists()) continue;
@@ -126,7 +132,39 @@ class PromptController extends ChangeNotifier {
         String fileName = file.path.split('/').last.replaceAll('.json', '');
 
         try {
-          // Bypass pengecekan enkripsi, langsung coba decode JSON
+          // Cek bentuk fisik biner teks berkas
+          final trimmedContent = content.trim();
+          bool isRawJson =
+              trimmedContent.startsWith('{') || trimmedContent.startsWith('[');
+
+          if (isEncrypted && password != null) {
+            if (!isRawJson) {
+              // KONDISI 1: Enkripsi sistem ON dan berkas berbentuk ciphertext -> Lakukan dekripsi
+              content = CryptoHelper.decrypt(content, password);
+            } else {
+              // KONDISI 2 (MIGRASI/SINKRONISASI OTOMATIS): Enkripsi ON tetapi berkas masih berbentuk JSON polos.
+              // Enkripsikan secara otomatis ke lokal storage agar sejalan dengan setelan global.
+              try {
+                final PromptGroup parsedGroup = PromptGroup.fromJson(
+                  jsonDecode(content),
+                );
+                final String encryptedContent = CryptoHelper.encrypt(
+                  _storageService.formatJsonPretty(parsedGroup.toJson()),
+                  password,
+                );
+                await file.writeAsString(encryptedContent);
+                autoEncryptedFiles.add(parsedGroup.title);
+                debugPrint(
+                  "Otomatis mengamankan berkas prompt mentah: ${file.path}",
+                );
+              } catch (autoEncryptError) {
+                debugPrint(
+                  "Gagal mengamankan otomatis berkas prompt: $autoEncryptError",
+                );
+              }
+            }
+          }
+
           final jsonMap = jsonDecode(content);
           loadedGroups.add(PromptGroup.fromJson(jsonMap));
         } catch (parseError) {
@@ -134,14 +172,14 @@ class PromptController extends ChangeNotifier {
             "Gagal memuat atau mendecode berkas prompt ${file.path}: $parseError",
           );
 
-          // MEKANISME CARD MERAH: Jika file lama masih terkunci (enkripsi versi terdahulu)
-          // Masukkan objek mock penanda korup sehingga user bisa merestore-nya
+          // MEKANISME CARD MERAH: Masukkan objek mock penanda korup jika benar-benar gagal parse / salah password
           loadedGroups.add(
             PromptGroup(
               id: "CORRUPTED_${DateTime.now().millisecondsSinceEpoch}_$fileName",
               title: fileName,
               icon: '⚠️',
-              sectionName: 'BERKAS RUSAK / TERKUNCI',
+              sectionName:
+                  'BERKAS RUSAK / TERKUNCI', // Seksi pengelompokan card merah
               isHidden: false,
               prompts: [],
             ),
@@ -155,6 +193,20 @@ class PromptController extends ChangeNotifier {
 
       _isLoading = false;
       notifyListeners();
+
+      // Pemicu Notifikasi sinkronisasi otomatis jika ada file JSON lama yang baru saja diamankan
+      if (autoEncryptedFiles.isNotEmpty && context.mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Menyelaraskan Keamanan: Berkas prompt [${autoEncryptedFiles.join(", ")}] telah otomatis dienkripsi sesuai pengaturan master.',
+            ),
+            backgroundColor: Colors.teal,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     } catch (e) {
       _isLoading = false;
       notifyListeners();
@@ -1365,8 +1417,18 @@ class PromptController extends ChangeNotifier {
         group.toJson(),
       );
 
-      // Bypass enkripsi, simpan langsung sebagai plain text secara permanen
-      await jsonFile.writeAsString(jsonString);
+      bool isEncrypted = await _storageService.isEncryptionEnabled();
+      String? password = await _storageService.getEncryptionPassword();
+
+      if (isEncrypted && password != null) {
+        final String encryptedContent = CryptoHelper.encrypt(
+          jsonString,
+          password,
+        );
+        await jsonFile.writeAsString(encryptedContent);
+      } else {
+        await jsonFile.writeAsString(jsonString);
+      }
 
       debugPrint("Berhasil memulihkan file fisik prompt: ${jsonFile.path}");
     } catch (e) {

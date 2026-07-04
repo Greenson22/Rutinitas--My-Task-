@@ -2,16 +2,16 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:flutter/foundation.dart'; // Ditambahkan untuk mendeteksi kDebugMode
+import 'package:google_mobile_ads/google_mobile_ads.dart'; // Ditambahkan untuk SDK AdMob
 
 import '../../../../core/presentation/widgets/drawer_menu.dart';
 import '../../../../core/presentation/widgets/grouped_section_layout.dart';
 import '../../../../core/presentation/widgets/interactive_grid_card.dart';
 import '../../../../core/presentation/widgets/interactive_section_header.dart';
-import '../../../../core/presentation/widgets/universal_empty_state.dart';
-import '../../../../core/utils/crypto_helper.dart';
-import '../../../../core/services/storage_service.dart';
+import '../../../../core/presentation/widgets/universal_empty_state.dart'; // Using Universal Widget from Core
+import '../../../../core/utils/crypto_helper.dart'; // Import CryptoHelper untuk Dekripsi Manual
+import '../../../../core/services/storage_service.dart'; // <--- IMPORT BARU KUNCI PENYIMPANAN
 
 import '../../data/models/daily_model.dart';
 import 'controllers/daily_controller.dart';
@@ -26,20 +26,24 @@ class DailyScreen extends StatefulWidget {
 
 class _DailyScreenState extends State<DailyScreen> {
   late DailyController _controller;
-  final Color _themeColor = Colors.indigo;
+  final Color _themeColor = Colors.indigo; // Definisi warna tema dasar indigo
 
+  // Variabel untuk manajemen Banner AdMob
   BannerAd? _bannerAd;
   bool _isAdLoaded = false;
 
+  // Getter adaptif untuk menentukan Ad Unit ID Iklan Banner
   String get adUnitId {
     if (Platform.isAndroid) {
       if (kDebugMode) {
+        // ID Test Resmi dari Google untuk pengujian iklan Banner Android
         return 'ca-app-pub-3940256099942544/6300978111';
       } else {
+        // GANTI dengan Ad Unit ID asli Anda dari dasbor AdMob saat rilis nanti
         return 'ca-app-pub-5320800343545863/2005101404';
       }
     }
-    return '';
+    return ''; // Kosongkan jika berjalan di Desktop (Windows/Linux/macOS) agar tidak crash
   }
 
   @override
@@ -49,11 +53,13 @@ class _DailyScreenState extends State<DailyScreen> {
     _controller.addListener(_onControllerNotify);
     _controller.loadGroupsData();
 
+    // Panggil fungsi pemuatan iklan banner
     _loadBannerAd();
   }
 
+  // Fungsi untuk mengunduh iklan banner AdMob
   void _loadBannerAd() {
-    if (adUnitId.isEmpty) return;
+    if (adUnitId.isEmpty) return; // Batalkan jika bukan platform Android
 
     _bannerAd = BannerAd(
       adUnitId: adUnitId,
@@ -81,11 +87,12 @@ class _DailyScreenState extends State<DailyScreen> {
   void dispose() {
     _controller.removeListener(_onControllerNotify);
     _controller.dispose();
-    _bannerAd?.dispose();
+    _bannerAd
+        ?.dispose(); // Pastikan objek iklan dihancurkan untuk mencegah kebocoran memori
     super.dispose();
   }
 
-  // Digunakan untuk bermigrasi/mendekripsi berkas rusak (terenkripsi) agar normal
+  // --- FITUR BARU: Dialog Input Kata Sandi untuk Dekripsi Manual Berkas Rusak ---
   void _showManualDecryptDialog(ChecklistGroup corruptedGroup) {
     final TextEditingController passwordController = TextEditingController();
     final formKey = GlobalKey<FormState>();
@@ -144,11 +151,14 @@ class _DailyScreenState extends State<DailyScreen> {
               setState(() => _controller.isLoading = true);
 
               try {
+                // Potong prefix mock ID untuk mendapatkan nama file asli
                 final String originalFileName = corruptedGroup.id.replaceFirst(
                   RegExp(r'CORRUPTED_\d+_'),
                   '',
                 );
 
+                // --- PERBAIKAN UTAMA DI SINI ---
+                // Dapatkan jalur (path) akurat file melalui StorageService
                 final StorageService storageService = StorageService();
                 final File targetFile = await storageService
                     .getSpecificGroupFile(
@@ -164,11 +174,13 @@ class _DailyScreenState extends State<DailyScreen> {
 
                 String rawContent = await targetFile.readAsString();
 
+                // Langkah 1: Coba dekripsi manual data teks menggunakan input kunci dari pengguna
                 String decryptedContent = CryptoHelper.decrypt(
                   rawContent.trim(),
                   inputPassword,
                 );
 
+                // Langkah 2: Uji kelayakan parsing JSON untuk memastikan password valid & struktur berkas aman
                 final Map<String, dynamic> parsedJson = jsonDecode(
                   decryptedContent,
                 );
@@ -176,14 +188,13 @@ class _DailyScreenState extends State<DailyScreen> {
                   parsedJson,
                 );
 
-                // Karena saveGroupDataToFile sudah bypassing enkripsi,
-                // data ini akan langsung ditulis ulang sebagai plain-text! (Migrasi Sukses)
+                // Langkah 3: Tulis ulang konten perbaikan yang bersih menggunakan fungsi terenkripsi internal controller
                 await _controller.saveGroupDataToFile(decryptedGroup);
 
                 messenger.showSnackBar(
                   SnackBar(
                     content: Text(
-                      'Berkas "${decryptedGroup.groupName}" berhasil didekripsi dan menjadi format normal!',
+                      'Berkas "${decryptedGroup.groupName}" berhasil didekripsi dan disinkronkan ke sistem!',
                     ),
                     backgroundColor: Colors.green,
                   ),
@@ -206,7 +217,7 @@ class _DailyScreenState extends State<DailyScreen> {
             },
             style: ElevatedButton.styleFrom(backgroundColor: _themeColor),
             child: const Text(
-              'Dekripsi & Migrasi',
+              'Dekripsi',
               style: TextStyle(color: Colors.white),
             ),
           ),
@@ -215,6 +226,7 @@ class _DailyScreenState extends State<DailyScreen> {
     );
   }
 
+  // METHOD BARU: Alur Berurutan Otomatis (Seksi Utama -> Group Checklist) Khusus Kondisi Kosong
   void _showSequentialAddDialog() {
     final sectionController = TextEditingController();
     final formKey = GlobalKey<FormState>();
@@ -247,7 +259,9 @@ class _DailyScreenState extends State<DailyScreen> {
               if (formKey.currentState!.validate()) {
                 final String namaSeksiBaru = sectionController.text.trim();
                 _controller.addLocalMainSection(namaSeksiBaru);
+                // Tutup dialog langkah 1
                 Navigator.pop(context);
+                // Otomatis lanjut ke dialog langkah 2 untuk mengisi Group Checklist di seksi tersebut
                 _showAddGroupDialogAtSection(namaSeksiBaru);
               }
             },
@@ -292,7 +306,7 @@ class _DailyScreenState extends State<DailyScreen> {
                     content: Text(
                       'Seksi "$namaSeksiBaru" berhasil dibuat! Tekan tombol + di kanannya untuk menambah group.',
                     ),
-                    backgroundColor: _themeColor,
+                    backgroundColor: _themeColor, // indigo
                   ),
                 );
               }
@@ -477,10 +491,12 @@ class _DailyScreenState extends State<DailyScreen> {
                   title: Text(sectionName.toUpperCase()),
                   leading: Icon(
                     isCurrentSection ? Icons.folder_special : Icons.folder_open,
-                    color: isCurrentSection ? _themeColor : Colors.grey,
+                    color: isCurrentSection
+                        ? _themeColor
+                        : Colors.grey, // indigo
                   ),
                   trailing: isCurrentSection
-                      ? Icon(Icons.check_circle, color: _themeColor)
+                      ? Icon(Icons.check_circle, color: _themeColor) // indigo
                       : null,
                   selected: isCurrentSection,
                   onTap: isCurrentSection
@@ -497,7 +513,7 @@ class _DailyScreenState extends State<DailyScreen> {
                                 content: Text(
                                   'Group "${group.groupName}" berhasil dipindahkan ke seksi "$sectionName"',
                                 ),
-                                backgroundColor: _themeColor,
+                                backgroundColor: _themeColor, // indigo
                               ),
                             );
                           }
@@ -601,6 +617,7 @@ class _DailyScreenState extends State<DailyScreen> {
       }
     }
 
+    // Dibungkus Scaffold terluar agar properti bottomNavigationBar bisa merender layout iklan
     return Scaffold(
       body: GroupedSectionLayout<ChecklistGroup>(
         title: 'Checklist Groups',
@@ -625,8 +642,26 @@ class _DailyScreenState extends State<DailyScreen> {
         enableMultiSelect: false,
         onSearchChanged: _controller.updateSearchQuery,
         onAddPressed: _showAddMainSectionDialog,
-        // PERUBAHAN: Icon kunci enkripsi dihilangkan karena fiturnya dihapus
-        appBarTrailingAction: null,
+        appBarTrailingAction: _controller.isGlobalEncryptionEnabled
+            ? Padding(
+                padding: const EdgeInsets.only(right: 8.0),
+                child: Tooltip(
+                  message: 'Enkripsi Aktif',
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.teal.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.lock,
+                      color: Colors.tealAccent,
+                      size: 18,
+                    ),
+                  ),
+                ),
+              )
+            : null,
         additionalAction: IconButton(
           icon: Icon(
             _controller.showHiddenSection
@@ -670,7 +705,7 @@ class _DailyScreenState extends State<DailyScreen> {
 
           return InteractiveSectionHeader(
             sectionName: sectionKey,
-            themeColor: Colors.indigo[900]!,
+            themeColor: Colors.indigo[900]!, // Indigo
             isEditMode: isLayoutEditMode ? true : _controller.isSectionEditMode,
             isUpperCase: false,
             isFirst: index == 0,
@@ -789,7 +824,7 @@ class _DailyScreenState extends State<DailyScreen> {
               }
 
               return InteractiveGridCard(
-                themeColor: _themeColor,
+                themeColor: _themeColor, // Indigo
                 isEditMode: isLayoutEditMode
                     ? true
                     : _controller.isPageEditMode,
@@ -977,6 +1012,7 @@ class _DailyScreenState extends State<DailyScreen> {
             },
       ),
 
+      // IMPLEMENTASI LAYOUT FOOTER BANNER ADMOB KHUSUS ANDROID
       bottomNavigationBar:
           _isAdLoaded && _bannerAd != null && Platform.isAndroid
           ? SafeArea(

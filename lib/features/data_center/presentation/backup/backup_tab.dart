@@ -421,11 +421,6 @@ class BackupTabState extends State<BackupTab> {
             ),
           );
         }
-      } else if (Platform.isAndroid || Platform.isIOS) {
-        // PERBAIKAN: Menggunakan Share sheets bawaan sistem Android/iOS
-        await Share.shareXFiles([
-          XFile(fileBackup.path),
-        ], text: 'Bagikan Berkas Cadangan Aplikasi: $namaFile');
       } else {
         String? direktoriPilihan = await FilePicker.getDirectoryPath(
           dialogTitle: 'Pilih Folder Tujuan Penyimpanan',
@@ -1278,21 +1273,15 @@ class BackupTabState extends State<BackupTab> {
                               }
                             },
                             itemBuilder: (BuildContext context) => [
-                              PopupMenuItem<String>(
+                              const PopupMenuItem<String>(
                                 value: 'export_folder',
                                 child: ListTile(
                                   leading: Icon(
-                                    Platform.isAndroid || Platform.isIOS
-                                        ? Icons.share_rounded
-                                        : Icons.drive_file_move,
+                                    Icons.drive_file_move,
                                     color: Colors.indigo,
                                     size: 20,
                                   ),
-                                  title: Text(
-                                    Platform.isAndroid || Platform.isIOS
-                                        ? 'Bagikan Berkas'
-                                        : 'Simpan ke Folder Kustom',
-                                  ),
+                                  title: Text('Simpan ke Folder Kustom'),
                                   contentPadding: EdgeInsets.zero,
                                   dense: true,
                                 ),

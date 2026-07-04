@@ -1,5 +1,4 @@
 // lib/features/jurnal_aktivitas/presentation/controllers/jurnal_aktivitas_controller.dart
-
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
@@ -18,7 +17,6 @@ class JurnalAktivitasController {
   List<TaskCategory> allTaskCategories = [];
   String baseDir = '';
   String fullJsonPath = '';
-
   bool isLoading = true;
   bool isEditMode = false;
   bool isJurnalFileCorrupted = false;
@@ -50,24 +48,16 @@ class JurnalAktivitasController {
       jsonFile = await _storageService.getJurnalJsonFile(baseDir);
       fullJsonPath = jsonFile.path;
 
-      if (!await jsonFile.exists()) {
-        await jsonFile.create(recursive: true);
-        await jsonFile.writeAsString('[]');
-      }
+      String jsonString = await _storageService.loadOrInitializeJurnalJson(
+        jsonFile,
+      );
+      bool isEncrypted = await _storageService.isEncryptionEnabled();
+      String? password = await _storageService.getEncryptionPassword();
 
-      String jsonString = await jsonFile.readAsString();
-
-      // Fallback: Jika pengguna baru saja mematikan enkripsi tapi file lama masih terkunci
-      // dan password masih ada di memori session
-      if (!jsonString.trim().startsWith('[')) {
-        String? password = await _storageService.getEncryptionPassword();
-        if (password != null) {
-          try {
-            jsonString = CryptoHelper.decrypt(jsonString, password);
-          } catch (_) {
-            // Akan dilempar ke error (corrupted) jika tetap gagal
-          }
-        }
+      if (isEncrypted &&
+          password != null &&
+          !jsonString.trim().startsWith('[')) {
+        jsonString = CryptoHelper.decrypt(jsonString, password);
       }
 
       final List<dynamic> decodedJson = jsonDecode(jsonString);
@@ -80,7 +70,6 @@ class JurnalAktivitasController {
 
       if (!hasTodayLog && loadedLogs.isNotEmpty) {
         final lastLog = loadedLogs.last;
-        // Salin tugas dari hari terakhir yang tercatat, reset durasinya ke 0
         List<TimeLogTask> copiedTasks = lastLog.tasks.map((task) {
           return TimeLogTask(
             id: task.id,
@@ -90,27 +79,22 @@ class JurnalAktivitasController {
             linkedTaskIds: task.linkedTaskIds,
           );
         }).toList();
-
         final todayEntry = TimeLogEntry(tanggal: todayStr, tasks: copiedTasks);
         loadedLogs.add(todayEntry);
-
         final String jsonContent = jsonEncode(
           loadedLogs.map((e) => e.toJson()).toList(),
         );
-        // PERBAIKAN: Tulis langsung sebagai plain-text
-        await jsonFile.writeAsString(jsonContent);
+        await _storageService.saveJsonData(jsonFile, jsonContent);
       } else if (loadedLogs.isEmpty) {
         loadedLogs.add(TimeLogEntry(tanggal: todayStr, tasks: []));
         final String jsonContent = jsonEncode(
           loadedLogs.map((e) => e.toJson()).toList(),
         );
-        // PERBAIKAN: Tulis langsung sebagai plain-text
-        await jsonFile.writeAsString(jsonContent);
+        await _storageService.saveJsonData(jsonFile, jsonContent);
       }
 
       await _loadTaskMasterData();
       logs = loadedLogs;
-
       isLoading = false;
       isJurnalFileCorrupted = false;
       onNotify();
@@ -120,7 +104,7 @@ class JurnalAktivitasController {
       onNotify();
       debugPrint("Error loading jurnal data: $e");
       if (jsonFile != null) {
-        throw jsonFile; // Lempar file ke screen agar UI bisa menampilkan dialog recovery
+        throw jsonFile;
       }
     }
   }
@@ -130,8 +114,13 @@ class JurnalAktivitasController {
       File taskFile = await _storageService.getTargetJsonFile(baseDir);
       if (await taskFile.exists()) {
         String jsonString = await taskFile.readAsString();
-
-        // PERBAIKAN: Task Master sudah menjadi plain text murni, langsung parse
+        bool isEncrypted = await _storageService.isEncryptionEnabled();
+        String? password = await _storageService.getEncryptionPassword();
+        if (isEncrypted &&
+            password != null &&
+            !jsonString.trim().startsWith('{')) {
+          jsonString = CryptoHelper.decrypt(jsonString, password);
+        }
         final Map<String, dynamic> parsedMap = jsonDecode(jsonString);
         final List<dynamic> catList = parsedMap['categories'] ?? [];
         allTaskCategories = catList
@@ -149,9 +138,7 @@ class JurnalAktivitasController {
       final String jsonContent = jsonEncode(
         logs.map((e) => e.toJson()).toList(),
       );
-
-      // PERBAIKAN: Bypass proses saveJsonData() yang mengenkripsi, tulis String mentah langsung
-      await jsonFile.writeAsString(jsonContent);
+      await _storageService.saveJsonData(jsonFile, jsonContent);
     } catch (e) {
       debugPrint("Error saving jurnal data: $e");
     }
@@ -166,48 +153,55 @@ class JurnalAktivitasController {
 
   Future<void> resetAndCreateNewLog(File jsonFile) async {
     isJurnalFileCorrupted = false;
+
     try {
+      bool isEncrypted = await _storageService.isEncryptionEnabled();
+      String? password = await _storageService.getEncryptionPassword();
+
       String rawJson = jsonEncode([]);
-      // PERBAIKAN: Tulis reset secara plain-text murni
+
+      if (isEncrypted && password != null) {
+        rawJson = CryptoHelper.encrypt(rawJson, password);
+      } else {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('is_encrypted', false);
+        await prefs.remove('encryption_password');
+      }
+
       await jsonFile.writeAsString(rawJson);
     } catch (err) {
-      debugPrint("Gagal mereset jurnal: $err");
+      debugPrint("Gagal mereset preferensi enkripsi jurnal: $err");
       isJurnalFileCorrupted = true;
     }
   }
 
   bool handleManualUnlock(String decryptedContent) {
-    try {
-      final parsed = jsonDecode(decryptedContent);
-      if (parsed is List) {
-        logs = parsed.map((e) => TimeLogEntry.fromJson(e)).toList();
+    final parsed = jsonDecode(decryptedContent);
+    if (parsed is List) {
+      logs = parsed.map((e) => TimeLogEntry.fromJson(e)).toList();
+      final String todayStr = getTodayDateString();
+      bool hasTodayLog = logs.any((entry) => entry.tanggal == todayStr);
 
-        final String todayStr = getTodayDateString();
-        bool hasTodayLog = logs.any((entry) => entry.tanggal == todayStr);
-
-        if (!hasTodayLog && logs.isNotEmpty) {
-          final lastLog = logs.last;
-          List<TimeLogTask> copiedTasks = lastLog.tasks.map((task) {
-            return TimeLogTask(
-              id: task.id,
-              nama: task.nama,
-              durasiMenit: 0,
-              kategori: task.kategori,
-              linkedTaskIds: task.linkedTaskIds,
-            );
-          }).toList();
-          logs.add(TimeLogEntry(tanggal: todayStr, tasks: copiedTasks));
-        } else if (logs.isEmpty) {
-          logs.add(TimeLogEntry(tanggal: todayStr, tasks: []));
-        }
-
-        _loadTaskMasterData();
-
-        isJurnalFileCorrupted = false;
-        isLoading = false;
-        return true;
+      if (!hasTodayLog && logs.isNotEmpty) {
+        final lastLog = logs.last;
+        List<TimeLogTask> copiedTasks = lastLog.tasks.map((task) {
+          return TimeLogTask(
+            id: task.id,
+            nama: task.nama,
+            durasiMenit: 0,
+            kategori: task.kategori,
+            linkedTaskIds: task.linkedTaskIds,
+          );
+        }).toList();
+        logs.add(TimeLogEntry(tanggal: todayStr, tasks: copiedTasks));
+      } else if (logs.isEmpty) {
+        logs.add(TimeLogEntry(tanggal: todayStr, tasks: []));
       }
-    } catch (_) {}
+      _loadTaskMasterData();
+      isJurnalFileCorrupted = false;
+      isLoading = false;
+      return true;
+    }
     return false;
   }
 
@@ -230,7 +224,6 @@ class JurnalAktivitasController {
   ) {
     int newIndex = currentIndex + direction;
     if (newIndex < 0 || newIndex >= taskList.length) return;
-
     final temp = taskList[currentIndex];
     taskList[currentIndex] = taskList[newIndex];
     taskList[newIndex] = temp;
@@ -242,11 +235,9 @@ class JurnalAktivitasController {
     List<TimeLogTask> todayTasks,
   ) {
     final bool isLinkedWithThis = jurnalTask.linkedTaskIds.contains(taskId);
-
     if (isLinkedWithThis) {
       jurnalTask.linkedTaskIds.remove(taskId);
     } else {
-      // Pastikan task master target hanya terhubung dengan satu jurnal pada hari yang sama
       for (var t in todayTasks) {
         if (t.id != jurnalTask.id) {
           t.linkedTaskIds.remove(taskId);
@@ -257,11 +248,13 @@ class JurnalAktivitasController {
     }
   }
 
+  // PERBAIKAN: Memastikan penambahan waktu dilakukan pada hari ini (atau log yang tepat)
   void addActivityDuration(TimeLogTask task, int minutes) {
     final String todayStr = getTodayDateString();
 
     // 1. Coba cari di log hari ini terlebih dahulu agar aman dan akurat
     int todayIdx = logs.indexWhere((entry) => entry.tanggal == todayStr);
+
     if (todayIdx != -1) {
       int taskIdx = logs[todayIdx].tasks.indexWhere((t) => t.id == task.id);
       if (taskIdx != -1) {
@@ -285,7 +278,6 @@ class JurnalAktivitasController {
     final int todayLogIndex = logs.indexWhere(
       (entry) => entry.tanggal == todayStr,
     );
-
     if (todayLogIndex != -1) {
       final randomId = Random().nextInt(999999);
       final newTask = TimeLogTask(
@@ -303,7 +295,6 @@ class JurnalAktivitasController {
     final int todayLogIndex = logs.indexWhere(
       (entry) => entry.tanggal == todayStr,
     );
-
     if (todayLogIndex != -1) {
       logs[todayLogIndex].tasks.removeWhere((t) => t.id == task.id);
     }

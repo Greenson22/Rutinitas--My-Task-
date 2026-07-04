@@ -1,15 +1,13 @@
 // lib/features/jurnal_aktivitas/presentation/screens/jurnal_aktivitas_screen.dart
-
 import 'dart:io';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart'; // Ditambahkan untuk mendeteksi kDebugMode
 import 'package:flutter/material.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
-
+import 'package:google_mobile_ads/google_mobile_ads.dart'; // Ditambahkan untuk SDK AdMob
 import '../../../../core/presentation/widgets/drawer_menu.dart';
 import '../../../../core/utils/crypto_helper.dart';
 import '../../data/models/time_log_model.dart';
 import '../controllers/jurnal_aktivitas_controller.dart';
-import '../widgets/jurnal_statistik_dialog.dart';
+import '../widgets/jurnal_statistik_dialog.dart'; // Import sub-widget baru
 import '../widgets/jurnal_empty_state.dart';
 import '../widgets/jurnal_corrupted_state.dart';
 import '../widgets/jurnal_task_item_card.dart';
@@ -23,23 +21,32 @@ class JurnalAktivitasScreen extends StatefulWidget {
 
 class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
   final JurnalAktivitasController _controller = JurnalAktivitasController();
+
+  // Variabel kontrol untuk Banner AdMob
   BannerAd? _bannerAd;
   bool _isAdLoaded = false;
 
+  // Getter adaptif untuk menentukan Ad Unit ID Iklan Banner
   String get adUnitId {
     if (Platform.isAndroid) {
       if (kDebugMode) {
+        // ID Test Resmi dari Google untuk pengujian iklan Banner Android
         return 'ca-app-pub-3940256099942544/6300978111';
       } else {
+        // GANTI dengan Ad Unit ID asli Anda dari dasbor AdMob saat rilis nanti
         return 'ca-app-pub-5320800343545863/3079499608';
       }
     }
-    return '';
+    return ''; // Kosongkan jika berjalan di Desktop (Windows/Linux/macOS) agar tidak crash
   }
 
   @override
   void initState() {
     super.initState();
+
+    // OPTIMASI: Membungkus pemicu pemuatan data ke dalam post frame callback dan
+    // memberikan jeda Future mikro (150ms). Langkah ini memisahkan beban CPU
+    // antara rendering animasi perpindahan halaman dengan proses komputasi dekripsi biner storage harian.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future.delayed(const Duration(milliseconds: 150), () {
         if (mounted) {
@@ -47,11 +54,14 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
         }
       });
     });
+
+    // Panggil fungsi pemuatan iklan banner
     _loadBannerAd();
   }
 
+  // Fungsi untuk mengunduh iklan banner AdMob
   void _loadBannerAd() {
-    if (adUnitId.isEmpty) return;
+    if (adUnitId.isEmpty) return; // Batalkan jika bukan platform Android
 
     _bannerAd = BannerAd(
       adUnitId: adUnitId,
@@ -83,10 +93,12 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
 
   @override
   void dispose() {
-    _bannerAd?.dispose();
+    _bannerAd
+        ?.dispose(); // Hancurkan objek iklan dari memori saat halaman ditutup untuk mencegah kebocoran memori
     super.dispose();
   }
 
+  // --- LOGIKA DIALOG INTERAKSI (PRODUKSI WIDGET POPUP) ---
   void _showDecryptionErrorDialog(File jsonFile) {
     showDialog(
       context: context,
@@ -97,11 +109,11 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
           children: const [
             Icon(Icons.lock_outline, color: Colors.redAccent),
             SizedBox(width: 8),
-            Text('Jurnal Terkunci / Lama'),
+            Text('Jurnal Terkunci / Rusak'),
           ],
         ),
         content: const Text(
-          'Aplikasi mendeteksi data Jurnal Aktivitas Anda dalam format lama terenkripsi. Masukkan password lama Anda untuk memigrasikannya ke format teks biasa.',
+          'Aplikasi gagal membaca data Jurnal Aktivitas. Berkas ini mungkin dienkripsi oleh sistem dengan kata sandi lain, atau format data di dalamnya rusak.',
         ),
         actions: [
           TextButton(
@@ -114,7 +126,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
               _showManualUnlockDialog(jsonFile);
             },
             child: const Text(
-              'Buka Kunci & Migrasi',
+              'Buka Kunci (Input PIN)',
               style: TextStyle(
                 color: Colors.indigo,
                 fontWeight: FontWeight.bold,
@@ -146,7 +158,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                   ],
                 ),
               );
-
               if (confirmNew == true) {
                 await _controller.resetAndCreateNewLog(jsonFile);
                 _triggerLoadData();
@@ -168,7 +179,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
   void _showManualUnlockDialog(File jsonFile) {
     final passController = TextEditingController();
     bool obscureText = true;
-
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -179,7 +189,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
             controller: passController,
             obscureText: obscureText,
             decoration: InputDecoration(
-              labelText: 'Kata Sandi Lama',
+              labelText: 'Kata Sandi Dekripsi',
               border: const OutlineInputBorder(),
               isDense: true,
               suffixIcon: IconButton(
@@ -207,26 +217,18 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
               onPressed: () async {
                 final input = passController.text.trim();
                 if (input.isEmpty) return;
-
                 try {
                   String encryptedContent = await jsonFile.readAsString();
                   String decrypted = CryptoHelper.decrypt(
                     encryptedContent,
                     input,
                   );
-
                   if (_controller.handleManualUnlock(decrypted)) {
-                    // PERBAIKAN: Simpan data (migrate) ke Plain-Text secara permanen!
-                    await _controller.saveData();
-
                     Navigator.pop(ctx);
                     _triggerLoadData();
-
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text(
-                          'Dekripsi & Migrasi Berhasil! Berkas kembali normal.',
-                        ),
+                        content: Text('Buka kunci data sukses!'),
                         backgroundColor: Colors.teal,
                       ),
                     );
@@ -246,7 +248,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
               },
               style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
               child: const Text(
-                'Buka & Migrasi',
+                'Buka Data',
                 style: TextStyle(color: Colors.white),
               ),
             ),
@@ -264,7 +266,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     final List<TimeLogTask> todayTasks = todayLogIndex != -1
         ? _controller.logs[todayLogIndex].tasks
         : [];
-
     showDialog(
       context: context,
       builder: (context) {
@@ -342,6 +343,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     );
   }
 
+  // MODIFIKASI: Memakai durasi default menit yang dinamis dari controller
   void _addActivityDuration(TimeLogTask task, {VoidCallback? onDone}) async {
     final int minutesToAdd = _controller.defaultIncrementMinutes;
 
@@ -365,17 +367,15 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
         ],
       ),
     );
-
     if (konfirmasi != true) return;
-
     setState(() {
       _controller.addActivityDuration(task, minutesToAdd);
     });
     await _controller.saveData();
-
     if (onDone != null) onDone();
   }
 
+  // DIALOG BARU: Mengubah interval/default menit tambah waktu secara bebas
   void _showSettingsDefaultTimeDialog() {
     final TextEditingController durationController = TextEditingController(
       text: _controller.defaultIncrementMinutes.toString(),
@@ -443,7 +443,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
       text: task.durasiMenit.toString(),
     );
     final formKey = GlobalKey<FormState>();
-
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -493,7 +492,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
   void _showAddActivityDialog() {
     final TextEditingController inputController = TextEditingController();
     final formKey = GlobalKey<FormState>();
-
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -537,7 +535,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     final TextEditingController editController = TextEditingController(
       text: task.nama,
     );
-
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -593,7 +590,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
         ],
       ),
     );
-
     if (konfirmasi == true) {
       setState(() {
         _controller.removeActivity(task);
@@ -610,7 +606,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
           builder: (context, setDialogState) {
             final sortedLogs = List<TimeLogEntry>.from(_controller.logs);
             sortedLogs.sort((a, b) => b.tanggal.compareTo(a.tanggal));
-
             return AlertDialog(
               title: Row(
                 children: const [
@@ -730,6 +725,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
         title: const Text('Jurnal Aktivitas'),
         backgroundColor: Colors.indigo[700],
         actions: [
+          // TOMBOL BARU: Mengonfigurasi limit penambahan default menit
           IconButton(
             icon: const Icon(Icons.timer_outlined, color: Colors.white),
             tooltip: 'Atur Default Waktu',
@@ -821,6 +817,8 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                 ),
               ],
             ),
+
+      // IMPLEMENTASI LAYOUT FOOTER BANNER ADMOB KHUSUS ANDROID
       bottomNavigationBar:
           _isAdLoaded && _bannerAd != null && Platform.isAndroid
           ? SafeArea(

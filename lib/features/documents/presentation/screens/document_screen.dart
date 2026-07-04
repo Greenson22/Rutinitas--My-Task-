@@ -423,6 +423,30 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
           themeColor: _themeColor,
           onPressed: _showSequentialAddDialog,
         ),
+
+        // =========================================================================
+        // SINKRONISASI APPBAR ACTION: Menampilkan Status Enkripsi sistem seperti di Notes
+        // Karena Modul Dokumen tidak dienkripsi, menggunakan ikon gembok terbuka berwarna teal transparan
+        // =========================================================================
+        appBarTrailingAction: Padding(
+          padding: const EdgeInsets.only(right: 8.0),
+          child: Tooltip(
+            message: 'Dekripsi Sistem Aktif (Teks Biasa)',
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.teal.withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.lock_open,
+                color: Colors.tealAccent,
+                size: 18,
+              ),
+            ),
+          ),
+        ),
+
         sectionKeys: allKeys,
         groupedItems: allItems,
         isSelectMode: false,
@@ -481,7 +505,8 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
             sectionName: sectionKey,
             themeColor: _themeColor,
             isEditMode: isLayoutEditMode ? true : _controller.isSectionEditMode,
-            isUpperCase: true,
+            isUpperCase:
+                true, // <--- SEKARANG MENJADI HURUF BESAR SEPERTI DI NOTES
             isFirst: index == 0,
             isLast: index == visibleKeysCount - 1,
             onToggleEdit: _controller.toggleSectionEditMode,
@@ -644,6 +669,7 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
           );
         },
       ),
+
       bottomNavigationBar:
           _isAdLoaded && _bannerAd != null && Platform.isAndroid
           ? SafeArea(

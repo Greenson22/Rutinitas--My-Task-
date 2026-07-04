@@ -1,10 +1,10 @@
 // lib/core/services/storage_service.dart
 
-import 'dart:async';
+import 'dart:async'; // <-- TAMBAHAN: Dibutuhkan untuk Timer
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart'; // <-- TAMBAHAN: Untuk ValueNotifier
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/default_json.dart';
@@ -21,7 +21,8 @@ class StorageService {
   static const String _keyLastRestoreInfo = 'last_restore_info';
 
   static const String _keyRememberPassword = 'remember_password';
-  static const String _keyPasswordTimeout = 'password_timeout';
+  static const String _keyPasswordTimeout =
+      'password_timeout'; // <-- TAMBAHAN: Key batas waktu sesi
 
   static String? sessionPassword;
 
@@ -54,7 +55,9 @@ class StorageService {
 
     final prefs = await SharedPreferences.getInstance();
     bool isEncrypted = prefs.getBool(_keyIsEncrypted) ?? false;
-    bool rememberPassword = prefs.getBool(_keyRememberPassword) ?? false;
+    bool rememberPassword =
+        prefs.getBool(_keyRememberPassword) ??
+        false; // <-- Tambahan deteksi status ingat password
 
     // Jika fitur enkripsi mati, tidak perlu menyalakan timer
     if (!isEncrypted) return;
@@ -165,7 +168,7 @@ class StorageService {
   }
 
   // =========================================================================
-  // === TASK MASTER STORAGE ===
+  // === TASK MASTER STORAGE (Mendukung Dekripsi Otomatis) ===
   // =========================================================================
 
   Future<File> getTargetJsonFile(String baseDirSetting) async {
@@ -232,7 +235,7 @@ class StorageService {
   }
 
   // =========================================================================
-  // === MY DOCUMENTS STORAGE ===
+  // === MY DOCUMENTS STORAGE (Mendukung Struktur Group Tanpa Enkripsi) ===
   // =========================================================================
 
   Future<Directory> getDocumentsDir(String baseDirSetting) async {
@@ -335,9 +338,8 @@ class StorageService {
     List<String> currentHistory = prefs.getStringList(_keyIpHistory) ?? [];
     currentHistory.remove(ip);
     currentHistory.insert(0, ip);
-    if (currentHistory.length > 5) {
+    if (currentHistory.length > 5)
       currentHistory = currentHistory.sublist(0, 5);
-    }
     await prefs.setStringList(_keyIpHistory, currentHistory);
   }
 
@@ -365,7 +367,7 @@ class StorageService {
   }
 
   // =========================================================================
-  // === PROMPT HUB STORAGE (Tanpa Enkripsi) ===
+  // === PROMPT HUB STORAGE (Mendukung Enkripsi Otomatis) ===
   // =========================================================================
 
   Future<Directory> getPromptDir(String baseDirSetting) async {
@@ -398,8 +400,14 @@ class StorageService {
     String jsonContent,
   ) async {
     final file = await getSpecificPromptFile(baseDirSetting, id);
-    // Bypass enkripsi, simpan langsung sebagai JSON plain text
-    await file.writeAsString(jsonContent);
+    String dataToSave = jsonContent;
+    bool isEncrypted = await isEncryptionEnabled();
+    String? password = await getEncryptionPassword();
+
+    if (isEncrypted && password != null && password.isNotEmpty) {
+      dataToSave = CryptoHelper.encrypt(jsonContent, password);
+    }
+    await file.writeAsString(dataToSave);
   }
 
   Future<void> deletePromptGroup(String baseDir, String id) async {
@@ -492,11 +500,12 @@ class StorageService {
     }
 
     List<File> allTargetFiles = [];
-
-    // PERBAIKAN: Task Master, Checklist, Jurnal Aktivitas, dan PROMPT
-    // telah DIHAPUS dari daftar target migrasi massal ini.
-    // Yang tersisa hanyalah Notes (satu-satunya modul yang masih dienkripsi).
+    allTargetFiles.add(await getTargetJsonFile(baseDir));
+    allTargetFiles.add(await getJurnalJsonFile(baseDir));
+    allTargetFiles.addAll(await getAllChecklistGroups(baseDir));
+    allTargetFiles.addAll(await getAllPromptGroups(baseDir));
     allTargetFiles.addAll(await getAllNoteGroups(baseDir));
+    // Dokumen sengaja dilewati dari perulangan migrasi enkripsi massal sesuai instruksi awal "tidak diencrypt"
 
     for (var file in allTargetFiles) {
       if (!await file.exists()) continue;

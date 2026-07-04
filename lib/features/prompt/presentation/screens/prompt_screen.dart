@@ -1,16 +1,16 @@
 // lib/features/prompt/presentation/screens/prompt_screen.dart
 import 'dart:convert';
-import 'dart:io';
+import 'dart:io'; // Ditambahkan untuk mengecek platform
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
-import 'package:rutinitasku/core/services/storage_service.dart';
+import 'package:flutter/foundation.dart'; // Ditambahkan untuk mendeteksi kDebugMode
+import 'package:google_mobile_ads/google_mobile_ads.dart'; // Ditambahkan untuk SDK AdMob
+import 'package:rutinitasku/core/services/storage_service.dart'; // <--- TAMBAHKAN IMPORT INI
 import '../../../../core/presentation/widgets/drawer_menu.dart';
 import '../../../../core/presentation/widgets/grouped_section_layout.dart';
 import '../../../../core/presentation/widgets/interactive_section_header.dart';
 import '../../../../core/presentation/widgets/interactive_grid_card.dart';
 import '../../../../core/presentation/widgets/universal_empty_state.dart';
-import '../../../../core/utils/crypto_helper.dart';
+import '../../../../core/utils/crypto_helper.dart'; // <--- TAMBAHKAN IMPORT CRYPTO HELPER
 import '../../data/models/prompt_model.dart';
 import '../controllers/prompt_controller.dart';
 import 'prompt_detail_screen.dart';
@@ -24,10 +24,13 @@ class PromptScreen extends StatefulWidget {
 
 class _PromptScreenState extends State<PromptScreen> {
   late final PromptController _controller;
-  final StorageService _storageService = StorageService();
+  final StorageService _storageService =
+      StorageService(); // <--- TAMBAHKAN INSTANCE INI
 
   // STATE BARU: Kontrol untuk menampilkan atau menyembunyikan kategori/grup tersembunyi
   bool _showHiddenSection = false;
+  bool _isGlobalEncryptionEnabled =
+      false; // <--- TAMBAHKAN VARIABEL STATE BARU INI
 
   // Variabel kontrol untuk Banner AdMob
   BannerAd? _bannerAd;
@@ -51,8 +54,10 @@ class _PromptScreenState extends State<PromptScreen> {
   void initState() {
     super.initState();
     _controller = PromptController();
+    _checkEncryptionStatus(); // <--- PANGGIL METHOD PENGECEKAN DI SINI
 
-    // Berikan jeda mikro asinkron (150ms) setelah frame utama dirender.
+    // PERBAIKAN 1: Berikan jeda mikro asinkron (150ms) setelah frame utama dirender.
+    // Menghilangkan lag saat pertama kali masuk halaman karena memisahkan beban rendering transisi dengan dekripsi I/O.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future.delayed(const Duration(milliseconds: 150), () {
         if (mounted) {
@@ -87,10 +92,21 @@ class _PromptScreenState extends State<PromptScreen> {
     )..load();
   }
 
+  // METHOD BARU: Mengambil konfigurasi status enkripsi master sistem dari storage
+  Future<void> _checkEncryptionStatus() async {
+    bool isEncrypted = await _storageService.isEncryptionEnabled();
+    if (mounted) {
+      setState(() {
+        _isGlobalEncryptionEnabled = isEncrypted;
+      });
+    }
+  }
+
   @override
   void dispose() {
     _controller.dispose();
-    _bannerAd?.dispose();
+    _bannerAd
+        ?.dispose(); // Hancurkan objek iklan dari memori saat halaman ditutup untuk mencegah kebocoran memori
     super.dispose();
   }
 
@@ -157,7 +173,7 @@ class _PromptScreenState extends State<PromptScreen> {
                   '',
                 );
 
-                // Menggunakan getSpecificPromptFile untuk mencari di folder 'prompts'
+                // PERBAIKAN UTAMA 1: Menggunakan getSpecificPromptFile untuk mencari di folder 'prompts'
                 final File targetFile = await _storageService
                     .getSpecificPromptFile(
                       await _storageService.getBaseDirSetting(),
@@ -184,13 +200,13 @@ class _PromptScreenState extends State<PromptScreen> {
                 );
                 PromptGroup decryptedGroup = PromptGroup.fromJson(parsedJson);
 
-                // Langkah 3: Tulis ulang konten sebagai JSON Plain Text murni (tanpa enkripsi lagi)
+                // Langkah 3: Tulis ulang konten menggunakan fungsi terenkripsi internal controller
                 await _controller.saveGroupDataToFile(decryptedGroup);
 
                 messenger.showSnackBar(
                   SnackBar(
                     content: Text(
-                      'Berkas "${decryptedGroup.title}" berhasil didekripsi and dimigrasi ke Plain Text!',
+                      'Berkas "${decryptedGroup.title}" berhasil didekripsi and disinkronkan ke sistem!',
                     ),
                     backgroundColor: Colors.green,
                   ),
@@ -206,7 +222,7 @@ class _PromptScreenState extends State<PromptScreen> {
                   ),
                 );
               } finally {
-                // Eksekusi pemuatan di luar setState (Aman dari Exception Future)
+                // PERBAIKAN UTAMA 2: Eksekusi pemuatan di luar setState (Aman dari Exception Future)
                 if (mounted) {
                   _controller.loadAllPrompts(context);
                 }
@@ -632,7 +648,26 @@ class _PromptScreenState extends State<PromptScreen> {
                 }
               },
             ),
-            appBarTrailingAction: null,
+            appBarTrailingAction: _isGlobalEncryptionEnabled
+                ? Padding(
+                    padding: const EdgeInsets.only(right: 8.0),
+                    child: Tooltip(
+                      message: 'Enkripsi Aktif',
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.teal.withOpacity(0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.lock,
+                          color: Colors.tealAccent,
+                          size: 18,
+                        ),
+                      ),
+                    ),
+                  )
+                : null,
             isSelectMode: false,
             selectedItemsCount: 0,
             onClearSelection: () {},
