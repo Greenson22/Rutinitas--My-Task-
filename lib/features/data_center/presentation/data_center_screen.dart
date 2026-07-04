@@ -1,13 +1,13 @@
-import 'dart:convert'; // DITAMBAHKAN untuk memproses serialisasi JSON string
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart'; // Ditambahkan untuk mendeteksi kDebugMode
-import 'package:google_mobile_ads/google_mobile_ads.dart'; // Ditambahkan untuk SDK AdMob
+import 'package:flutter/foundation.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:rutinitasku/features/data_center/presentation/backup/backup_tab.dart';
 import 'package:rutinitasku/features/data_center/presentation/local_sharing/local_sharing_tab.dart';
 import '../../../core/services/storage_service.dart';
 import '../../../core/presentation/widgets/drawer_menu.dart';
-import 'widgets/last_restore_banner.dart'; // Impor widget banner
+import 'widgets/last_restore_banner.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:archive/archive_io.dart';
 
@@ -23,47 +23,36 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
   String _baseDir = 'Documents';
   bool _isLoading = false;
 
-  // State untuk menyimpan informasi status restore terakhir
   Map<String, String>? _lastRestoreInfo;
 
-  // GlobalKey untuk memicu pembaruan daftar berkas lokal di dalam BackupTab
   final GlobalKey<BackupTabState> _backupTabKey = GlobalKey<BackupTabState>();
-
-  // GlobalKey untuk memicu pembaruan daftar berkas server di dalam LocalSharingTab
   final GlobalKey<LocalSharingTabState> _sharingTabKey =
       GlobalKey<LocalSharingTabState>();
 
-  // Variabel kontrol untuk Banner AdMob
   BannerAd? _bannerAd;
   bool _isAdLoaded = false;
 
-  // Getter adaptif untuk menentukan Ad Unit ID Iklan Banner
   String get adUnitId {
     if (Platform.isAndroid) {
       if (kDebugMode) {
-        // ID Test Resmi dari Google untuk pengujian iklan Banner Android
         return 'ca-app-pub-3940256099942544/6300978111';
       } else {
-        // GANTI dengan Ad Unit ID asli Anda dari dasbor AdMob saat rilis nanti
         return 'ca-app-pub-5320800343545863/8571499437';
       }
     }
-    return ''; // Kosongkan jika berjalan di Desktop (Windows/Linux/macOS) agar tidak crash
+    return '';
   }
 
   @override
   void initState() {
     super.initState();
     _loadBaseDirectory();
-    _loadLastRestoreInfo(); // DITAMBAHKAN: Ambil data restore terakhir dari lokal disk saat inisialisasi awal
-
-    // Panggil fungsi pemuatan iklan banner
+    _loadLastRestoreInfo();
     _loadBannerAd();
   }
 
-  // Fungsi untuk mengunduh iklan banner AdMob
   void _loadBannerAd() {
-    if (adUnitId.isEmpty) return; // Batalkan jika bukan platform Android
+    if (adUnitId.isEmpty) return;
 
     _bannerAd = BannerAd(
       adUnitId: adUnitId,
@@ -85,8 +74,7 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
 
   @override
   void dispose() {
-    _bannerAd
-        ?.dispose(); // Hancurkan objek iklan dari memori untuk mencegah kebocoran memori
+    _bannerAd?.dispose();
     super.dispose();
   }
 
@@ -96,12 +84,10 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
       setState(() {
         _baseDir = dir;
       });
-      // Memperbarui tab sharing melalui GlobalKey jika sudah terpasang
       _sharingTabKey.currentState?.refreshServerBackups();
     }
   }
 
-  // DITAMBAHKAN: Mengambil data status restore persisten dari StorageService
   void _loadLastRestoreInfo() async {
     try {
       String? savedInfo = await _storageService.getLastRestoreInfo();
@@ -121,6 +107,153 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
   }
 
   // =========================================================================
+  // LOGIKA RESET PABRIK (WIPE SEMUA DATA)
+  // =========================================================================
+  void _showResetDataDialog() {
+    final TextEditingController confirmController = TextEditingController();
+    const String confirmationText = "HAPUS SEMUA DATA";
+    bool isMatch = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: Row(
+                children: const [
+                  Icon(
+                    Icons.warning_amber_rounded,
+                    color: Colors.red,
+                    size: 30,
+                  ),
+                  SizedBox(width: 8),
+                  Text('Reset Sistem', style: TextStyle(color: Colors.red)),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Peringatan Kritis! Tindakan ini akan menghapus seluruh data (Task, Jurnal, Checklist, Catatan, Prompt, Dokumen) secara permanen tanpa kecuali.',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Untuk melanjutkan, ketik persis kalimat berikut:',
+                  ),
+                  Container(
+                    margin: const EdgeInsets.symmetric(vertical: 8),
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.red.shade200),
+                    ),
+                    child: const SelectableText(
+                      confirmationText,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                        letterSpacing: 2.0,
+                        color: Colors.red,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: confirmController,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      hintText: 'Ketik di sini...',
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: Colors.red),
+                      ),
+                    ),
+                    onChanged: (val) {
+                      setDialogState(() {
+                        isMatch = val == confirmationText;
+                      });
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text(
+                    'Batal',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: isMatch
+                      ? () async {
+                          Navigator.pop(ctx);
+                          await _performFactoryReset();
+                        }
+                      : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    disabledBackgroundColor: Colors.red.shade200,
+                  ),
+                  child: const Text(
+                    'Ya, Hapus Bersih',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _performFactoryReset() async {
+    setState(() => _isLoading = true);
+    try {
+      await _storageService.wipeAllData();
+
+      // Refresh state di tab
+      _backupTabKey.currentState?.refreshLocalBackups();
+      _sharingTabKey.currentState?.refreshServerBackups();
+
+      setState(() {
+        _lastRestoreInfo = null;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Sistem berhasil di-reset. Seluruh data telah dibersihkan.',
+            ),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal melakukan reset: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // =========================================================================
   // LOGIKA OVERWRITE TOTAL SELURUH ISI ZIP (Dibutuhkan oleh kedua Tab)
   // =========================================================================
   void _importAllFromZip(File zipFile) async {
@@ -128,7 +261,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
       List<int> bytes = await zipFile.readAsBytes();
       Archive archive = ZipDecoder().decodeBytes(bytes);
 
-      // 1. Bersihkan dan inisialisasi folder Checklist
       String folderChecklist = await _storageService.getChecklistDirPath(
         _baseDir,
       );
@@ -138,22 +270,18 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
       }
       checklistDir.createSync(recursive: true);
 
-      // 2. Bersihkan dan inisialisasi folder Notes
       Directory notesDir = await _storageService.getNotesDir(_baseDir);
       if (notesDir.existsSync()) {
         notesDir.deleteSync(recursive: true);
       }
       notesDir.createSync(recursive: true);
 
-      // 3. Bersihkan dan inisialisasi folder Prompts
       Directory promptsDir = await _storageService.getPromptDir(_baseDir);
       if (promptsDir.existsSync()) {
         promptsDir.deleteSync(recursive: true);
       }
       promptsDir.createSync(recursive: true);
 
-      // 4. BARU: Bersihkan folder my_documents lama jika ada di dalam berkas cadangan ZIP
-      // Logika pembersihan diletakkan di sini agar folder dokumen hanya dihapus jika ZIP tersebut memang memiliki data dokumen
       bool hasDocumentsInZip = archive.any(
         (file) => file.isFile && file.name.startsWith('my_documents/'),
       );
@@ -165,7 +293,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
         documentsDir.createSync(recursive: true);
       }
 
-      // Loop ekstraksi berkas arsip
       for (ArchiveFile file in archive) {
         if (file.isFile) {
           if (file.name == 'my_tasks.json') {
@@ -196,10 +323,8 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
               ).writeAsBytes(file.content);
             }
           } else if (file.name.startsWith('my_documents/')) {
-            // BARU: Penanganan restore file fisik dokumen asli beserta subfolder strukturnya (id grup)
             File targetFile = File('$_baseDir/${file.name}');
 
-            // Pastikan subfolder penampung (grup id) dibuat terlebih dahulu jika belum ada
             if (!targetFile.parent.existsSync()) {
               targetFile.parent.createSync(recursive: true);
             }
@@ -209,10 +334,8 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
       }
 
       _loadBaseDirectory();
-      // Picu pembaruan daftar file cadangan lokal setelah sistem berhasil melakukan data restore total
       _backupTabKey.currentState?.refreshLocalBackups();
 
-      // Format informasi nama file, waktu, dan penentuan sumber data untuk LastRestoreBanner
       final String fileName = zipFile.path.split('/').last;
       final now = DateTime.now();
       final String timeString =
@@ -232,7 +355,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
         _lastRestoreInfo = infoData;
       });
 
-      // MODIFIKASI: Mengamankan status banner ke memori permanen lokal HP/Device
       await _storageService.saveLastRestoreInfo(jsonEncode(infoData));
 
       if (!mounted) return;
@@ -316,6 +438,14 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
         appBar: AppBar(
           title: const Text('Data Center'),
           backgroundColor: Colors.indigo[700],
+          actions: [
+            // TOMBOL RESET DATA DITAMBAHKAN DI SINI
+            IconButton(
+              icon: const Icon(Icons.delete_forever, color: Colors.redAccent),
+              tooltip: 'Reset Semua Data',
+              onPressed: _showResetDataDialog,
+            ),
+          ],
           bottom: const TabBar(
             indicatorColor: Colors.amberAccent,
             indicatorWeight: 3,
@@ -334,16 +464,14 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                 // TAB 1: Backup
                 BackupTab(
                   key: _backupTabKey,
-                  lastRestoreInfo:
-                      _lastRestoreInfo, // Meneruskan state info restore
+                  lastRestoreInfo: _lastRestoreInfo,
                   onRestoreAllZip: (file) => _importAllFromZip(file),
                   onImportZip: () => _importZipLokal(),
                 ),
                 // TAB 2: Local Sharing
                 LocalSharingTab(
                   key: _sharingTabKey,
-                  lastRestoreInfo:
-                      _lastRestoreInfo, // Meneruskan state info restore
+                  lastRestoreInfo: _lastRestoreInfo,
                   onRestoreAllZip: (file) => _importAllFromZip(file),
                   onLoadingStatusChanged: (statusLoading) {
                     setState(() {
@@ -351,7 +479,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
                     });
                   },
                   onDataSynchronized: () {
-                    // Ketika Client menerima data dari server, segarkan juga daftar berkas lokal pada Tab 1
                     _backupTabKey.currentState?.refreshLocalBackups();
                   },
                 ),
@@ -377,7 +504,6 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
               ),
           ],
         ),
-        // IMPLEMENTASI LAYOUT FOOTER BANNER ADMOB KHUSUS ANDROID
         bottomNavigationBar:
             _isAdLoaded && _bannerAd != null && Platform.isAndroid
             ? SafeArea(

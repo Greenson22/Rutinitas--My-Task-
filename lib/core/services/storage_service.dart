@@ -211,8 +211,9 @@ class StorageService {
 
   Future<Directory> getChecklistDir(String baseDirSetting) async {
     final Directory checklistDir = Directory('$baseDirSetting/my_checklist');
-    if (!await checklistDir.exists())
+    if (!await checklistDir.exists()) {
       await checklistDir.create(recursive: true);
+    }
     return checklistDir;
   }
 
@@ -240,8 +241,9 @@ class StorageService {
 
   Future<Directory> getDocumentsDir(String baseDirSetting) async {
     final Directory documentsDir = Directory('$baseDirSetting/my_documents');
-    if (!await documentsDir.exists())
+    if (!await documentsDir.exists()) {
       await documentsDir.create(recursive: true);
+    }
     return documentsDir;
   }
 
@@ -338,8 +340,9 @@ class StorageService {
     List<String> currentHistory = prefs.getStringList(_keyIpHistory) ?? [];
     currentHistory.remove(ip);
     currentHistory.insert(0, ip);
-    if (currentHistory.length > 5)
+    if (currentHistory.length > 5) {
       currentHistory = currentHistory.sublist(0, 5);
+    }
     await prefs.setStringList(_keyIpHistory, currentHistory);
   }
 
@@ -533,5 +536,50 @@ class StorageService {
         }
       }
     }
+  }
+
+  // =========================================================================
+  // === FITUR WIPE / RESET DATA ===
+  // =========================================================================
+  Future<void> wipeAllData() async {
+    final baseDir = await getBaseDirSetting();
+
+    // 1. Reset my_tasks.json ke file default awal
+    final File taskFile = await getTargetJsonFile(baseDir);
+    if (taskFile.existsSync()) await taskFile.delete();
+    await loadOrInitializeJson(taskFile);
+
+    // 2. Reset time_log.json ke file default awal
+    final File jurnalFile = await getJurnalJsonFile(baseDir);
+    if (jurnalFile.existsSync()) await jurnalFile.delete();
+    await loadOrInitializeJurnalJson(jurnalFile);
+
+    // 3. Hapus seluruh isi direktori my_checklist
+    final Directory checklistDir = await getChecklistDir(baseDir);
+    if (checklistDir.existsSync()) {
+      checklistDir.deleteSync(recursive: true);
+    }
+
+    // 4. Hapus seluruh isi direktori notes
+    final Directory notesDir = await getNotesDir(baseDir);
+    if (notesDir.existsSync()) {
+      notesDir.deleteSync(recursive: true);
+    }
+
+    // 5. Hapus seluruh isi direktori prompts
+    final Directory promptsDir = await getPromptDir(baseDir);
+    if (promptsDir.existsSync()) {
+      promptsDir.deleteSync(recursive: true);
+    }
+
+    // 6. Hapus seluruh isi direktori my_documents
+    final Directory documentsDir = await getDocumentsDir(baseDir);
+    if (documentsDir.existsSync()) {
+      documentsDir.deleteSync(recursive: true);
+    }
+
+    // 7. Reset state last restore info pada SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_keyLastRestoreInfo);
   }
 }
