@@ -3,7 +3,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // TAMBAHAN: Diperlukan untuk utilitas interaksi Clipboard (Salin/Tempel)
+import 'package:flutter/services.dart';
 import '../../../../../core/services/storage_service.dart';
 import '../../../data/models/daily_model.dart';
 import '../widgets/checklist_dialog.dart';
@@ -16,26 +16,22 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
   bool isSectionEditMode = false;
   late ChecklistGroup currentGroup;
 
-  // State untuk menyimpan teks pencarian item
   String searchQuery = '';
-
-  // PERBAIKAN: Mengubah nama seksi default/standar menjadi "Seksi Utama"
   static const String defaultSectionName = "Seksi Utama";
 
   @override
   void initState() {
     super.initState();
-    currentGroup = widget.group; // Mengambil data hub dari layar sebelumnya
+    currentGroup = widget.group;
   }
 
-  // Fungsi memperbarui query pencarian dari UI
   void updateSearchQuery(String query) {
     setState(() {
       searchQuery = query.toLowerCase();
     });
   }
 
-  // Fungsi menyimpan khusus ke file JSON milik Hub ini saja
+  // Bypass enkripsi, gunakan writeAsString
   Future<void> saveGroupData() async {
     final Map<String, dynamic> updatedMap = currentGroup.toJson();
     final String jsonString = const JsonEncoder.withIndent(
@@ -46,22 +42,17 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
         widget.baseDir,
         currentGroup.id,
       );
-      await storageService.saveJsonData(jsonFile, jsonString);
+      await jsonFile.writeAsString(jsonString); // Tulis langsung Plain Text
     } catch (e) {
       debugPrint("Error saving group data: $e");
     }
   }
 
-  // =========================================================================
-  // FITUR BARU: Mengubah Status Visibilitas Item (Sembunyikan / Tampilkan)
-  // =========================================================================
   Future<void> toggleSubjectVisibility(DailySubject subject) async {
     setState(() {
-      // Membalikkan status boolean isHidden pada model subjek
       subject.isHidden = !subject.isHidden;
     });
 
-    // Simpan perubahan status visibilitas ke berkas lokal
     await saveGroupData();
 
     if (mounted) {
@@ -79,9 +70,6 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
     }
   }
 
-  // =========================================================================
-  // FITUR BARU: Memindahkan DailySubject ke Berkas Grup Lain dengan Konfirmasi
-  // =========================================================================
   Future<void> moveChecklistToAnotherGroup({
     required List<DailySubject> currentSectionItems,
     required DailySubject subject,
@@ -128,7 +116,6 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
     if (!confirm) return;
 
     try {
-      // 1. Tentukan target penempatan seksi di dalam grup tujuan.
       String targetSectionName = defaultSectionName;
       if (targetGroup.allList.isNotEmpty) {
         targetSectionName = targetGroup.allList.first.sectionName;
@@ -138,16 +125,13 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
         );
       }
 
-      // 2. Sesuaikan penanda nama seksi internal pada model subjek
       subject.section = targetSectionName;
 
-      // 3. Masukkan subjek ke dalam manifest struktur seksi grup target
       targetGroup.allList
           .firstWhere((sec) => sec.sectionName == targetSectionName)
           .items
           .add(subject);
 
-      // 4. Konstruksi penyimpanan fisik ke disk file JSON grup tujuan secara independen
       final String targetJsonString = const JsonEncoder.withIndent(
         '  ',
       ).convert(targetGroup.toJson());
@@ -155,14 +139,14 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
         widget.baseDir,
         targetGroup.id,
       );
-      await storageService.saveJsonData(targetJsonFile, targetJsonString);
+      await targetJsonFile.writeAsString(
+        targetJsonString,
+      ); // Tulis langsung Plain Text
 
-      // 5. Jika sukses menulis file eksternal, barulah hapus subjek dari grup saat ini secara lokal
       setState(() {
         currentSectionItems.remove(subject);
       });
 
-      // 6. Tulis ulang perubahan grup saat ini ke penyimpanan disk lokal
       await saveGroupData();
 
       if (mounted) {
@@ -190,13 +174,9 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
     }
   }
 
-  // =========================================================================
-  // FITUR UTAMA BARU: Dialog Editor Raw JSON Item Card (Sangat Interaktif)
-  // =========================================================================
   void showEditJsonDialog(DailySubject subject) {
     final TextEditingController jsonController = TextEditingController();
 
-    // Mengubah model subject saat ini menjadi format text JSON rapi (Pretty Print Indentation)
     try {
       final map = subject.toJson();
       jsonController.text = const JsonEncoder.withIndent('  ').convert(map);
@@ -223,9 +203,7 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
           ),
           content: SizedBox(
             width: double.maxFinite,
-            height:
-                MediaQuery.of(context).size.height *
-                0.62, // Mengisi 62% tinggi layar agar area edit luas
+            height: MediaQuery.of(context).size.height * 0.62,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -243,7 +221,6 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    // Sediakan tombol interaktif Salin & Tempel cepat tanpa repot block teks manual
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -304,7 +281,7 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
                       fontFamily: 'Courier',
                       fontSize: 13,
                       height: 1.3,
-                    ), // Gaya font koding monospace
+                    ),
                     decoration: const InputDecoration(
                       border: OutlineInputBorder(),
                       fillColor: Color(0xFFF8F9FA),
@@ -336,11 +313,9 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
                     );
                   }
 
-                  // Lakukan parsing instans baru untuk memvalidasi pemetaan tipe data model berlapis
                   final parsedSubject = DailySubject.fromJson(decoded);
 
                   setState(() {
-                    // Update field per field secara presisi untuk menjaga sinkronisasi UI Grid Referensial
                     subject.subjectName = parsedSubject.subjectName;
                     subject.progress = parsedSubject.progress;
                     subject.subMateri = parsedSubject.subMateri;
@@ -358,13 +333,12 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
                     subject.isMarkdownEnabled = parsedSubject.isMarkdownEnabled;
                     subject.defaultExpanded = parsedSubject.defaultExpanded;
 
-                    // Rekalkulasi status hierarkis sub-materi secara internal otomatis
                     for (var root in subject.subMateri) {
                       root.updateStatusFromChildren();
                     }
                   });
 
-                  saveGroupData(); // Simpan permanen ke storage disk lokal harian
+                  saveGroupData();
                   Navigator.pop(context);
 
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -383,9 +357,7 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
                         'Gagal menyimpan! Format koding JSON tidak valid.\nDetail: $e',
                       ),
                       backgroundColor: Colors.redAccent,
-                      duration: const Duration(
-                        seconds: 4,
-                      ), // Waktu tahan lama agar user sempat membaca error
+                      duration: const Duration(seconds: 4),
                     ),
                   );
                 }
@@ -403,7 +375,6 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
   }
 
   void openMateriChecklist(DailySubject subject) {
-    // Kumpulkan semua kotak materi (DailySubject) dari seluruh seksi yang tersedia
     List<DailySubject> allAvailableSubjects = [];
     for (var section in currentGroup.allList) {
       allAvailableSubjects.addAll(section.items);
@@ -413,8 +384,7 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
       context: context,
       builder: (context) => DailyChecklistDialog(
         subject: subject,
-        allAvailableSubjects:
-            allAvailableSubjects, // Pindah ke kotak checklist lainnya
+        allAvailableSubjects: allAvailableSubjects,
         onDataChanged: () {
           saveGroupData();
           setState(() {});
@@ -442,14 +412,12 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
             onPressed: () {
               if (sectionController.text.isNotEmpty) {
                 setState(() {
-                  // Jika seksi pertama masih berupa seksi unik default, otomatis ubah namanya
                   if (currentGroup.allList.length == 1 &&
                       currentGroup.allList.first.sectionName ==
                           defaultSectionName) {
                     currentGroup.allList.first.sectionName = "Seksi Utama";
                   }
 
-                  // Tambahkan seksi baru pilihan pengguna
                   currentGroup.allList.add(
                     ChecklistSection(
                       sectionName: sectionController.text.trim(),
@@ -477,7 +445,6 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
             : currentGroup.allList.map((sec) => sec.sectionName).toList(),
         onSave: (newSubject) {
           setState(() {
-            // Jika ditambahkan saat kosong, buat seksi unik terlebih dahulu
             if (currentGroup.allList.isEmpty) {
               final newSection = ChecklistSection(
                 sectionName: defaultSectionName,
@@ -485,11 +452,9 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
               );
               currentGroup.allList.add(newSection);
             } else {
-              // Jika seksi target ada, langsung masukkan ke seksi tersebut
               if (targetSection != null) {
                 targetSection.items.add(newSubject);
               } else if (currentGroup.allList.isNotEmpty) {
-                // Fallback ke seksi pertama jika targetSection bernilai null
                 currentGroup.allList.first.items.add(newSubject);
               }
             }
