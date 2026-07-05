@@ -23,8 +23,7 @@ class SharingServer {
     showDialog(
       context: context,
       barrierDismissible: false,
-      useRootNavigator:
-          true, // <--- PERBAIKAN: Memaksa dialog berada di root navigator
+      useRootNavigator: true,
       builder: (dialogCtx) {
         WidgetsBinding.instance.addPostFrameCallback((_) => onReady(dialogCtx));
         final accentColor = isSending ? Colors.teal : Colors.indigo;
@@ -207,6 +206,9 @@ class SharingServer {
             );
             if (handledByDocSync) return;
 
+            // PERBAIKAN: Jaga-jaga agar JSON Parser di bawah tidak crash akibat data biner yang nyasar
+            if (pesanMasuk is! String) return;
+
             BuildContext? progressCtx;
             final statusNotifier = ValueNotifier<String>(
               'Menginisialisasi penerimaan...',
@@ -333,7 +335,6 @@ class SharingServer {
                   await fileZipTarget.writeAsBytes(finalZipBytes);
                   onDataReceived();
 
-                  // PERBAIKAN: Tutup menggunakan rootNavigator
                   if (progressCtx != null && progressCtx!.mounted) {
                     Navigator.of(progressCtx!, rootNavigator: true).pop();
                   }
@@ -347,14 +348,12 @@ class SharingServer {
                     ),
                   );
                 } else {
-                  // PERBAIKAN: Tutup menggunakan rootNavigator
                   if (progressCtx != null && progressCtx!.mounted) {
                     Navigator.of(progressCtx!, rootNavigator: true).pop();
                   }
                 }
               }
             } catch (err) {
-              // PERBAIKAN: Tutup menggunakan rootNavigator
               if (progressCtx != null && progressCtx!.mounted) {
                 Navigator.of(progressCtx!, rootNavigator: true).pop();
               }
@@ -573,7 +572,6 @@ class SharingServer {
             socket.sink.add(jsonEncode(sendBigPackage));
           }
 
-          // PERBAIKAN: Tutup menggunakan rootNavigator
           if (progressCtx != null && progressCtx!.mounted) {
             Navigator.of(progressCtx!, rootNavigator: true).pop();
           }
@@ -587,7 +585,6 @@ class SharingServer {
             ),
           );
         } catch (e) {
-          // PERBAIKAN: Tutup menggunakan rootNavigator
           if (progressCtx != null && progressCtx!.mounted) {
             Navigator.of(progressCtx!, rootNavigator: true).pop();
           }

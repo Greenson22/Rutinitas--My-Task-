@@ -1,7 +1,7 @@
 // lib/features/data_center/presentation/local_sharing/doc_sync_helper.dart
 import 'dart:convert';
 import 'dart:io';
-import 'package:archive/archive_io.dart';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../../../../core/services/storage_service.dart';
 
@@ -30,7 +30,10 @@ class DocSyncHelper {
   static bool _isSyncDialogOpen = false;
   static ValueNotifier<String>? _currentStatusNotifier;
 
-  // PERBAIKAN: Manajemen Dialog Mandiri yang Deterministik (Anti-Stuck)
+  // Variabel untuk melacak data biner file yang akan masuk (Streaming State)
+  static Map<String, dynamic>? _nextIncomingFileMeta;
+  static bool _isWaitingForBinary = false;
+
   static void showSyncDialog({
     required BuildContext context,
     required String title,
@@ -246,76 +249,120 @@ class DocSyncHelper {
     }
   }
 
-  static Future<Map<String, dynamic>> packageRequestedFiles(
-    String baseDir,
-    List<String> requestedPaths,
-  ) async {
+  // METODE BARU: Mengirim Berkas Biner Satu per Satu (Anti Force Close)
+  static Future<void> streamRequestedFiles({
+    required String baseDir,
+    required List<String> requestedPaths,
+    required dynamic socketSink,
+  }) async {
     final Directory docDir = Directory('$baseDir/my_documents');
-    final Archive archive = Archive();
-    Map<String, int> timestamps = {};
 
-    for (var relPath in requestedPaths) {
+    for (int i = 0; i < requestedPaths.length; i++) {
+      final String relPath = requestedPaths[i];
       final file = File('${docDir.path}/$relPath');
+
       if (await file.exists()) {
         final bytes = await file.readAsBytes();
-        archive.addFile(ArchiveFile(relPath, bytes.length, bytes));
-        timestamps[relPath] = file.lastModifiedSync().millisecondsSinceEpoch;
-      }
-    }
+        final int timestamp = file.lastModifiedSync().millisecondsSinceEpoch;
 
-    final zipBytes = ZipEncoder().encode(archive);
-    return {
-      'zip_base64': zipBytes != null ? base64Encode(zipBytes) : "",
-      'timestamps': timestamps,
-    };
-  }
+        updateStatus('Mengirim [${i + 1}/${requestedPaths.length}]\n$relPath');
 
-  static Future<int> extractAndApplyDelta({
-    required String baseDir,
-    required String zipBase64,
-    required Map<String, dynamic> timestamps,
-  }) async {
-    if (zipBase64.isEmpty) return 0;
+        // 1. Kirim Metadata Teks
+        socketSink.add(
+          jsonEncode({
+            'tipe_pesan': 'doc_sync_file_chunk_init',
+            'path': relPath,
+            'timestamp': timestamp,
+            'is_last': i == requestedPaths.length - 1,
+          }),
+        );
 
-    final Directory docDir = Directory('$baseDir/my_documents');
-    if (!await docDir.exists()) await docDir.create(recursive: true);
+        await Future.delayed(const Duration(milliseconds: 50));
 
-    final bytes = base64Decode(zipBase64);
-    final Archive archive = ZipDecoder().decodeBytes(bytes);
-    int count = 0;
+        // 2. Kirim Biner Asli
+        socketSink.add(bytes);
 
-    for (ArchiveFile file in archive) {
-      if (file.isFile) {
-        final outFile = File('${docDir.path}/${file.name}');
-        if (!await outFile.parent.exists()) {
-          await outFile.parent.create(recursive: true);
-        }
-        await outFile.writeAsBytes(file.content as List<int>, flush: true);
-
-        if (timestamps.containsKey(file.name)) {
-          outFile.setLastModifiedSync(
-            DateTime.fromMillisecondsSinceEpoch(timestamps[file.name]),
+        await Future.delayed(const Duration(milliseconds: 100));
+      } else {
+        // Jika file hilang, amankan proses dengan dummy data jika itu adalah file terakhir
+        if (i == requestedPaths.length - 1) {
+          socketSink.add(
+            jsonEncode({
+              'tipe_pesan': 'doc_sync_file_chunk_init',
+              'path': 'EOF_DUMMY',
+              'timestamp': 0,
+              'is_last': true,
+            }),
           );
+          await Future.delayed(const Duration(milliseconds: 50));
+          socketSink.add(<int>[]);
         }
-        count++;
       }
     }
-    return count;
   }
 
   // PUSAT PENANGANAN PESAN WEBSOCKET MIRRORING
   static Future<bool> handleDocSyncStream({
-    required String pesanMasuk,
+    required dynamic pesanMasuk, // PERBAIKAN: Ubah menjadi dynamic
     required dynamic socketSink,
     required BuildContext context,
     required StorageService storageService,
     Function(bool)? onLoadingStatusChanged,
   }) async {
     try {
-      Map<String, dynamic> data = jsonDecode(pesanMasuk);
+      String currentDir = await storageService.getBaseDirSetting();
+
+      // 1. TANGANI JIKA PESAN MASUK ADALAH DATA BINER
+      if (pesanMasuk is List<int> || pesanMasuk is Uint8List) {
+        if (_isWaitingForBinary && _nextIncomingFileMeta != null) {
+          final String relPath = _nextIncomingFileMeta!['path'];
+          final int timestamp = _nextIncomingFileMeta!['timestamp'];
+          final bool isLast = _nextIncomingFileMeta!['is_last'];
+
+          if (relPath != 'EOF_DUMMY' && pesanMasuk.isNotEmpty) {
+            final outFile = File('$currentDir/my_documents/$relPath');
+            if (!await outFile.parent.exists()) {
+              await outFile.parent.create(recursive: true);
+            }
+
+            // Tulis langsung ke penyimpanan tanpa singgah memori RAM berlebih
+            await outFile.writeAsBytes(pesanMasuk as List<int>, flush: true);
+            outFile.setLastModifiedSync(
+              DateTime.fromMillisecondsSinceEpoch(timestamp),
+            );
+          }
+
+          _isWaitingForBinary = false;
+
+          if (isLast) {
+            closeSyncDialog(context);
+            if (onLoadingStatusChanged != null) onLoadingStatusChanged(false);
+
+            socketSink.add(
+              jsonEncode({
+                'tipe_pesan': 'doc_sync_done',
+                'msg': 'Sinkronisasi cermin selesai dengan aman!',
+              }),
+            );
+          }
+          return true;
+        }
+        return false;
+      }
+
+      // 2. TANGANI JIKA PESAN MASUK ADALAH TEKS JSON
+      Map<String, dynamic> data = jsonDecode(pesanMasuk.toString());
       String tipe = data['tipe_pesan'] ?? '';
 
       if (!tipe.startsWith('doc_sync_')) return false;
+
+      // Terima sinyal awal sebelum data biner masuk
+      if (tipe == 'doc_sync_file_chunk_init') {
+        _nextIncomingFileMeta = data;
+        _isWaitingForBinary = true;
+        updateStatus('Menerima berkas:\n${data['path']}');
+        return true;
+      }
 
       if (tipe == 'doc_sync_init') {
         closeSyncDialog(context);
@@ -337,9 +384,7 @@ class DocSyncHelper {
             .map((x) => DocManifestItem.fromJson(x))
             .toList();
 
-        String currentDir = await storageService.getBaseDirSetting();
         List<DocManifestItem> localManifest = await createManifest(currentDir);
-
         statusNotifier.value = 'Melakukan sensus komparasi berkas...';
 
         final rekonsiliasi = reconcile(
@@ -425,9 +470,7 @@ class DocSyncHelper {
         }
 
         if (toRequest.isEmpty) {
-          closeSyncDialog(
-            context,
-          ); // Langsung tutup di sisi Klien karena identik
+          closeSyncDialog(context);
           if (onLoadingStatusChanged != null) onLoadingStatusChanged(false);
 
           socketSink.add(
@@ -462,82 +505,32 @@ class DocSyncHelper {
         List<String> toSend = reqFiles.map((e) => e.toString()).toList();
 
         if (_isSyncDialogOpen) {
-          updateStatus('Membungkus ${toSend.length} dokumen...');
+          updateStatus('Mempersiapkan ${toSend.length} dokumen...');
         } else {
           final statusNotifier = ValueNotifier<String>(
-            'Membungkus ${toSend.length} dokumen...',
+            'Mempersiapkan ${toSend.length} dokumen...',
           );
           if (context.mounted) {
             showSyncDialog(
               context: context,
-              title: 'Mengirim Paket Delta',
+              title: 'Mengirim Antrean Dokumen',
               statusNotifier: statusNotifier,
               isSending: true,
             );
           }
         }
 
-        String currentDir = await storageService.getBaseDirSetting();
-        final deltaPackage = await packageRequestedFiles(currentDir, toSend);
-
-        updateStatus('Menyemburkan data nirkabel...');
-
-        socketSink.add(
-          jsonEncode({
-            'tipe_pesan': 'doc_sync_payload',
-            'zip_base64': deltaPackage['zip_base64'],
-            'timestamps': deltaPackage['timestamps'],
-          }),
-        );
-        if (onLoadingStatusChanged != null) onLoadingStatusChanged(false);
-        return true;
-      } else if (tipe == 'doc_sync_payload') {
-        if (_isSyncDialogOpen) {
-          updateStatus('Menerapkan berkas delta...');
-        } else {
-          final statusNotifier = ValueNotifier<String>(
-            'Menerapkan berkas delta...',
-          );
-          if (context.mounted) {
-            showSyncDialog(
-              context: context,
-              title: 'Menerapkan Berkas Delta',
-              statusNotifier: statusNotifier,
-              isSending: false,
-            );
-          }
-        }
-
-        String currentDir = await storageService.getBaseDirSetting();
-        int count = await extractAndApplyDelta(
+        // PERBAIKAN: Ganti proses ZIP raksasa dengan Streaming
+        await streamRequestedFiles(
           baseDir: currentDir,
-          zipBase64: data['zip_base64'] ?? '',
-          timestamps: data['timestamps'] ?? {},
+          requestedPaths: toSend,
+          socketSink: socketSink,
         );
 
-        closeSyncDialog(context); // Klien selesai menerapkan berkas delta!
         if (onLoadingStatusChanged != null) onLoadingStatusChanged(false);
-
-        socketSink.add(
-          jsonEncode({
-            'tipe_pesan': 'doc_sync_done',
-            'msg': 'Berhasil memperbarui $count dokumen baru!',
-          }),
-        );
-
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                '  Sinkronisasi cermin selesai! ($count berkas diperbarui)',
-              ),
-              backgroundColor: Colors.teal,
-            ),
-          );
-        }
         return true;
       } else if (tipe == 'doc_sync_done') {
-        closeSyncDialog(context); // Pengirim menerima balasan selesai!
+        closeSyncDialog(context);
         if (onLoadingStatusChanged != null) onLoadingStatusChanged(false);
 
         if (context.mounted) {
@@ -565,6 +558,7 @@ class DocSyncHelper {
       }
       return false;
     } catch (e) {
+      _isWaitingForBinary = false;
       closeSyncDialog(context);
       if (onLoadingStatusChanged != null) onLoadingStatusChanged(false);
       debugPrint("DocSyncHelper Error: $e");

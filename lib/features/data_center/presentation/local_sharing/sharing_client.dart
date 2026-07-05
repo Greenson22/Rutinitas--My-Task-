@@ -21,8 +21,7 @@ class SharingClient {
     showDialog(
       context: context,
       barrierDismissible: false,
-      useRootNavigator:
-          true, // <--- PERBAIKAN: Memaksa dialog berada di root navigator
+      useRootNavigator: true,
       builder: (dialogCtx) {
         WidgetsBinding.instance.addPostFrameCallback((_) => onReady(dialogCtx));
         final accentColor = isSending ? Colors.teal : Colors.indigo;
@@ -138,7 +137,6 @@ class SharingClient {
     );
   }
 
-  // PERBAIKAN: Tunggu dialog input ditutup total agar tidak terjadi bentrokan transisi rute
   void showConnectDialog({
     required BuildContext context,
     required String baseDir,
@@ -256,11 +254,7 @@ class SharingClient {
                   String targetIp = ipController.text.trim();
                   if (targetIp.isNotEmpty) {
                     await _storageService.saveIpToHistory(targetIp);
-                    if (ctx.mounted)
-                      Navigator.pop(
-                        ctx,
-                        targetIp,
-                      ); // Kembalikan IP & tutup dialog 100%!
+                    if (ctx.mounted) Navigator.pop(ctx, targetIp);
                   }
                 },
                 child: const Text('Hubungkan & Ambil'),
@@ -271,7 +265,6 @@ class SharingClient {
       ),
     );
 
-    // Setelah layar bersih tanpa sisa animasi dialog ketik IP, baru koneksi dimulai
     if (selectedIp != null && selectedIp.isNotEmpty && context.mounted) {
       _receiveDataFromServerProcess(
         alamatIP: selectedIp,
@@ -474,7 +467,6 @@ class SharingClient {
           };
           channel.sink.add(jsonEncode(paketBesarClient));
 
-          // PERBAIKAN: Tutup menggunakan rootNavigator
           if (progressCtx != null && progressCtx!.mounted) {
             Navigator.of(progressCtx!, rootNavigator: true).pop();
           }
@@ -486,7 +478,6 @@ class SharingClient {
             ),
           );
         } catch (e) {
-          // PERBAIKAN: Tutup menggunakan rootNavigator
           if (progressCtx != null && progressCtx!.mounted) {
             Navigator.of(progressCtx!, rootNavigator: true).pop();
           }
@@ -550,6 +541,9 @@ class SharingClient {
                 onLoadingStatusChanged: onLoadingStatusChanged,
               );
               if (handledByDocSync) return;
+
+              // PERBAIKAN: Hindari main parser JSON dari crash
+              if (pesanMasuk is! String) return;
 
               onLoadingStatusChanged(false);
               BuildContext? progressCtx;
@@ -673,7 +667,6 @@ class SharingClient {
                     backupArchive,
                   );
                   if (finalZipBytes == null) {
-                    // PERBAIKAN: Tutup menggunakan rootNavigator
                     if (progressCtx != null && progressCtx!.mounted) {
                       Navigator.of(progressCtx!, rootNavigator: true).pop();
                     }
@@ -692,7 +685,6 @@ class SharingClient {
                   await fileZipTarget.writeAsBytes(finalZipBytes);
                   onDataReceived();
 
-                  // PERBAIKAN: Tutup menggunakan rootNavigator
                   if (progressCtx != null && progressCtx!.mounted) {
                     Navigator.of(progressCtx!, rootNavigator: true).pop();
                   }
@@ -707,7 +699,6 @@ class SharingClient {
                   );
                 }
               } catch (e) {
-                // PERBAIKAN: Tutup menggunakan rootNavigator
                 if (progressCtx != null && progressCtx!.mounted) {
                   Navigator.of(progressCtx!, rootNavigator: true).pop();
                 }
