@@ -2,31 +2,6 @@
 
 import 'package:flutter/material.dart';
 
-class DailyData {
-  String topics;
-  List<DailySubject> subjects;
-
-  DailyData({required this.topics, required this.subjects});
-
-  factory DailyData.fromJson(Map<String, dynamic> json) {
-    var subList = json['subjects'] as List? ?? [];
-    List<DailySubject> parsedSubjects = subList
-        .map((i) => DailySubject.fromJson(i))
-        .toList();
-    return DailyData(
-      topics: json['topics'] ?? 'Rutinitas',
-      subjects: parsedSubjects,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'topics': topics,
-      'subjects': subjects.map((e) => e.toJson()).toList(),
-    };
-  }
-}
-
 class DailySubject {
   String subjectName;
   String progress;
