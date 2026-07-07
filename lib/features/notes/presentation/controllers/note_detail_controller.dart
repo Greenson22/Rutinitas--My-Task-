@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:rutinitasku/core/services/storage_service.dart';
+import 'package:rutinitasku/core/utils/atomic_write_helper.dart';
 import 'package:rutinitasku/core/utils/crypto_helper.dart';
 import '../../models/note_model.dart';
 
@@ -27,35 +28,24 @@ class NoteDetailController {
     try {
       final baseDir = await _storageService.getBaseDirSetting();
       final File targetFile = File('$baseDir/notes/${currentGroup.id}.json');
-
       bool isEncrypted = await _storageService.isEncryptionEnabled();
       String? password = await _storageService.getEncryptionPassword();
-
       String jsonString = _storageService.formatJsonPretty(
         currentGroup.toJson(),
       );
-
       if (isEncrypted && password != null) {
         jsonString = CryptoHelper.encrypt(jsonString, password);
       }
 
-      // 1. Buat lintasan berkas temporer yang unik
-      final String tempPath =
-          '${targetFile.path}_${DateTime.now().microsecondsSinceEpoch}.tmp';
-      final File tempFile = File(tempPath);
-
-      // 2. Tulis string data seutuhnya ke file temporary
-      await tempFile.writeAsString(jsonString);
-
-      // 3. Swap file secara aman jika penulisan temporary sukses
-      if (await tempFile.exists()) {
-        if (await targetFile.exists()) {
-          await targetFile.delete();
-        }
-        await tempFile.rename(targetFile.path);
-      }
+      // PANGGIL HELPER DI SINI
+      await AtomicWriteHelper.writeSafe(
+        targetFile: targetFile,
+        content: jsonString,
+      );
     } catch (e) {
-      debugPrint("Gagal menyimpan pembaruan grup (Atomic Write Error): $e");
+      debugPrint(
+        "Gagal menyimpan pembaruan grup (Helper Atomic Write Error): $e",
+      );
     }
   }
 
@@ -460,18 +450,10 @@ class NoteDetailController {
       }
 
       // Eksekusi penulisan atomik untuk berkas grup target
-      final String tempPath =
-          '${targetFile.path}_${DateTime.now().microsecondsSinceEpoch}.tmp';
-      final File tempFile = File(tempPath);
-
-      await tempFile.writeAsString(jsonString);
-
-      if (await tempFile.exists()) {
-        if (await targetFile.exists()) {
-          await targetFile.delete();
-        }
-        await tempFile.rename(targetFile.path);
-      }
+      await AtomicWriteHelper.writeSafe(
+        targetFile: targetFile,
+        content: jsonString,
+      );
     } catch (e) {
       debugPrint(
         "Gagal mengamankan penyimpanan grup target saat memindahkan notes (Atomic Write Error): $e",

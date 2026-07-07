@@ -7,6 +7,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart'; // Ditambahkan untuk 
 import 'package:rutinitasku/core/presentation/widgets/drawer_menu.dart';
 import 'package:rutinitasku/core/presentation/widgets/universal_empty_state.dart';
 import 'package:rutinitasku/core/services/storage_service.dart';
+import 'package:rutinitasku/core/utils/atomic_write_helper.dart';
 import 'package:rutinitasku/core/utils/crypto_helper.dart';
 import '../../models/note_model.dart';
 import '../../../../core/presentation/widgets/widgets.dart';
@@ -212,32 +213,19 @@ class _NotesScreenState extends State<NotesScreen> {
       // Ambil status konfigurasi enkripsi saat ini
       bool isEncrypted = await _storageService.isEncryptionEnabled();
       String? password = await _storageService.getEncryptionPassword();
-
       String jsonString = _storageService.formatJsonPretty(group.toJson());
 
       if (isEncrypted && password != null) {
         jsonString = CryptoHelper.encrypt(jsonString, password);
       }
 
-      // 1. Buat berkas temporer yang unik menggunakan stempel mikrodetik
-      final String tempPath =
-          '${targetFile.path}_${DateTime.now().microsecondsSinceEpoch}.tmp';
-      final File tempFile = File(tempPath);
-
-      // 2. Tulis string data seutuhnya ke file temporary
-      await tempFile.writeAsString(jsonString);
-
-      // 3. Validasi keutuhan file sementara sebelum memotong berkas utama
-      if (await tempFile.exists()) {
-        if (await targetFile.exists()) {
-          await targetFile
-              .delete(); // Mencegah collision write permission di OS tertentu
-        }
-        // Swap nama file secara atomik murni (.tmp -> .json)
-        await tempFile.rename(targetFile.path);
-      }
+      // PANGGIL HELPER UNTUK ATOMIC WRITE TERPUSAT
+      await AtomicWriteHelper.writeSafe(
+        targetFile: targetFile,
+        content: jsonString,
+      );
     } catch (e) {
-      debugPrint("Gagal menyimpan grup via Atomic Write: $e");
+      debugPrint("Gagal menyimpan grup via Atomic Write Helper: $e");
     }
   }
 
