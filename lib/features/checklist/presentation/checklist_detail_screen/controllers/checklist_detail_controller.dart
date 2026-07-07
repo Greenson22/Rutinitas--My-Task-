@@ -1,9 +1,9 @@
 // lib/features/daily/presentation/controllers/checklist_detail_controller.dart
-
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // TAMBAHAN: Diperlukan untuk utilitas interaksi Clipboard (Salin/Tempel)
+
 import '../../../../../core/services/storage_service.dart';
 import '../../../data/models/daily_model.dart';
 import '../widgets/checklist_dialog.dart';
@@ -41,14 +41,32 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
     final String jsonString = const JsonEncoder.withIndent(
       '  ',
     ).convert(updatedMap);
+
     try {
       File jsonFile = await storageService.getSpecificGroupFile(
         widget.baseDir,
         currentGroup.id,
       );
-      await storageService.saveJsonData(jsonFile, jsonString);
+
+      // === SOLUSI ANTI KORUP: Menggunakan Atomic Write dengan Temp File Unik ===
+      // Memberikan pengenal microsecond agar tidak terjadi tabrakan (race condition) saat di-spam klik
+      String tempPath =
+          '${jsonFile.path}_${DateTime.now().microsecondsSinceEpoch}.tmp';
+      File tempFile = File(tempPath);
+
+      // Tulis data ke file temporary terlebih dahulu
+      await storageService.saveJsonData(tempFile, jsonString);
+
+      // Jika penulisan sukses 100%, timpa file asli dengan file temporary (Atomic Rename)
+      if (await tempFile.exists()) {
+        if (await jsonFile.exists()) {
+          await jsonFile
+              .delete(); // Pastikan file lama terhapus sebelum di-rename
+        }
+        await tempFile.rename(jsonFile.path);
+      }
     } catch (e) {
-      debugPrint("Error saving group data: $e");
+      debugPrint("Error saving group data (Atomic Write Error): $e");
     }
   }
 
@@ -151,11 +169,25 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
       final String targetJsonString = const JsonEncoder.withIndent(
         '  ',
       ).convert(targetGroup.toJson());
+
       File targetJsonFile = await storageService.getSpecificGroupFile(
         widget.baseDir,
         targetGroup.id,
       );
-      await storageService.saveJsonData(targetJsonFile, targetJsonString);
+
+      // === ATOMIC WRITE UNTUK FILE TARGET EXTERNAL ===
+      String targetTempPath =
+          '${targetJsonFile.path}_${DateTime.now().microsecondsSinceEpoch}.tmp';
+      File targetTempFile = File(targetTempPath);
+
+      await storageService.saveJsonData(targetTempFile, targetJsonString);
+
+      if (await targetTempFile.exists()) {
+        if (await targetJsonFile.exists()) {
+          await targetJsonFile.delete();
+        }
+        await targetTempFile.rename(targetJsonFile.path);
+      }
 
       // 5. Jika sukses menulis file eksternal, barulah hapus subjek dari grup saat ini secara lokal
       setState(() {
@@ -366,7 +398,6 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
 
                   saveGroupData(); // Simpan permanen ke storage disk lokal harian
                   Navigator.pop(context);
-
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text(
@@ -597,7 +628,6 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
   void moveSectionOrder(int currentIndex, int direction) {
     int newIndex = currentIndex + direction;
     if (newIndex < 0 || newIndex >= currentGroup.allList.length) return;
-
     setState(() {
       final temp = currentGroup.allList[currentIndex];
       currentGroup.allList[currentIndex] = currentGroup.allList[newIndex];

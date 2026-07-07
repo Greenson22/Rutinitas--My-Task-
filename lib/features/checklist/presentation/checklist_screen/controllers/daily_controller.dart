@@ -1,8 +1,8 @@
 // lib/features/daily/presentation/controllers/daily_controller.dart
-
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+
 import '../../../../../core/services/storage_service.dart';
 import '../../../data/models/daily_model.dart';
 import '../../../../../core/utils/crypto_helper.dart';
@@ -15,7 +15,6 @@ class DailyController extends ChangeNotifier {
   List<ChecklistGroup> hiddenGroup = [];
   String selectedBaseDir = 'Documents';
   bool isLoading = true;
-
   bool isPageEditMode = false;
   bool showHiddenSection = false;
   bool isSectionEditMode = false;
@@ -62,8 +61,8 @@ class DailyController extends ChangeNotifier {
     try {
       // BERIKAN JEDA MIKRO: Menjamin penulisan enkripsi massal selesai sepenuhnya di disk storage (Sama seperti Notes)
       await Future.delayed(const Duration(milliseconds: 150));
-
       selectedBaseDir = await _storageService.getBaseDirSetting();
+
       List<File> groupFiles = await _storageService.getAllChecklistGroups(
         selectedBaseDir,
       );
@@ -87,7 +86,6 @@ class DailyController extends ChangeNotifier {
       for (var file in groupFiles) {
         if (!await file.exists()) continue;
         String jsonString = await file.readAsString();
-
         final trimmedContent = jsonString.trim();
         bool isRawJson =
             trimmedContent.startsWith('{') || trimmedContent.startsWith('[');
@@ -100,23 +98,29 @@ class DailyController extends ChangeNotifier {
               jsonString = CryptoHelper.decrypt(jsonString, password);
             } else {
               // === FITUR SINKRONISASI: SEKUENS OTOMATIS BERKAS BELUM TERENKRIPSI ===
-              // Kondisi khusus: Pengaturan Enkripsi AKTIF, namun ditemukan file JSON mentah/polos.
-              // Lakukan enkripsi balik secara otomatis ke lokal storage agar sinkron dengan setelan global.
               try {
                 final ChecklistGroup parsedGroup = ChecklistGroup.fromJson(
                   jsonDecode(jsonString),
                 );
-
                 // Sinkronisasikan ID internal agar selalu memakai nama file fisik ter-indeks yang valid
                 parsedGroup.id = fileName;
-
                 final String encryptedContent = CryptoHelper.encrypt(
                   const JsonEncoder.withIndent(
                     '  ',
                   ).convert(parsedGroup.toJson()),
                   password,
                 );
-                await file.writeAsString(encryptedContent);
+
+                // === ATOMIC WRITE ===
+                String tempPath =
+                    '${file.path}_${DateTime.now().microsecondsSinceEpoch}.tmp';
+                File tempFile = File(tempPath);
+                await tempFile.writeAsString(encryptedContent);
+                if (await tempFile.exists()) {
+                  if (await file.exists()) await file.delete();
+                  await tempFile.rename(file.path);
+                }
+
                 autoEncryptedFiles.add(parsedGroup.groupName);
                 debugPrint(
                   "Otomatis mengamankan berkas checklist belum terenkripsi: ${file.path}",
@@ -144,7 +148,7 @@ class DailyController extends ChangeNotifier {
             ChecklistGroup(
               id: "CORRUPTED_${DateTime.now().millisecondsSinceEpoch}_$fileName",
               groupName: fileName,
-              icon: '⚠️',
+              icon: '🚨',
               sectionCategory:
                   'Berkas Rusak / Terenkripsi', // Seksi otomatis khusus berkas bermasalah
               isHidden: false,
@@ -156,9 +160,6 @@ class DailyController extends ChangeNotifier {
 
       allGroupRaw = loadedGroups;
       _processGroupsDisplay();
-
-      // Catatan: Jika Anda ingin memicu SnackBar otomatis dari "autoEncryptedFiles",
-      // lakukan pengecekan list tersebut di callback screen setelah loadGroupsData() dipanggil.
     } catch (e) {
       isLoading = false;
       notifyListeners();
@@ -264,12 +265,25 @@ class DailyController extends ChangeNotifier {
         '  ',
       ).convert(group.toJson());
 
-      // KITA HAPUS PROSES ENKRIPSI MANUAL DI SINI.
-      // Cukup kirimkan JSON murni ke saveJsonData.
-      // _storageService.saveJsonData() yang akan mengurus proses enkripsinya.
-      await _storageService.saveJsonData(groupFile, jsonString);
+      // === SOLUSI ANTI KORUP: Menggunakan Atomic Write dengan Temp File Unik ===
+      String tempPath =
+          '${groupFile.path}_${DateTime.now().microsecondsSinceEpoch}.tmp';
+      File tempFile = File(tempPath);
+
+      // Tulis ke shadow copy .tmp terlebih dahulu
+      await _storageService.saveJsonData(tempFile, jsonString);
+
+      if (await tempFile.exists()) {
+        if (await groupFile.exists()) {
+          await groupFile
+              .delete(); // Menghindari permission error saat overwrite di OS tertentu
+        }
+        await tempFile.rename(groupFile.path); // Rename .tmp ke .json
+      }
     } catch (e) {
-      debugPrint("Gagal menyimpan berkas grup checklist: $e");
+      debugPrint(
+        "Gagal menyimpan berkas grup checklist (Atomic Write Error): $e",
+      );
     }
   }
 
@@ -298,6 +312,7 @@ class DailyController extends ChangeNotifier {
   Future<void> deleteGroup(ChecklistGroup group) async {
     try {
       String targetId = group.id;
+
       // Jika berkas rusak yang dihapus, bersihkan prefix mock ID-nya terlebih dahulu
       if (targetId.startsWith("CORRUPTED_")) {
         targetId = targetId.replaceFirst(RegExp(r'CORRUPTED_\d+_'), '');
@@ -310,6 +325,7 @@ class DailyController extends ChangeNotifier {
       if (await groupFile.exists()) {
         await groupFile.delete();
       }
+
       await loadGroupsData();
     } catch (e) {
       debugPrint("Error deleting group file: $e");
@@ -335,6 +351,7 @@ class DailyController extends ChangeNotifier {
       final temp = allGroupRaw[rawIdxA];
       allGroupRaw[rawIdxA] = allGroupRaw[rawIdxB];
       allGroupRaw[rawIdxB] = temp;
+
       notifyListeners();
 
       try {
@@ -367,23 +384,29 @@ class DailyController extends ChangeNotifier {
           String jsonString = const JsonEncoder.withIndent(
             '  ',
           ).convert(currentGroup.toJson());
+
           if (isEncrypted && password != null) {
             jsonString = CryptoHelper.encrypt(jsonString, password);
           }
 
-          if (await oldFile.exists()) {
-            await newFile.writeAsString(jsonString);
-            if (oldFile.path != newFile.path) {
+          // === ATOMIC WRITE ===
+          String tempPath =
+              '${newFile.path}_${DateTime.now().microsecondsSinceEpoch}.tmp';
+          File tempFile = File(tempPath);
+          await tempFile.writeAsString(jsonString);
+
+          if (await tempFile.exists()) {
+            if (await newFile.exists()) await newFile.delete();
+            await tempFile.rename(newFile.path);
+
+            if (oldFile.path != newFile.path && await oldFile.exists()) {
               await oldFile.delete();
             }
-          } else {
-            await newFile.writeAsString(jsonString);
           }
         }
       } catch (e) {
         debugPrint("Gagal mengatur ulang urutan file checklist: $e");
       }
-
       await loadGroupsData(); // Dipastikan loadData dipanggil asinkron utuh agar daftar ID sinkron
     }
   }
@@ -435,6 +458,7 @@ class DailyController extends ChangeNotifier {
   Future<void> deleteMainSection(String sectionName) async {
     _localEmptySections.remove(sectionName);
     final listGroupDiSeksiIni = groupedVisibleGroup[sectionName] ?? [];
+
     try {
       for (var group in listGroupDiSeksiIni) {
         String targetId = group.id;
@@ -450,6 +474,7 @@ class DailyController extends ChangeNotifier {
           await groupFile.delete();
         }
       }
+
       groupedVisibleGroup.remove(sectionName);
       allGroupRaw.removeWhere((group) => group.sectionCategory == sectionName);
       await loadGroupsData();
@@ -518,17 +543,24 @@ class DailyController extends ChangeNotifier {
         String jsonString = const JsonEncoder.withIndent(
           '  ',
         ).convert(currentGroup.toJson());
+
         if (isEncrypted && password != null) {
           jsonString = CryptoHelper.encrypt(jsonString, password);
         }
 
-        if (await oldFile.exists()) {
-          await newFile.writeAsString(jsonString);
-          if (oldFile.path != newFile.path) {
+        // === ATOMIC WRITE ===
+        String tempPath =
+            '${newFile.path}_${DateTime.now().microsecondsSinceEpoch}.tmp';
+        File tempFile = File(tempPath);
+        await tempFile.writeAsString(jsonString);
+
+        if (await tempFile.exists()) {
+          if (await newFile.exists()) await newFile.delete();
+          await tempFile.rename(newFile.path);
+
+          if (oldFile.path != newFile.path && await oldFile.exists()) {
             await oldFile.delete();
           }
-        } else {
-          await newFile.writeAsString(jsonString);
         }
       }
     } catch (e) {
