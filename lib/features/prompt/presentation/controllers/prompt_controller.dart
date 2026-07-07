@@ -109,7 +109,7 @@ class PromptController extends ChangeNotifier {
   }
 
   // =========================================================================
-  // PERBAIKAN LOGIKA MUAT DATA (MENDUKUNG DEKRIPSI & SINKRONISASI OTOMATIS)
+  // PERBAIKAN LOGIKA MUAT DATA (MEMATIKAN SEKUENS AUTO-ENCRYPT PAKSA)
   // =========================================================================
   Future<void> loadAllPrompts(BuildContext context) async {
     _isLoading = true;
@@ -123,8 +123,6 @@ class PromptController extends ChangeNotifier {
       String? password = await _storageService.getEncryptionPassword();
 
       List<PromptGroup> loadedGroups = [];
-      List<String> autoEncryptedFiles =
-          []; // Penampung nama file untuk SnackNar sinkronisasi
 
       for (var file in files) {
         if (!await file.exists()) continue;
@@ -142,26 +140,13 @@ class PromptController extends ChangeNotifier {
               // KONDISI 1: Enkripsi sistem ON dan berkas berbentuk ciphertext -> Lakukan dekripsi
               content = CryptoHelper.decrypt(content, password);
             } else {
-              // KONDISI 2 (MIGRASI/SINKRONISASI OTOMATIS): Enkripsi ON tetapi berkas masih berbentuk JSON polos.
-              // Enkripsikan secara otomatis ke lokal storage agar sejalan dengan setelan global.
-              try {
-                final PromptGroup parsedGroup = PromptGroup.fromJson(
-                  jsonDecode(content),
-                );
-                final String encryptedContent = CryptoHelper.encrypt(
-                  _storageService.formatJsonPretty(parsedGroup.toJson()),
-                  password,
-                );
-                await file.writeAsString(encryptedContent);
-                autoEncryptedFiles.add(parsedGroup.title);
-                debugPrint(
-                  "Otomatis mengamankan berkas prompt mentah: ${file.path}",
-                );
-              } catch (autoEncryptError) {
-                debugPrint(
-                  "Gagal mengamankan otomatis berkas prompt: $autoEncryptError",
-                );
-              }
+              // =========================================================================
+              // PERBAIKAN UTAMA: MODUL AUTO-ENCRYPT PAKSA DI SINI TELAH DIHAPUS TOTAL
+              // Berkas mentah JSON yang polos dibiarkan apa adanya tanpa enkripsi paksa sepihak.
+              // =========================================================================
+              debugPrint(
+                "Berkas JSON polos prompt ditemukan dan dibiarkan normal: ${file.path}",
+              );
             }
           }
 
@@ -193,20 +178,6 @@ class PromptController extends ChangeNotifier {
 
       _isLoading = false;
       notifyListeners();
-
-      // Pemicu Notifikasi sinkronisasi otomatis jika ada file JSON lama yang baru saja diamankan
-      if (autoEncryptedFiles.isNotEmpty && context.mounted) {
-        ScaffoldMessenger.of(context).clearSnackBars();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Menyelaraskan Keamanan: Berkas prompt [${autoEncryptedFiles.join(", ")}] telah otomatis dienkripsi sesuai pengaturan master.',
-            ),
-            backgroundColor: Colors.teal,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
     } catch (e) {
       _isLoading = false;
       notifyListeners();
