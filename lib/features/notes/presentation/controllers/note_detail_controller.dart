@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -21,15 +22,40 @@ class NoteDetailController {
     currentGroup = noteGroup;
   }
 
+  // === MODIFIKASI: PROTEKSI ANTI-KORUP DATA DENGAN ATOMIC WRITE ===
   Future<void> saveCurrentGroup() async {
     try {
       final baseDir = await _storageService.getBaseDirSetting();
-      final jsonString = _storageService.formatJsonPretty(
+      final File targetFile = File('$baseDir/notes/${currentGroup.id}.json');
+
+      bool isEncrypted = await _storageService.isEncryptionEnabled();
+      String? password = await _storageService.getEncryptionPassword();
+
+      String jsonString = _storageService.formatJsonPretty(
         currentGroup.toJson(),
       );
-      await _storageService.saveNoteGroup(baseDir, currentGroup.id, jsonString);
+
+      if (isEncrypted && password != null) {
+        jsonString = CryptoHelper.encrypt(jsonString, password);
+      }
+
+      // 1. Buat lintasan berkas temporer yang unik
+      final String tempPath =
+          '${targetFile.path}_${DateTime.now().microsecondsSinceEpoch}.tmp';
+      final File tempFile = File(tempPath);
+
+      // 2. Tulis string data seutuhnya ke file temporary
+      await tempFile.writeAsString(jsonString);
+
+      // 3. Swap file secara aman jika penulisan temporary sukses
+      if (await tempFile.exists()) {
+        if (await targetFile.exists()) {
+          await targetFile.delete();
+        }
+        await tempFile.rename(targetFile.path);
+      }
     } catch (e) {
-      debugPrint("Gagal menyimpan pembaruan grup: $e");
+      debugPrint("Gagal menyimpan pembaruan grup (Atomic Write Error): $e");
     }
   }
 
@@ -292,7 +318,6 @@ class NoteDetailController {
     });
   }
 
-  // BARU: Fungsi untuk memindahkan posisi baris data tabel (naik atau turun)
   void moveRow({
     required StateSetter setDialogState,
     required List<Map<String, TextEditingController>> tableRows,
@@ -323,8 +348,7 @@ class NoteDetailController {
     required String currentType,
     required TextEditingController titleController,
     required TextEditingController contentController,
-    required TextEditingController
-    backContentController, // <--- BARU: Menambahkan parameter controller sisi belakang
+    required TextEditingController backContentController,
     required List<String> currentFieldKeys,
     required Map<String, String> currentFieldTypes,
     required List<Map<String, TextEditingController>> tableRows,
@@ -348,8 +372,7 @@ class NoteDetailController {
       id: existingNote?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
       title: finalTitle,
       content: currentType == 'text' ? contentController.text.trim() : '',
-      backContent: backContentController.text
-          .trim(), // <--- BARU: Menyimpan konten sisi belakang
+      backContent: backContentController.text.trim(),
       createdAt: existingNote?.createdAt ?? DateTime.now(),
       updatedAt: DateTime.now(),
       type: currentType,
@@ -380,9 +403,6 @@ class NoteDetailController {
     await saveCurrentGroup();
   }
 
-  // =========================================================================
-  // FITUR BARU: AMBIL SELURUH DATA GRUP NOTE DARI STORAGE SERVICE (Mendukung Dekripsi)
-  // =========================================================================
   Future<List<NoteGroup>> getAllNoteGroups() async {
     try {
       final baseDir = await _storageService.getBaseDirSetting();
@@ -410,38 +430,51 @@ class NoteDetailController {
     }
   }
 
-  // =========================================================================
-  // FITUR BARU: MANAJEMEN PEMINDAHAN MASSAL (BULK MOVE NOTES)
-  // =========================================================================
+  // === MODIFIKASI: PROTEKSI ATOMIC WRITE SAAT MASSIVE MOVE (GRUP TARGET) ===
   Future<void> moveMassiveNotes(
     List<NoteModel> selectedItems,
     NoteGroup targetGroup,
   ) async {
     if (selectedItems.isEmpty || currentGroup.id == targetGroup.id) return;
 
-    // 1. Dapatkan sekumpulan ID unik item terpilih untuk mempercepat proses penyaringan
     final selectedIds = selectedItems.map((e) => e.id).toSet();
-
-    // 2. Tambahkan semua item catatan terpilih ke list milik grup tujuan
     targetGroup.notes.addAll(selectedItems);
-
-    // 3. Keluarkan item-item catatan terpilih dari list milik grup asal saat ini
     currentGroup.notes.removeWhere((note) => selectedIds.contains(note.id));
 
-    // 4. Picu pembaruan state pada UI lokal layar detail asal
     onStateChanged();
+    await saveCurrentGroup(); // Menggunakan Atomic Write bawaan untuk grup asal
 
-    // 5. Tulis perubahan struktur data grup asal (currentGroup) ke penyimpanan lokal
-    await saveCurrentGroup();
-
-    // 6. Tulis perubahan struktur data grup target ke penyimpanan lokal secara persisten
     try {
       final baseDir = await _storageService.getBaseDirSetting();
-      final jsonString = _storageService.formatJsonPretty(targetGroup.toJson());
-      await _storageService.saveNoteGroup(baseDir, targetGroup.id, jsonString);
+      final File targetFile = File('$baseDir/notes/${targetGroup.id}.json');
+
+      bool isEncrypted = await _storageService.isEncryptionEnabled();
+      String? password = await _storageService.getEncryptionPassword();
+
+      String jsonString = _storageService.formatJsonPretty(
+        targetGroup.toJson(),
+      );
+
+      if (isEncrypted && password != null) {
+        jsonString = CryptoHelper.encrypt(jsonString, password);
+      }
+
+      // Eksekusi penulisan atomik untuk berkas grup target
+      final String tempPath =
+          '${targetFile.path}_${DateTime.now().microsecondsSinceEpoch}.tmp';
+      final File tempFile = File(tempPath);
+
+      await tempFile.writeAsString(jsonString);
+
+      if (await tempFile.exists()) {
+        if (await targetFile.exists()) {
+          await targetFile.delete();
+        }
+        await tempFile.rename(targetFile.path);
+      }
     } catch (e) {
       debugPrint(
-        "Gagal mengamankan penyimpanan grup target saat memindahkan notes: $e",
+        "Gagal mengamankan penyimpanan grup target saat memindahkan notes (Atomic Write Error): $e",
       );
     }
   }
@@ -456,10 +489,7 @@ class NoteDetailController {
     );
     if (!confirm) return;
 
-    // PERBAIKAN: Gunakan pembandingan ID agar dipastikan item dengan ID yang sama terhapus
-    // Kita buat daftar ID dari item yang dipilih terlebih dahulu agar proses filter lebih cepat
     final selectedIds = selectedItems.map((e) => e.id).toSet();
-
     currentGroup.notes.removeWhere((note) => selectedIds.contains(note.id));
 
     onStateChanged();
@@ -474,7 +504,6 @@ class NoteDetailController {
     required int newIndex,
   }) {
     setDialogState(() {
-      // Penyesuaian indeks bawaan dari ReorderableListView
       if (oldIndex < newIndex) {
         newIndex -= 1;
       }

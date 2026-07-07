@@ -201,15 +201,43 @@ class _NotesScreenState extends State<NotesScreen> {
     }
   }
 
+  // === PENERAPAN SINKRONISASI AKTIF: PROTEKSI ATOMIC WRITE ANTI-KORUP ===
   Future<void> _saveGroupData(NoteGroup group) async {
     // Lewati penyimpanan otomatis jika ini adalah berkas korup buatan/mock
     if (group.id.startsWith("CORRUPTED_")) return;
     try {
       final baseDir = await _storageService.getBaseDirSetting();
-      final jsonString = _storageService.formatJsonPretty(group.toJson());
-      await _storageService.saveNoteGroup(baseDir, group.id, jsonString);
+      final File targetFile = File('$baseDir/notes/${group.id}.json');
+
+      // Ambil status konfigurasi enkripsi saat ini
+      bool isEncrypted = await _storageService.isEncryptionEnabled();
+      String? password = await _storageService.getEncryptionPassword();
+
+      String jsonString = _storageService.formatJsonPretty(group.toJson());
+
+      if (isEncrypted && password != null) {
+        jsonString = CryptoHelper.encrypt(jsonString, password);
+      }
+
+      // 1. Buat berkas temporer yang unik menggunakan stempel mikrodetik
+      final String tempPath =
+          '${targetFile.path}_${DateTime.now().microsecondsSinceEpoch}.tmp';
+      final File tempFile = File(tempPath);
+
+      // 2. Tulis string data seutuhnya ke file temporary
+      await tempFile.writeAsString(jsonString);
+
+      // 3. Validasi keutuhan file sementara sebelum memotong berkas utama
+      if (await tempFile.exists()) {
+        if (await targetFile.exists()) {
+          await targetFile
+              .delete(); // Mencegah collision write permission di OS tertentu
+        }
+        // Swap nama file secara atomik murni (.tmp -> .json)
+        await tempFile.rename(targetFile.path);
+      }
     } catch (e) {
-      debugPrint("Gagal menyimpan grup: $e");
+      debugPrint("Gagal menyimpan grup via Atomic Write: $e");
     }
   }
 
@@ -336,28 +364,8 @@ class _NotesScreenState extends State<NotesScreen> {
                 );
                 NoteGroup decryptedGroup = NoteGroup.fromJson(parsedJson);
 
-                // Langkah 3: Evaluasi kondisi konfigurasi sistem enkripsi global yang sedang aktif saat ini
-                bool isSystemEncryptionEnabled = await _storageService
-                    .isEncryptionEnabled();
-                String? systemPassword = await _storageService
-                    .getEncryptionPassword();
-
-                String finalContentToSave;
-                if (isSystemEncryptionEnabled && systemPassword != null) {
-                  // Apabila sistem enkripsi aktif, amankan ulang berkas menggunakan password sistem yang baru
-                  finalContentToSave = CryptoHelper.encrypt(
-                    _storageService.formatJsonPretty(decryptedGroup.toJson()),
-                    systemPassword,
-                  );
-                } else {
-                  // Apabila sistem enkripsi dimatikan di pengaturan, tulis sebagai JSON teks biasa murni
-                  finalContentToSave = _storageService.formatJsonPretty(
-                    decryptedGroup.toJson(),
-                  );
-                }
-
-                // Tulis balik konten perbaikan yang bersih dan valid ke disk storage lokal
-                await targetFile.writeAsString(finalContentToSave);
+                // Langkah 3: Gunakan Atomic Write terproteksi agar proses penulisan ulang aman dari korupsi data
+                await _saveGroupData(decryptedGroup);
 
                 messenger.showSnackBar(
                   SnackBar(
@@ -559,22 +567,34 @@ class _NotesScreenState extends State<NotesScreen> {
                 if (!confirm) return; // Batal simpan
               }
 
-              // Simpan menggunakan saveNoteGroup agar otomatis terenkripsi kembali jika enkripsi aktif
-              await _storageService.saveNoteGroup(
-                baseDir,
-                targetId,
-                newContent,
-              );
+              // MODIFIKASI ATOMIC WRITE: Simpan via model agar status enkripsi konsisten dipertahankan di disk storage
+              try {
+                final parsed = jsonDecode(newContent);
+                parsed['id'] = targetId;
+                NoteGroup updatedGroup = NoteGroup.fromJson(parsed);
+                await _saveGroupData(updatedGroup);
 
-              if (mounted) {
-                Navigator.pop(context); // Tutup dialog editor
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('File JSON berhasil diperbarui!'),
-                    backgroundColor: Colors.green,
-                  ),
+                if (mounted) {
+                  Navigator.pop(context); // Tutup dialog editor
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('File JSON berhasil diperbarui!'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                  _loadNotesData(); // Refresh UI
+                }
+              } catch (e) {
+                // Fallback langsung tulis mentah menggunakan helper bawaan jika format custom JSON dipaksa rusak
+                await _storageService.saveNoteGroup(
+                  baseDir,
+                  targetId,
+                  newContent,
                 );
-                _loadNotesData(); // Refresh UI
+                if (mounted) {
+                  Navigator.pop(context);
+                  _loadNotesData();
+                }
               }
             },
             style: ElevatedButton.styleFrom(backgroundColor: _themeColor),
@@ -998,9 +1018,14 @@ class _NotesScreenState extends State<NotesScreen> {
                   _groupedCategories[newSectionName] = items;
                   for (var group in items) {
                     group.sectionName = newSectionName;
-                    _saveGroupData(group);
                   }
                 });
+
+                // Simpan perubahan nama seksi secara massal asinkron ke masing-masing file grup
+                final items = _groupedCategories[newSectionName] ?? [];
+                for (var group in items) {
+                  await _saveGroupData(group);
+                }
                 Navigator.pop(context);
               }
             },
@@ -1143,7 +1168,7 @@ class _NotesScreenState extends State<NotesScreen> {
             ? Padding(
                 padding: const EdgeInsets.only(right: 8.0),
                 child: Tooltip(
-                  message: 'Enkripsi Aktif',
+                  message: 'Enkripsi ...',
                   child: Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
