@@ -111,8 +111,6 @@ class _NotesScreenState extends State<NotesScreen> {
       });
 
       List<NoteGroup> loadedGroups = [];
-      List<String> autoEncryptedFiles =
-          []; // Penampung nama file yang otomatis terenkripsi
 
       for (var file in files) {
         if (!await file.exists()) continue;
@@ -133,29 +131,13 @@ class _NotesScreenState extends State<NotesScreen> {
               // Kondisi Normal: File terenkripsi, lakukan dekripsi seperti biasa
               content = CryptoHelper.decrypt(content, password);
             } else {
-              // === FITUR BARU: SEKUENS OTOMATIS BERKAS BELUM TERENKRIPSI ===
-              // Kondisi khusus: Pengaturan Enkripsi AKTIF, namun ditemukan file JSON mentah/polos.
-              // Lakukan enkripsi balik secara otomatis ke lokal storage agar sinkron dengan setelan global.
-              try {
-                final NoteGroup parsedGroup = NoteGroup.fromJson(
-                  jsonDecode(content),
-                );
-                final String encryptedContent = CryptoHelper.encrypt(
-                  _storageService.formatJsonPretty(parsedGroup.toJson()),
-                  password,
-                );
-                await file.writeAsString(encryptedContent);
-                autoEncryptedFiles.add(
-                  parsedGroup.groupName,
-                ); // Catat nama grup untuk SnackBar
-                debugPrint(
-                  "Otomatis mengamankan berkas belum terenkripsi: ${file.path}",
-                );
-              } catch (autoEncryptError) {
-                debugPrint(
-                  "Gagal mengamankan otomatis berkas mentah: $autoEncryptError",
-                );
-              }
+              // =========================================================================
+              // PERBAIKAN UTAMA: BLOK AUTO-ENCRYPT SEPIHAK TELAH DIHAPUS TOTAL
+              // Berkas polos/raw JSON dibiarkan apa adanya tanpa dipaksa enkripsi otomatis harian.
+              // =========================================================================
+              debugPrint(
+                "Berkas mentah JSON polos terdeteksi dan dibiarkan tanpa enkripsi paksa: ${file.path}",
+              );
             }
           }
 
@@ -210,21 +192,6 @@ class _NotesScreenState extends State<NotesScreen> {
         setState(() {
           _isLoading = false;
         });
-
-        // === PEMICU SNACKBAR OTOMATIS ENKRIPSI BERHASIL ===
-        if (autoEncryptedFiles.isNotEmpty) {
-          ScaffoldMessenger.of(context).clearSnackBars();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Menyelaraskan Keamanan: Berkas [${autoEncryptedFiles.join(", ")}] yang belum terenkripsi kini telah otomatis dienkripsi sesuai pengaturan sistem.',
-              ),
-              backgroundColor: Colors.teal,
-              duration: const Duration(seconds: 4),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
       }
     } catch (e) {
       if (mounted) {
