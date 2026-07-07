@@ -1,5 +1,4 @@
 // lib/features/daily/data/models/daily_model.dart
-
 import 'package:flutter/material.dart';
 
 class DailySubject {
@@ -60,7 +59,7 @@ class DailySubject {
     this.backgroundColor = 4281166415,
     this.textColor = 4294967295,
     this.progressBarColor = 4288009650,
-    this.icon = "📚",
+    this.icon = "📝",
     this.isHidden = false,
     this.section = "focus",
     this.type = "list",
@@ -86,7 +85,7 @@ class DailySubject {
       backgroundColor: json['backgroundColor'] ?? 4281166415,
       textColor: json['textColor'] ?? 4294967295,
       progressBarColor: json['progressBarColor'] ?? 4288009650,
-      icon: json['icon'] ?? "📚",
+      icon: json['icon'] ?? "📝",
       isHidden: json['isHidden'] ?? false,
       section: json['section'] ?? "focus",
       type: json['type'] ?? "list",
@@ -127,6 +126,7 @@ class DailySubject {
     bool inHeader = false,
   }) {
     if (subject.date == null || subject.date!.trim().isEmpty) return [];
+
     const List<String> dayName = [
       'Senin',
       'Selasa',
@@ -182,6 +182,7 @@ class DailySubject {
           ),
         ];
       }
+
       return [
         TextSpan(
           text: '(${dayName[parsedStart.weekday - 1]}) ',
@@ -212,11 +213,11 @@ class SubSubjectItem {
   String progress;
   String? finishedDate;
   List<SubSubjectItem> subMateri;
-
   String itemType; // 'normal', 'progress', atau 'countdown'
   int currentValue;
   int targetValue;
   bool isDisabled;
+
   String? linkedSubjectName;
   String? accumulatorItemName;
 
@@ -341,6 +342,7 @@ class ChecklistGroup {
   String sectionCategory;
   List<ChecklistSection> allList;
   bool isHidden;
+  bool isEncrypted; // <--- BARU: Status enkripsi per-berkas
 
   ChecklistGroup({
     required this.id,
@@ -348,6 +350,7 @@ class ChecklistGroup {
     required this.icon,
     this.sectionCategory = "Lainnya",
     this.isHidden = false,
+    this.isEncrypted = false, // <--- BARU
     required this.allList,
   });
 
@@ -363,6 +366,7 @@ class ChecklistGroup {
       icon: json['ikon'] ?? '📁',
       sectionCategory: json['kategori_seksi'] ?? 'Lainnya',
       isHidden: json['isHidden'] ?? false,
+      isEncrypted: json['isEncrypted'] ?? false, // <--- BARU
       allList: list.map((i) => ChecklistSection.fromJson(i)).toList(),
     );
   }
@@ -374,6 +378,7 @@ class ChecklistGroup {
       'ikon': icon,
       'kategori_seksi': sectionCategory,
       'isHidden': isHidden,
+      'isEncrypted': isEncrypted, // <--- BARU
       'semua_list': allList.map((e) => e.toJson()).toList(),
     };
   }

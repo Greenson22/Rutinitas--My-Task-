@@ -12,7 +12,6 @@ import '../../../../core/presentation/widgets/interactive_section_header.dart';
 import '../../../../core/presentation/widgets/universal_empty_state.dart'; // Using Universal Widget from Core
 import '../../../../core/utils/crypto_helper.dart'; // Import CryptoHelper untuk Dekripsi Manual
 import '../../../../core/services/storage_service.dart'; // <--- IMPORT BARU KUNCI PENYIMPANAN
-
 import '../../data/models/daily_model.dart';
 import 'controllers/daily_controller.dart';
 import '../checklist_detail_screen/checklist_detail_screen.dart';
@@ -36,14 +35,12 @@ class _DailyScreenState extends State<DailyScreen> {
   String get adUnitId {
     if (Platform.isAndroid) {
       if (kDebugMode) {
-        // ID Test Resmi dari Google untuk pengujian iklan Banner Android
         return 'ca-app-pub-3940256099942544/6300978111';
       } else {
-        // GANTI dengan Ad Unit ID asli Anda dari dasbor AdMob saat rilis nanti
         return 'ca-app-pub-5320800343545863/2005101404';
       }
     }
-    return ''; // Kosongkan jika berjalan di Desktop (Windows/Linux/macOS) agar tidak crash
+    return '';
   }
 
   @override
@@ -53,14 +50,11 @@ class _DailyScreenState extends State<DailyScreen> {
     _controller.addListener(_onControllerNotify);
     _controller.loadGroupsData();
 
-    // Panggil fungsi pemuatan iklan banner
     _loadBannerAd();
   }
 
-  // Fungsi untuk mengunduh iklan banner AdMob
   void _loadBannerAd() {
-    if (adUnitId.isEmpty) return; // Batalkan jika bukan platform Android
-
+    if (adUnitId.isEmpty) return;
     _bannerAd = BannerAd(
       adUnitId: adUnitId,
       request: const AdRequest(),
@@ -87,12 +81,10 @@ class _DailyScreenState extends State<DailyScreen> {
   void dispose() {
     _controller.removeListener(_onControllerNotify);
     _controller.dispose();
-    _bannerAd
-        ?.dispose(); // Pastikan objek iklan dihancurkan untuk mencegah kebocoran memori
+    _bannerAd?.dispose();
     super.dispose();
   }
 
-  // --- FITUR BARU: Dialog Input Kata Sandi untuk Dekripsi Manual Berkas Rusak ---
   void _showManualDecryptDialog(ChecklistGroup corruptedGroup) {
     final TextEditingController passwordController = TextEditingController();
     final formKey = GlobalKey<FormState>();
@@ -146,19 +138,16 @@ class _DailyScreenState extends State<DailyScreen> {
 
               final messenger = ScaffoldMessenger.of(context);
               final String inputPassword = passwordController.text;
-              Navigator.pop(context);
 
+              Navigator.pop(context);
               setState(() => _controller.isLoading = true);
 
               try {
-                // Potong prefix mock ID untuk mendapatkan nama file asli
                 final String originalFileName = corruptedGroup.id.replaceFirst(
                   RegExp(r'CORRUPTED_\d+_'),
                   '',
                 );
 
-                // --- PERBAIKAN UTAMA DI SINI ---
-                // Dapatkan jalur (path) akurat file melalui StorageService
                 final StorageService storageService = StorageService();
                 final File targetFile = await storageService
                     .getSpecificGroupFile(
@@ -174,27 +163,28 @@ class _DailyScreenState extends State<DailyScreen> {
 
                 String rawContent = await targetFile.readAsString();
 
-                // Langkah 1: Coba dekripsi manual data teks menggunakan input kunci dari pengguna
                 String decryptedContent = CryptoHelper.decrypt(
                   rawContent.trim(),
                   inputPassword,
                 );
 
-                // Langkah 2: Uji kelayakan parsing JSON untuk memastikan password valid & struktur berkas aman
                 final Map<String, dynamic> parsedJson = jsonDecode(
                   decryptedContent,
                 );
+
                 ChecklistGroup decryptedGroup = ChecklistGroup.fromJson(
                   parsedJson,
                 );
 
-                // Langkah 3: Tulis ulang konten perbaikan yang bersih menggunakan fungsi terenkripsi internal controller
+                // === PERBAIKAN: Secara logis jika dia sengaja didekripsi manual, itu berarti isEncrypted sebelumnya ===
+                decryptedGroup.isEncrypted = true;
+
                 await _controller.saveGroupDataToFile(decryptedGroup);
 
                 messenger.showSnackBar(
                   SnackBar(
                     content: Text(
-                      'Berkas "${decryptedGroup.groupName}" berhasil didekripsi dan disinkronkan ke sistem!',
+                      'Berkas "${decryptedGroup.groupName}" berhasil didekripsi!',
                     ),
                     backgroundColor: Colors.green,
                   ),
@@ -206,7 +196,7 @@ class _DailyScreenState extends State<DailyScreen> {
                 messenger.showSnackBar(
                   const SnackBar(
                     content: Text(
-                      'Gagal mendekripsi! Password salah atau struktur file korup/tidak ditemukan.',
+                      'Gagal mendekripsi! Password salah atau struktur file korup.',
                     ),
                     backgroundColor: Colors.redAccent,
                   ),
@@ -226,7 +216,6 @@ class _DailyScreenState extends State<DailyScreen> {
     );
   }
 
-  // --- FITUR BARU: Dialog Editor Raw JSON Langsung dengan Informasi Galat Enkripsi ---
   void _showEditRawJsonDialog(ChecklistGroup group) async {
     final storageService = StorageService();
     String targetId = group.id;
@@ -254,9 +243,8 @@ class _DailyScreenState extends State<DailyScreen> {
 
     String rawContent = await targetFile.readAsString();
     String displayContent = rawContent.trim();
-    String? decryptionError; // Menyimpan informasi kesalahan dekripsi jika ada
+    String? decryptionError;
 
-    // Coba dekripsi jika konten bukan plain JSON (tidak diawali { atau [)
     if (!displayContent.startsWith('{') && !displayContent.startsWith('[')) {
       String? password = await storageService.getEncryptionPassword();
       if (password != null && password.isNotEmpty) {
@@ -273,13 +261,10 @@ class _DailyScreenState extends State<DailyScreen> {
       }
     }
 
-    // Rapikan format JSON jika berhasil didekripsi/dibaca secara normal
     try {
       final parsed = jsonDecode(displayContent);
       displayContent = const JsonEncoder.withIndent('  ').convert(parsed);
-    } catch (_) {
-      // Biarkan string aslinya jika gagal di-parse agar bisa diteliti kerusakannya oleh user
-    }
+    } catch (_) {}
 
     final TextEditingController jsonController = TextEditingController(
       text: displayContent,
@@ -364,7 +349,6 @@ class _DailyScreenState extends State<DailyScreen> {
             onPressed: () async {
               final newContent = jsonController.text;
 
-              // Validasi JSON yang diedit sebelum disimpan
               try {
                 jsonDecode(newContent);
               } catch (e) {
@@ -393,21 +377,34 @@ class _DailyScreenState extends State<DailyScreen> {
                     ) ??
                     false;
 
-                if (!confirm) return; // Batal simpan
+                if (!confirm) return;
               }
 
-              // Simpan menggunakan saveJsonData agar otomatis terenkripsi kembali jika enkripsi aktif
-              await storageService.saveJsonData(targetFile, newContent);
+              // MODIFIKASI: Simpan via _controller agar status enkripsi konsisten dipertahankan
+              try {
+                final parsed = jsonDecode(newContent);
+                parsed['id'] = targetId;
+                ChecklistGroup updatedGroup = ChecklistGroup.fromJson(parsed);
+                updatedGroup.isEncrypted = group.isEncrypted || isCorrupted;
+                await _controller.saveGroupDataToFile(updatedGroup);
 
-              if (mounted) {
-                Navigator.pop(context); // Tutup dialog editor
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('File JSON berhasil diperbarui!'),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-                _controller.loadGroupsData(); // Refresh UI
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('File JSON berhasil diperbarui!'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                  _controller.loadGroupsData();
+                }
+              } catch (e) {
+                // Fallback to raw text writing for completely broken syntax save override
+                await storageService.saveJsonData(targetFile, newContent);
+                if (mounted) {
+                  Navigator.pop(context);
+                  _controller.loadGroupsData();
+                }
               }
             },
             style: ElevatedButton.styleFrom(backgroundColor: _themeColor),
@@ -418,7 +415,6 @@ class _DailyScreenState extends State<DailyScreen> {
     );
   }
 
-  // METHOD BARU: Alur Berurutan Otomatis (Seksi Utama -> Group Checklist) Khusus Kondisi Kosong
   void _showSequentialAddDialog() {
     final sectionController = TextEditingController();
     final formKey = GlobalKey<FormState>();
@@ -451,15 +447,14 @@ class _DailyScreenState extends State<DailyScreen> {
               if (formKey.currentState!.validate()) {
                 final String namaSeksiBaru = sectionController.text.trim();
                 _controller.addLocalMainSection(namaSeksiBaru);
-                // Tutup dialog langkah 1
+
                 Navigator.pop(context);
-                // Otomatis lanjut ke dialog langkah 2 untuk mengisi Group Checklist di seksi tersebut
                 _showAddGroupDialogAtSection(namaSeksiBaru);
               }
             },
             style: ElevatedButton.styleFrom(backgroundColor: _themeColor),
             child: const Text(
-              'Lanjut ke Group ➔',
+              'Lanjut ke Group >',
               style: TextStyle(color: Colors.white),
             ),
           ),
@@ -492,13 +487,12 @@ class _DailyScreenState extends State<DailyScreen> {
               if (namaSeksiBaru.isNotEmpty) {
                 _controller.addLocalMainSection(namaSeksiBaru);
                 Navigator.pop(context);
-
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
                       'Seksi "$namaSeksiBaru" berhasil dibuat! Tekan tombol + di kanannya untuk menambah group.',
                     ),
-                    backgroundColor: _themeColor, // indigo
+                    backgroundColor: _themeColor,
                   ),
                 );
               }
@@ -512,7 +506,7 @@ class _DailyScreenState extends State<DailyScreen> {
 
   void _showAddGroupDialogAtSection(String targetMainSection) {
     final nameController = TextEditingController();
-    final iconController = TextEditingController(text: '📂');
+    final iconController = TextEditingController(text: '📁');
     final formKey = GlobalKey<FormState>();
 
     showDialog(
@@ -660,6 +654,7 @@ class _DailyScreenState extends State<DailyScreen> {
   void _showMoveSectionDialog(ChecklistGroup group) {
     List<String> availableSections = _controller.groupedVisibleGroup.keys
         .toList();
+
     if (!availableSections.contains("Lainnya")) {
       availableSections.add("Lainnya");
     }
@@ -683,12 +678,10 @@ class _DailyScreenState extends State<DailyScreen> {
                   title: Text(sectionName.toUpperCase()),
                   leading: Icon(
                     isCurrentSection ? Icons.folder_special : Icons.folder_open,
-                    color: isCurrentSection
-                        ? _themeColor
-                        : Colors.grey, // indigo
+                    color: isCurrentSection ? _themeColor : Colors.grey,
                   ),
                   trailing: isCurrentSection
-                      ? Icon(Icons.check_circle, color: _themeColor) // indigo
+                      ? Icon(Icons.check_circle, color: _themeColor)
                       : null,
                   selected: isCurrentSection,
                   onTap: isCurrentSection
@@ -705,7 +698,7 @@ class _DailyScreenState extends State<DailyScreen> {
                                 content: Text(
                                   'Group "${group.groupName}" berhasil dipindahkan ke seksi "$sectionName"',
                                 ),
-                                backgroundColor: _themeColor, // indigo
+                                backgroundColor: _themeColor,
                               ),
                             );
                           }
@@ -809,7 +802,6 @@ class _DailyScreenState extends State<DailyScreen> {
       }
     }
 
-    // Dibungkus Scaffold terluar agar properti bottomNavigationBar bisa merender layout iklan
     return Scaffold(
       body: GroupedSectionLayout<ChecklistGroup>(
         title: 'Checklist Groups',
@@ -838,7 +830,7 @@ class _DailyScreenState extends State<DailyScreen> {
             ? Padding(
                 padding: const EdgeInsets.only(right: 8.0),
                 child: Tooltip(
-                  message: 'Enkripsi Aktif',
+                  message: 'Enkripsi Tersedia (Kata Sandi Diatur)',
                   child: Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
@@ -897,7 +889,7 @@ class _DailyScreenState extends State<DailyScreen> {
 
           return InteractiveSectionHeader(
             sectionName: sectionKey,
-            themeColor: Colors.indigo[900]!, // Indigo
+            themeColor: Colors.indigo[900]!,
             isEditMode: isLayoutEditMode ? true : _controller.isSectionEditMode,
             isUpperCase: false,
             isFirst: index == 0,
@@ -910,328 +902,363 @@ class _DailyScreenState extends State<DailyScreen> {
             onAddItem: () => _showAddGroupDialogAtSection(sectionKey),
           );
         },
-        gridItemBuilder:
-            (context, group, index, sectionItems, isLayoutEditMode) {
-              final bool isCorrupted = group.id.startsWith("CORRUPTED_");
+        gridItemBuilder: (context, group, index, sectionItems, isLayoutEditMode) {
+          final bool isCorrupted = group.id.startsWith("CORRUPTED_");
 
-              if (isCorrupted) {
-                return InteractiveGridCard(
-                  themeColor: Colors.redAccent,
-                  isEditMode: isLayoutEditMode
-                      ? true
-                      : _controller.isPageEditMode,
-                  isHiddenStyle: false,
-                  isFirst: index == 0,
-                  isLast: index == sectionItems.length - 1,
-                  onTap: () => _showManualDecryptDialog(group),
-                  onLongPress: _controller.togglePageEditMode,
-                  onMoveLeft: () {},
-                  onMoveRight: () {},
-                  popupMenuItems: [
-                    const PopupMenuItem(
-                      value: 'decrypt',
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.lock_open_rounded,
-                            size: 18,
-                            color: Colors.indigo,
-                          ),
-                          SizedBox(width: 10),
-                          Text(
-                            'Dekripsi Manual',
-                            style: TextStyle(fontSize: 13),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'edit_raw_json',
-                      child: Row(
-                        children: [
-                          Icon(Icons.data_object, size: 18, color: Colors.blue),
-                          SizedBox(width: 10),
-                          Text(
-                            'Edit File .json',
-                            style: TextStyle(fontSize: 13),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.delete_outline,
-                            size: 18,
-                            color: Colors.red,
-                          ),
-                          SizedBox(width: 10),
-                          Text(
-                            'Hapus Berkas Rusak',
-                            style: TextStyle(color: Colors.red, fontSize: 13),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                  onPopupSelected: (value) async {
-                    if (value == 'decrypt') {
-                      _showManualDecryptDialog(group);
-                    } else if (value == 'edit_raw_json') {
-                      _showEditRawJsonDialog(group);
-                    } else if (value == 'delete') {
-                      _deleteGroup(group);
-                    }
-                  },
-                  content: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+          if (isCorrupted) {
+            return InteractiveGridCard(
+              themeColor: Colors.redAccent,
+              isEditMode: isLayoutEditMode ? true : _controller.isPageEditMode,
+              isHiddenStyle: false,
+              isFirst: index == 0,
+              isLast: index == sectionItems.length - 1,
+              onTap: () => _showManualDecryptDialog(group),
+              onLongPress: _controller.togglePageEditMode,
+              onMoveLeft: () {},
+              onMoveRight: () {},
+              popupMenuItems: [
+                const PopupMenuItem(
+                  value: 'decrypt',
+                  child: Row(
                     children: [
-                      Text(group.icon, style: const TextStyle(fontSize: 28)),
-                      const SizedBox(height: 8),
-                      Text(
-                        group.groupName,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                          color: Colors.redAccent,
-                        ),
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      Icon(
+                        Icons.lock_open_rounded,
+                        size: 18,
+                        color: Colors.indigo,
                       ),
-                      const SizedBox(height: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.red.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: const Text(
-                          'Terkunci / Korup',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: Colors.redAccent,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                      SizedBox(width: 10),
+                      Text('Dekripsi Manual', style: TextStyle(fontSize: 13)),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'edit_raw_json',
+                  child: Row(
+                    children: [
+                      Icon(Icons.data_object, size: 18, color: Colors.blue),
+                      SizedBox(width: 10),
+                      Text('Edit File .json', style: TextStyle(fontSize: 13)),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                      SizedBox(width: 10),
+                      Text(
+                        'Hapus Berkas Rusak',
+                        style: TextStyle(color: Colors.red, fontSize: 13),
                       ),
                     ],
                   ),
-                );
-              }
-
-              int totalItems = 0;
-              for (var section in group.allList) {
-                totalItems += section.items.length;
-              }
-
-              return InteractiveGridCard(
-                themeColor: _themeColor, // Indigo
-                isEditMode: isLayoutEditMode
-                    ? true
-                    : _controller.isPageEditMode,
-                isHiddenStyle: group.isHidden,
-                isFirst: index == 0,
-                isLast: index == sectionItems.length - 1,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => ChecklistDetailScreen(
-                        group: group,
-                        baseDir: _controller.selectedBaseDir,
-                        allAvailableGroups: _controller.allGroupRaw,
+                ),
+              ],
+              onPopupSelected: (value) async {
+                if (value == 'decrypt') {
+                  _showManualDecryptDialog(group);
+                } else if (value == 'edit_raw_json') {
+                  _showEditRawJsonDialog(group);
+                } else if (value == 'delete') {
+                  _deleteGroup(group);
+                }
+              },
+              content: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(group.icon, style: const TextStyle(fontSize: 28)),
+                  const SizedBox(height: 8),
+                  Text(
+                    group.groupName,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: Colors.redAccent,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Text(
+                      'Terkunci / Korup',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Colors.redAccent,
+                        fontWeight: FontWeight.bold,
                       ),
-                    ),
-                  ).then((_) => _controller.loadGroupsData());
-                },
-                onLongPress: _controller.togglePageEditMode,
-                onMoveLeft: () =>
-                    _controller.moveGroupOrder(sectionItems, index, -1),
-                onMoveRight: () =>
-                    _controller.moveGroupOrder(sectionItems, index, 1),
-                popupMenuItems: [
-                  PopupMenuItem(
-                    value: 'edit',
-                    child: Row(
-                      children: const [
-                        Icon(Icons.edit, size: 18, color: Colors.teal),
-                        SizedBox(width: 10),
-                        Text(
-                          'Ubah Nama & Ikon',
-                          style: TextStyle(fontSize: 13),
-                        ),
-                      ],
-                    ),
-                  ),
-                  PopupMenuItem(
-                    value: 'edit_raw_json',
-                    child: Row(
-                      children: const [
-                        Icon(Icons.data_object, size: 18, color: Colors.blue),
-                        SizedBox(width: 10),
-                        Text('Edit File .json', style: TextStyle(fontSize: 13)),
-                      ],
-                    ),
-                  ),
-                  PopupMenuItem(
-                    value: 'move_section',
-                    child: Row(
-                      children: const [
-                        Icon(
-                          Icons.drive_file_move_outlined,
-                          size: 18,
-                          color: Colors.indigo,
-                        ),
-                        SizedBox(width: 10),
-                        Text('Pindahkan Seksi', style: TextStyle(fontSize: 13)),
-                      ],
-                    ),
-                  ),
-                  PopupMenuItem(
-                    value: 'toggle_visibility',
-                    child: Row(
-                      children: [
-                        Icon(
-                          group.isHidden
-                              ? Icons.visibility
-                              : Icons.visibility_off,
-                          size: 18,
-                          color: Colors.blueGrey[700],
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          group.isHidden
-                              ? 'Tampilkan Group'
-                              : 'Sembunyikan Group',
-                          style: const TextStyle(fontSize: 13),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const PopupMenuDivider(),
-                  PopupMenuItem(
-                    value: 'delete',
-                    child: Row(
-                      children: const [
-                        Icon(
-                          Icons.delete_outline,
-                          size: 18,
-                          color: Colors.redAccent,
-                        ),
-                        SizedBox(width: 10),
-                        Text(
-                          'Hapus Group',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.redAccent,
-                          ),
-                        ),
-                      ],
                     ),
                   ),
                 ],
-                onPopupSelected: (value) async {
-                  if (value == 'edit') {
-                    _showEditGroupDialog(group);
-                  } else if (value == 'edit_raw_json') {
-                    _showEditRawJsonDialog(group);
-                  } else if (value == 'move_section') {
-                    _showMoveSectionDialog(group);
-                  } else if (value == 'toggle_visibility') {
-                    await _controller.toggleGroupVisibility(group);
-                  } else if (value == 'delete') {
-                    _deleteGroup(group);
-                  }
-                },
-                content: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.center,
+              ),
+            );
+          }
+
+          int totalItems = 0;
+          for (var section in group.allList) {
+            totalItems += section.items.length;
+          }
+
+          return InteractiveGridCard(
+            themeColor: _themeColor, // Indigo
+            isEditMode: isLayoutEditMode ? true : _controller.isPageEditMode,
+            isHiddenStyle: group.isHidden,
+            isFirst: index == 0,
+            isLast: index == sectionItems.length - 1,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ChecklistDetailScreen(
+                    group: group,
+                    baseDir: _controller.selectedBaseDir,
+                    allAvailableGroups: _controller.allGroupRaw,
+                  ),
+                ),
+              ).then((_) => _controller.loadGroupsData());
+            },
+            onLongPress: _controller.togglePageEditMode,
+            onMoveLeft: () =>
+                _controller.moveGroupOrder(sectionItems, index, -1),
+            onMoveRight: () =>
+                _controller.moveGroupOrder(sectionItems, index, 1),
+            popupMenuItems: [
+              // --- ITEM MENU BARU: ENKRIPSI ---
+              PopupMenuItem(
+                value: 'toggle_encryption',
+                child: Row(
                   children: [
-                    Text(
-                      group.icon,
-                      style: TextStyle(
-                        fontSize: 28,
-                        color: group.isHidden ? Colors.grey : Colors.black,
-                      ),
+                    Icon(
+                      group.isEncrypted
+                          ? Icons.lock_open_rounded
+                          : Icons.lock_outline_rounded,
+                      size: 18,
+                      color: group.isEncrypted ? Colors.green : Colors.red,
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(width: 10),
                     Text(
-                      group.groupName,
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        color: group.isHidden ? Colors.grey : Colors.black87,
-                      ),
-                      textAlign: TextAlign.center,
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
-                      alignment: WrapAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: (group.isHidden ? Colors.grey : _themeColor)
-                                .withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            '${group.allList.length} Seksi',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: group.isHidden
-                                  ? Colors.grey[700]
-                                  : Colors.indigo[900]!,
-                            ),
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color:
-                                (group.isHidden
-                                        ? Colors.grey
-                                        : Colors.indigo[800]!)
-                                    .withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            '$totalItems Item',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: group.isHidden
-                                  ? Colors.grey[700]
-                                  : Colors.indigo[900]!,
-                            ),
-                          ),
-                        ),
-                      ],
+                      group.isEncrypted ? 'Buka Enkripsi' : 'Enkripsi Group',
+                      style: const TextStyle(fontSize: 13),
                     ),
                   ],
                 ),
-              );
+              ),
+              PopupMenuItem(
+                value: 'edit',
+                child: Row(
+                  children: const [
+                    Icon(Icons.edit, size: 18, color: Colors.teal),
+                    SizedBox(width: 10),
+                    Text('Ubah Nama & Ikon', style: TextStyle(fontSize: 13)),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'edit_raw_json',
+                child: Row(
+                  children: const [
+                    Icon(Icons.data_object, size: 18, color: Colors.blue),
+                    SizedBox(width: 10),
+                    Text('Edit File .json', style: TextStyle(fontSize: 13)),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'move_section',
+                child: Row(
+                  children: const [
+                    Icon(
+                      Icons.drive_file_move_outlined,
+                      size: 18,
+                      color: Colors.indigo,
+                    ),
+                    SizedBox(width: 10),
+                    Text('Pindahkan Seksi', style: TextStyle(fontSize: 13)),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'toggle_visibility',
+                child: Row(
+                  children: [
+                    Icon(
+                      group.isHidden ? Icons.visibility : Icons.visibility_off,
+                      size: 18,
+                      color: Colors.blueGrey[700],
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      group.isHidden ? 'Tampilkan Group' : 'Sembunyikan Group',
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                value: 'delete',
+                child: Row(
+                  children: const [
+                    Icon(
+                      Icons.delete_outline,
+                      size: 18,
+                      color: Colors.redAccent,
+                    ),
+                    SizedBox(width: 10),
+                    Text(
+                      'Hapus Group',
+                      style: TextStyle(fontSize: 13, color: Colors.redAccent),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            onPopupSelected: (value) async {
+              if (value == 'toggle_encryption') {
+                try {
+                  await _controller.toggleGroupEncryption(group);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          group.isEncrypted
+                              ? 'Group berhasil dienkripsi!'
+                              : 'Enkripsi group dilepas!',
+                        ),
+                        backgroundColor: Colors.teal,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Setel kata sandi di Pengaturan Data Center terlebih dahulu!',
+                        ),
+                        backgroundColor: Colors.redAccent,
+                      ),
+                    );
+                  }
+                }
+              } else if (value == 'edit') {
+                _showEditGroupDialog(group);
+              } else if (value == 'edit_raw_json') {
+                _showEditRawJsonDialog(group);
+              } else if (value == 'move_section') {
+                _showMoveSectionDialog(group);
+              } else if (value == 'toggle_visibility') {
+                await _controller.toggleGroupVisibility(group);
+              } else if (value == 'delete') {
+                _deleteGroup(group);
+              }
             },
+            content: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(
+                  group.icon,
+                  style: TextStyle(
+                    fontSize: 28,
+                    color: group.isHidden ? Colors.grey : Colors.black,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  group.groupName,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: group.isHidden ? Colors.grey : Colors.black87,
+                  ),
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  alignment: WrapAlignment.center,
+                  children: [
+                    // --- INDIKATOR GEMBOK ENKRIPSI ---
+                    if (group.isEncrypted)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Icon(
+                          Icons.lock_outline_rounded,
+                          size: 12,
+                          color: Colors.green,
+                        ),
+                      ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: (group.isHidden ? Colors.grey : _themeColor)
+                            .withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '${group.allList.length} Seksi',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: group.isHidden
+                              ? Colors.grey[700]
+                              : Colors.indigo[900]!,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color:
+                            (group.isHidden ? Colors.grey : Colors.indigo[800]!)
+                                .withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '$totalItems Item',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: group.isHidden
+                              ? Colors.grey[700]
+                              : Colors.indigo[900]!,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
       ),
-
-      // IMPLEMENTASI LAYOUT FOOTER BANNER ADMOB KHUSUS ANDROID
       bottomNavigationBar:
           _isAdLoaded && _bannerAd != null && Platform.isAndroid
           ? SafeArea(
