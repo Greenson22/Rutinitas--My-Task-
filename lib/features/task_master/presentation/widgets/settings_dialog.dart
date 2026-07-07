@@ -178,7 +178,9 @@ class _SettingsDialogState extends State<SettingsDialog> {
               borderRadius: BorderRadius.circular(16),
             ),
             title: Text(
-              value ? 'Aktifkan Enkripsi AES-256' : 'Matikan Enkripsi',
+              value
+                  ? 'Aktifkan Pengaturan Enkripsi'
+                  : 'Matikan Pengaturan Enkripsi',
             ),
             content: Column(
               mainAxisSize: MainAxisSize.min,
@@ -186,8 +188,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
               children: [
                 Text(
                   value
-                      ? 'Masukkan kata sandi untuk mengamankan seluruh data berkas (.json) Anda sekarang juga. Jangan sampai lupa!'
-                      : 'Masukkan kata sandi saat ini untuk mendekripsi kembali semua berkas ke format teks biasa.',
+                      ? 'Masukkan kata sandi induk baru yang akan digunakan untuk mengunci berkas pilihan Anda secara manual nanti.'
+                      : 'Masukkan kata sandi saat ini untuk menonaktifkan sistem otentikasi enkripsi global.',
                   style: const TextStyle(fontSize: 13, color: Colors.black87),
                 ),
                 const SizedBox(height: 16),
@@ -227,7 +229,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 },
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
                 child: Text(
-                  value ? 'Enkripsi Data' : 'Dekripsi Data',
+                  value ? 'Setel Sandi' : 'Konfirmasi',
                   style: const TextStyle(color: Colors.white),
                 ),
               ),
@@ -250,11 +252,24 @@ class _SettingsDialogState extends State<SettingsDialog> {
       );
 
       try {
-        await _storageService.migrateFilesEncryption(
-          value,
-          inputPassword,
-          remember: _rememberPassword,
-        );
+        final prefs = await SharedPreferences.getInstance();
+
+        if (value) {
+          StorageService.sessionPassword = inputPassword;
+          // Jika user mengaktifkan "Ingat Kata Sandi", simpan juga ke disk local harian melalui helper bawaan
+          if (_rememberPassword) {
+            await _storageService.setRememberPassword(
+              true,
+              currentPassword: inputPassword,
+            );
+          }
+        } else {
+          // Jika sistem enkripsi dimatikan total, bersihkan seluruh cache password
+          await _storageService.setRememberPassword(false);
+          StorageService.sessionPassword = '';
+        }
+
+        await prefs.setBool('is_encrypted', value);
 
         if (!mounted) return;
         Navigator.pop(context);
@@ -270,8 +285,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
           SnackBar(
             content: Text(
               value
-                  ? 'Semua berkas data aplikasi berhasil dienkripsi!'
-                  : 'Enkripsi dinonaktifkan, berkas kembali normal.',
+                  ? 'Sistem kata sandi enkripsi berhasil diatur!'
+                  : 'Sistem otentikasi enkripsi dinonaktifkan.',
             ),
             backgroundColor: Colors.teal,
           ),
@@ -281,7 +296,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Proses gagal. Kata sandi salah atau berkas rusak.'),
+            content: Text('Proses gagal. Terjadi kesalahan konfigurasi.'),
             backgroundColor: Colors.red,
           ),
         );
@@ -357,7 +372,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
               ),
               subtitle: const Text(
-                'Gunakan AES-256 untuk mengamankan seluruh data berkas.',
+                'Gunakan AES-256 untuk mengamankan data berkas pilihan.',
                 style: TextStyle(fontSize: 11, color: Colors.black54),
               ),
               trailing: Switch(
