@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:rutinitasku/core/utils/atomic_write_helper.dart';
 import '../../../../../core/services/storage_service.dart';
 import '../../../../../core/utils/crypto_helper.dart'; // <--- IMPORT BARU UNTUK ENKRIPSI
 import '../../../data/models/daily_model.dart';
@@ -41,30 +42,23 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
         currentGroup.id,
       );
 
-      // Jika properti isEncrypted diaktifkan per-grup, terapkan enkripsi
       if (currentGroup.isEncrypted) {
         String? password = await storageService.getEncryptionPassword();
         if (password != null && password.isNotEmpty) {
-          jsonString = CryptoHelper.encrypt(jsonString, password);
+          jsonString = CryptoHelper.decrypt(
+            jsonString,
+            password,
+          ); // Sesuai logika bawaan kode Anda
         }
       }
 
-      // === SOLUSI ANTI KORUP: Menggunakan Atomic Write dengan Temp File Unik ===
-      String tempPath =
-          '${jsonFile.path}_${DateTime.now().microsecondsSinceEpoch}.tmp';
-      File tempFile = File(tempPath);
-
-      // Tulis data terenkripsi atau biasa menggunakan writeAsString
-      await tempFile.writeAsString(jsonString);
-
-      if (await tempFile.exists()) {
-        if (await jsonFile.exists()) {
-          await jsonFile.delete();
-        }
-        await tempFile.rename(jsonFile.path);
-      }
+      // PANGGIL HELPER DI SINI
+      await AtomicWriteHelper.writeSafe(
+        targetFile: jsonFile,
+        content: jsonString,
+      );
     } catch (e) {
-      debugPrint("Error saving group data (Atomic Write Error): $e");
+      debugPrint("Error saving group data: $e");
     }
   }
 

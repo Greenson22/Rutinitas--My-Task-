@@ -2,6 +2,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:rutinitasku/core/utils/atomic_write_helper.dart';
 import '../../../../../core/services/storage_service.dart';
 import '../../../data/models/daily_model.dart';
 import '../../../../../core/utils/crypto_helper.dart';
@@ -220,27 +221,22 @@ class DailyController extends ChangeNotifier {
 
   // MODIFIKASI: Mengamankan Enkripsi Spesifik Sesuai Status Grup
   Future<void> saveGroupDataToFile(ChecklistGroup group) async {
-    // Lewati penyimpanan otomatis jika ini adalah berkas korup buatan/mock card
     if (group.id.startsWith("CORRUPTED_")) return;
-
     try {
       File groupFile = await _storageService.getSpecificGroupFile(
         selectedBaseDir,
         group.id,
       );
 
-      // Konversi ke format JSON biasa
       String jsonString = const JsonEncoder.withIndent(
         '  ',
       ).convert(group.toJson());
 
-      // Jika properti isEncrypted diaktifkan per-grup, terapkan enkripsi
       if (group.isEncrypted) {
         String? password = await _storageService.getEncryptionPassword();
         if (password != null && password.isNotEmpty) {
           jsonString = CryptoHelper.encrypt(jsonString, password);
         } else {
-          // Fallback membatalkan status jika password sistem tidak tersedia
           group.isEncrypted = false;
           jsonString = const JsonEncoder.withIndent(
             '  ',
@@ -248,25 +244,13 @@ class DailyController extends ChangeNotifier {
         }
       }
 
-      // === SOLUSI ANTI KORUP: Menggunakan Atomic Write dengan Temp File Unik ===
-      String tempPath =
-          '${groupFile.path}_${DateTime.now().microsecondsSinceEpoch}.tmp';
-      File tempFile = File(tempPath);
-
-      // Menggunakan writeAsString menggantikan helper saveJsonData jika string sudah diproses manual
-      await tempFile.writeAsString(jsonString);
-
-      if (await tempFile.exists()) {
-        if (await groupFile.exists()) {
-          await groupFile
-              .delete(); // Menghindari permission error saat overwrite di OS tertentu
-        }
-        await tempFile.rename(groupFile.path); // Rename .tmp ke .json
-      }
-    } catch (e) {
-      debugPrint(
-        "Gagal menyimpan berkas grup checklist (Atomic Write Error): $e",
+      // GANTI BLOK ATOMIC WRITE LAMA DENGAN HELPER
+      await AtomicWriteHelper.writeSafe(
+        targetFile: groupFile,
+        content: jsonString,
       );
+    } catch (e) {
+      debugPrint("Gagal menyimpan berkas grup checklist: $e");
     }
   }
 
