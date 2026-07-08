@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:rutinitasku/core/utils/string_helper.dart';
 import '../../../data/models/daily_model.dart';
 import 'checklist_dialog/change_color_dialog.dart';
 import 'checklist_dialog/checklist_control_panel.dart';
@@ -348,10 +349,7 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
 
   void showUpdateProgressValueDialogView(SubSubjectItem item) {
     final valueController = TextEditingController();
-    String formatDialogNum(int num) => num.toString().replaceAllMapped(
-      RegExp(r'\B(?=(\d{3})+(?!\d))'),
-      (match) => '.',
-    );
+
     bool isCountdown = item.itemType == 'countdown';
 
     showDialog(
@@ -370,8 +368,9 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
           children: [
             Text(
               isCountdown
-                  ? 'Sisa saat ini: ${formatDialogNum(item.currentValue)}'
-                  : 'Progres saat ini: ${formatDialogNum(item.currentValue)} / ${formatDialogNum(item.targetValue)}',
+                  // Ganti dengan helper baru global
+                  ? 'Sisa saat ini: ${StringHelper.formatRibuan(item.currentValue)}'
+                  : 'Progres saat ini: ${StringHelper.formatRibuan(item.currentValue)} / ${StringHelper.formatRibuan(item.targetValue)}',
               style: const TextStyle(color: Colors.grey, fontSize: 13),
             ),
             const SizedBox(height: 12),
@@ -389,10 +388,12 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
               onChanged: (val) {
                 if (val.isEmpty) return;
                 String cleanText = val.replaceAll('.', '');
-                String formattedText = cleanText.replaceAllMapped(
-                  RegExp(r'\B(?=(\d{3})+(?!\d))'),
-                  (match) => '.',
+
+                // Ganti regex lokal dengan pemanggilan global helper
+                String formattedText = StringHelper.formatRibuan(
+                  int.tryParse(cleanText) ?? 0,
                 );
+
                 valueController.value = TextEditingValue(
                   text: formattedText,
                   selection: TextSelection.collapsed(
