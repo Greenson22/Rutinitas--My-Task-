@@ -3,6 +3,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:rutinitasku/core/utils/string_helper.dart';
+import 'package:rutinitasku/features/checklist/presentation/checklist_detail_screen/widgets/edit_item_relations_dialog.dart';
+import 'package:rutinitasku/features/checklist/presentation/checklist_detail_screen/widgets/update_progress_value_dialog.dart';
 import '../../../data/models/daily_model.dart';
 import 'checklist_dialog/change_color_dialog.dart';
 import 'checklist_dialog/checklist_control_panel.dart';
@@ -348,85 +350,13 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
   }
 
   void showUpdateProgressValueDialogView(SubSubjectItem item) {
-    final valueController = TextEditingController();
-
-    bool isCountdown = item.itemType == 'countdown';
-
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          isCountdown
-              ? 'Input Angka Pengurang untuk "${item.subjectName}"'
-              : 'Input Angka Tambahan untuk "${item.subjectName}"',
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              isCountdown
-                  // Ganti dengan helper baru global
-                  ? 'Sisa saat ini: ${StringHelper.formatRibuan(item.currentValue)}'
-                  : 'Progres saat ini: ${StringHelper.formatRibuan(item.currentValue)} / ${StringHelper.formatRibuan(item.targetValue)}',
-              style: const TextStyle(color: Colors.grey, fontSize: 13),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: valueController,
-              keyboardType: TextInputType.number,
-              autofocus: true,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: InputDecoration(
-                labelText: isCountdown
-                    ? 'Jumlah Angka Pengurang (Misal: 5)'
-                    : 'Jumlah Angka Tambahan (Misal: 1.000)',
-                border: const OutlineInputBorder(),
-              ),
-              onChanged: (val) {
-                if (val.isEmpty) return;
-                String cleanText = val.replaceAll('.', '');
-
-                // Ganti regex lokal dengan pemanggilan global helper
-                String formattedText = StringHelper.formatRibuan(
-                  int.tryParse(cleanText) ?? 0,
-                );
-
-                valueController.value = TextEditingValue(
-                  text: formattedText,
-                  selection: TextSelection.collapsed(
-                    offset: formattedText.length,
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final String rawText = valueController.text
-                  .replaceAll('.', '')
-                  .trim();
-              final int? addValue = int.tryParse(rawText);
-              if (addValue != null && addValue > 0) {
-                Navigator.pop(context);
-                updateProgressValueData(item, addValue, isCountdown);
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
-            child: Text(
-              isCountdown ? 'Kurangi' : 'Tambah',
-              style: const TextStyle(color: Colors.white),
-            ),
-          ),
-        ],
+      builder: (context) => UpdateProgressValueDialog(
+        item: item,
+        onConfirm: (targetItem, value, isCountdown) {
+          updateProgressValueData(targetItem, value, isCountdown);
+        },
       ),
     );
   }
@@ -502,404 +432,38 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
   }
 
   void showEditNameDialogView(SubSubjectItem item) {
-    final editController = TextEditingController(text: item.subjectName);
-    final currentValController = TextEditingController(
-      text: item.currentValue.toString(),
-    );
-    final targetValController = TextEditingController(
-      text: item.targetValue.toString(),
-    );
-
-    ChecklistGroup? selectedGroupTarget;
-    List<DailySubject> filteredCardTargets = [];
-    String? localLinkedTarget = item.linkedSubjectName;
-
-    if (localLinkedTarget != null && localLinkedTarget.isNotEmpty) {
-      for (var group in widget.allAvailableGroups ?? <ChecklistGroup>[]) {
-        for (var section in group.allList) {
-          if (section.items.any(
-            (sub) => sub.subjectName == localLinkedTarget,
-          )) {
-            selectedGroupTarget = group;
-            for (var sec in group.allList)
-              filteredCardTargets.addAll(sec.items);
-            break;
-          }
-        }
-        if (selectedGroupTarget != null) break;
-      }
-    }
-
-    final List<ChecklistGroup> validGroupsList =
-        (widget.allAvailableGroups ?? <ChecklistGroup>[])
-            .where((g) => !g.id.startsWith("CORRUPTED_"))
-            .toList();
-    List<SubSubjectItem> allFlattenedItems = [];
-    getAllItemsFlattened(widget.subject.subMateri, allFlattenedItems);
-    List<SubSubjectItem> progressOptions = allFlattenedItems
-        .where(
-          (e) =>
-              (e.itemType == 'progress' || e.itemType == 'countdown') &&
-              e.subjectName != item.subjectName,
-        )
-        .toList();
-
-    String? localAccumulatorTarget = item.accumulatorItemName;
-    DailySubject? selectedExternalCard;
-    List<SubSubjectItem> externalCardProgressItems = [];
-    String? localExternalCardName = item.linkedExternalCardName;
-    String? localExternalItemName = item.linkedExternalItemName;
-
-    if (localExternalCardName != null) {
-      selectedExternalCard = widget.allAvailableSubjects.firstWhere(
-        (sub) => sub.subjectName == localExternalCardName,
-        orElse: () =>
-            DailySubject(subjectName: '', progress: 'belum', subMateri: []),
-      );
-      if (selectedExternalCard.subjectName.isNotEmpty) {
-        getAllItemsFlattened(
-          selectedExternalCard.subMateri,
-          externalCardProgressItems,
-        );
-        externalCardProgressItems = externalCardProgressItems
-            .where(
-              (el) => el.itemType == 'progress' || el.itemType == 'countdown',
-            )
-            .toList();
-      } else {
-        selectedExternalCard = null;
-      }
-    }
-
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          return AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            title: const Text('Ubah Item & Hubungan Lintas Data'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: editController,
-                    decoration: const InputDecoration(
-                      labelText: 'Nama Sub-Materi',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  if (item.itemType == 'progress' ||
-                      item.itemType == 'countdown') ...[
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: currentValController,
-                            keyboardType: TextInputType.number,
-                            inputFormatters: [
-                              FilteringTextInputFormatter.digitsOnly,
-                            ],
-                            decoration: InputDecoration(
-                              labelText: item.itemType == 'countdown'
-                                  ? 'Sisa Nilai'
-                                  : 'Nilai Sekarang',
-                              border: const OutlineInputBorder(),
-                            ),
-                          ),
-                        ),
-                        const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 12),
-                          child: Text(
-                            '/',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          child: TextField(
-                            controller: targetValController,
-                            keyboardType: TextInputType.number,
-                            inputFormatters: [
-                              FilteringTextInputFormatter.digitsOnly,
-                            ],
-                            decoration: InputDecoration(
-                              labelText: item.itemType == 'countdown'
-                                  ? 'Nilai Awal'
-                                  : 'Target Nilai',
-                              border: const OutlineInputBorder(),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                  const SizedBox(height: 16),
-                  const Divider(),
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      '🔗 Kaitan Akumulasi Lintas Card Checklist',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.indigo,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<DailySubject>(
-                    value: selectedExternalCard,
-                    decoration: const InputDecoration(
-                      labelText: 'Pilih Card Checklist Target',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.credit_card_rounded),
-                    ),
-                    hint: const Text('Pilih Card Luar (Opsional)'),
-                    items: [
-                      const DropdownMenuItem<DailySubject>(
-                        value: null,
-                        child: Text('Tidak Dikaitkan Ke Card Lain'),
-                      ),
-                      ...widget.allAvailableSubjects
-                          .where(
-                            (sub) =>
-                                sub.subjectName != widget.subject.subjectName,
-                          )
-                          .map((sub) {
-                            String displaySection =
-                                (sub.section == 'focus' ||
-                                    sub.section.trim().isEmpty)
-                                ? 'Seksi Utama'
-                                : sub.section;
-                            return DropdownMenuItem<DailySubject>(
-                              value: sub,
-                              child: Text(
-                                '${sub.icon} ${sub.subjectName} (${displaySection.toUpperCase()})',
-                              ),
-                            );
-                          }),
-                    ],
-                    onChanged: (DailySubject? targetCard) {
-                      setDialogState(() {
-                        selectedExternalCard = targetCard;
-                        externalCardProgressItems.clear();
-                        localExternalCardName = targetCard?.subjectName;
-                        localExternalItemName = null;
-                        if (targetCard != null) {
-                          getAllItemsFlattened(
-                            targetCard.subMateri,
-                            externalCardProgressItems,
-                          );
-                          externalCardProgressItems = externalCardProgressItems
-                              .where(
-                                (el) =>
-                                    el.itemType == 'progress' ||
-                                    el.itemType == 'countdown',
-                              )
-                              .toList();
-                        }
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    value: localExternalItemName,
-                    disabledHint: const Text(
-                      'Pilih Card target terlebih dahulu...',
-                    ),
-                    decoration: InputDecoration(
-                      labelText: 'Pilih Item Angka Target',
-                      border: const OutlineInputBorder(),
-                      enabled:
-                          selectedExternalCard != null &&
-                          externalCardProgressItems.isNotEmpty,
-                      prefixIcon: const Icon(Icons.bar_chart_rounded),
-                    ),
-                    hint: Text(
-                      selectedExternalCard == null
-                          ? 'Pilih Card dulu'
-                          : (externalCardProgressItems.isEmpty
-                                ? 'Tidak ada item progress/countdown'
-                                : 'Pilih Item Target'),
-                    ),
-                    items: selectedExternalCard == null
-                        ? null
-                        : externalCardProgressItems
-                              .map(
-                                (el) => DropdownMenuItem<String>(
-                                  value: el.subjectName,
-                                  child: Text('Item: ${el.subjectName}'),
-                                ),
-                              )
-                              .toList(),
-                    onChanged: selectedExternalCard == null
-                        ? null
-                        : (String? val) =>
-                              setDialogState(() => localExternalItemName = val),
-                  ),
-                  const SizedBox(height: 16),
-                  const Divider(),
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      '⚙️ Pengaturan Kaitan Internal & Prasyarat Kunci',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<String>(
-                    value: localAccumulatorTarget,
-                    decoration: const InputDecoration(
-                      labelText: 'Kaitkan Akumulasi Nilai Ke:',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.auto_graph_rounded),
-                    ),
-                    hint: const Text('Pilih List Pengumpul (Opsional)'),
-                    items: [
-                      const DropdownMenuItem<String>(
-                        value: null,
-                        child: Text('Tidak Dikaitkan (Berdiri Sendiri)'),
-                      ),
-                      ...progressOptions.map(
-                        (opt) => DropdownMenuItem<String>(
-                          value: opt.subjectName,
-                          child: Text('Kumpul ke: ${opt.subjectName}'),
-                        ),
-                      ),
-                    ],
-                    onChanged: (String? val) {
-                      setDialogState(() {
-                        localAccumulatorTarget = val;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  const Divider(),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<ChecklistGroup>(
-                    value: selectedGroupTarget,
-                    decoration: const InputDecoration(
-                      labelText: '1. Pilih Kelompok Grup',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.group_work_outlined),
-                    ),
-                    hint: const Text('Pilih Grup Asal Card (Opsional)'),
-                    items: [
-                      const DropdownMenuItem<ChecklistGroup>(
-                        value: null,
-                        child: Text('Tidak Dikaitkan (Bebas Klik)'),
-                      ),
-                      ...validGroupsList.map(
-                        (group) => DropdownMenuItem(
-                          value: group,
-                          child: Text('${group.icon} ${group.groupName}'),
-                        ),
-                      ),
-                    ],
-                    onChanged: (ChecklistGroup? targetGroup) {
-                      setDialogState(() {
-                        selectedGroupTarget = targetGroup;
-                        filteredCardTargets.clear();
-                        localLinkedTarget = null;
-                        if (targetGroup != null) {
-                          for (var section in targetGroup.allList)
-                            filteredCardTargets.addAll(section.items);
-                          filteredCardTargets.removeWhere(
-                            (sub) =>
-                                sub.subjectName == widget.subject.subjectName,
-                          );
-                        }
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    value: localLinkedTarget,
-                    disabledHint: const Text(
-                      'Pilih kelompok grup terlebih dahulu...',
-                    ),
-                    decoration: InputDecoration(
-                      labelText: '2. Pilih Card Prasyarat',
-                      border: const OutlineInputBorder(),
-                      enabled:
-                          selectedGroupTarget != null &&
-                          filteredCardTargets.isNotEmpty,
-                      prefixIcon: const Icon(Icons.credit_card_rounded),
-                    ),
-                    hint: Text(
-                      filteredCardTargets.isEmpty
-                          ? 'Tidak ada card tersedia'
-                          : 'Pilih Card Prasyarat',
-                    ),
-                    items: selectedGroupTarget == null
-                        ? null
-                        : filteredCardTargets
-                              .map(
-                                (sub) => DropdownMenuItem<String>(
-                                  value: sub.subjectName,
-                                  child: Text('Card: ${sub.subjectName}'),
-                                ),
-                              )
-                              .toList(),
-                    onChanged: selectedGroupTarget == null
-                        ? null
-                        : (String? val) =>
-                              setDialogState(() => localLinkedTarget = val),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Batal'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  final newName = editController.text.trim();
-                  if (newName.isNotEmpty) {
-                    final int parsedCurrent =
-                        int.tryParse(currentValController.text) ??
-                        item.currentValue;
-                    final int parsedTarget =
-                        int.tryParse(targetValController.text) ??
-                        item.targetValue;
-
-                    Navigator.pop(context);
-                    updateItemNameAndRelationsData(
-                      item: item,
-                      newName: newName,
-                      linkedSubjectName: selectedGroupTarget == null
-                          ? null
-                          : localLinkedTarget,
-                      accumulatorItemName: localAccumulatorTarget,
-                      linkedExternalCardName: selectedExternalCard == null
-                          ? null
-                          : localExternalCardName,
-                      linkedExternalItemName: selectedExternalCard == null
-                          ? null
-                          : localExternalItemName,
-                      parsedCurrent: parsedCurrent,
-                      parsedTarget: parsedTarget,
-                      selectedExternalCard: selectedExternalCard,
-                    );
-                  }
-                },
-                child: const Text('Simpan'),
-              ),
-            ],
-          );
-        },
+      builder: (context) => EditItemRelationsDialog(
+        item: item,
+        currentSubject: widget.subject,
+        allAvailableSubjects: widget.allAvailableSubjects,
+        allAvailableGroups: widget.allAvailableGroups,
+        getAllItemsFlattened: getAllItemsFlattened,
+        onConfirm:
+            ({
+              required item,
+              required newName,
+              required linkedSubjectName,
+              required accumulatorItemName,
+              required linkedExternalCardName,
+              required linkedExternalItemName,
+              required parsedCurrent,
+              required parsedTarget,
+              required selectedExternalCard,
+            }) {
+              updateItemNameAndRelationsData(
+                item: item,
+                newName: newName,
+                linkedSubjectName: linkedSubjectName,
+                accumulatorItemName: accumulatorItemName,
+                linkedExternalCardName: linkedExternalCardName,
+                linkedExternalItemName: linkedExternalItemName,
+                parsedCurrent: parsedCurrent,
+                parsedTarget: parsedTarget,
+                selectedExternalCard: selectedExternalCard,
+              );
+            },
       ),
     );
   }
