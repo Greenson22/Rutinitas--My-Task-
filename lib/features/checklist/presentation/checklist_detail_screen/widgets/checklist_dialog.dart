@@ -460,9 +460,8 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
             onChanged: (val) {
               if (val.isEmpty) return;
               String cleanText = val.replaceAll('.', '');
-              String formattedText = cleanText.replaceAllMapped(
-                RegExp(r'\B(?=(\d{3})+(?!\d))'),
-                (match) => '.',
+              String formattedText = StringHelper.formatRibuan(
+                int.tryParse(cleanText) ?? 0,
               );
               targetController.value = TextEditingValue(
                 text: formattedText,
