@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:rutinitasku/core/utils/string_helper.dart';
 import 'package:rutinitasku/features/checklist/presentation/checklist_detail_screen/widgets/edit_item_relations_dialog.dart';
+import 'package:rutinitasku/features/checklist/presentation/checklist_detail_screen/widgets/edit_subject_name_dialog.dart';
 import 'package:rutinitasku/features/checklist/presentation/checklist_detail_screen/widgets/update_progress_value_dialog.dart';
 import '../../../data/models/daily_model.dart';
 import 'checklist_dialog/change_color_dialog.dart';
@@ -65,38 +66,14 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
   }
 
   void showEditSubjectNameDialogView() {
-    final editController = TextEditingController(
-      text: widget.subject.subjectName,
-    );
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Ubah Judul Checklist'),
-        content: TextField(
-          controller: editController,
-          decoration: const InputDecoration(
-            labelText: 'Nama Judul Baru',
-            border: OutlineInputBorder(),
-          ),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final newName = editController.text.trim();
-              if (newName.isNotEmpty) {
-                setState(() => widget.subject.subjectName = newName);
-                widget.onDataChanged();
-              }
-              Navigator.pop(context);
-            },
-            child: const Text('Simpan'),
-          ),
-        ],
+      builder: (context) => EditSubjectNameDialog(
+        initialName: widget.subject.subjectName,
+        onSave: (newName) {
+          setState(() => widget.subject.subjectName = newName);
+          widget.onDataChanged();
+        },
       ),
     );
   }
