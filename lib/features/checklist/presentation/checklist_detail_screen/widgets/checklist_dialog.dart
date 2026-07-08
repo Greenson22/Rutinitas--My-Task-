@@ -9,10 +9,10 @@ import 'package:rutinitasku/features/checklist/presentation/checklist_detail_scr
 import 'package:rutinitasku/features/checklist/presentation/checklist_detail_screen/widgets/move_selected_items_dialog.dart';
 import 'package:rutinitasku/features/checklist/presentation/checklist_detail_screen/widgets/update_progress_value_dialog.dart';
 import '../../../data/models/daily_model.dart';
-import 'checklist_dialog/change_color_dialog.dart';
-import 'checklist_dialog/checklist_control_panel.dart';
-import 'checklist_dialog/checklist_tree_view.dart';
-import 'checklist_dialog/checklist_note_view.dart';
+import 'change_color_dialog.dart';
+import 'checklist_control_panel.dart';
+import 'checklist_tree_view.dart';
+import 'checklist_note_view.dart';
 import '../controllers/checklist_dialog_controller.dart';
 import '../../../../../core/presentation/widgets/base_popup_dialog.dart';
 
