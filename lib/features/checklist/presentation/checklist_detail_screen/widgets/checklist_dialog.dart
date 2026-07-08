@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:rutinitasku/core/utils/string_helper.dart';
 import 'package:rutinitasku/features/checklist/presentation/checklist_detail_screen/widgets/edit_item_relations_dialog.dart';
 import 'package:rutinitasku/features/checklist/presentation/checklist_detail_screen/widgets/edit_subject_name_dialog.dart';
+import 'package:rutinitasku/features/checklist/presentation/checklist_detail_screen/widgets/import_json_dialog.dart';
 import 'package:rutinitasku/features/checklist/presentation/checklist_detail_screen/widgets/update_progress_value_dialog.dart';
 import '../../../data/models/daily_model.dart';
 import 'checklist_dialog/change_color_dialog.dart';
@@ -112,130 +113,27 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
   }
 
   void showImportJsonDialogView() {
-    final TextEditingController jsonFieldController = TextEditingController();
-    const String completeJsonTemplate =
-        '[\n'
-        '  {\n'
-        '    "nama_materi": "Contoh Normal Item",\n'
-        '    "progress": "belum",\n'
-        '    "finishedDate": null,\n'
-        '    "itemType": "normal",\n'
-        '    "currentValue": 0,\n'
-        '    "targetValue": 0,\n'
-        '    "isDisabled": false,\n'
-        '    "linkedSubjectName": null,\n'
-        '    "accumulatorItemName": null,\n'
-        '    "linkedExternalCardName": null,\n'
-        '    "linkedExternalItemName": null,\n'
-        '    "sub_materi": []\n'
-        '  }\n'
-        ']';
-
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
-          children: [
-            Icon(Icons.code_rounded, color: Colors.indigo),
-            SizedBox(width: 8),
-            Text('Impor Data dari JSON'),
-          ],
-        ),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'Tempel data teks JSON sesuai format:',
-                      style: TextStyle(fontSize: 12, color: Colors.black87),
-                    ),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () async {
-                      await Clipboard.setData(
-                        const ClipboardData(text: completeJsonTemplate),
-                      );
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              '📋 Template JSON disalin ke clipboard!',
-                            ),
-                            backgroundColor: Colors.teal,
-                          ),
-                        );
-                      }
-                    },
-                    icon: const Icon(
-                      Icons.copy_all,
-                      size: 14,
-                      color: Colors.indigo,
-                    ),
-                    label: const Text(
-                      'Salin Template',
-                      style: TextStyle(fontSize: 11, color: Colors.indigo),
-                    ),
-                  ),
-                ],
+      builder: (context) => ImportJsonDialog(
+        onImport: (rawInput) {
+          try {
+            importSubMateriFromJson(rawInput);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('🎉 Sukses mengimpor dari data JSON!'),
+                backgroundColor: Colors.green,
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: jsonFieldController,
-                maxLines: 8,
-                style: const TextStyle(fontFamily: 'Courier', fontSize: 12),
-                decoration: const InputDecoration(
-                  hintText:
-                      '[\n  {\n    "nama_materi": "Nama Item Baru",\n    "itemType": "normal"\n  }\n]',
-                  border: OutlineInputBorder(),
-                  fillColor: Color(0xFFF8F9FA),
-                  filled: true,
-                ),
+            );
+          } catch (e) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Gagal memuat JSON! Detail: $e'),
+                backgroundColor: Colors.redAccent,
               ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final String rawInput = jsonFieldController.text;
-              Navigator.pop(context);
-              if (rawInput.trim().isNotEmpty) {
-                try {
-                  importSubMateriFromJson(rawInput);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('🎉 Sukses mengimpor dari data JSON!'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Gagal memuat JSON! Detail: $e'),
-                      backgroundColor: Colors.redAccent,
-                    ),
-                  );
-                }
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
-            child: const Text(
-              'Impor Konten',
-              style: TextStyle(color: Colors.white),
-            ),
-          ),
-        ],
+            );
+          }
+        },
       ),
     );
   }
