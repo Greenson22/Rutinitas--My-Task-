@@ -549,11 +549,9 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
       highlightedItem = item;
     });
     widget.onDataChanged();
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted && highlightedItem == item) {
-        setState(() => highlightedItem = null);
-      }
-    });
+    if (mounted && highlightedItem == item) {
+      setState(() => highlightedItem = null);
+    }
   }
 
   void moveSelectedItemsToOtherSubject(DailySubject targetSubject) {

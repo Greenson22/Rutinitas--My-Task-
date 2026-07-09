@@ -61,7 +61,6 @@ class DailyController extends ChangeNotifier {
 
     try {
       // BERIKAN JEDA MIKRO: Menjamin penulisan selesai sepenuhnya di disk storage
-      await Future.delayed(const Duration(milliseconds: 150));
       selectedBaseDir = await _storageService.getBaseDirSetting();
 
       List<File> groupFiles = await _storageService.getAllChecklistGroups(
@@ -214,9 +213,6 @@ class DailyController extends ChangeNotifier {
 
     // Tambahkan 'await' agar penulisan selesai utuh ke disk storage
     await saveGroupDataToFile(newGroup);
-
-    // 2. Tambahkan intervensi asinkron (jeda mikro) untuk memastikan IO penulisan selesai utuh
-    await Future.delayed(const Duration(milliseconds: 150));
 
     // 3. Lakukan pembacaan sekuensial ulang terhadap seluruh file manifest group checklist
     await loadGroupsData();
