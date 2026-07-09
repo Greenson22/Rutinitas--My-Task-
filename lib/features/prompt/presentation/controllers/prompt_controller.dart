@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:rutinitasku/core/services/storage_service.dart';
+import 'package:rutinitasku/core/utils/atomic_write_helper.dart';
 import 'package:rutinitasku/core/utils/crypto_helper.dart'; // <--- MEMASTIKAN IMPORT CRYPTO HELPER TERSEDIA
 import '../../data/models/prompt_model.dart';
 
@@ -287,11 +288,9 @@ class PromptController extends ChangeNotifier {
         final String jsonString = _storageService.formatJsonPretty(
           updatedGroup.toJson(),
         );
-        await _storageService.savePromptGroup(
-          baseDir,
-          updatedGroup.id,
-          jsonString,
-        );
+
+        // MENGGUNAKAN ATOMIC WRITE HELPER
+        await _saveGroupAtomic(baseDir, updatedGroup.id, jsonString);
         _promptGroups[i] = updatedGroup;
       }
     } catch (e) {
@@ -347,7 +346,9 @@ class PromptController extends ChangeNotifier {
         final String jsonString = _storageService.formatJsonPretty(
           updatedGroup.toJson(),
         );
-        await _storageService.savePromptGroup(baseDir, group.id, jsonString);
+
+        // MENGGUNAKAN ATOMIC WRITE HELPER
+        await _saveGroupAtomic(baseDir, group.id, jsonString);
       }
 
       for (var group in _promptGroups) {
@@ -441,7 +442,9 @@ class PromptController extends ChangeNotifier {
       final String jsonString = _storageService.formatJsonPretty(
         newGroup.toJson(),
       );
-      await _storageService.savePromptGroup(baseDir, id, jsonString);
+
+      // MENGGUNAKAN ATOMIC WRITE HELPER
+      await _saveGroupAtomic(baseDir, id, jsonString);
       _localEmptySections.remove(targetSection.toUpperCase());
 
       if (context.mounted) await loadAllPrompts(context);
@@ -506,11 +509,9 @@ class PromptController extends ChangeNotifier {
         final String jsonString = _storageService.formatJsonPretty(
           updatedGroup.toJson(),
         );
-        await _storageService.savePromptGroup(
-          baseDir,
-          updatedGroup.id,
-          jsonString,
-        );
+
+        // MENGGUNAKAN ATOMIC WRITE HELPER
+        await _saveGroupAtomic(baseDir, updatedGroup.id, jsonString);
 
         _promptGroups[i] = updatedGroup; // Update global state
       }
@@ -543,7 +544,9 @@ class PromptController extends ChangeNotifier {
       final String jsonString = _storageService.formatJsonPretty(
         updatedGroup.toJson(),
       );
-      await _storageService.savePromptGroup(baseDir, group.id, jsonString);
+
+      // MENGGUNAKAN ATOMIC WRITE HELPER
+      await _saveGroupAtomic(baseDir, group.id, jsonString);
       if (context.mounted) await loadAllPrompts(context);
     } catch (e) {
       _isLoading = false;
@@ -579,7 +582,9 @@ class PromptController extends ChangeNotifier {
       final String jsonString = _storageService.formatJsonPretty(
         updatedGroup.toJson(),
       );
-      await _storageService.savePromptGroup(baseDir, group.id, jsonString);
+
+      // MENGGUNAKAN ATOMIC WRITE HELPER
+      await _saveGroupAtomic(baseDir, group.id, jsonString);
       _localEmptySections.remove(targetSection.toUpperCase());
       if (context.mounted) await loadAllPrompts(context);
     } catch (e) {
@@ -655,7 +660,9 @@ class PromptController extends ChangeNotifier {
       final String jsonString = _storageService.formatJsonPretty(
         group.toJson(),
       );
-      await _storageService.savePromptGroup(baseDir, group.id, jsonString);
+
+      // MENGGUNAKAN ATOMIC WRITE HELPER
+      await _saveGroupAtomic(baseDir, group.id, jsonString);
 
       if (context.mounted) {
         await loadAllPrompts(context);
@@ -733,7 +740,9 @@ class PromptController extends ChangeNotifier {
         final String jsonString = _storageService.formatJsonPretty(
           group.toJson(),
         );
-        await _storageService.savePromptGroup(baseDir, group.id, jsonString);
+
+        // MENGGUNAKAN ATOMIC WRITE HELPER
+        await _saveGroupAtomic(baseDir, group.id, jsonString);
 
         if (context.mounted) {
           await loadAllPrompts(context);
@@ -776,7 +785,9 @@ class PromptController extends ChangeNotifier {
       final String jsonString = _storageService.formatJsonPretty(
         group.toJson(),
       );
-      await _storageService.savePromptGroup(baseDir, group.id, jsonString);
+
+      // MENGGUNAKAN ATOMIC WRITE HELPER
+      await _saveGroupAtomic(baseDir, group.id, jsonString);
 
       if (context.mounted) {
         await loadAllPrompts(context);
@@ -836,22 +847,18 @@ class PromptController extends ChangeNotifier {
         final String sourceJson = _storageService.formatJsonPretty(
           sourceGroup.toJson(),
         );
-        await _storageService.savePromptGroup(
-          baseDir,
-          sourceGroup.id,
-          sourceJson,
-        );
+
+        // MENGGUNAKAN ATOMIC WRITE HELPER
+        await _saveGroupAtomic(baseDir, sourceGroup.id, sourceJson);
       } else {
         targetGroup.prompts.add(newItem);
 
         final String targetJson = _storageService.formatJsonPretty(
           targetGroup.toJson(),
         );
-        await _storageService.savePromptGroup(
-          baseDir,
-          targetGroup.id,
-          targetJson,
-        );
+
+        // MENGGUNAKAN ATOMIC WRITE HELPER
+        await _saveGroupAtomic(baseDir, targetGroup.id, targetJson);
 
         if (!isCopy) {
           sourceGroup.prompts.removeWhere((p) => p.id == item.id);
@@ -859,11 +866,9 @@ class PromptController extends ChangeNotifier {
           final String sourceJson = _storageService.formatJsonPretty(
             sourceGroup.toJson(),
           );
-          await _storageService.savePromptGroup(
-            baseDir,
-            sourceGroup.id,
-            sourceJson,
-          );
+
+          // MENGGUNAKAN ATOMIC WRITE HELPER
+          await _saveGroupAtomic(baseDir, sourceGroup.id, sourceJson);
         }
       }
 
@@ -916,7 +921,9 @@ class PromptController extends ChangeNotifier {
       final String jsonString = _storageService.formatJsonPretty(
         group.toJson(),
       );
-      await _storageService.savePromptGroup(baseDir, group.id, jsonString);
+
+      // MENGGUNAKAN ATOMIC WRITE HELPER
+      await _saveGroupAtomic(baseDir, group.id, jsonString);
 
       _selectedPromptIds.clear();
 
@@ -984,11 +991,9 @@ class PromptController extends ChangeNotifier {
         final String targetJson = _storageService.formatJsonPretty(
           targetGroup.toJson(),
         );
-        await _storageService.savePromptGroup(
-          baseDir,
-          targetGroup.id,
-          targetJson,
-        );
+
+        // MENGGUNAKAN ATOMIC WRITE HELPER
+        await _saveGroupAtomic(baseDir, targetGroup.id, targetJson);
 
         sourceGroup.prompts.removeWhere(
           (p) => _selectedPromptIds.contains(p.id),
@@ -996,11 +1001,9 @@ class PromptController extends ChangeNotifier {
         final String sourceJson = _storageService.formatJsonPretty(
           sourceGroup.toJson(),
         );
-        await _storageService.savePromptGroup(
-          baseDir,
-          sourceGroup.id,
-          sourceJson,
-        );
+
+        // MENGGUNAKAN ATOMIC WRITE HELPER
+        await _saveGroupAtomic(baseDir, sourceGroup.id, sourceJson);
       }
 
       _selectedPromptIds.clear();
@@ -1060,7 +1063,9 @@ class PromptController extends ChangeNotifier {
         final String jsonString = _storageService.formatJsonPretty(
           group.toJson(),
         );
-        await _storageService.savePromptGroup(baseDir, group.id, jsonString);
+
+        // MENGGUNAKAN ATOMIC WRITE HELPER
+        await _saveGroupAtomic(baseDir, group.id, jsonString);
 
         if (context.mounted) {
           await loadAllPrompts(context);
@@ -1116,7 +1121,9 @@ class PromptController extends ChangeNotifier {
       final String jsonString = _storageService.formatJsonPretty(
         _promptGroups[groupIdx].toJson(),
       );
-      await _storageService.savePromptGroup(baseDir, group.id, jsonString);
+
+      // MENGGUNAKAN ATOMIC WRITE HELPER
+      await _saveGroupAtomic(baseDir, group.id, jsonString);
       notifyListeners();
     } catch (e) {
       if (context.mounted) {
@@ -1164,7 +1171,9 @@ class PromptController extends ChangeNotifier {
       final String jsonString = _storageService.formatJsonPretty(
         _promptGroups[groupIdx].toJson(),
       );
-      await _storageService.savePromptGroup(baseDir, group.id, jsonString);
+
+      // MENGGUNAKAN ATOMIC WRITE HELPER
+      await _saveGroupAtomic(baseDir, group.id, jsonString);
 
       if (context.mounted) {
         await loadAllPrompts(context);
@@ -1228,7 +1237,9 @@ class PromptController extends ChangeNotifier {
       final String jsonString = _storageService.formatJsonPretty(
         _promptGroups[groupIdx].toJson(),
       );
-      await _storageService.savePromptGroup(baseDir, group.id, jsonString);
+
+      // MENGGUNAKAN ATOMIC WRITE HELPER
+      await _saveGroupAtomic(baseDir, group.id, jsonString);
 
       if (context.mounted) {
         await loadAllPrompts(context);
@@ -1291,7 +1302,9 @@ class PromptController extends ChangeNotifier {
       final String jsonString = _storageService.formatJsonPretty(
         _promptGroups[groupIdx].toJson(),
       );
-      await _storageService.savePromptGroup(baseDir, group.id, jsonString);
+
+      // MENGGUNAKAN ATOMIC WRITE HELPER
+      await _saveGroupAtomic(baseDir, group.id, jsonString);
 
       if (context.mounted) {
         await loadAllPrompts(context);
@@ -1323,7 +1336,9 @@ class PromptController extends ChangeNotifier {
       final String jsonString = _storageService.formatJsonPretty(
         group.toJson(),
       );
-      await _storageService.savePromptGroup(baseDir, group.id, jsonString);
+
+      // MENGGUNAKAN ATOMIC WRITE HELPER
+      await _saveGroupAtomic(baseDir, group.id, jsonString);
 
       // Muat ulang data secara otomatis setelah berhasil disimpan
       await loadAllPrompts(context);
@@ -1364,7 +1379,9 @@ class PromptController extends ChangeNotifier {
       final String jsonString = _storageService.formatJsonPretty(
         group.toJson(),
       );
-      await _storageService.savePromptGroup(baseDir, group.id, jsonString);
+
+      // MENGGUNAKAN ATOMIC WRITE HELPER
+      await _saveGroupAtomic(baseDir, group.id, jsonString);
     } catch (e) {
       debugPrint("Gagal menyimpan urutan prompt group: $e");
     }
@@ -1376,7 +1393,6 @@ class PromptController extends ChangeNotifier {
   Future<void> saveGroupDataToFile(PromptGroup group) async {
     try {
       final baseDir = await _storageService.getBaseDirSetting();
-
       // Ambil nama file asli (bersihkan prefix corrupted jika ada)
       String fileName = group.id;
       if (fileName.startsWith("CORRUPTED_")) {
@@ -1391,20 +1407,57 @@ class PromptController extends ChangeNotifier {
       bool isEncrypted = await _storageService.isEncryptionEnabled();
       String? password = await _storageService.getEncryptionPassword();
 
+      String finalContent = jsonString;
       if (isEncrypted && password != null) {
-        final String encryptedContent = CryptoHelper.encrypt(
-          jsonString,
-          password,
-        );
-        await jsonFile.writeAsString(encryptedContent);
-      } else {
-        await jsonFile.writeAsString(jsonString);
+        finalContent = CryptoHelper.encrypt(jsonString, password);
       }
 
-      debugPrint("Berhasil memulihkan file fisik prompt: ${jsonFile.path}");
+      // =========================================================================
+      // SEKARANG MENGGUNAKAN ATOMIC WRITE HELPER
+      // =========================================================================
+      await AtomicWriteHelper.writeSafe(
+        targetFile: jsonFile,
+        content: finalContent,
+      );
+      // =========================================================================
+
+      debugPrint(
+        "Berhasil memulihkan file fisik prompt secara aman: ${jsonFile.path}",
+      );
     } catch (e) {
       debugPrint("Gagal menulis file pemulihan prompt: $e");
       rethrow;
     }
+  }
+
+  // =========================================================================
+  // HELPER BARU: MENYIMPAN DATA PROMPT GROUP SECARA ATOMIC
+  // =========================================================================
+  Future<void> _saveGroupAtomic(
+    String baseDir,
+    String groupId,
+    String jsonString,
+  ) async {
+    // Menggunakan getSpecificPromptFile untuk sinkronisasi folder prompts yang tepat
+    final File targetFile = await _storageService.getSpecificPromptFile(
+      baseDir,
+      groupId,
+    );
+
+    // Pastikan enkripsi sistem dihormati jika aktif saat menyimpan dari UI biasa
+    bool isEncrypted = await _storageService.isEncryptionEnabled();
+    String? password = await _storageService.getEncryptionPassword();
+
+    String finalContent = jsonString;
+    if (isEncrypted &&
+        password != null &&
+        !jsonString.trim().startsWith('U2FsdGVkX1')) {
+      finalContent = CryptoHelper.encrypt(jsonString, password);
+    }
+
+    await AtomicWriteHelper.writeSafe(
+      targetFile: targetFile,
+      content: finalContent,
+    );
   }
 }
