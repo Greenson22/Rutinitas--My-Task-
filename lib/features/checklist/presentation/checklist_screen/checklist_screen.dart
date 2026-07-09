@@ -655,6 +655,13 @@ class _DailyScreenState extends State<DailyScreen> {
     List<String> availableSections = _controller.groupedVisibleGroup.keys
         .toList();
 
+    // FITUR ADAPTASI DARI NOTES: Tambahkan seksi dari penampung hidden jika belum terdaftar
+    for (var key in _controller.groupedHiddenGroup.keys) {
+      if (!availableSections.contains(key)) {
+        availableSections.add(key);
+      }
+    }
+
     if (!availableSections.contains("Lainnya")) {
       availableSections.add("Lainnya");
     }
@@ -687,21 +694,23 @@ class _DailyScreenState extends State<DailyScreen> {
                   onTap: isCurrentSection
                       ? null
                       : () async {
+                          // PERBAIKAN SEPERTI NOTES: Dapatkan referensi messenger sebelum pop
+                          final messenger = ScaffoldMessenger.of(context);
                           Navigator.pop(context);
+
                           await _controller.moveGroupToAnotherSection(
                             group,
                             sectionName,
                           );
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Group "${group.groupName}" berhasil dipindahkan ke seksi "$sectionName"',
-                                ),
-                                backgroundColor: _themeColor,
+
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Group "${group.groupName}" berhasil dipindahkan ke seksi "$sectionName"',
                               ),
-                            );
-                          }
+                              backgroundColor: _themeColor,
+                            ),
+                          );
                         },
                 );
               },
@@ -895,8 +904,12 @@ class _DailyScreenState extends State<DailyScreen> {
             isFirst: index == 0,
             isLast: index == visibleKeysCount - 1,
             onToggleEdit: _controller.toggleSectionEditMode,
-            onMoveUp: () => {},
-            onMoveDown: () => {},
+
+            // --- PERBAIKAN: Hubungkan tombol aksi panah dengan Controller ---
+            onMoveUp: () => _controller.moveMainSectionOrder(index, -1),
+            onMoveDown: () => _controller.moveMainSectionOrder(index, 1),
+
+            // ----------------------------------------------------------------
             onEditName: () => _editMainSectionName(sectionKey),
             onDelete: () => _deleteMainSection(sectionKey),
             onAddItem: () => _showAddGroupDialogAtSection(sectionKey),

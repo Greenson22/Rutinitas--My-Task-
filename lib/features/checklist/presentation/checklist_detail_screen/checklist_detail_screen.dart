@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart'; // Ditambahkan untuk mendeteksi kDebugMode
 import 'package:flutter/services.dart'; // TAMBAHAN: Diperlukan untuk interaksi Clipboard (Salin/Tempel JSON)
 import 'package:google_mobile_ads/google_mobile_ads.dart'; // Ditambahkan untuk SDK AdMob
+import 'package:rutinitasku/core/presentation/widgets/base_popup_dialog.dart';
 import '../../data/models/daily_model.dart';
 import 'controllers/checklist_detail_controller.dart';
 import '../../../../core/presentation/widgets/grouped_section_layout.dart';
@@ -132,64 +133,69 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
         .where((g) => g.id != currentGroup.id && !g.id.startsWith("CORRUPTED_"))
         .toList();
 
+    // Jika tidak ada grup lain selain grup ini, tampilkan notifikasi sama seperti Notes
+    if (validTargetGroups.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Tidak ada grup checklist lain yang tersedia.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    // Tampilkan Dialog berbasis BasePopupDialog dengan spesifikasi UI modul Notes
     showDialog(
       context: context,
-      builder: (dialogCtx) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+      builder: (dialogCtx) => BasePopupDialog(
+        title: const Text(
+          'Pindah Target Grup Tujuan',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
           ),
-          title: const Row(
+        ),
+        themeColor: Colors.teal[700]!, // Menyesuaikan aksen Checklist (Teal)
+        titleColor: Colors.white,
+        content: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.folder_shared_rounded, color: Colors.indigo),
-              SizedBox(width: 8),
-              Text(
-                'Pilih Grup Tujuan',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              const Text(
+                'Pilih Grup Tujuan Pemindahan:',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
               ),
-            ],
-          ),
-          content: validTargetGroups.isEmpty
-              ? const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16.0),
-                  child: Text(
-                    'Tidak ada kelompok grup checklist lain yang tersedia.',
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                )
-              : SizedBox(
-                  width: double.maxFinite,
-                  child: ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: validTargetGroups.length,
-                    separatorBuilder: (context, index) =>
-                        const Divider(height: 1),
-                    itemBuilder: (context, index) {
-                      final targetGroupObj = validTargetGroups[index];
-                      return ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: Colors.indigo.withOpacity(0.1),
-                          child: Text(
-                            targetGroupObj.icon,
-                            style: const TextStyle(fontSize: 16),
-                          ),
+              const SizedBox(height: 6),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: validTargetGroups.length,
+                  itemBuilder: (context, index) {
+                    final targetGroupObj = validTargetGroups[index];
+                    return ListTile(
+                      dense: true,
+                      leading: Text(
+                        targetGroupObj.icon.isEmpty ? ' ' : targetGroupObj.icon,
+                        style: const TextStyle(fontSize: 18),
+                      ),
+                      title: Text(
+                        targetGroupObj.groupName,
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                      subtitle: Text(
+                        targetGroupObj.sectionCategory,
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                      trailing: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.teal[700],
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
                         ),
-                        title: Text(
-                          targetGroupObj.groupName,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        trailing: const Icon(
-                          Icons.arrow_forward_ios_rounded,
-                          size: 14,
-                          color: Colors.grey,
-                        ),
-                        onTap: () {
-                          Navigator.pop(
-                            dialogCtx,
-                          ); // Tutup dialog pilihan daftar grup
+                        onPressed: () {
+                          Navigator.pop(dialogCtx);
                           // Jalankan fungsi mutasi data ke controller utama
                           moveChecklistToAnotherGroup(
                             currentSectionItems: originalSection.items,
@@ -197,18 +203,19 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                             targetGroup: targetGroupObj,
                           );
                         },
-                      );
-                    },
-                  ),
+                        child: const Text(
+                          'Pindah Ke Sini',
+                          style: TextStyle(color: Colors.white, fontSize: 12),
+                        ),
+                      ),
+                    );
+                  },
                 ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogCtx),
-              child: const Text('Batal', style: TextStyle(color: Colors.grey)),
-            ),
-          ],
-        );
-      },
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

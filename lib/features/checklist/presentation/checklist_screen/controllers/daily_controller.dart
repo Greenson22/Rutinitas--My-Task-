@@ -419,4 +419,51 @@ class DailyController extends ChangeNotifier {
       debugPrint("Gagal menghapus seksi kategori beserta filenya: $e");
     }
   }
+
+  // Pindah Urutan Seksi Kategori Utama (Sinkronisasi dengan mekanisme Notes)
+  Future<void> moveMainSectionOrder(int currentIndex, int direction) async {
+    final keys = groupedVisibleGroup.keys.toList();
+    int newIndex = currentIndex + direction;
+
+    if (newIndex < 0 || newIndex >= keys.length) return;
+
+    // 1. Tukar posisi key seksi
+    final temp = keys[currentIndex];
+    keys[currentIndex] = keys[newIndex];
+    keys[newIndex] = temp;
+
+    // 2. Rebuild Map agar UI langsung bereaksi (Dart LinkedHashMap mempertahankan urutan)
+    final Map<String, List<ChecklistGroup>> newMap = {};
+    for (var key in keys) {
+      newMap[key] = groupedVisibleGroup[key]!;
+    }
+    groupedVisibleGroup.clear();
+    groupedVisibleGroup.addAll(newMap);
+    notifyListeners();
+
+    // 3. Simpan urutan baru ke disk secara persisten menggunakan manipulasi orderIndex
+    int globalIndex = 0;
+
+    // Perbarui index untuk grup yang terlihat (visible)
+    for (String key in keys) {
+      final groupsInSection = groupedVisibleGroup[key] ?? [];
+      for (var group in groupsInSection) {
+        if (group.id.startsWith("CORRUPTED_")) continue;
+        group.orderIndex = globalIndex;
+        globalIndex++;
+        await saveGroupDataToFile(group);
+      }
+    }
+
+    // Perbarui index untuk grup tersembunyi agar berada di urutan paling akhir
+    for (var group in hiddenGroup) {
+      if (group.id.startsWith("CORRUPTED_")) continue;
+      group.orderIndex = globalIndex;
+      globalIndex++;
+      await saveGroupDataToFile(group);
+    }
+
+    // 4. Muat ulang keseluruhan data dari storage agar tersinkronisasi
+    await loadGroupsData();
+  }
 }
