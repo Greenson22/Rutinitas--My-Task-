@@ -343,6 +343,7 @@ class ChecklistGroup {
   List<ChecklistSection> allList;
   bool isHidden;
   bool isEncrypted; // <--- BARU: Status enkripsi per-berkas
+  int orderIndex;
 
   ChecklistGroup({
     required this.id,
@@ -351,6 +352,7 @@ class ChecklistGroup {
     this.sectionCategory = "Lainnya",
     this.isHidden = false,
     this.isEncrypted = false, // <--- BARU
+    this.orderIndex = 0,
     required this.allList,
   });
 
@@ -367,6 +369,7 @@ class ChecklistGroup {
       sectionCategory: json['kategori_seksi'] ?? 'Lainnya',
       isHidden: json['isHidden'] ?? false,
       isEncrypted: json['isEncrypted'] ?? false, // <--- BARU
+      orderIndex: json['order_index'] ?? 0,
       allList: list.map((i) => ChecklistSection.fromJson(i)).toList(),
     );
   }
@@ -379,6 +382,7 @@ class ChecklistGroup {
       'kategori_seksi': sectionCategory,
       'isHidden': isHidden,
       'isEncrypted': isEncrypted, // <--- BARU
+      'order_index': orderIndex,
       'semua_list': allList.map((e) => e.toJson()).toList(),
     };
   }

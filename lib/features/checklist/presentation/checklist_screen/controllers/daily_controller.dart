@@ -128,6 +128,8 @@ class DailyController extends ChangeNotifier {
         }
       }
 
+      loadedGroups.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+
       allGroupRaw = loadedGroups;
       _processGroupsDisplay();
     } catch (e) {
@@ -203,6 +205,7 @@ class DailyController extends ChangeNotifier {
       sectionCategory: targetMainSection,
       isHidden: false,
       isEncrypted: false,
+      orderIndex: nextIndex,
       allList: [],
     );
 
@@ -320,6 +323,7 @@ class DailyController extends ChangeNotifier {
     int newIndex = currentIndex + direction;
     if (newIndex < 0 || newIndex >= targetList.length) return;
 
+    // 1. Tukar posisi grup di dalam list target (tampilan visual)
     final itemA = targetList[currentIndex];
     final itemB = targetList[newIndex];
 
@@ -331,67 +335,21 @@ class DailyController extends ChangeNotifier {
       allGroupRaw[rawIdxA] = allGroupRaw[rawIdxB];
       allGroupRaw[rawIdxB] = temp;
 
-      notifyListeners();
+      notifyListeners(); // Perbarui UI seketika
 
-      try {
-        String? password = await _storageService.getEncryptionPassword();
-        for (int i = 0; i < allGroupRaw.length; i++) {
-          final currentGroup = allGroupRaw[i];
-          if (currentGroup.id.startsWith("CORRUPTED_")) continue;
+      // 2. ROMBAKAN UTAMA: Update nomor orderIndex secara berurutan
+      for (int i = 0; i < allGroupRaw.length; i++) {
+        if (allGroupRaw[i].id.startsWith("CORRUPTED_")) continue;
 
-          File oldFile = await _storageService.getSpecificGroupFile(
-            selectedBaseDir,
-            currentGroup.id,
-          );
+        // Cukup ubah angka urutannya saja, JANGAN ubah nama file/ID-nya
+        allGroupRaw[i].orderIndex = i;
 
-          String cleanId = currentGroup.id;
-          if (cleanId.contains('_hub_')) {
-            cleanId = cleanId.substring(cleanId.indexOf('hub_'));
-          }
-          String newId = "${i}_$cleanId";
-          currentGroup.id = newId;
-
-          File newFile = await _storageService.getSpecificGroupFile(
-            selectedBaseDir,
-            newId,
-          );
-
-          String jsonString = const JsonEncoder.withIndent(
-            '  ',
-          ).convert(currentGroup.toJson());
-
-          if (currentGroup.isEncrypted &&
-              password != null &&
-              password.isNotEmpty) {
-            jsonString = CryptoHelper.encrypt(jsonString, password);
-          } else {
-            // Jika gagal memperoleh password, amankan tanpa enkripsi
-            currentGroup.isEncrypted = false;
-            jsonString = const JsonEncoder.withIndent(
-              '  ',
-            ).convert(currentGroup.toJson());
-          }
-
-          // === ATOMIC WRITE ===
-          String tempPath =
-              '${newFile.path}_${DateTime.now().microsecondsSinceEpoch}.tmp';
-          File tempFile = File(tempPath);
-          await tempFile.writeAsString(jsonString);
-
-          if (await tempFile.exists()) {
-            if (await newFile.exists()) await newFile.delete();
-            await tempFile.rename(newFile.path);
-
-            if (oldFile.path != newFile.path && await oldFile.exists()) {
-              await oldFile.delete();
-            }
-          }
-        }
-      } catch (e) {
-        debugPrint("Gagal mengatur ulang urutan file checklist: $e");
+        // Tulis perubahan ke storage lewat fungsi yang sudah ada
+        await saveGroupDataToFile(allGroupRaw[i]);
       }
 
-      await loadGroupsData(); // Dipastikan loadData dipanggil asinkron utuh agar daftar ID sinkron
+      // 3. Muat ulang data agar urutan di memori tersinkronisasi
+      await loadGroupsData();
     }
   }
 
@@ -474,7 +432,6 @@ class DailyController extends ChangeNotifier {
     final keys = groupedVisibleGroup.keys.toList();
     int currentIndex = keys.indexOf(sectionName);
     int newIndex = currentIndex + direction;
-
     if (newIndex < 0 || newIndex >= keys.length) return;
 
     // 1. Tukar posisi seksi di list kunci lokal
@@ -498,62 +455,17 @@ class DailyController extends ChangeNotifier {
     allGroupRaw = reorderedRaw;
     _processGroupsDisplay();
 
-    // 4. Sinkronisasikan urutan baru ke penyimpanan fisik
-    try {
-      String? password = await _storageService.getEncryptionPassword();
-      for (int i = 0; i < allGroupRaw.length; i++) {
-        final currentGroup = allGroupRaw[i];
-        if (currentGroup.id.startsWith("CORRUPTED_")) continue;
+    // 4. Sinkronisasikan urutan baru ke penyimpanan fisik (METODE BARU)
+    int globalIndex = 0;
+    for (var group in allGroupRaw) {
+      if (group.id.startsWith("CORRUPTED_")) continue;
 
-        File oldFile = await _storageService.getSpecificGroupFile(
-          selectedBaseDir,
-          currentGroup.id,
-        );
+      // Atur kembali orderIndex
+      group.orderIndex = globalIndex;
+      globalIndex++;
 
-        String cleanId = currentGroup.id;
-        if (cleanId.contains('_hub_')) {
-          cleanId = cleanId.substring(cleanId.indexOf('hub_'));
-        }
-        String newId = "${i}_$cleanId";
-        currentGroup.id = newId;
-
-        File newFile = await _storageService.getSpecificGroupFile(
-          selectedBaseDir,
-          newId,
-        );
-
-        String jsonString = const JsonEncoder.withIndent(
-          '  ',
-        ).convert(currentGroup.toJson());
-
-        if (currentGroup.isEncrypted &&
-            password != null &&
-            password.isNotEmpty) {
-          jsonString = CryptoHelper.encrypt(jsonString, password);
-        } else {
-          currentGroup.isEncrypted = false;
-          jsonString = const JsonEncoder.withIndent(
-            '  ',
-          ).convert(currentGroup.toJson());
-        }
-
-        // === ATOMIC WRITE ===
-        String tempPath =
-            '${newFile.path}_${DateTime.now().microsecondsSinceEpoch}.tmp';
-        File tempFile = File(tempPath);
-        await tempFile.writeAsString(jsonString);
-
-        if (await tempFile.exists()) {
-          if (await newFile.exists()) await newFile.delete();
-          await tempFile.rename(newFile.path);
-
-          if (oldFile.path != newFile.path && await oldFile.exists()) {
-            await oldFile.delete();
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint("Gagal mengamankan urutan seksi baru ke disk: $e");
+      // Tulis perubahan secara aman menggunakan metode bawaan
+      await saveGroupDataToFile(group);
     }
 
     // 5. Jalankan pemrosesan akhir
