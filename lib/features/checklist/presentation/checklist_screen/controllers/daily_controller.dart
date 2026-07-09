@@ -1,8 +1,10 @@
 // lib/features/daily/presentation/controllers/daily_controller.dart
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:rutinitasku/core/utils/atomic_write_helper.dart';
+
 import '../../../../../core/services/storage_service.dart';
 import '../../../data/models/daily_model.dart';
 import '../../../../../core/utils/crypto_helper.dart';
@@ -15,7 +17,6 @@ class DailyController extends ChangeNotifier {
   List<ChecklistGroup> hiddenGroup = [];
   String selectedBaseDir = 'Documents';
   bool isLoading = true;
-
   bool isPageEditMode = false;
   bool showHiddenSection = false;
   bool isSectionEditMode = false;
@@ -51,18 +52,21 @@ class DailyController extends ChangeNotifier {
   // Fungsi untuk memperbarui query pencarian
   void updateSearchQuery(String query) {
     searchQuery = query.toLowerCase();
-    loadGroupsData(); // Menghubungkan langsung ke loadGroupsData setelah penghapusan _processGroupsDisplay
+    loadGroupsData(
+      showLoading: false,
+    ); // Refresh tanpa loading screen saat mengetik
   }
 
-  // MODIFIKASI UTAMA: Load Data dari Storage (Menghapus auto-encrypt dan hanya mendekripsi bila dikunci)
-  Future<void> loadGroupsData() async {
-    isLoading = true;
-    notifyListeners();
+  // MODIFIKASI: Tambah parameter showLoading agar bisa reload diam-diam di background
+  Future<void> loadGroupsData({bool showLoading = true}) async {
+    if (showLoading) {
+      isLoading = true;
+      notifyListeners();
+    }
 
     try {
       // BERIKAN JEDA MIKRO: Menjamin penulisan selesai sepenuhnya di disk storage
       selectedBaseDir = await _storageService.getBaseDirSetting();
-
       List<File> groupFiles = await _storageService.getAllChecklistGroups(
         selectedBaseDir,
       );
@@ -102,8 +106,8 @@ class DailyController extends ChangeNotifier {
           // PERBAIKAN MUTLAK: Ambil JSON objek dan paksa ID internalnya agar menggunakan `fileName` murni
           final Map<String, dynamic> jsonMap = jsonDecode(jsonString);
           jsonMap['id'] = fileName;
-
           final ChecklistGroup parsedGroup = ChecklistGroup.fromJson(jsonMap);
+
           // Status pembacaan fisik (apakah terenkrip atau raw json) mendikte status memorinya secara absolut
           parsedGroup.isEncrypted = !isRawJson;
 
@@ -130,7 +134,7 @@ class DailyController extends ChangeNotifier {
       loadedGroups.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
       allGroupRaw = loadedGroups;
 
-      // INTEGRASI LOGIKA FILTER DAN PENGELOMPOKAN TAMPILAN (Menggantikan _processGroupsDisplay)
+      // INTEGRASI LOGIKA FILTER DAN PENGELOMPOKAN TAMPILAN
       final filteredList = allGroupRaw.where((group) {
         if (searchQuery.isEmpty) return true;
         return group.groupName.toLowerCase().contains(searchQuery);
@@ -166,10 +170,15 @@ class DailyController extends ChangeNotifier {
       }
 
       hiddenGroup = hiddenList;
-      isLoading = false;
+
+      if (showLoading) {
+        isLoading = false;
+      }
       notifyListeners();
     } catch (e) {
-      isLoading = false;
+      if (showLoading) {
+        isLoading = false;
+      }
       notifyListeners();
       debugPrint("Error loading groups: $e");
     }
@@ -212,12 +221,13 @@ class DailyController extends ChangeNotifier {
     await saveGroupDataToFile(newGroup);
 
     // 3. Lakukan pembacaan sekuensial ulang terhadap seluruh file manifest group checklist
-    await loadGroupsData();
+    await loadGroupsData(showLoading: false);
   }
 
   // MODIFIKASI: Mengamankan Enkripsi Spesifik Sesuai Status Grup
   Future<void> saveGroupDataToFile(ChecklistGroup group) async {
     if (group.id.startsWith("CORRUPTED_")) return;
+
     try {
       File groupFile = await _storageService.getSpecificGroupFile(
         selectedBaseDir,
@@ -253,15 +263,13 @@ class DailyController extends ChangeNotifier {
   // METODE BARU: Mengubah Status Enkripsi (Toggle) per Group Checklist
   Future<void> toggleGroupEncryption(ChecklistGroup group) async {
     if (group.id.startsWith("CORRUPTED_")) return;
-
     String? password = await _storageService.getEncryptionPassword();
     if (password == null || password.isEmpty) {
       throw Exception("NO_PASSWORD");
     }
-
     group.isEncrypted = !group.isEncrypted;
     await saveGroupDataToFile(group);
-    await loadGroupsData(); // Menggunakan loadGroupsData setelah penghapusan _processGroupsDisplay
+    await loadGroupsData(showLoading: false);
   }
 
   // Toggle Visibilitas Sembunyi/Tampil Group
@@ -269,7 +277,7 @@ class DailyController extends ChangeNotifier {
     if (group.id.startsWith("CORRUPTED_")) return;
     group.isHidden = !group.isHidden;
     await saveGroupDataToFile(group);
-    await loadGroupsData(); // Menggunakan loadGroupsData setelah penghapusan _processGroupsDisplay
+    await loadGroupsData(showLoading: false);
   }
 
   // Update Nama dan Ikon Group
@@ -282,14 +290,13 @@ class DailyController extends ChangeNotifier {
     group.groupName = newName;
     group.icon = newIcon;
     await saveGroupDataToFile(group);
-    await loadGroupsData();
+    await loadGroupsData(showLoading: false);
   }
 
   // MODIFIKASI: Hapus Berkas Group Permanen (Mendukung pembersihan mock ID berkas rusak)
   Future<void> deleteGroup(ChecklistGroup group) async {
     try {
       String targetId = group.id;
-      // Jika berkas rusak yang dihapus, bersihkan prefix mock ID-nya terlebih dahulu
       if (targetId.startsWith("CORRUPTED_")) {
         targetId = targetId.replaceFirst(RegExp(r'CORRUPTED_\d+_'), '');
       }
@@ -298,16 +305,17 @@ class DailyController extends ChangeNotifier {
         selectedBaseDir,
         targetId,
       );
+
       if (await groupFile.exists()) {
         await groupFile.delete();
       }
-      await loadGroupsData();
+      await loadGroupsData(showLoading: false);
     } catch (e) {
       debugPrint("Error deleting group file: $e");
     }
   }
 
-  // Tukar Urutan Posisi Group (Juga menangani penulisan ulang aman enkripsi)
+  // PERBAIKAN: Tukar Urutan Posisi Group Secara Instan (Tanpa Loading Screen)
   Future<void> moveGroupOrder(
     List<ChecklistGroup> targetList,
     int currentIndex,
@@ -316,9 +324,12 @@ class DailyController extends ChangeNotifier {
     int newIndex = currentIndex + direction;
     if (newIndex < 0 || newIndex >= targetList.length) return;
 
-    // 1. Tukar posisi grup di dalam list target (tampilan visual)
+    // 1. Tukar posisi grup di dalam list target (tampilan visual seketika)
     final itemA = targetList[currentIndex];
     final itemB = targetList[newIndex];
+
+    targetList[currentIndex] = itemB;
+    targetList[newIndex] = itemA;
 
     int rawIdxA = allGroupRaw.indexWhere((h) => h.id == itemA.id);
     int rawIdxB = allGroupRaw.indexWhere((h) => h.id == itemB.id);
@@ -327,23 +338,21 @@ class DailyController extends ChangeNotifier {
       final temp = allGroupRaw[rawIdxA];
       allGroupRaw[rawIdxA] = allGroupRaw[rawIdxB];
       allGroupRaw[rawIdxB] = temp;
-
-      notifyListeners(); // Perbarui UI seketika
-
-      // 2. ROMBAKAN UTAMA: Update nomor orderIndex secara berurutan
-      for (int i = 0; i < allGroupRaw.length; i++) {
-        if (allGroupRaw[i].id.startsWith("CORRUPTED_")) continue;
-
-        // Cukup ubah angka urutannya saja, JANGAN ubah nama file/ID-nya
-        allGroupRaw[i].orderIndex = i;
-
-        // Tulis perubahan ke storage lewat fungsi yang sudah ada
-        await saveGroupDataToFile(allGroupRaw[i]);
-      }
-
-      // 3. Muat ulang data agar urutan di memori tersinkronisasi
-      await loadGroupsData();
     }
+
+    notifyListeners(); // Perbarui UI seketika tanpa loading
+
+    // 2. ROMBAKAN UTAMA: Update nomor orderIndex secara berurutan
+    for (int i = 0; i < allGroupRaw.length; i++) {
+      if (allGroupRaw[i].id.startsWith("CORRUPTED_")) continue;
+      // Cukup ubah angka urutannya saja, JANGAN ubah nama file/ID-nya
+      allGroupRaw[i].orderIndex = i;
+      // Tulis perubahan ke storage lewat fungsi yang sudah ada
+      await saveGroupDataToFile(allGroupRaw[i]);
+    }
+
+    // 3. Muat ulang data agar urutan di memori tersinkronisasi murni di background
+    await loadGroupsData(showLoading: false);
   }
 
   // Pindahkan Group ke Seksi Kategori Lain
@@ -354,7 +363,7 @@ class DailyController extends ChangeNotifier {
     if (group.id.startsWith("CORRUPTED_")) return;
     group.sectionCategory = targetSection.isEmpty ? "Lainnya" : targetSection;
     await saveGroupDataToFile(group);
-    await loadGroupsData();
+    await loadGroupsData(showLoading: false);
   }
 
   // Ubah Nama Seksi Utama
@@ -386,7 +395,7 @@ class DailyController extends ChangeNotifier {
         await saveGroupDataToFile(group);
       }
     }
-    await loadGroupsData();
+    await loadGroupsData(showLoading: false);
   }
 
   // Hapus Seksi Utama beserta Isinya
@@ -405,22 +414,20 @@ class DailyController extends ChangeNotifier {
           selectedBaseDir,
           targetId,
         );
-
         if (await groupFile.exists()) {
           await groupFile.delete();
         }
       }
-
       groupedVisibleGroup.remove(sectionName);
       allGroupRaw.removeWhere((group) => group.sectionCategory == sectionName);
 
-      await loadGroupsData();
+      await loadGroupsData(showLoading: false);
     } catch (e) {
       debugPrint("Gagal menghapus seksi kategori beserta filenya: $e");
     }
   }
 
-  // Pindah Urutan Seksi Kategori Utama (Sinkronisasi dengan mekanisme Notes)
+  // PERBAIKAN: Pindah Urutan Seksi Kategori Secara Instan (Tanpa Loading Screen)
   Future<void> moveMainSectionOrder(int currentIndex, int direction) async {
     final keys = groupedVisibleGroup.keys.toList();
     int newIndex = currentIndex + direction;
@@ -432,14 +439,14 @@ class DailyController extends ChangeNotifier {
     keys[currentIndex] = keys[newIndex];
     keys[newIndex] = temp;
 
-    // 2. Rebuild Map agar UI langsung bereaksi (Dart LinkedHashMap mempertahankan urutan)
+    // 2. Rebuild Map agar UI langsung bereaksi seketika
     final Map<String, List<ChecklistGroup>> newMap = {};
     for (var key in keys) {
       newMap[key] = groupedVisibleGroup[key]!;
     }
     groupedVisibleGroup.clear();
     groupedVisibleGroup.addAll(newMap);
-    notifyListeners();
+    notifyListeners(); // Refresh UI langsung
 
     // 3. Simpan urutan baru ke disk secara persisten menggunakan manipulasi orderIndex
     int globalIndex = 0;
@@ -463,7 +470,7 @@ class DailyController extends ChangeNotifier {
       await saveGroupDataToFile(group);
     }
 
-    // 4. Muat ulang keseluruhan data dari storage agar tersinkronisasi
-    await loadGroupsData();
+    // 4. Muat ulang keseluruhan data dari storage di background (tanpa memunculkan loading spinner)
+    await loadGroupsData(showLoading: false);
   }
 }
