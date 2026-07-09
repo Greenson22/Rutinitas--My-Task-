@@ -51,7 +51,7 @@ class DailyController extends ChangeNotifier {
   // Fungsi untuk memperbarui query pencarian
   void updateSearchQuery(String query) {
     searchQuery = query.toLowerCase();
-    _processGroupsDisplay();
+    loadGroupsData(); // Menghubungkan langsung ke loadGroupsData setelah penghapusan _processGroupsDisplay
   }
 
   // MODIFIKASI UTAMA: Load Data dari Storage (Menghapus auto-encrypt dan hanya mendekripsi bila dikunci)
@@ -128,54 +128,51 @@ class DailyController extends ChangeNotifier {
       }
 
       loadedGroups.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
-
       allGroupRaw = loadedGroups;
-      _processGroupsDisplay();
+
+      // INTEGRASI LOGIKA FILTER DAN PENGELOMPOKAN TAMPILAN (Menggantikan _processGroupsDisplay)
+      final filteredList = allGroupRaw.where((group) {
+        if (searchQuery.isEmpty) return true;
+        return group.groupName.toLowerCase().contains(searchQuery);
+      }).toList();
+
+      final visibleList = filteredList
+          .where((group) => !group.isHidden)
+          .toList();
+      final hiddenList = filteredList.where((group) => group.isHidden).toList();
+
+      groupedVisibleGroup.clear();
+      groupedHiddenGroup.clear();
+
+      // Kembalikan struktur seksi kosong lokal terlebih dahulu agar tidak hilang saat re-process
+      for (var section in _localEmptySections) {
+        groupedVisibleGroup[section] = [];
+      }
+
+      for (var group in visibleList) {
+        String kategori = group.sectionCategory.trim().isEmpty
+            ? "Lainnya"
+            : group.sectionCategory;
+        groupedVisibleGroup.putIfAbsent(kategori, () => []);
+        groupedVisibleGroup[kategori]!.add(group);
+      }
+
+      for (var group in hiddenList) {
+        String kategori = group.sectionCategory.trim().isEmpty
+            ? "Lainnya"
+            : group.sectionCategory;
+        groupedHiddenGroup.putIfAbsent(kategori, () => []);
+        groupedHiddenGroup[kategori]!.add(group);
+      }
+
+      hiddenGroup = hiddenList;
+      isLoading = false;
+      notifyListeners();
     } catch (e) {
       isLoading = false;
       notifyListeners();
       debugPrint("Error loading groups: $e");
     }
-  }
-
-  // Pengelompokan Tampilan
-  void _processGroupsDisplay() {
-    // Jalankan filter pencarian jika query diisi
-    final filteredList = allGroupRaw.where((group) {
-      if (searchQuery.isEmpty) return true;
-      return group.groupName.toLowerCase().contains(searchQuery);
-    }).toList();
-
-    final visibleList = filteredList.where((group) => !group.isHidden).toList();
-    final hiddenList = filteredList.where((group) => group.isHidden).toList();
-
-    groupedVisibleGroup.clear();
-    groupedHiddenGroup.clear();
-
-    // Kembalikan struktur seksi kosong lokal terlebih dahulu agar tidak hilang saat re-process
-    for (var section in _localEmptySections) {
-      groupedVisibleGroup[section] = [];
-    }
-
-    for (var group in visibleList) {
-      String kategori = group.sectionCategory.trim().isEmpty
-          ? "Lainnya"
-          : group.sectionCategory;
-      groupedVisibleGroup.putIfAbsent(kategori, () => []);
-      groupedVisibleGroup[kategori]!.add(group);
-    }
-
-    for (var group in hiddenList) {
-      String kategori = group.sectionCategory.trim().isEmpty
-          ? "Lainnya"
-          : group.sectionCategory;
-      groupedHiddenGroup.putIfAbsent(kategori, () => []);
-      groupedHiddenGroup[kategori]!.add(group);
-    }
-
-    hiddenGroup = hiddenList;
-    isLoading = false;
-    notifyListeners();
   }
 
   // Tambah Seksi Baru Kosong ke UI lokal
@@ -264,7 +261,7 @@ class DailyController extends ChangeNotifier {
 
     group.isEncrypted = !group.isEncrypted;
     await saveGroupDataToFile(group);
-    _processGroupsDisplay();
+    await loadGroupsData(); // Menggunakan loadGroupsData setelah penghapusan _processGroupsDisplay
   }
 
   // Toggle Visibilitas Sembunyi/Tampil Group
@@ -272,7 +269,7 @@ class DailyController extends ChangeNotifier {
     if (group.id.startsWith("CORRUPTED_")) return;
     group.isHidden = !group.isHidden;
     await saveGroupDataToFile(group);
-    _processGroupsDisplay();
+    await loadGroupsData(); // Menggunakan loadGroupsData setelah penghapusan _processGroupsDisplay
   }
 
   // Update Nama dan Ikon Group
