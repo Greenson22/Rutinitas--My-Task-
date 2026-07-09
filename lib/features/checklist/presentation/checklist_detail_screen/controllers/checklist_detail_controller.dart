@@ -162,17 +162,10 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
         targetGroup.id,
       );
 
-      String targetTempPath =
-          '${targetJsonFile.path}_${DateTime.now().microsecondsSinceEpoch}.tmp';
-      File targetTempFile = File(targetTempPath);
-      await targetTempFile.writeAsString(targetJsonString);
-
-      if (await targetTempFile.exists()) {
-        if (await targetJsonFile.exists()) {
-          await targetJsonFile.delete();
-        }
-        await targetTempFile.rename(targetJsonFile.path);
-      }
+      await AtomicWriteHelper.writeSafe(
+        targetFile: targetJsonFile,
+        content: targetJsonString,
+      );
 
       setState(() {
         currentSectionItems.remove(subject);
