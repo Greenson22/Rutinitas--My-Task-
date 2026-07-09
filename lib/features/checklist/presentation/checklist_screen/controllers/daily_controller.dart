@@ -422,49 +422,4 @@ class DailyController extends ChangeNotifier {
       debugPrint("Gagal menghapus seksi kategori beserta filenya: $e");
     }
   }
-
-  // Mengubah Urutan Seksi Utama secara Asinkron & Permanen ke Disk
-  Future<void> moveMainSectionOrder(String sectionName, int direction) async {
-    final keys = groupedVisibleGroup.keys.toList();
-    int currentIndex = keys.indexOf(sectionName);
-    int newIndex = currentIndex + direction;
-    if (newIndex < 0 || newIndex >= keys.length) return;
-
-    // 1. Tukar posisi seksi di list kunci lokal
-    final tempKey = keys[currentIndex];
-    keys[currentIndex] = keys[newIndex];
-    keys[newIndex] = tempKey;
-
-    // 2. Susun ulang `allGroupRaw` berdasarkan urutan seksi yang baru
-    List<ChecklistGroup> reorderedRaw = [];
-    for (var key in keys) {
-      final groupsInSection = allGroupRaw.where((group) {
-        String kategori = group.sectionCategory.trim().isEmpty
-            ? "Lainnya"
-            : group.sectionCategory;
-        return kategori == key;
-      }).toList();
-      reorderedRaw.addAll(groupsInSection);
-    }
-
-    // 3. Update state di memori lokal secara instan
-    allGroupRaw = reorderedRaw;
-    _processGroupsDisplay();
-
-    // 4. Sinkronisasikan urutan baru ke penyimpanan fisik (METODE BARU)
-    int globalIndex = 0;
-    for (var group in allGroupRaw) {
-      if (group.id.startsWith("CORRUPTED_")) continue;
-
-      // Atur kembali orderIndex
-      group.orderIndex = globalIndex;
-      globalIndex++;
-
-      // Tulis perubahan secara aman menggunakan metode bawaan
-      await saveGroupDataToFile(group);
-    }
-
-    // 5. Jalankan pemrosesan akhir
-    await loadGroupsData();
-  }
 }
