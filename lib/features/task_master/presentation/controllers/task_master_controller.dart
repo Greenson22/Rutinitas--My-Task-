@@ -319,14 +319,12 @@ class TaskMasterController {
     try {
       final prefs = await SharedPreferences.getInstance();
       final int minutesToAdd = prefs.getInt('default_increment_minutes') ?? 30;
-
       final File JurnalFile = await storageService.getJurnalJsonFile(
         selectedBaseDir,
       );
       String jsonString = await storageService.loadOrInitializeJurnalJson(
         JurnalFile,
       );
-
       bool isEncrypted = await storageService.isEncryptionEnabled();
       String? password = await storageService.getEncryptionPassword();
       if (isEncrypted &&
@@ -334,7 +332,6 @@ class TaskMasterController {
           !jsonString.trim().startsWith('[')) {
         jsonString = CryptoHelper.decrypt(jsonString, password);
       }
-
       List<dynamic> decodedJson = [];
       if (jsonString.trim().isNotEmpty) {
         try {
@@ -343,13 +340,11 @@ class TaskMasterController {
           debugPrint("Format berkas JSON jurnal tidak valid: $e");
         }
       }
-
       List<TimeLogEntry> loadedLogs = decodedJson
           .map((e) => TimeLogEntry.fromJson(e))
           .toList();
       final String todayStr = getTodayDateString();
       bool hasTodayLog = loadedLogs.any((entry) => entry.tanggal == todayStr);
-
       if (!hasTodayLog && loadedLogs.isNotEmpty) {
         final lastLog = loadedLogs.last;
         List<TimeLogTask> copiedTasks = lastLog.tasks.map((task) {
@@ -365,7 +360,6 @@ class TaskMasterController {
       } else if (loadedLogs.isEmpty) {
         loadedLogs.add(TimeLogEntry(tanggal: todayStr, tasks: []));
       }
-
       int todayIndex = loadedLogs.indexWhere(
         (entry) => entry.tanggal == todayStr,
       );
@@ -384,11 +378,15 @@ class TaskMasterController {
           final String updatedJsonContent = jsonEncode(
             loadedLogs.map((e) => e.toJson()).toList(),
           );
-          await storageService.saveJsonData(JurnalFile, updatedJsonContent);
+
+          // === UBAH DI SINI: Gunakan Atomic Write Safe untuk file Jurnal ===
+          await AtomicWriteHelper.writeSafe(
+            targetFile: JurnalFile,
+            content: updatedJsonContent,
+          );
 
           // Sinkronisasi total durasi setelah penyimpanan background sukses
           await kalkulasiTotalJurnalHariIni();
-
           if (context.mounted) {
             ScaffoldMessenger.of(
               context,
@@ -408,7 +406,6 @@ class TaskMasterController {
           return true;
         }
       }
-
       // Jika tugas tidak terhubung ke jurnal
       if (context.mounted) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
