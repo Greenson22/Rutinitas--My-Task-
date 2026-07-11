@@ -262,8 +262,21 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                   _controller.logs = parsed
                       .map((e) => TimeLogEntry.fromJson(e))
                       .toList();
-                  await _controller
-                      .saveData(); // Ini sudah otomatis atomic setelah langkah 1
+
+                  // === PERBAIKAN: Sinkronisasi Enkripsi Sebelum Atomic Write ===
+                  String finalContent = jsonEncode(parsed);
+                  bool isEncrypted = await storageService.isEncryptionEnabled();
+                  String? password = await storageService
+                      .getEncryptionPassword();
+
+                  if (isEncrypted && password != null && password.isNotEmpty) {
+                    finalContent = CryptoHelper.encrypt(finalContent, password);
+                  }
+
+                  await AtomicWriteHelper.writeSafe(
+                    targetFile: targetFile,
+                    content: finalContent,
+                  );
                 } else {
                   throw const FormatException();
                 }
@@ -277,6 +290,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                       backgroundColor: Colors.green,
                     ),
                   );
+                  _triggerLoadData(); // Muat ulang status ke memori RAM harian
                 }
               } catch (e) {
                 // Fallback ke penyimpanan teks mentah menggunakan ATOMIC WRITE jika syntax error sengaja dilewati
