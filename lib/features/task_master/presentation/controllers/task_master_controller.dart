@@ -3,6 +3,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:rutinitasku/core/utils/atomic_write_helper.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/services/storage_service.dart';
 import '../../../../core/utils/crypto_helper.dart';
@@ -177,11 +178,9 @@ class TaskMasterController {
     isLoading = true;
     isFileCorrupted = false;
     onUpdate();
-
     try {
       bool isEncrypted = await storageService.isEncryptionEnabled();
       String? password = await storageService.getEncryptionPassword();
-
       String rawJson = jsonEncode({'categories': []});
 
       if (isEncrypted && password != null) {
@@ -192,7 +191,8 @@ class TaskMasterController {
         await prefs.remove('encryption_password');
       }
 
-      await jsonFile.writeAsString(rawJson);
+      // === UBAH DI SINI: Gunakan Atomic Write Safe ===
+      await AtomicWriteHelper.writeSafe(targetFile: jsonFile, content: rawJson);
     } catch (e) {
       debugPrint("Gagal membuat/mengeksekusi file baru: $e");
       isFileCorrupted = true;
@@ -434,19 +434,23 @@ class TaskMasterController {
       'categories': allCategoriesRaw.map((cat) => cat.toJson()).toList(),
     };
 
-    // OPTIMISASI: Gunakan jsonEncode standar (Tanpa .withIndent) jika shouldRefresh = false
-    // agar pembentukan string ke enkripsi melesat jauh lebih cepat.
     final String updatedJsonString = shouldRefresh
         ? const JsonEncoder.withIndent('  ').convert(updatedMap)
         : jsonEncode(updatedMap);
 
     try {
       File jsonFile = await storageService.getTargetJsonFile(selectedBaseDir);
-      await storageService.saveJsonData(jsonFile, updatedJsonString);
+
+      // === UBAH DI SINI: Gunakan Atomic Write Safe ===
+      await AtomicWriteHelper.writeSafe(
+        targetFile: jsonFile,
+        content: updatedJsonString,
+      );
+
       if (shouldRefresh) {
         await initStorageAndLoadData();
       } else {
-        processCategoriesDisplay(); // Update UI dari data lokal memori RAM
+        processCategoriesDisplay();
       }
     } catch (e) {
       debugPrint("Error saving categories: $e");

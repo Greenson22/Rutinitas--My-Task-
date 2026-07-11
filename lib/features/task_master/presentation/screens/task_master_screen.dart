@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart'; // Ditambahkan untuk mendeteksi kDebugMode
 import 'package:google_mobile_ads/google_mobile_ads.dart'; // Ditambahkan untuk SDK AdMob
 import 'package:rutinitasku/core/presentation/widgets/base_detail_app_bar.dart';
+import 'package:rutinitasku/core/utils/atomic_write_helper.dart'; // <--- IMPORT BARU UNTUK ATOMIC WRITE
 import '../../../../core/presentation/widgets/drawer_menu.dart';
 import '../../../../core/presentation/widgets/universal_empty_state.dart';
 import '../../../../core/utils/crypto_helper.dart';
@@ -264,21 +265,37 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 if (!confirm) return;
               }
-              // Simpan berkas master dengan enkripsi otomatis jika pengaturan aktif
-              await _controller.storageService.saveJsonData(
-                targetFile,
-                newContent,
-              );
-              if (mounted) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('File categories.json berhasil diperbarui!'),
-                    backgroundColor: Colors.green,
-                  ),
+
+              try {
+                final parsed = jsonDecode(newContent);
+                // Jika ingin parsing menggunakan controller
+                final List<dynamic> catList = parsed['categories'] ?? [];
+                _controller.allCategoriesRaw = catList
+                    .map((json) => TaskCategory.fromJson(json))
+                    .toList();
+                await _controller.saveAllCategoriesToFile();
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'File categories.json berhasil diperbarui!',
+                      ),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              } catch (e) {
+                // Fallback ke penyimpanan teks mentah menggunakan ATOMIC WRITE jika syntax error sengaja dilewati
+                await AtomicWriteHelper.writeSafe(
+                  targetFile: targetFile,
+                  content: newContent,
                 );
-                _controller
-                    .initStorageAndLoadData(); // Muat ulang data ke UI secara instan
+                if (mounted) {
+                  Navigator.pop(context);
+                  _controller
+                      .initStorageAndLoadData(); // Muat ulang data ke UI secara instan
+                }
               }
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
