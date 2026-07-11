@@ -437,7 +437,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                     encryptedContent,
                     input,
                   );
-                  if (_controller.handleManualUnlock(decrypted)) {
+                  if (await _controller.handleManualUnlock(decrypted)) {
                     Navigator.pop(ctx);
                     _triggerLoadData();
                     ScaffoldMessenger.of(context).showSnackBar(

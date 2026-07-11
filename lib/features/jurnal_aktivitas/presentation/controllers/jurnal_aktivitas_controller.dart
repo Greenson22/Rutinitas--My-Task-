@@ -195,12 +195,15 @@ class JurnalAktivitasController {
     }
   }
 
-  bool handleManualUnlock(String decryptedContent) {
+  // UBAH: Tambahkan kata kunci Future<bool> dan async
+  Future<bool> handleManualUnlock(String decryptedContent) async {
     final parsed = jsonDecode(decryptedContent);
     if (parsed is List) {
       logs = parsed.map((e) => TimeLogEntry.fromJson(e)).toList();
       final String todayStr = getTodayDateString();
       bool hasTodayLog = logs.any((entry) => entry.tanggal == todayStr);
+
+      bool isDataChanged = false; // Tambahkan flag penanda perubahan
 
       if (!hasTodayLog && logs.isNotEmpty) {
         final lastLog = logs.last;
@@ -214,8 +217,15 @@ class JurnalAktivitasController {
           );
         }).toList();
         logs.add(TimeLogEntry(tanggal: todayStr, tasks: copiedTasks));
+        isDataChanged = true; // Tandai data berubah
       } else if (logs.isEmpty) {
         logs.add(TimeLogEntry(tanggal: todayStr, tasks: []));
+        isDataChanged = true; // Tandai data berubah
+      }
+
+      // PERBAIKAN: Jika ada penambahan struktur hari baru, kunci langsung ke file menggunakan Atomic Write
+      if (isDataChanged) {
+        await saveData();
       }
 
       _loadTaskMasterData();
