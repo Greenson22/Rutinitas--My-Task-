@@ -1,4 +1,5 @@
 // lib/features/jurnal_aktivitas/presentation/controllers/jurnal_aktivitas_controller.dart
+
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
@@ -6,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/services/storage_service.dart';
 import '../../../../core/utils/crypto_helper.dart';
+import '../../../../core/utils/atomic_write_helper.dart'; // <--- IMPORT BARU UNTUK ATOMIC WRITE
 import '../../../task_master/data/models/task_model.dart';
 import '../../data/models/time_log_model.dart';
 
@@ -37,7 +39,6 @@ class JurnalAktivitasController {
     isLoading = true;
     isJurnalFileCorrupted = false;
     onNotify();
-
     File? jsonFile;
     try {
       // Muat durasi default yang disimpan user dari SharedPreferences
@@ -51,6 +52,7 @@ class JurnalAktivitasController {
       String jsonString = await _storageService.loadOrInitializeJurnalJson(
         jsonFile,
       );
+
       bool isEncrypted = await _storageService.isEncryptionEnabled();
       String? password = await _storageService.getEncryptionPassword();
 
@@ -79,18 +81,30 @@ class JurnalAktivitasController {
             linkedTaskIds: task.linkedTaskIds,
           );
         }).toList();
+
         final todayEntry = TimeLogEntry(tanggal: todayStr, tasks: copiedTasks);
         loadedLogs.add(todayEntry);
+
         final String jsonContent = jsonEncode(
           loadedLogs.map((e) => e.toJson()).toList(),
         );
-        await _storageService.saveJsonData(jsonFile, jsonContent);
+
+        // === UBAH DI SINI: Gunakan Atomic Write Safe ===
+        await AtomicWriteHelper.writeSafe(
+          targetFile: jsonFile,
+          content: jsonContent,
+        );
       } else if (loadedLogs.isEmpty) {
         loadedLogs.add(TimeLogEntry(tanggal: todayStr, tasks: []));
         final String jsonContent = jsonEncode(
           loadedLogs.map((e) => e.toJson()).toList(),
         );
-        await _storageService.saveJsonData(jsonFile, jsonContent);
+
+        // === UBAH DI SINI: Gunakan Atomic Write Safe ===
+        await AtomicWriteHelper.writeSafe(
+          targetFile: jsonFile,
+          content: jsonContent,
+        );
       }
 
       await _loadTaskMasterData();
@@ -116,11 +130,13 @@ class JurnalAktivitasController {
         String jsonString = await taskFile.readAsString();
         bool isEncrypted = await _storageService.isEncryptionEnabled();
         String? password = await _storageService.getEncryptionPassword();
+
         if (isEncrypted &&
             password != null &&
             !jsonString.trim().startsWith('{')) {
           jsonString = CryptoHelper.decrypt(jsonString, password);
         }
+
         final Map<String, dynamic> parsedMap = jsonDecode(jsonString);
         final List<dynamic> catList = parsedMap['categories'] ?? [];
         allTaskCategories = catList
@@ -138,7 +154,12 @@ class JurnalAktivitasController {
       final String jsonContent = jsonEncode(
         logs.map((e) => e.toJson()).toList(),
       );
-      await _storageService.saveJsonData(jsonFile, jsonContent);
+
+      // === UBAH DI SINI: Gunakan Atomic Write Safe ===
+      await AtomicWriteHelper.writeSafe(
+        targetFile: jsonFile,
+        content: jsonContent,
+      );
     } catch (e) {
       debugPrint("Error saving jurnal data: $e");
     }
@@ -153,11 +174,9 @@ class JurnalAktivitasController {
 
   Future<void> resetAndCreateNewLog(File jsonFile) async {
     isJurnalFileCorrupted = false;
-
     try {
       bool isEncrypted = await _storageService.isEncryptionEnabled();
       String? password = await _storageService.getEncryptionPassword();
-
       String rawJson = jsonEncode([]);
 
       if (isEncrypted && password != null) {
@@ -168,7 +187,8 @@ class JurnalAktivitasController {
         await prefs.remove('encryption_password');
       }
 
-      await jsonFile.writeAsString(rawJson);
+      // === UBAH DI SINI: Gunakan Atomic Write Safe ===
+      await AtomicWriteHelper.writeSafe(targetFile: jsonFile, content: rawJson);
     } catch (err) {
       debugPrint("Gagal mereset preferensi enkripsi jurnal: $err");
       isJurnalFileCorrupted = true;
@@ -197,6 +217,7 @@ class JurnalAktivitasController {
       } else if (logs.isEmpty) {
         logs.add(TimeLogEntry(tanggal: todayStr, tasks: []));
       }
+
       _loadTaskMasterData();
       isJurnalFileCorrupted = false;
       isLoading = false;
@@ -254,7 +275,6 @@ class JurnalAktivitasController {
 
     // 1. Coba cari di log hari ini terlebih dahulu agar aman dan akurat
     int todayIdx = logs.indexWhere((entry) => entry.tanggal == todayStr);
-
     if (todayIdx != -1) {
       int taskIdx = logs[todayIdx].tasks.indexWhere((t) => t.id == task.id);
       if (taskIdx != -1) {
@@ -278,6 +298,7 @@ class JurnalAktivitasController {
     final int todayLogIndex = logs.indexWhere(
       (entry) => entry.tanggal == todayStr,
     );
+
     if (todayLogIndex != -1) {
       final randomId = Random().nextInt(999999);
       final newTask = TimeLogTask(
@@ -295,6 +316,7 @@ class JurnalAktivitasController {
     final int todayLogIndex = logs.indexWhere(
       (entry) => entry.tanggal == todayStr,
     );
+
     if (todayLogIndex != -1) {
       logs[todayLogIndex].tasks.removeWhere((t) => t.id == task.id);
     }

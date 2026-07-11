@@ -1,12 +1,14 @@
 // lib/features/jurnal_aktivitas/presentation/screens/jurnal_aktivitas_screen.dart
-import 'dart:convert'; // TAMBAHAN: Diperlukan untuk melakukan jsonDecode & jsonEncode
+
+import 'dart:convert'; // DIperlukan untuk melakukan jsonDecode & jsonEncode
 import 'dart:io';
 import 'package:flutter/foundation.dart'; // Ditambahkan untuk mendeteksi kDebugMode
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart'; // Ditambahkan untuk SDK AdMob
 import '../../../../core/presentation/widgets/drawer_menu.dart';
-import '../../../../core/services/storage_service.dart'; // TAMBAHAN: Diperlukan untuk akses konfigurasi penyimpanan berkas
+import '../../../../core/services/storage_service.dart'; // DIperlukan untuk akses konfigurasi penyimpanan berkas
 import '../../../../core/utils/crypto_helper.dart';
+import '../../../../core/utils/atomic_write_helper.dart'; // <--- IMPORT BARU UNTUK ATOMIC WRITE
 import '../../data/models/time_log_model.dart';
 import '../controllers/jurnal_aktivitas_controller.dart';
 import '../widgets/jurnal_statistik_dialog.dart'; // Import sub-widget baru
@@ -45,7 +47,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
   @override
   void initState() {
     super.initState();
-
     // OPTIMASI: Membungkus pemicu pemuatan data ke dalam post frame callback dan
     // memberikan jeda Future mikro (150ms). Langkah ini memisahkan beban CPU
     // antara rendering animasi perpindahan halaman dengan proses komputasi dekripsi biner storage harian.
@@ -64,7 +65,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
   // Fungsi untuk mengunduh iklan banner AdMob
   void _loadBannerAd() {
     if (adUnitId.isEmpty) return; // Batalkan jika bukan platform Android
-
     _bannerAd = BannerAd(
       adUnitId: adUnitId,
       request: const AdRequest(),
@@ -253,22 +253,41 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                       ),
                     ) ??
                     false;
-
                 if (!confirm) return;
               }
-              // Simpan berkas master jurnal dengan enkripsi otomatis jika pengaturan aktif
-              await storageService.saveJsonData(targetFile, newContent);
-              if (mounted) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'File jurnal_aktivitas.json berhasil diperbarui!',
+
+              try {
+                final parsed = jsonDecode(newContent);
+                if (parsed is List) {
+                  _controller.logs = parsed
+                      .map((e) => TimeLogEntry.fromJson(e))
+                      .toList();
+                  await _controller
+                      .saveData(); // Ini sudah otomatis atomic setelah langkah 1
+                } else {
+                  throw const FormatException();
+                }
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'File jurnal_aktivitas.json berhasil diperbarui!',
+                      ),
+                      backgroundColor: Colors.green,
                     ),
-                    backgroundColor: Colors.green,
-                  ),
+                  );
+                }
+              } catch (e) {
+                // Fallback ke penyimpanan teks mentah menggunakan ATOMIC WRITE jika syntax error sengaja dilewati
+                await AtomicWriteHelper.writeSafe(
+                  targetFile: targetFile,
+                  content: newContent,
                 );
-                _triggerLoadData(); // Muat ulang data ke UI secara instan
+                if (mounted) {
+                  Navigator.pop(context);
+                  _triggerLoadData(); // Muat ulang data ke UI secara instan
+                }
               }
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
@@ -447,6 +466,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     final List<TimeLogTask> todayTasks = todayLogIndex != -1
         ? _controller.logs[todayLogIndex].tasks
         : [];
+
     showDialog(
       context: context,
       builder: (context) {
@@ -527,7 +547,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
   // MODIFIKASI: Memakai durasi default menit yang dinamis dari controller
   void _addActivityDuration(TimeLogTask task, {VoidCallback? onDone}) async {
     final int minutesToAdd = _controller.defaultIncrementMinutes;
-
     final bool? konfirmasi = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -548,7 +567,9 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
         ],
       ),
     );
+
     if (konfirmasi != true) return;
+
     setState(() {
       _controller.addActivityDuration(task, minutesToAdd);
     });
@@ -600,7 +621,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                 );
                 await _controller.updateDefaultIncrement(newMinutes);
                 Navigator.pop(context);
-
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
@@ -624,6 +644,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
       text: task.durasiMenit.toString(),
     );
     final formKey = GlobalKey<FormState>();
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -673,6 +694,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
   void _showAddActivityDialog() {
     final TextEditingController inputController = TextEditingController();
     final formKey = GlobalKey<FormState>();
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -716,6 +738,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     final TextEditingController editController = TextEditingController(
       text: task.nama,
     );
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -743,6 +766,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                 Navigator.pop(context);
               }
             },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
             child: const Text('Simpan'),
           ),
         ],
@@ -771,6 +795,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
         ],
       ),
     );
+
     if (konfirmasi == true) {
       setState(() {
         _controller.removeActivity(task);
@@ -787,6 +812,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
           builder: (context, setDialogState) {
             final sortedLogs = List<TimeLogEntry>.from(_controller.logs);
             sortedLogs.sort((a, b) => b.tanggal.compareTo(a.tanggal));
+
             return AlertDialog(
               title: Row(
                 children: const [
@@ -1004,7 +1030,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                 ),
               ],
             ),
-
       // IMPLEMENTASI LAYOUT FOOTER BANNER ADMOB KHUSUS ANDROID
       bottomNavigationBar:
           _isAdLoaded && _bannerAd != null && Platform.isAndroid
