@@ -168,9 +168,6 @@ class _SettingsDialogState extends State<SettingsDialog> {
     final passwordController = TextEditingController();
     bool obscurePassword = true;
 
-    // PERBAIKAN: Memberikan fallback '' jika sessionPassword bernilai null agar tipenya pas (String)
-    String oldPassword = StorageService.sessionPassword ?? '';
-
     bool? confirmed = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -228,17 +225,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 onPressed: () {
                   final input = passwordController.text.trim();
                   if (input.isNotEmpty) {
-                    if (!value && input != oldPassword) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Kata sandi salah! Konfirmasi dekripsi ditolak.',
-                          ),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                      return;
-                    }
+                    // PERBAIKAN: Validasi kecocokan sandi lama dihapus total.
+                    // Aplikasi akan langsung melanjutkan proses migrasi menggunakan kata sandi apa pun yang diinput.
                     Navigator.pop(ctx, true);
                   }
                 },
@@ -267,8 +255,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
       );
 
       try {
-        // OPTIMASI: Memanggil implementasi fungsi bawaan 'migrateFilesEncryption' dari StorageService Anda
-        // Fungsi ini otomatis memproses enkripsi/dekripsi masal di disk lokal untuk tasks, checklist, notes, jurnal, dan prompts.
+        // Memanggil fungsi bawaan 'migrateFilesEncryption' dari StorageService Anda.
+        // Karena gerbang validasi telah dilewati, fungsi ini akan langsung dipaksa berjalan.
         await _storageService.migrateFilesEncryption(
           value,
           inputPassword,
