@@ -1,20 +1,17 @@
 // lib/features/notes/presentation/screens/note_detail_screen.dart
 
-import 'dart:io'; // Ditambahkan untuk mengecek platform
-import 'package:flutter/foundation.dart'; // Ditambahkan untuk mendeteksi kDebugMode
 import 'package:flutter/material.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart'; // Ditambahkan untuk SDK AdMob
 import 'package:rutinitasku/core/presentation/widgets/base_popup_dialog.dart';
+import 'package:rutinitasku/core/presentation/widgets/adaptive_banner_ad.dart'; // <--- IMPORT WIDGET ADMOB BARU DARI CORE
 import '../../models/note_model.dart';
 import '../controllers/note_detail_controller.dart';
 import '../../../../core/presentation/widgets/base_detail_list_screen.dart';
-import '../../../../core/presentation/widgets/universal_empty_state.dart'; // <-- IMPORT BARU DARI CORE
-import 'note_edit_dialog.dart'; // Import file dialog baru
+import '../../../../core/presentation/widgets/universal_empty_state.dart';
+import 'note_edit_dialog.dart';
 
 class NoteDetailScreen extends StatefulWidget {
   final NoteGroup noteGroup;
 
-  // FIX: Mengubah sintaksis penulisan konstruktor yang salah agar valid di Dart
   const NoteDetailScreen({super.key, required this.noteGroup});
 
   @override
@@ -26,24 +23,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   // STATE BARU: Menyimpan jenis pengurutan aktif ('manual', 'az', 'za')
   String _currentSortType = 'manual';
 
-  // Variabel kontrol untuk Banner AdMob
-  BannerAd? _bannerAd;
-  bool _isAdLoaded = false;
-
-  // Getter adaptif untuk menentukan Ad Unit ID Iklan Banner
-  String get adUnitId {
-    if (Platform.isAndroid) {
-      if (kDebugMode) {
-        // ID Test Resmi dari Google untuk pengujian iklan Banner Android
-        return 'ca-app-pub-3940256099942544/6300978111';
-      } else {
-        // GANTI dengan Ad Unit ID asli Anda dari dasbor AdMob saat rilis nanti
-        return 'ca-app-pub-5320800343545863/4775724658';
-      }
-    }
-    return ''; // Kosongkan jika berjalan di Desktop (Windows/Linux/macOS) agar tidak crash
-  }
-
   @override
   void initState() {
     super.initState();
@@ -52,37 +31,10 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       context: context,
       onStateChanged: () => setState(() {}),
     );
-
-    // Panggil fungsi pemuatan iklan banner
-    _loadBannerAd();
-  }
-
-  // Fungsi untuk mengunduh iklan banner AdMob
-  void _loadBannerAd() {
-    if (adUnitId.isEmpty) return; // Batalkan jika bukan platform Android
-
-    _bannerAd = BannerAd(
-      adUnitId: adUnitId,
-      request: const AdRequest(),
-      size: AdSize.banner,
-      listener: BannerAdListener(
-        onAdLoaded: (ad) {
-          setState(() {
-            _isAdLoaded = true;
-          });
-        },
-        onAdFailedToLoad: (ad, err) {
-          debugPrint('Iklan Banner Note Detail gagal dimuat: $err');
-          ad.dispose();
-        },
-      ),
-    )..load();
   }
 
   @override
   void dispose() {
-    _bannerAd
-        ?.dispose(); // Hancurkan objek iklan dari memori saat halaman ditutup untuk mencegah kebocoran memori
     super.dispose();
   }
 
@@ -274,17 +226,10 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           themeColor: const Color(0xFF3F51B5), // Warna tema Indigo
           onPressed: () => _showNoteDialog(),
         ),
-        // IMPLEMENTASI FOOTER AD BANNER PADA KONDISI DATA KOSONG
-        bottomNavigationBar:
-            _isAdLoaded && _bannerAd != null && Platform.isAndroid
-            ? SafeArea(
-                child: SizedBox(
-                  width: _bannerAd!.size.width.toDouble(),
-                  height: _bannerAd!.size.height.toDouble(),
-                  child: AdWidget(ad: _bannerAd!),
-                ),
-              )
-            : const SizedBox.shrink(),
+        // IMPLEMENTASI LAYOUT FOOTER BANNER MENGGUNAKAN WIDGET ADAPTIVE PADA KONDISI DATA KOSONG
+        bottomNavigationBar: const AdaptiveBannerAd(
+          adKey: 'note_detail_banner',
+        ),
       );
     }
 
@@ -473,17 +418,8 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         },
       ),
 
-      // IMPLEMENTASI LAYOUT FOOTER BANNER ADMOB KHUSUS ANDROID
-      bottomNavigationBar:
-          _isAdLoaded && _bannerAd != null && Platform.isAndroid
-          ? SafeArea(
-              child: SizedBox(
-                width: _bannerAd!.size.width.toDouble(),
-                height: _bannerAd!.size.height.toDouble(),
-                child: AdWidget(ad: _bannerAd!),
-              ),
-            )
-          : const SizedBox.shrink(),
+      // IMPLEMENTASI LAYOUT FOOTER BANNER MENGGUNAKAN WIDGET ADAPTIVE YANG BARU & SEJAJAR DENGAN DATA UTAMA
+      bottomNavigationBar: const AdaptiveBannerAd(adKey: 'note_detail_banner'),
     );
   }
 }

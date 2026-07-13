@@ -2,13 +2,12 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart'; // Ditambahkan untuk mendeteksi kDebugMode
-import 'package:google_mobile_ads/google_mobile_ads.dart'; // Ditambahkan untuk SDK AdMob
 import 'package:rutinitasku/core/presentation/widgets/drawer_menu.dart';
 import 'package:rutinitasku/core/presentation/widgets/universal_empty_state.dart';
 import 'package:rutinitasku/core/services/storage_service.dart';
 import 'package:rutinitasku/core/utils/atomic_write_helper.dart';
 import 'package:rutinitasku/core/utils/crypto_helper.dart';
+import 'package:rutinitasku/core/presentation/widgets/adaptive_banner_ad.dart'; // <--- IMPORT WIDGET ADMOB BARU
 import '../../models/note_model.dart';
 import '../../../../core/presentation/widgets/widgets.dart';
 import '../../../task_master/presentation/widgets/settings_dialog.dart'; // Pastikan import SettingsDialog tersedia
@@ -43,53 +42,10 @@ class _NotesScreenState extends State<NotesScreen> {
   // STATE BARU: Menampung kategori grup tersembunyi terpisah dari grid utama
   final Map<String, List<NoteGroup>> _hiddenGroupedCategories = {};
 
-  // Variabel kontrol untuk Banner AdMob
-  BannerAd? _bannerAd;
-  bool _isAdLoaded = false;
-
-  // Getter adaptif untuk menentukan Ad Unit ID Iklan Banner
-  String get adUnitId {
-    if (Platform.isAndroid) {
-      if (kDebugMode) {
-        // ID Test Resmi dari Google untuk pengujian iklan Banner Android
-        return 'ca-app-pub-3940256099942544/6300978111';
-      } else {
-        // GANTI dengan Ad Unit ID asli Anda dari dasbor AdMob saat rilis nanti
-        return 'ca-app-pub-5320800343545863/7401887991';
-      }
-    }
-    return ''; // Kosongkan jika berjalan di Desktop (Windows/Linux/macOS) agar tidak crash
-  }
-
   @override
   void initState() {
     super.initState();
     _loadNotesData();
-
-    // Panggil fungsi pemuatan iklan banner
-    _loadBannerAd();
-  }
-
-  // Fungsi untuk mengunduh iklan banner AdMob
-  void _loadBannerAd() {
-    if (adUnitId.isEmpty) return; // Batalkan jika bukan platform Android
-
-    _bannerAd = BannerAd(
-      adUnitId: adUnitId,
-      request: const AdRequest(),
-      size: AdSize.banner,
-      listener: BannerAdListener(
-        onAdLoaded: (ad) {
-          setState(() {
-            _isAdLoaded = true;
-          });
-        },
-        onAdFailedToLoad: (ad, err) {
-          debugPrint('Iklan Banner Notes gagal dimuat: $err');
-          ad.dispose();
-        },
-      ),
-    )..load();
   }
 
   // PERUBAHAN UTAMA: Ditambahkan jeda Future mikro asinkron agar sistem operasi selesai mengamankan file sebelum dibaca
@@ -1101,13 +1057,6 @@ class _NotesScreenState extends State<NotesScreen> {
   }
 
   @override
-  void dispose() {
-    _bannerAd
-        ?.dispose(); // Hancurkan objek iklan dari memori saat halaman ditutup
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     List<String> allRenderedKeys = List.from(_sectionKeys);
     Map<String, List<NoteGroup>> allRenderedItems = _getFilteredCategories(
@@ -1586,17 +1535,8 @@ class _NotesScreenState extends State<NotesScreen> {
             },
       ),
 
-      // IMPLEMENTASI LAYOUT FOOTER BANNER ADMOB KHUSUS ANDROID
-      bottomNavigationBar:
-          _isAdLoaded && _bannerAd != null && Platform.isAndroid
-          ? SafeArea(
-              child: SizedBox(
-                width: _bannerAd!.size.width.toDouble(),
-                height: _bannerAd!.size.height.toDouble(),
-                child: AdWidget(ad: _bannerAd!),
-              ),
-            )
-          : const SizedBox.shrink(),
+      // IMPLEMENTASI LAYOUT FOOTER BANNER ADMOB MENGGUNAKAN WIDGET ADAPTIVE YANG BARU
+      bottomNavigationBar: const AdaptiveBannerAd(adKey: 'note_hub_banner'),
     );
   }
 }
