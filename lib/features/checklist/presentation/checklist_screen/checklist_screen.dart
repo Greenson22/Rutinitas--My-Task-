@@ -915,346 +915,325 @@ class _DailyScreenState extends State<DailyScreen> {
             onAddItem: () => _showAddGroupDialogAtSection(sectionKey),
           );
         },
-        gridItemBuilder: (context, group, index, sectionItems, isLayoutEditMode) {
-          final bool isCorrupted = group.id.startsWith("CORRUPTED_");
+        gridItemBuilder:
+            (context, group, index, sectionItems, isLayoutEditMode) {
+              final bool isCorrupted = group.id.startsWith("CORRUPTED_");
 
-          if (isCorrupted) {
-            return InteractiveGridCard(
-              themeColor: Colors.redAccent,
-              isEditMode: isLayoutEditMode ? true : _controller.isPageEditMode,
-              isHiddenStyle: false,
-              isFirst: index == 0,
-              isLast: index == sectionItems.length - 1,
-              onTap: () => _showManualDecryptDialog(group),
-              onLongPress: _controller.togglePageEditMode,
-              onMoveLeft: () {},
-              onMoveRight: () {},
-              popupMenuItems: [
-                const PopupMenuItem(
-                  value: 'decrypt',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.lock_open_rounded,
-                        size: 18,
-                        color: Colors.indigo,
+              if (isCorrupted) {
+                return InteractiveGridCard(
+                  themeColor: Colors.redAccent,
+                  isEditMode: isLayoutEditMode
+                      ? true
+                      : _controller.isPageEditMode,
+                  isHiddenStyle: false,
+                  isFirst: index == 0,
+                  isLast: index == sectionItems.length - 1,
+                  onTap: () => _showManualDecryptDialog(group),
+                  onLongPress: _controller.togglePageEditMode,
+                  onMoveLeft: () {},
+                  onMoveRight: () {},
+                  popupMenuItems: [
+                    const PopupMenuItem(
+                      value: 'decrypt',
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.lock_open_rounded,
+                            size: 18,
+                            color: Colors.indigo,
+                          ),
+                          SizedBox(width: 10),
+                          Text(
+                            'Dekripsi Manual',
+                            style: TextStyle(fontSize: 13),
+                          ),
+                        ],
                       ),
-                      SizedBox(width: 10),
-                      Text('Dekripsi Manual', style: TextStyle(fontSize: 13)),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'edit_raw_json',
-                  child: Row(
+                    ),
+                    const PopupMenuItem(
+                      value: 'edit_raw_json',
+                      child: Row(
+                        children: [
+                          Icon(Icons.data_object, size: 18, color: Colors.blue),
+                          SizedBox(width: 10),
+                          Text(
+                            'Edit File .json',
+                            style: TextStyle(fontSize: 13),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.delete_outline,
+                            size: 18,
+                            color: Colors.red,
+                          ),
+                          SizedBox(width: 10),
+                          Text(
+                            'Hapus Berkas Rusak',
+                            style: TextStyle(color: Colors.red, fontSize: 13),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  onPopupSelected: (value) async {
+                    if (value == 'decrypt') {
+                      _showManualDecryptDialog(group);
+                    } else if (value == 'edit_raw_json') {
+                      _showEditRawJsonDialog(group);
+                    } else if (value == 'delete') {
+                      _deleteGroup(group);
+                    }
+                  },
+                  content: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.data_object, size: 18, color: Colors.blue),
-                      SizedBox(width: 10),
-                      Text('Edit File .json', style: TextStyle(fontSize: 13)),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'delete',
-                  child: Row(
-                    children: [
-                      Icon(Icons.delete_outline, size: 18, color: Colors.red),
-                      SizedBox(width: 10),
+                      Text(group.icon, style: const TextStyle(fontSize: 28)),
+                      const SizedBox(height: 8),
                       Text(
-                        'Hapus Berkas Rusak',
-                        style: TextStyle(color: Colors.red, fontSize: 13),
+                        group.groupName,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: Colors.redAccent,
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Text(
+                          'Terkunci / Korup',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.redAccent,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
                     ],
                   ),
-                ),
-              ],
-              onPopupSelected: (value) async {
-                if (value == 'decrypt') {
-                  _showManualDecryptDialog(group);
-                } else if (value == 'edit_raw_json') {
-                  _showEditRawJsonDialog(group);
-                } else if (value == 'delete') {
-                  _deleteGroup(group);
-                }
-              },
-              content: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(group.icon, style: const TextStyle(fontSize: 28)),
-                  const SizedBox(height: 8),
-                  Text(
-                    group.groupName,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: Colors.redAccent,
-                    ),
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: const Text(
-                      'Terkunci / Korup',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: Colors.redAccent,
-                        fontWeight: FontWeight.bold,
+                );
+              }
+
+              int totalItems = 0;
+              for (var section in group.allList) {
+                totalItems += section.items.length;
+              }
+
+              return InteractiveGridCard(
+                themeColor: _themeColor, // Indigo
+                isEditMode: isLayoutEditMode
+                    ? true
+                    : _controller.isPageEditMode,
+                isHiddenStyle: group.isHidden,
+                isFirst: index == 0,
+                isLast: index == sectionItems.length - 1,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ChecklistDetailScreen(
+                        group: group,
+                        baseDir: _controller.selectedBaseDir,
+                        allAvailableGroups: _controller.allGroupRaw,
                       ),
+                    ),
+                  ).then((_) => _controller.loadGroupsData());
+                },
+                onLongPress: _controller.togglePageEditMode,
+                onMoveLeft: () =>
+                    _controller.moveGroupOrder(sectionItems, index, -1),
+                onMoveRight: () =>
+                    _controller.moveGroupOrder(sectionItems, index, 1),
+                popupMenuItems: [
+                  PopupMenuItem(
+                    value: 'edit',
+                    child: Row(
+                      children: const [
+                        Icon(Icons.edit, size: 18, color: Colors.teal),
+                        SizedBox(width: 10),
+                        Text(
+                          'Ubah Nama & Ikon',
+                          style: TextStyle(fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'edit_raw_json',
+                    child: Row(
+                      children: const [
+                        Icon(Icons.data_object, size: 18, color: Colors.blue),
+                        SizedBox(width: 10),
+                        Text('Edit File .json', style: TextStyle(fontSize: 13)),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'move_section',
+                    child: Row(
+                      children: const [
+                        Icon(
+                          Icons.drive_file_move_outlined,
+                          size: 18,
+                          color: Colors.indigo,
+                        ),
+                        SizedBox(width: 10),
+                        Text('Pindahkan Seksi', style: TextStyle(fontSize: 13)),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'toggle_visibility',
+                    child: Row(
+                      children: [
+                        Icon(
+                          group.isHidden
+                              ? Icons.visibility
+                              : Icons.visibility_off,
+                          size: 18,
+                          color: Colors.blueGrey[700],
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          group.isHidden
+                              ? 'Tampilkan Group'
+                              : 'Sembunyikan Group',
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuDivider(),
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: Row(
+                      children: const [
+                        Icon(
+                          Icons.delete_outline,
+                          size: 18,
+                          color: Colors.redAccent,
+                        ),
+                        SizedBox(width: 10),
+                        Text(
+                          'Hapus Group',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.redAccent,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
-              ),
-            );
-          }
-
-          int totalItems = 0;
-          for (var section in group.allList) {
-            totalItems += section.items.length;
-          }
-
-          return InteractiveGridCard(
-            themeColor: _themeColor, // Indigo
-            isEditMode: isLayoutEditMode ? true : _controller.isPageEditMode,
-            isHiddenStyle: group.isHidden,
-            isFirst: index == 0,
-            isLast: index == sectionItems.length - 1,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ChecklistDetailScreen(
-                    group: group,
-                    baseDir: _controller.selectedBaseDir,
-                    allAvailableGroups: _controller.allGroupRaw,
-                  ),
-                ),
-              ).then((_) => _controller.loadGroupsData());
-            },
-            onLongPress: _controller.togglePageEditMode,
-            onMoveLeft: () =>
-                _controller.moveGroupOrder(sectionItems, index, -1),
-            onMoveRight: () =>
-                _controller.moveGroupOrder(sectionItems, index, 1),
-            popupMenuItems: [
-              // --- ITEM MENU BARU: ENKRIPSI ---
-              PopupMenuItem(
-                value: 'toggle_encryption',
-                child: Row(
-                  children: [
-                    Icon(
-                      group.isEncrypted
-                          ? Icons.lock_open_rounded
-                          : Icons.lock_outline_rounded,
-                      size: 18,
-                      color: group.isEncrypted ? Colors.green : Colors.red,
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      group.isEncrypted ? 'Buka Enkripsi' : 'Enkripsi Group',
-                      style: const TextStyle(fontSize: 13),
-                    ),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: 'edit',
-                child: Row(
-                  children: const [
-                    Icon(Icons.edit, size: 18, color: Colors.teal),
-                    SizedBox(width: 10),
-                    Text('Ubah Nama & Ikon', style: TextStyle(fontSize: 13)),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: 'edit_raw_json',
-                child: Row(
-                  children: const [
-                    Icon(Icons.data_object, size: 18, color: Colors.blue),
-                    SizedBox(width: 10),
-                    Text('Edit File .json', style: TextStyle(fontSize: 13)),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: 'move_section',
-                child: Row(
-                  children: const [
-                    Icon(
-                      Icons.drive_file_move_outlined,
-                      size: 18,
-                      color: Colors.indigo,
-                    ),
-                    SizedBox(width: 10),
-                    Text('Pindahkan Seksi', style: TextStyle(fontSize: 13)),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: 'toggle_visibility',
-                child: Row(
-                  children: [
-                    Icon(
-                      group.isHidden ? Icons.visibility : Icons.visibility_off,
-                      size: 18,
-                      color: Colors.blueGrey[700],
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      group.isHidden ? 'Tampilkan Group' : 'Sembunyikan Group',
-                      style: const TextStyle(fontSize: 13),
-                    ),
-                  ],
-                ),
-              ),
-              const PopupMenuDivider(),
-              PopupMenuItem(
-                value: 'delete',
-                child: Row(
-                  children: const [
-                    Icon(
-                      Icons.delete_outline,
-                      size: 18,
-                      color: Colors.redAccent,
-                    ),
-                    SizedBox(width: 10),
-                    Text(
-                      'Hapus Group',
-                      style: TextStyle(fontSize: 13, color: Colors.redAccent),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-            onPopupSelected: (value) async {
-              if (value == 'toggle_encryption') {
-                try {
-                  await _controller.toggleGroupEncryption(group);
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          group.isEncrypted
-                              ? 'Group berhasil dienkripsi!'
-                              : 'Enkripsi group dilepas!',
-                        ),
-                        backgroundColor: Colors.teal,
-                      ),
-                    );
+                onPopupSelected: (value) async {
+                  if (value == 'edit') {
+                    _showEditGroupDialog(group);
+                  } else if (value == 'edit_raw_json') {
+                    _showEditRawJsonDialog(group);
+                  } else if (value == 'move_section') {
+                    _showMoveSectionDialog(group);
+                  } else if (value == 'toggle_visibility') {
+                    await _controller.toggleGroupVisibility(group);
+                  } else if (value == 'delete') {
+                    _deleteGroup(group);
                   }
-                } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Setel kata sandi di Pengaturan Data Center terlebih dahulu!',
-                        ),
-                        backgroundColor: Colors.redAccent,
-                      ),
-                    );
-                  }
-                }
-              } else if (value == 'edit') {
-                _showEditGroupDialog(group);
-              } else if (value == 'edit_raw_json') {
-                _showEditRawJsonDialog(group);
-              } else if (value == 'move_section') {
-                _showMoveSectionDialog(group);
-              } else if (value == 'toggle_visibility') {
-                await _controller.toggleGroupVisibility(group);
-              } else if (value == 'delete') {
-                _deleteGroup(group);
-              }
-            },
-            content: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Text(
-                  group.icon,
-                  style: TextStyle(
-                    fontSize: 28,
-                    color: group.isHidden ? Colors.grey : Colors.black,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  group.groupName,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    color: group.isHidden ? Colors.grey : Colors.black87,
-                  ),
-                  textAlign: TextAlign.center,
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
-                ),
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
-                  alignment: WrapAlignment.center,
+                },
+                content: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    // --- INDIKATOR GEMBOK ENKRIPSI TELAH DIHAPUS DARI SINI ---
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: (group.isHidden ? Colors.grey : _themeColor)
-                            .withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        '${group.allList.length} Seksi',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: group.isHidden
-                              ? Colors.grey[700]
-                              : Colors.indigo[900]!,
-                        ),
+                    Text(
+                      group.icon,
+                      style: TextStyle(
+                        fontSize: 28,
+                        color: group.isHidden ? Colors.grey : Colors.black,
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
+                    const SizedBox(height: 8),
+                    Text(
+                      group.groupName,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: group.isHidden ? Colors.grey : Colors.black87,
                       ),
-                      decoration: BoxDecoration(
-                        color:
-                            (group.isHidden ? Colors.grey : Colors.indigo[800]!)
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      alignment: WrapAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: (group.isHidden ? Colors.grey : _themeColor)
                                 .withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        '$totalItems Item',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: group.isHidden
-                              ? Colors.grey[700]
-                              : Colors.indigo[900]!,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            '${group.allList.length} Seksi',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: group.isHidden
+                                  ? Colors.grey[700]
+                                  : Colors.indigo[900]!,
+                            ),
+                          ),
                         ),
-                      ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color:
+                                (group.isHidden
+                                        ? Colors.grey
+                                        : Colors.indigo[800]!)
+                                    .withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            '$totalItems Item',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: group.isHidden
+                                  ? Colors.grey[700]
+                                  : Colors.indigo[900]!,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
-          );
-        },
+              );
+            },
       ),
       bottomNavigationBar:
           _isAdLoaded && _bannerAd != null && Platform.isAndroid
