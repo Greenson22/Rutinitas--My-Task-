@@ -351,6 +351,46 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
         false;
   }
 
+  Future<bool> _showConfirmDeleteGroupDialog(DocumentGroup group) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
+                SizedBox(width: 8),
+                Text('Hapus Grup Dokumen?'),
+              ],
+            ),
+            content: Text(
+              'Apakah Anda yakin ingin menghapus grup "${group.groupName}"? '
+              'Semua berkas di dalam grup ini akan dihapus permanen dari penyimpanan.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text(
+                  'Batal',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                child: const Text(
+                  'Hapus',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
   @override
   Widget build(BuildContext context) {
     final List<String> allKeys = _controller.groupedVisibleGroup.keys.toList();
@@ -574,7 +614,8 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
                 ),
               ),
             ],
-            onPopupSelected: (value) {
+            onPopupSelected: (value) async {
+              // <--- Ditambahkan async di sini
               if (value == 'edit') {
                 _showEditGroupDialog(group);
               }
@@ -585,7 +626,11 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
                 _controller.toggleGroupVisibility(group);
               }
               if (value == 'delete') {
-                _controller.deleteGroup(group);
+                // Integrasi dialog konfirmasi hapus grup
+                final bool confirm = await _showConfirmDeleteGroupDialog(group);
+                if (confirm) {
+                  _controller.deleteGroup(group);
+                }
               }
             },
             content: Column(
