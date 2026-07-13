@@ -1,10 +1,11 @@
+// lib/features/data_center/presentation/screens/data_center_screen.dart
+
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:rutinitasku/features/data_center/presentation/backup/backup_tab.dart';
 import 'package:rutinitasku/features/data_center/presentation/local_sharing/local_sharing_tab.dart';
+import 'package:rutinitasku/core/presentation/widgets/adaptive_banner_ad.dart'; // <--- IMPORT WIDGET ADMOB BARU DARI CORE[cite: 2]
 import '../../../core/services/storage_service.dart';
 import '../../../core/presentation/widgets/drawer_menu.dart';
 import 'widgets/last_restore_banner.dart';
@@ -29,52 +30,15 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
   final GlobalKey<LocalSharingTabState> _sharingTabKey =
       GlobalKey<LocalSharingTabState>();
 
-  BannerAd? _bannerAd;
-  bool _isAdLoaded = false;
-
-  String get adUnitId {
-    if (Platform.isAndroid) {
-      if (kDebugMode) {
-        return 'ca-app-pub-3940256099942544/6300978111';
-      } else {
-        return 'ca-app-pub-5320800343545863/8571499437';
-      }
-    }
-    return '';
-  }
-
   @override
   void initState() {
     super.initState();
     _loadBaseDirectory();
     _loadLastRestoreInfo();
-    _loadBannerAd();
-  }
-
-  void _loadBannerAd() {
-    if (adUnitId.isEmpty) return;
-
-    _bannerAd = BannerAd(
-      adUnitId: adUnitId,
-      request: const AdRequest(),
-      size: AdSize.banner,
-      listener: BannerAdListener(
-        onAdLoaded: (ad) {
-          setState(() {
-            _isAdLoaded = true;
-          });
-        },
-        onAdFailedToLoad: (ad, err) {
-          debugPrint('Iklan Banner Data Center gagal dimuat: $err');
-          ad.dispose();
-        },
-      ),
-    )..load();
   }
 
   @override
   void dispose() {
-    _bannerAd?.dispose();
     super.dispose();
   }
 
@@ -504,16 +468,10 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
               ),
           ],
         ),
-        bottomNavigationBar:
-            _isAdLoaded && _bannerAd != null && Platform.isAndroid
-            ? SafeArea(
-                child: SizedBox(
-                  width: _bannerAd!.size.width.toDouble(),
-                  height: _bannerAd!.size.height.toDouble(),
-                  child: AdWidget(ad: _bannerAd!),
-                ),
-              )
-            : const SizedBox.shrink(),
+        // MENGGUNAKAN WIDGET KUSTOM ADMOB YANG BARU DAN MODULAR PADA FOOTER LAYOUT[cite: 2]
+        bottomNavigationBar: const AdaptiveBannerAd(
+          adKey: 'jurnal_activity_banner',
+        ),
       ),
     );
   }
