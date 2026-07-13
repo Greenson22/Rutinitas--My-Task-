@@ -16,6 +16,9 @@ class AdService {
     'prompt_hub_banner': 'ca-app-pub-5320800343545863/7705140325',
     'prompt_detail_banner': 'ca-app-pub-5320800343545863/1957989622',
     'jurnal_activity_banner': 'ca-app-pub-5320800343545863/3079499608',
+    'document_hub_banner': 'ca-app-pub-5320800343545863/5518848739',
+    'document_detail_banner': 'ca-app-pub-5320800343545863/2360156750',
+    'data_center': 'ca-app-pub-5320800343545863/8571499437',
   };
 
   // 2. FUNGSI ADAPTIF UNTUK MENGAMBIL ID BERDASARKAN KUNCI (KEY)
