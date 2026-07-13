@@ -1205,23 +1205,7 @@ class _DailyScreenState extends State<DailyScreen> {
                   runSpacing: 4,
                   alignment: WrapAlignment.center,
                   children: [
-                    // --- INDIKATOR GEMBOK ENKRIPSI ---
-                    if (group.isEncrypted)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.green.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: const Icon(
-                          Icons.lock_outline_rounded,
-                          size: 12,
-                          color: Colors.green,
-                        ),
-                      ),
+                    // --- INDIKATOR GEMBOK ENKRIPSI TELAH DIHAPUS DARI SINI ---
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
