@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:rutinitasku/features/data_center/presentation/widgets/transfer_progress_dialog.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:archive/archive_io.dart';
 import '../../../../core/services/storage_service.dart';
@@ -88,98 +89,15 @@ class BackupTabState extends State<BackupTab> {
   }) {
     showDialog(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (dialogCtx) {
         WidgetsBinding.instance.addPostFrameCallback((_) => onReady(dialogCtx));
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-          content: Padding(
-            padding: const EdgeInsets.symmetric(
-              vertical: 12.0,
-              horizontal: 8.0,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 90,
-                  height: 90,
-                  decoration: BoxDecoration(
-                    color: Colors.teal.withOpacity(0.08),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      SizedBox(
-                        width: 76,
-                        height: 76,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 5,
-                          valueColor: const AlwaysStoppedAnimation<Color>(
-                            Colors.teal,
-                          ),
-                          backgroundColor: Colors.teal.withOpacity(0.1),
-                        ),
-                      ),
-                      const Icon(
-                        Icons.backup_outlined,
-                        size: 40,
-                        color: Colors.teal,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.indigo[900],
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 12),
-                ValueListenableBuilder<String>(
-                  valueListenable: statusNotifier,
-                  builder: (context, status, child) {
-                    return Text(
-                      status,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey[600],
-                        fontWeight: FontWeight.w500,
-                      ),
-                      textAlign: TextAlign.center,
-                    );
-                  },
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.teal.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                  child: const Text(
-                    'PROSES MEMBUAT CADANGAN...',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: Colors.teal,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+        return TransferProgressDialog(
+          title: title,
+          statusNotifier: statusNotifier,
+          isSending: true, // Warna disesuaikan (teal)
+          subTitleProgress: 'Proses Membuat Cadangan...',
+          onClose: () => Navigator.of(dialogCtx).pop(),
         );
       },
     );
