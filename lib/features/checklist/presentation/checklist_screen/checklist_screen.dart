@@ -1,15 +1,13 @@
-// lib/features/daily/presentation/screens/daily_screen.dart
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart'; // Ditambahkan untuk mendeteksi kDebugMode
-import 'package:google_mobile_ads/google_mobile_ads.dart'; // Ditambahkan untuk SDK AdMob
 
 import '../../../../core/presentation/widgets/drawer_menu.dart';
 import '../../../../core/presentation/widgets/grouped_section_layout.dart';
 import '../../../../core/presentation/widgets/interactive_grid_card.dart';
 import '../../../../core/presentation/widgets/interactive_section_header.dart';
 import '../../../../core/presentation/widgets/universal_empty_state.dart'; // Using Universal Widget from Core
+import '../../../../core/presentation/widgets/adaptive_banner_ad.dart'; // <--- IMPORT WIDGET ADMOB BARU
 import '../../../../core/utils/crypto_helper.dart'; // Import CryptoHelper untuk Dekripsi Manual
 import '../../../../core/services/storage_service.dart'; // <--- IMPORT BARU KUNCI PENYIMPANAN
 import '../../data/models/daily_model.dart';
@@ -27,50 +25,12 @@ class _DailyScreenState extends State<DailyScreen> {
   late DailyController _controller;
   final Color _themeColor = Colors.indigo; // Definisi warna tema dasar indigo
 
-  // Variabel untuk manajemen Banner AdMob
-  BannerAd? _bannerAd;
-  bool _isAdLoaded = false;
-
-  // Getter adaptif untuk menentukan Ad Unit ID Iklan Banner
-  String get adUnitId {
-    if (Platform.isAndroid) {
-      if (kDebugMode) {
-        return 'ca-app-pub-3940256099942544/6300978111';
-      } else {
-        return 'ca-app-pub-5320800343545863/2005101404';
-      }
-    }
-    return '';
-  }
-
   @override
   void initState() {
     super.initState();
     _controller = DailyController();
     _controller.addListener(_onControllerNotify);
     _controller.loadGroupsData();
-
-    _loadBannerAd();
-  }
-
-  void _loadBannerAd() {
-    if (adUnitId.isEmpty) return;
-    _bannerAd = BannerAd(
-      adUnitId: adUnitId,
-      request: const AdRequest(),
-      size: AdSize.banner,
-      listener: BannerAdListener(
-        onAdLoaded: (ad) {
-          setState(() {
-            _isAdLoaded = true;
-          });
-        },
-        onAdFailedToLoad: (ad, err) {
-          debugPrint('Iklan Banner Checklist gagal dimuat: $err');
-          ad.dispose();
-        },
-      ),
-    )..load();
   }
 
   void _onControllerNotify() {
@@ -81,7 +41,6 @@ class _DailyScreenState extends State<DailyScreen> {
   void dispose() {
     _controller.removeListener(_onControllerNotify);
     _controller.dispose();
-    _bannerAd?.dispose();
     super.dispose();
   }
 
@@ -93,8 +52,8 @@ class _DailyScreenState extends State<DailyScreen> {
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: const [
+        title: const Row(
+          children: [
             Icon(Icons.lock_open_rounded, color: Colors.indigo),
             SizedBox(width: 8),
             Text('Dekripsi Berkas Checklist'),
@@ -1063,8 +1022,8 @@ class _DailyScreenState extends State<DailyScreen> {
                 popupMenuItems: [
                   PopupMenuItem(
                     value: 'edit',
-                    child: Row(
-                      children: const [
+                    child: const Row(
+                      children: [
                         Icon(Icons.edit, size: 18, color: Colors.teal),
                         SizedBox(width: 10),
                         Text(
@@ -1076,8 +1035,8 @@ class _DailyScreenState extends State<DailyScreen> {
                   ),
                   PopupMenuItem(
                     value: 'edit_raw_json',
-                    child: Row(
-                      children: const [
+                    child: const Row(
+                      children: [
                         Icon(Icons.data_object, size: 18, color: Colors.blue),
                         SizedBox(width: 10),
                         Text('Edit File .json', style: TextStyle(fontSize: 13)),
@@ -1086,8 +1045,8 @@ class _DailyScreenState extends State<DailyScreen> {
                   ),
                   PopupMenuItem(
                     value: 'move_section',
-                    child: Row(
-                      children: const [
+                    child: const Row(
+                      children: [
                         Icon(
                           Icons.drive_file_move_outlined,
                           size: 18,
@@ -1122,8 +1081,8 @@ class _DailyScreenState extends State<DailyScreen> {
                   const PopupMenuDivider(),
                   PopupMenuItem(
                     value: 'delete',
-                    child: Row(
-                      children: const [
+                    child: const Row(
+                      children: [
                         Icon(
                           Icons.delete_outline,
                           size: 18,
@@ -1235,16 +1194,10 @@ class _DailyScreenState extends State<DailyScreen> {
               );
             },
       ),
-      bottomNavigationBar:
-          _isAdLoaded && _bannerAd != null && Platform.isAndroid
-          ? SafeArea(
-              child: SizedBox(
-                width: _bannerAd!.size.width.toDouble(),
-                height: _bannerAd!.size.height.toDouble(),
-                child: AdWidget(ad: _bannerAd!),
-              ),
-            )
-          : const SizedBox.shrink(),
+      // MENGGUNAKAN WIDGET KUSTOM YANG BARU DAN MODULAR
+      bottomNavigationBar: const AdaptiveBannerAd(
+        adKey: 'checklist_hub_banner',
+      ),
     );
   }
 }
