@@ -1,13 +1,12 @@
 // lib/features/documents/presentation/screens/document_screen.dart
-import 'dart:io'; // Ditambahkan untuk mengecek platform
-import 'package:flutter/foundation.dart'; // Ditambahkan untuk mendeteksi kDebugMode
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart'; // Ditambahkan untuk SDK AdMob
-import '../../../../core/presentation/widgets/drawer_menu.dart';
-import '../../../../core/presentation/widgets/grouped_section_layout.dart';
-import '../../../../core/presentation/widgets/interactive_grid_card.dart';
-import '../../../../core/presentation/widgets/interactive_section_header.dart';
-import '../../../../core/presentation/widgets/universal_empty_state.dart';
+import 'package:rutinitasku/core/presentation/widgets/drawer_menu.dart';
+import 'package:rutinitasku/core/presentation/widgets/grouped_section_layout.dart';
+import 'package:rutinitasku/core/presentation/widgets/interactive_grid_card.dart';
+import 'package:rutinitasku/core/presentation/widgets/interactive_section_header.dart';
+import 'package:rutinitasku/core/presentation/widgets/universal_empty_state.dart';
+import 'package:rutinitasku/core/presentation/widgets/adaptive_banner_ad.dart'; // <--- IMPORT WIDGET ADMOB BARU DARI CORE[cite: 2]
 import '../../data/models/document_model.dart';
 import '../controllers/documents_controller.dart';
 import 'document_detail_screen.dart';
@@ -27,49 +26,11 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
   // =========================================================================
   final Color _themeColor = Colors.indigo;
 
-  // Variabel kontrol untuk Banner AdMob
-  BannerAd? _bannerAd;
-  bool _isAdLoaded = false;
-
-  // Getter adaptif untuk menentukan Ad Unit ID Iklan Banner
-  String get adUnitId {
-    if (Platform.isAndroid) {
-      if (kDebugMode) {
-        return 'ca-app-pub-3940256099942544/6300978111';
-      } else {
-        return 'ca-app-pub-5320800343545863/5518848739';
-      }
-    }
-    return '';
-  }
-
   @override
   void initState() {
     super.initState();
     _controller = DocumentsController();
     _controller.addListener(_onControllerNotify);
-    _loadBannerAd();
-  }
-
-  void _loadBannerAd() {
-    if (adUnitId.isEmpty) return;
-
-    _bannerAd = BannerAd(
-      adUnitId: adUnitId,
-      request: const AdRequest(),
-      size: AdSize.banner,
-      listener: BannerAdListener(
-        onAdLoaded: (ad) {
-          setState(() {
-            _isAdLoaded = true;
-          });
-        },
-        onAdFailedToLoad: (ad, err) {
-          debugPrint('Iklan Banner Documents gagal dimuat: $err');
-          ad.dispose();
-        },
-      ),
-    )..load();
   }
 
   void _onControllerNotify() {
@@ -80,7 +41,6 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
   void dispose() {
     _controller.removeListener(_onControllerNotify);
     _controller.dispose();
-    _bannerAd?.dispose();
     super.dispose();
   }
 
@@ -414,6 +374,7 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
         drawer: const DrawerMenu(isDocumentsActive: true),
         isLoading: _controller.isLoading,
         isEmpty: _controller.allGroupRaw.isEmpty && allKeys.isEmpty,
+        emptyMessage: 'Belum ada data.',
         emptyStateView: UniversalEmptyState(
           icon: Icons.folder_copy_rounded,
           title: 'Grup Dokumen Masih Kosong',
@@ -670,16 +631,8 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
         },
       ),
 
-      bottomNavigationBar:
-          _isAdLoaded && _bannerAd != null && Platform.isAndroid
-          ? SafeArea(
-              child: SizedBox(
-                width: _bannerAd!.size.width.toDouble(),
-                height: _bannerAd!.size.height.toDouble(),
-                child: AdWidget(ad: _bannerAd!),
-              ),
-            )
-          : const SizedBox.shrink(),
+      // MENGGUNAKAN WIDGET KUSTOM ADMOB YANG BARU DAN MODULAR PADA FOOTER LAYOUT
+      bottomNavigationBar: const AdaptiveBannerAd(adKey: 'document_hub_banner'),
     );
   }
 }
