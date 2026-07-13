@@ -1,16 +1,15 @@
 // lib/features/prompt/presentation/screens/prompt_screen.dart
 import 'dart:convert';
-import 'dart:io'; // Ditambahkan untuk mengecek platform
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart'; // Ditambahkan untuk mendeteksi kDebugMode
-import 'package:google_mobile_ads/google_mobile_ads.dart'; // Ditambahkan untuk SDK AdMob
-import 'package:rutinitasku/core/services/storage_service.dart'; // <--- TAMBAHKAN IMPORT INI
+import 'package:rutinitasku/core/services/storage_service.dart';
+import 'package:rutinitasku/core/presentation/widgets/adaptive_banner_ad.dart'; // <--- IMPORT WIDGET ADMOB BARU DARI CORE[cite: 2]
 import '../../../../core/presentation/widgets/drawer_menu.dart';
 import '../../../../core/presentation/widgets/grouped_section_layout.dart';
 import '../../../../core/presentation/widgets/interactive_section_header.dart';
 import '../../../../core/presentation/widgets/interactive_grid_card.dart';
 import '../../../../core/presentation/widgets/universal_empty_state.dart';
-import '../../../../core/utils/crypto_helper.dart'; // <--- TAMBAHKAN IMPORT CRYPTO HELPER
+import '../../../../core/utils/crypto_helper.dart';
 import '../../data/models/prompt_model.dart';
 import '../controllers/prompt_controller.dart';
 import 'prompt_detail_screen.dart';
@@ -24,37 +23,17 @@ class PromptScreen extends StatefulWidget {
 
 class _PromptScreenState extends State<PromptScreen> {
   late final PromptController _controller;
-  final StorageService _storageService =
-      StorageService(); // <--- TAMBAHKAN INSTANCE INI
+  final StorageService _storageService = StorageService();
 
   // STATE BARU: Kontrol untuk menampilkan atau menyembunyikan kategori/grup tersembunyi
   bool _showHiddenSection = false;
-  bool _isGlobalEncryptionEnabled =
-      false; // <--- TAMBAHKAN VARIABEL STATE BARU INI
-
-  // Variabel kontrol untuk Banner AdMob
-  BannerAd? _bannerAd;
-  bool _isAdLoaded = false;
-
-  // Getter adaptif untuk menentukan Ad Unit ID Iklan Banner
-  String get adUnitId {
-    if (Platform.isAndroid) {
-      if (kDebugMode) {
-        // ID Test Resmi dari Google untuk pengujian iklan Banner Android
-        return 'ca-app-pub-3940256099942544/6300978111';
-      } else {
-        // GANTI dengan Ad Unit ID asli Anda dari dasbor AdMob saat rilis nanti
-        return 'ca-app-pub-5320800343545863/7705140325';
-      }
-    }
-    return ''; // Kosongkan jika berjalan di Desktop (Windows/Linux/macOS) agar tidak crash
-  }
+  bool _isGlobalEncryptionEnabled = false;
 
   @override
   void initState() {
     super.initState();
     _controller = PromptController();
-    _checkEncryptionStatus(); // <--- PANGGIL METHOD PENGECEKAN DI SINI
+    _checkEncryptionStatus();
 
     // PERBAIKAN 1: Berikan jeda mikro asinkron (150ms) setelah frame utama dirender.
     // Menghilangkan lag saat pertama kali masuk halaman karena memisahkan beban rendering transisi dengan dekripsi I/O.
@@ -65,31 +44,6 @@ class _PromptScreenState extends State<PromptScreen> {
         }
       });
     });
-
-    // Panggil fungsi pemuatan iklan banner
-    _loadBannerAd();
-  }
-
-  // Fungsi untuk mengunduh iklan banner AdMob
-  void _loadBannerAd() {
-    if (adUnitId.isEmpty) return; // Batalkan jika bukan platform Android
-
-    _bannerAd = BannerAd(
-      adUnitId: adUnitId,
-      request: const AdRequest(),
-      size: AdSize.banner,
-      listener: BannerAdListener(
-        onAdLoaded: (ad) {
-          setState(() {
-            _isAdLoaded = true;
-          });
-        },
-        onAdFailedToLoad: (ad, err) {
-          debugPrint('Iklan Banner Prompt gagal dimuat: $err');
-          ad.dispose();
-        },
-      ),
-    )..load();
   }
 
   // METHOD BARU: Mengambil konfigurasi status enkripsi master sistem dari storage
@@ -105,8 +59,6 @@ class _PromptScreenState extends State<PromptScreen> {
   @override
   void dispose() {
     _controller.dispose();
-    _bannerAd
-        ?.dispose(); // Hancurkan objek iklan dari memori saat halaman ditutup untuk mencegah kebocoran memori
     super.dispose();
   }
 
@@ -1287,16 +1239,10 @@ class _PromptScreenState extends State<PromptScreen> {
                   );
                 },
           ),
-          bottomNavigationBar:
-              _isAdLoaded && _bannerAd != null && Platform.isAndroid
-              ? SafeArea(
-                  child: SizedBox(
-                    width: _bannerAd!.size.width.toDouble(),
-                    height: _bannerAd!.size.height.toDouble(),
-                    child: AdWidget(ad: _bannerAd!),
-                  ),
-                )
-              : const SizedBox.shrink(),
+          // MENGGUNAKAN WIDGET KUSTOM ADMOB YANG BARU DAN MODULAR PADA FOOTER LAYOUT[cite: 2]
+          bottomNavigationBar: const AdaptiveBannerAd(
+            adKey: 'prompt_hub_banner',
+          ),
         );
       },
     );

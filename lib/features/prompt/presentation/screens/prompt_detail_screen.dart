@@ -1,12 +1,11 @@
 // lib/features/prompt/presentation/screens/prompt_detail_screen.dart
-import 'dart:io'; // Ditambahkan untuk mengecek platform
-import 'package:flutter/foundation.dart'; // Ditambahkan untuk mendeteksi kDebugMode
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart'; // Ditambahkan untuk SDK AdMob
 import 'package:rutinitasku/core/presentation/widgets/base_popup_dialog.dart';
+import 'package:rutinitasku/core/presentation/widgets/adaptive_banner_ad.dart'; // <--- IMPORT WIDGET ADMOB BARU DARI CORE[cite: 2]
 import '../../../../core/presentation/widgets/base_detail_list_screen.dart';
-import '../../../../core/presentation/widgets/universal_empty_state.dart'; // IMPORT BARU
+import '../../../../core/presentation/widgets/universal_empty_state.dart';
 import '../../data/models/prompt_model.dart';
 import '../controllers/prompt_controller.dart';
 import '../widgets/prompt_detail_screen/add_prompt_item_dialog.dart';
@@ -24,24 +23,6 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
   late PromptGroup _currentGroup;
   final PromptController _controller = PromptController();
 
-  // Variabel kontrol untuk Banner AdMob
-  BannerAd? _bannerAd;
-  bool _isAdLoaded = false;
-
-  // Getter adaptif untuk menentukan Ad Unit ID Iklan Banner
-  String get adUnitId {
-    if (Platform.isAndroid) {
-      if (kDebugMode) {
-        // ID Test Resmi dari Google untuk pengujian iklan Banner Android
-        return 'ca-app-pub-3940256099942544/6300978111';
-      } else {
-        // GANTI dengan Ad Unit ID asli Anda dari dasbor AdMob saat rilis nanti
-        return 'ca-app-pub-5320800343545863/1957989622';
-      }
-    }
-    return ''; // Kosongkan jika berjalan di Desktop (Windows/Linux/macOS) agar tidak crash
-  }
-
   @override
   void initState() {
     super.initState();
@@ -55,38 +36,11 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
         _controller.loadAllPrompts(context);
       }
     });
-
-    // Panggil fungsi pemuatan iklan banner
-    _loadBannerAd();
-  }
-
-  // Fungsi untuk mengunduh iklan banner AdMob
-  void _loadBannerAd() {
-    if (adUnitId.isEmpty) return; // Batalkan jika bukan platform Android
-
-    _bannerAd = BannerAd(
-      adUnitId: adUnitId,
-      request: const AdRequest(),
-      size: AdSize.banner,
-      listener: BannerAdListener(
-        onAdLoaded: (ad) {
-          setState(() {
-            _isAdLoaded = true;
-          });
-        },
-        onAdFailedToLoad: (ad, err) {
-          debugPrint('Iklan Banner Prompt Detail gagal dimuat: $err');
-          ad.dispose();
-        },
-      ),
-    )..load();
   }
 
   @override
   void dispose() {
     _controller.clearSelectedPrompts();
-    _bannerAd
-        ?.dispose(); // Hancurkan objek iklan dari memori saat halaman ditutup untuk mencegah kebocoran memori
     super.dispose();
   }
 
@@ -517,7 +471,6 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                                     onPressed: item.versions.length <= 1
                                         ? null
                                         : () async {
-                                            // PENGAMANAN: Pastikan list memori controller sudah terisi
                                             if (_controller
                                                 .promptGroups
                                                 .isEmpty) {
@@ -532,7 +485,6 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                                                   versionId: version.id,
                                                   context: context,
                                                 );
-                                            // Ambil group terbaru pasca penghapusan
                                             final updatedGroup = _controller
                                                 .promptGroups
                                                 .firstWhere(
@@ -558,7 +510,6 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                                         visualDensity: VisualDensity.compact,
                                       ),
                                       onPressed: () async {
-                                        // PENGAMANAN: Pastikan list memori controller sudah terisi
                                         if (_controller.promptGroups.isEmpty) {
                                           await _controller.loadAllPrompts(
                                             context,
@@ -629,7 +580,6 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                         ),
                         onPressed: () {
                           _openCreateNewVersionDialog(item, () {
-                            // SINKRONISASI DATA: Cari group dan item yang diperbarui dari controller
                             final updatedGroup = _controller.promptGroups
                                 .firstWhere(
                                   (g) => g.id == _currentGroup.id,
@@ -637,7 +587,6 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
                                 );
 
                             setModalState(() {
-                              // Memperbarui objek item lokal dialog agar ListView me-render daftar versi yang baru
                               item = updatedGroup.prompts.firstWhere(
                                 (p) => p.id == item.id,
                               );
@@ -683,7 +632,6 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
           ElevatedButton(
             onPressed: () async {
               if (nameController.text.trim().isNotEmpty) {
-                // PENGAMANAN: Pastikan list memori controller sudah terisi
                 if (_controller.promptGroups.isEmpty) {
                   await _controller.loadAllPrompts(context);
                 }
@@ -728,12 +676,10 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              // PENGAMANAN: Memastikan data controller list telah termuat
               if (_controller.promptGroups.isEmpty) {
                 await _controller.loadAllPrompts(context);
               }
 
-              // Menunggu proses asinkronus penulisan ke storage selesai
               await _controller.createNewPromptVersion(
                 group: _currentGroup,
                 itemId: item.id,
@@ -743,7 +689,6 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
               if (ctx.mounted) {
                 Navigator.pop(ctx);
               }
-              // Memicu callback sinkronisasi data ke dialog riwayat versi induk
               onUpdated();
             },
             child: const Text('Duplikat'),
@@ -784,17 +729,10 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
           themeColor: const Color(0xFF3F51B5),
           onPressed: _openAddPromptDialog,
         ),
-        // IMPLEMENTASI FOOTER AD BANNER PADA KONDISI DATA KOSONG
-        bottomNavigationBar:
-            _isAdLoaded && _bannerAd != null && Platform.isAndroid
-            ? SafeArea(
-                child: SizedBox(
-                  width: _bannerAd!.size.width.toDouble(),
-                  height: _bannerAd!.size.height.toDouble(),
-                  child: AdWidget(ad: _bannerAd!),
-                ),
-              )
-            : const SizedBox.shrink(),
+        // MENGGUNAKAN WIDGET KUSTOM ADMOB YANG BARU DAN MODULAR PADA FOOTER LAYOUT KONDISI KOSONG[cite: 2]
+        bottomNavigationBar: const AdaptiveBannerAd(
+          adKey: 'prompt_detail_banner',
+        ),
       );
     }
 
@@ -964,13 +902,11 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
               );
             },
 
-            // Penyatuan String untuk Pencarian Komponen Bawaan
             itemSearchString: (item) =>
                 '${item.actAs} ${item.description ?? ''} ${item.activeVersion.content}',
             itemIsFavorite: (item) => item.isFavorite,
             onAddPressed: _openAddPromptDialog,
 
-            // Aksi Klik Menyalin Konten Prompt Utama Langsung ke Clipboard OS
             onItemTap: (item) async {
               final scaffoldMessenger = ScaffoldMessenger.of(context);
               await Clipboard.setData(
@@ -1101,7 +1037,6 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
             },
 
             onDeleteMassive: (selectedItems) async {
-              // Pasang list terpilih ke controller untuk bulk actions
               _controller.clearSelectedPrompts();
               for (var item in selectedItems) {
                 _controller.toggleSelectPromptItem(item.id);
@@ -1117,7 +1052,6 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
               }
             },
             onMoveMassive: (selectedItems) async {
-              // PENGAMANAN: Pastikan list memori controller sudah terisi
               if (_controller.promptGroups.isEmpty) {
                 await _controller.loadAllPrompts(context);
               }
@@ -1127,17 +1061,10 @@ class _PromptDetailScreenState extends State<PromptDetailScreen> {
         },
       ),
 
-      // IMPLEMENTASI LAYOUT FOOTER BANNER ADMOB KHUSUS ANDROID
-      bottomNavigationBar:
-          _isAdLoaded && _bannerAd != null && Platform.isAndroid
-          ? SafeArea(
-              child: SizedBox(
-                width: _bannerAd!.size.width.toDouble(),
-                height: _bannerAd!.size.height.toDouble(),
-                child: AdWidget(ad: _bannerAd!),
-              ),
-            )
-          : const SizedBox.shrink(),
+      // MENGGUNAKAN WIDGET KUSTOM ADMOB YANG BARU DAN MODULAR PADA FOOTER LAYOUT DATA UTAMA[cite: 2]
+      bottomNavigationBar: const AdaptiveBannerAd(
+        adKey: 'prompt_detail_banner',
+      ),
     );
   }
 }
