@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart'; // <-- TAMBAHAN: Untuk ValueNotifier
 import 'package:path_provider/path_provider.dart';
+import 'package:rutinitasku/core/utils/atomic_write_helper.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/default_json.dart';
 import '../utils/crypto_helper.dart';
@@ -581,5 +582,63 @@ class StorageService {
     // 7. Reset state last restore info pada SharedPreferences
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_keyLastRestoreInfo);
+  }
+
+  Future<void> applyEncryptionToAllData(String password) async {
+    final StorageService storageService = StorageService();
+    final String baseDir = await storageService.getBaseDirSetting();
+
+    try {
+      // 1. Enkripsi Task Master
+      File fileTasks = await storageService.getTargetJsonFile(baseDir);
+      await _encryptSingleFile(fileTasks, password);
+
+      // 2. Enkripsi Jurnal Aktivitas[cite: 1]
+      File fileJurnal = await storageService.getJurnalJsonFile(baseDir);
+      await _encryptSingleFile(fileJurnal, password);
+
+      // 3. Enkripsi Checklist[cite: 1]
+      List<File> checklistFiles = await storageService.getAllChecklistGroups(
+        baseDir,
+      );
+      for (File file in checklistFiles) {
+        await _encryptSingleFile(file, password);
+      }
+
+      // 4. Enkripsi Notes[cite: 1]
+      List<File> noteFiles = await storageService.getAllNoteGroups(baseDir);
+      for (File file in noteFiles) {
+        await _encryptSingleFile(file, password);
+      }
+
+      // 5. Enkripsi Prompts[cite: 1]
+      List<File> promptFiles = await storageService.getAllPromptGroups(baseDir);
+      for (File file in promptFiles) {
+        await _encryptSingleFile(file, password);
+      }
+
+      debugPrint("Berhasil mengenkripsi seluruh data lokal!");
+    } catch (e) {
+      debugPrint("Terjadi kesalahan saat mengenkripsi data masal: $e");
+    }
+  }
+
+  /// Fungsi pembantu untuk mengenkripsi satu berkas
+  Future<void> _encryptSingleFile(File targetFile, String password) async {
+    if (await targetFile.exists()) {
+      String content = await targetFile.readAsString();
+
+      // Validasi agar tidak mengenkripsi berkas yang sudah terenkripsi[cite: 1]
+      // Berkas JSON mentah akan selalu diawali dengan '{' atau '['[cite: 1]
+      if (content.trim().startsWith('{') || content.trim().startsWith('[')) {
+        String encryptedContent = CryptoHelper.encrypt(content, password);
+
+        // Menggunakan AtomicWriteHelper untuk mencegah korupsi data saat penulisan[cite: 1]
+        await AtomicWriteHelper.writeSafe(
+          targetFile: targetFile,
+          content: encryptedContent,
+        );
+      }
+    }
   }
 }

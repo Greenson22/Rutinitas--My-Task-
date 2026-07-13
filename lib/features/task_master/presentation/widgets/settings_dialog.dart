@@ -168,6 +168,9 @@ class _SettingsDialogState extends State<SettingsDialog> {
     final passwordController = TextEditingController();
     bool obscurePassword = true;
 
+    // PERBAIKAN: Memberikan fallback '' jika sessionPassword bernilai null agar tipenya pas (String)
+    String oldPassword = StorageService.sessionPassword ?? '';
+
     bool? confirmed = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -188,8 +191,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
               children: [
                 Text(
                   value
-                      ? 'Masukkan kata sandi induk baru yang akan digunakan untuk mengunci berkas pilihan Anda secara manual nanti.'
-                      : 'Masukkan kata sandi saat ini untuk menonaktifkan sistem otentikasi enkripsi global.',
+                      ? 'Masukkan kata sandi induk baru yang akan digunakan untuk mengunci berkas data Anda secara otomatis.'
+                      : 'Masukkan kata sandi saat ini untuk menonaktifkan sistem enkripsi global dan mendekripsi kembali data berkas.',
                   style: const TextStyle(fontSize: 13, color: Colors.black87),
                 ),
                 const SizedBox(height: 16),
@@ -223,7 +226,19 @@ class _SettingsDialogState extends State<SettingsDialog> {
               ),
               ElevatedButton(
                 onPressed: () {
-                  if (passwordController.text.trim().isNotEmpty) {
+                  final input = passwordController.text.trim();
+                  if (input.isNotEmpty) {
+                    if (!value && input != oldPassword) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Kata sandi salah! Konfirmasi dekripsi ditolak.',
+                          ),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                      return;
+                    }
                     Navigator.pop(ctx, true);
                   }
                 },
@@ -252,27 +267,16 @@ class _SettingsDialogState extends State<SettingsDialog> {
       );
 
       try {
-        final prefs = await SharedPreferences.getInstance();
-
-        if (value) {
-          StorageService.sessionPassword = inputPassword;
-          // Jika user mengaktifkan "Ingat Kata Sandi", simpan juga ke disk local harian melalui helper bawaan
-          if (_rememberPassword) {
-            await _storageService.setRememberPassword(
-              true,
-              currentPassword: inputPassword,
-            );
-          }
-        } else {
-          // Jika sistem enkripsi dimatikan total, bersihkan seluruh cache password
-          await _storageService.setRememberPassword(false);
-          StorageService.sessionPassword = '';
-        }
-
-        await prefs.setBool('is_encrypted', value);
+        // OPTIMASI: Memanggil implementasi fungsi bawaan 'migrateFilesEncryption' dari StorageService Anda
+        // Fungsi ini otomatis memproses enkripsi/dekripsi masal di disk lokal untuk tasks, checklist, notes, jurnal, dan prompts.
+        await _storageService.migrateFilesEncryption(
+          value,
+          inputPassword,
+          remember: _rememberPassword,
+        );
 
         if (!mounted) return;
-        Navigator.pop(context);
+        Navigator.pop(context); // Tutup loading spinner
 
         setState(() {
           _isEncryptionEnabled = value;
@@ -285,18 +289,20 @@ class _SettingsDialogState extends State<SettingsDialog> {
           SnackBar(
             content: Text(
               value
-                  ? 'Sistem kata sandi enkripsi berhasil diatur!'
-                  : 'Sistem otentikasi enkripsi dinonaktifkan.',
+                  ? 'Seluruh data fitur berhasil dienkripsi secara otomatis!'
+                  : 'Sistem otentikasi enkripsi dinonaktifkan. Seluruh data berhasil didekripsi.',
             ),
             backgroundColor: Colors.teal,
           ),
         );
       } catch (e) {
         if (!mounted) return;
-        Navigator.pop(context);
+        Navigator.pop(context); // Tutup loading spinner
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Proses gagal. Terjadi kesalahan konfigurasi.'),
+            content: Text(
+              'Proses gagal. Terjadi kesalahan konfigurasi crypto masal.',
+            ),
             backgroundColor: Colors.red,
           ),
         );
