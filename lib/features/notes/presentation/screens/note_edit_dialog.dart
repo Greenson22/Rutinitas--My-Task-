@@ -323,7 +323,7 @@ class _NoteEditDialogState extends State<NoteEditDialog>
           children: [
             Icon(Icons.warning_amber_rounded, color: Colors.amber),
             SizedBox(width: 8),
-            Text('Perubahan Belum Disimpan'),
+            Text('Perubahan Belum Simpan'),
           ],
         ),
         content: const Text(
@@ -435,6 +435,118 @@ class _NoteEditDialogState extends State<NoteEditDialog>
                 ),
                 const SizedBox(width: 8),
 
+                // ========================================================
+                // INTEGRASI POPUP MENU BARU: MENGGABUNGKAN OPSI DAN KONTROL KE SATU TOMBOL DI HEADER
+                // ========================================================
+                if (_currentType == 'text' && !_isViewMode && _isFrontSide) ...[
+                  PopupMenuButton<String>(
+                    icon: const Icon(
+                      Icons.more_vert,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                    tooltip: 'Opsi Halaman',
+                    onSelected: (String value) async {
+                      if (value == 'add_page') {
+                        _addNewNotePage();
+                      } else if (value == 'toggle_md') {
+                        setState(
+                          () => _isMarkdownEnabled = !_isMarkdownEnabled,
+                        );
+                        _triggerChange();
+                      } else if (value == 'delete_page') {
+                        final confirm = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Hapus Halaman?'),
+                            content: const Text(
+                              'Apakah Anda yakin ingin menghapus halaman catatan ini?',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, false),
+                                child: const Text('Batal'),
+                              ),
+                              ElevatedButton(
+                                onPressed: () => Navigator.pop(ctx, true),
+                                child: const Text('Hapus'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirm == true) _deleteCurrentNotePage();
+                      }
+                    },
+                    itemBuilder: (BuildContext context) => [
+                      PopupMenuItem<String>(
+                        value: 'add_page',
+                        child: Row(
+                          children: const [
+                            Icon(
+                              Icons.note_add_outlined,
+                              color: Colors.indigo,
+                              size: 18,
+                            ),
+                            SizedBox(width: 10),
+                            Text(
+                              'Tambah Halaman',
+                              style: TextStyle(fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const PopupMenuDivider(),
+                      PopupMenuItem<String>(
+                        value: 'toggle_md',
+                        child: Row(
+                          children: [
+                            Icon(
+                              _isMarkdownEnabled
+                                  ? Icons.toggle_on
+                                  : Icons.toggle_off_outlined,
+                              color: _isMarkdownEnabled
+                                  ? Colors.teal
+                                  : Colors.grey,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              _isMarkdownEnabled
+                                  ? 'Markdown: Aktif'
+                                  : 'Markdown: Nonaktif',
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (_notePages.length > 1) ...[
+                        const PopupMenuDivider(),
+                        PopupMenuItem<String>(
+                          value: 'delete_page',
+                          child: Row(
+                            children: const [
+                              Icon(
+                                Icons.delete_forever_outlined,
+                                color: Colors.redAccent,
+                                size: 18,
+                              ),
+                              SizedBox(width: 10),
+                              Text(
+                                'Hapus Halaman Ini',
+                                style: TextStyle(
+                                  color: Colors.redAccent,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(width: 4),
+                ],
+
                 if (_currentType == 'table') ...[
                   IconButton(
                     padding: EdgeInsets.zero,
@@ -483,34 +595,6 @@ class _NoteEditDialogState extends State<NoteEditDialog>
                   onPressed: _toggleFlip,
                 ),
                 const SizedBox(width: 10),
-
-                if (_currentType == 'text' && !_isViewMode && _isFrontSide) ...[
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        'MD',
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Transform.scale(
-                        scale: 0.7,
-                        child: Switch(
-                          value: _isMarkdownEnabled,
-                          activeColor: Colors.tealAccent,
-                          onChanged: (value) {
-                            setState(() => _isMarkdownEnabled = value);
-                            _triggerChange();
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(width: 4),
-                ],
 
                 if (_isViewMode) ...[
                   IconButton(
@@ -625,108 +709,58 @@ class _NoteEditDialogState extends State<NoteEditDialog>
                 );
               },
             ),
-            // === FOOTER DENGAN NAVIGASI MENU HALAMAN BARU ===
+            // === FOOTER DENGAN STRUKTUR POSISI BARU ===
             footer: Padding(
               padding: const EdgeInsets.symmetric(
                 horizontal: 16.0,
                 vertical: 12.0,
               ),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                mainAxisAlignment: MainAxisAlignment
+                    .end, // Menggeser seluruh elemen footer ke kanan
                 children: [
-                  // Rendering tombol navigasi Multi-Halaman Note
-                  if (_currentType == 'text' && _isFrontSide)
-                    Row(
-                      children: [
-                        if (_notePages.length > 1) ...[
-                          IconButton(
-                            icon: const Icon(
-                              Icons.chevron_left,
-                              color: Colors.white,
-                            ),
-                            onPressed: _currentNotePage > 0
-                                ? () => _switchNotePage(_currentNotePage - 1)
-                                : null,
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8.0,
-                            ),
-                            child: Text(
-                              '${_currentNotePage + 1} / ${_notePages.length}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.chevron_right,
-                              color: Colors.white,
-                            ),
-                            onPressed: _currentNotePage < _notePages.length - 1
-                                ? () => _switchNotePage(_currentNotePage + 1)
-                                : null,
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                          ),
-                          const SizedBox(width: 12),
-                        ],
-                        IconButton(
-                          icon: const Icon(
-                            Icons.note_add_outlined,
-                            color: Colors.tealAccent,
-                            size: 20,
-                          ),
-                          tooltip: 'Tambah Halaman',
-                          onPressed: _addNewNotePage,
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
+                  // Rendering tombol navigasi Multi-Halaman Note di sebelah kiri tombol Tutup
+                  if (_currentType == 'text' &&
+                      _isFrontSide &&
+                      _notePages.length > 1) ...[
+                    IconButton(
+                      icon: const Icon(
+                        Icons.chevron_left,
+                        color: Colors.indigo,
+                      ), // Mengubah warna ke indigo
+                      onPressed: _currentNotePage > 0
+                          ? () => _switchNotePage(_currentNotePage - 1)
+                          : null,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10.0),
+                      child: Text(
+                        '${_currentNotePage + 1} / ${_notePages.length}',
+                        style: const TextStyle(
+                          color: Colors
+                              .black87, // Mengubah warna ke hitam agar kontras dan terbaca
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
                         ),
-                        if (_notePages.length > 1) ...[
-                          const SizedBox(width: 16),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.delete_outline,
-                              color: Colors.redAccent,
-                              size: 20,
-                            ),
-                            tooltip: 'Hapus Halaman Ini',
-                            onPressed: () async {
-                              final confirm = await showDialog<bool>(
-                                context: context,
-                                builder: (ctx) => AlertDialog(
-                                  title: const Text('Hapus Halaman?'),
-                                  content: const Text(
-                                    'Apakah Anda yakin ingin menghapus halaman catatan ini?',
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.pop(ctx, false),
-                                      child: const Text('Batal'),
-                                    ),
-                                    ElevatedButton(
-                                      onPressed: () => Navigator.pop(ctx, true),
-                                      child: const Text('Hapus'),
-                                    ),
-                                  ],
-                                ),
-                              );
-                              if (confirm == true) _deleteCurrentNotePage();
-                            },
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                          ),
-                        ],
-                      ],
-                    )
-                  else
-                    const SizedBox.shrink(),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(
+                        Icons.chevron_right,
+                        color: Colors.indigo,
+                      ), // Mengubah warna ke indigo
+                      onPressed: _currentNotePage < _notePages.length - 1
+                          ? () => _switchNotePage(_currentNotePage + 1)
+                          : null,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                    const SizedBox(
+                      width: 16,
+                    ), // Jarak antara navigasi halaman dan tombol Tutup
+                  ],
 
                   ElevatedButton(
                     onPressed: () async {
