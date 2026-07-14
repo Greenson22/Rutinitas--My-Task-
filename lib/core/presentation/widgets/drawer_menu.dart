@@ -231,23 +231,7 @@ class _DrawerMenuState extends State<DrawerMenu> {
             },
           ),
 
-          // 6. Menu Random Generator
-          _buildMenuTile(
-            icon: Icons.casino_outlined,
-            title: 'Random Generator',
-            isActive: widget.isRandomActive,
-            onTap: () {
-              Navigator.pop(context);
-              if (!widget.isRandomActive) {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => const RandomScreen()),
-                );
-              }
-            },
-          ),
-
-          // 7. BARU: Menu My Documents
+          // 6. BARU: Menu My Documents (Pindah ke posisi ini)
           _buildMenuTile(
             icon: Icons.description_outlined,
             title: 'My Documents',
@@ -260,6 +244,22 @@ class _DrawerMenuState extends State<DrawerMenu> {
                   MaterialPageRoute(
                     builder: (context) => const MyDocumentsScreen(),
                   ),
+                );
+              }
+            },
+          ),
+
+          // 7. Menu Random Generator
+          _buildMenuTile(
+            icon: Icons.casino_outlined,
+            title: 'Random Generator',
+            isActive: widget.isRandomActive,
+            onTap: () {
+              Navigator.pop(context);
+              if (!widget.isRandomActive) {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => const RandomScreen()),
                 );
               }
             },
