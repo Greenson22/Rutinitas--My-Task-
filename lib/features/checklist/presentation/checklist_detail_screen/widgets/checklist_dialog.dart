@@ -947,7 +947,7 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                     IconButton(
                       icon: Icon(
                         Icons.chevron_left,
-                        color: Color(widget.subject.textColor),
+                        color: Color(widget.subject.backgroundColor),
                       ),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
@@ -960,7 +960,7 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                       child: Text(
                         '${currentNotePage + 1} / ${notePages.length}',
                         style: TextStyle(
-                          color: Color(widget.subject.textColor),
+                          color: Color(widget.subject.backgroundColor),
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),
@@ -969,7 +969,7 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                     IconButton(
                       icon: Icon(
                         Icons.chevron_right,
-                        color: Color(widget.subject.textColor),
+                        color: Color(widget.subject.backgroundColor),
                       ),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
