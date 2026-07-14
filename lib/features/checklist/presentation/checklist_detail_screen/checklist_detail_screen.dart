@@ -3,16 +3,16 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // TAAMBAHAN: Diperlukan untuk interaksi Clipboard (Salin/Tempel JSON)[cite: 8]
+import 'package:flutter/services.dart'; // TAAMBAHAN: Diperlukan untuk interaksi Clipboard (Salin/Tempel JSON)[cite: 5]
 import 'package:rutinitasku/core/presentation/widgets/base_popup_dialog.dart';
 import '../../data/models/daily_model.dart';
 import 'controllers/checklist_detail_controller.dart';
 import '../../../../core/presentation/widgets/grouped_section_layout.dart';
 import '../../../../core/presentation/widgets/interactive_grid_card.dart';
 import '../../../../core/presentation/widgets/interactive_section_header.dart';
-import '../../../../core/presentation/widgets/universal_empty_state.dart'; // Using Universal Widget from Core[cite: 8]
+import '../../../../core/presentation/widgets/universal_empty_state.dart'; // Using Universal Widget from Core[cite: 5]
 import '../../../../core/presentation/widgets/adaptive_banner_ad.dart'; // <--- IMPORT WIDGET ADMOB BARU
-import 'widgets/checklist_dialog.dart'; // Import Dialog kustom[cite: 8]
+import 'widgets/checklist_dialog.dart'; // Import Dialog kustom[cite: 5]
 
 class ChecklistDetailScreen extends StatefulWidget {
   final ChecklistGroup group;
@@ -82,12 +82,12 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
     required ChecklistSection originalSection,
     required DailySubject subject,
   }) {
-    // Saring grup yang valid (bukan grup aktif saat ini, dan bukan berkas korup)[cite: 8]
+    // Saring grup yang valid (bukan grup aktif saat ini, dan bukan berkas korup)[cite: 5]
     final List<ChecklistGroup> validTargetGroups = _loadedAllGroups
         .where((g) => g.id != currentGroup.id && !g.id.startsWith("CORRUPTED_"))
         .toList();
 
-    // Jika tidak ada grup lain selain grup ini, tampilkan notifikasi sama seperti Notes[cite: 8]
+    // Jika tidak ada grup lain selain grup ini, tampilkan notifikasi sama seperti Notes[cite: 5]
     if (validTargetGroups.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -98,7 +98,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
       return;
     }
 
-    // Tampilkan Dialog berbasis BasePopupDialog dengan spesifikasi UI modul Notes[cite: 8]
+    // Tampilkan Dialog berbasis BasePopupDialog dengan spesifikasi UI modul Notes[cite: 5]
     showDialog(
       context: context,
       builder: (dialogCtx) => BasePopupDialog(
@@ -111,7 +111,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
           ),
         ),
         themeColor:
-            Colors.teal[700]!, // Menyesuaikan aksen Checklist (Teal)[cite: 8]
+            Colors.teal[700]!, // Menyesuaikan aksen Checklist (Teal)[cite: 5]
         titleColor: Colors.white,
         content: Padding(
           padding: const EdgeInsets.all(12.0),
@@ -180,7 +180,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
   void _showEditJsonDialog(DailySubject subject) {
     final TextEditingController jsonController = TextEditingController();
 
-    // Transformasikan model subject saat ini menjadi raw teks JSON dengan Pretty Print (Indentation)[cite: 8]
+    // Transformasikan model subject saat ini menjadi raw teks JSON dengan Pretty Print (Indentation)[cite: 5]
     try {
       final map = subject.toJson();
       jsonController.text = const JsonEncoder.withIndent('  ').convert(map);
@@ -209,7 +209,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
             width: double.maxFinite,
             height:
                 MediaQuery.of(context).size.height *
-                0.62, // Mengisi 62% tinggi layar agar luas dan presisi[cite: 8]
+                0.62, // Mengisi 62% tinggi layar agar luas dan presisi[cite: 5]
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -227,7 +227,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    // Menyediakan tombol interaktif Salin & Tempel cepat untuk meningkatkan UX[cite: 8]
+                    // Menyediakan tombol interaktif Salin & Tempel cepat untuk meningkatkan UX[cite: 5]
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -291,7 +291,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                       fontFamily: 'Courier',
                       fontSize: 13,
                       height: 1.3,
-                    ), // Font bergaya monospace koding[cite: 8]
+                    ), // Font bergaya monospace koding[cite: 5]
                     decoration: const InputDecoration(
                       border: OutlineInputBorder(),
                       fillColor: Color(0xFFF8F9FA),
@@ -323,11 +323,11 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                     );
                   }
 
-                  // Melakukan parsing data instans baru untuk memvalidasi data model[cite: 8]
+                  // Melakukan parsing data instans baru untuk memvalidasi data model[cite: 5]
                   final parsedSubject = DailySubject.fromJson(decodedJson);
 
                   setState(() {
-                    // Update field demi field untuk mempertahankan sinkronisasi visual Grid[cite: 8]
+                    // Update field demi field untuk mempertahankan sinkronisasi visual Grid[cite: 5]
                     subject.subjectName = parsedSubject.subjectName;
                     subject.progress = parsedSubject.progress;
                     subject.subMateri = parsedSubject.subMateri;
@@ -338,6 +338,8 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                     subject.isHidden = parsedSubject.isHidden;
                     subject.type = parsedSubject.type;
                     subject.noteContent = parsedSubject.noteContent;
+                    subject.notePages = parsedSubject.notePages;
+                    subject.currentNotePage = parsedSubject.currentNotePage;
                     subject.date = parsedSubject.date;
                     subject.isDateActive = parsedSubject.isDateActive;
                     subject.dateType = parsedSubject.dateType;
@@ -345,13 +347,13 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                     subject.isMarkdownEnabled = parsedSubject.isMarkdownEnabled;
                     subject.defaultExpanded = parsedSubject.defaultExpanded;
 
-                    // Jalankan rekursif updateStatus agar kalkulasi bar progress ikut sinkron otomatis[cite: 8]
+                    // Jalankan rekursif updateStatus agar kalkulasi bar progress ikut sinkron otomatis[cite: 5]
                     for (var root in subject.subMateri) {
                       root.updateStatusFromChildren();
                     }
                   });
 
-                  saveGroupData(); // Tulis perubahan ke dalam file penyimpanan fisik[cite: 8]
+                  saveGroupData(); // Tulis perubahan ke dalam file penyimpanan fisik[cite: 5]
                   Navigator.pop(context);
 
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -372,7 +374,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                       backgroundColor: Colors.redAccent,
                       duration: const Duration(
                         seconds: 4,
-                      ), // Waktu durasi lebih lama agar pengguna bisa menganalisis error kodingnya[cite: 8]
+                      ), // Waktu durasi lebih lama agar pengguna bisa menganalisis error kodingnya[cite: 5]
                     ),
                   );
                 }
@@ -389,15 +391,15 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
     );
   }
 
-  // SOLUSI UTAMA: Meng-override fungsi openMateriChecklist dari Controller untuk menyuntikkan ukuran Dialog melar[cite: 8]
+  // SOLUSI UTAMA: Meng-override fungsi openMateriChecklist dari Controller untuk menyuntikkan ukuran Dialog melar[cite: 5]
   @override
   void openMateriChecklist(DailySubject subject) {
-    // Kumpulkan semua kotak materi (DailySubject) dari seluruh seksi yang tersedia untuk parameter dialog[cite: 8]
+    // Kumpulkan semua kotak materi (DailySubject) dari seluruh seksi yang tersedia untuk parameter dialog[cite: 5]
     List<DailySubject> allAvailableSubjects = [];
     for (var section in currentGroup.allList) {
       for (var item in section.items) {
         // SINKRONISASI AKTIF: Paksa isi properti item.section agar mutlak sesuai
-        // dengan nama seksi tempat penampung visualnya saat ini sebelum dioper ke dialog.[cite: 8]
+        // dengan nama seksi tempat penampung visualnya saat ini sebelum dioper ke dialog.[cite: 5]
         item.section = section.sectionName;
         allAvailableSubjects.add(item);
       }
@@ -405,10 +407,10 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
 
     final double screenWidth = MediaQuery.of(context).size.width;
 
-    // GlobalKey baru untuk mengakses status internal (_isNoteModified) dari dialog secara langsung[cite: 8]
+    // GlobalKey baru untuk mengakses status internal (_isNoteModified) dari dialog secara langsung[cite: 5]
     final globalDialogKey = GlobalKey<State<DailyChecklistDialog>>();
 
-    // Fungsi lokal untuk menampilkan pop-up konfirmasi simpan/buang perubahan[cite: 8]
+    // Fungsi lokal untuk menampilkan pop-up konfirmasi simpan/buang perubahan[cite: 5]
     Future<bool> _showExitConfirmationDialog(BuildContext targetCtx) async {
       final result = await showDialog<String>(
         context: targetCtx,
@@ -431,14 +433,14 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
               onPressed: () => Navigator.pop(
                 ctx,
                 'cancel',
-              ), // Tetap berada di dialog[cite: 8]
+              ), // Tetap berada di dialog[cite: 5]
               child: const Text('Batal', style: TextStyle(color: Colors.grey)),
             ),
             TextButton(
               onPressed: () => Navigator.pop(
                 ctx,
                 'discard',
-              ), // Keluar dan buang perubahan[cite: 8]
+              ), // Keluar dan buang perubahan[cite: 5]
               child: const Text(
                 'Jangan Simpan',
                 style: TextStyle(color: Colors.red),
@@ -448,7 +450,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
               onPressed: () => Navigator.pop(
                 ctx,
                 'save',
-              ), // Simpan data lalu keluar[cite: 8]
+              ), // Simpan data lalu keluar[cite: 5]
               style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
               child: const Text(
                 'Simpan',
@@ -460,10 +462,10 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
       );
 
       if (result == 'save') {
-        // Melakukan pemanggilan paksa metode simpan bawaan dialog melalui State Object[cite: 8]
+        // Melakukan pemanggilan paksa metode simpan bawaan dialog melalui State Object[cite: 5]
         final stateObj = globalDialogKey.currentState;
         if (stateObj != null && stateObj.mounted) {
-          // Menggunakan pendekatan dinamik panggilan method privat atau method penolong di state target[cite: 8]
+          // Menggunakan pendekatan dinamik panggilan method privat atau method penolong di state target[cite: 5]
           try {
             (stateObj as dynamic).saveManualNoteExternal();
           } catch (_) {
@@ -474,26 +476,26 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
             }
           }
         }
-        return true; // Keluar setelah simpan berhasil[cite: 8]
+        return true; // Keluar setelah simpan berhasil[cite: 5]
       } else if (result == 'discard') {
-        return true; // Keluar tanpa menyimpan[cite: 8]
+        return true; // Keluar tanpa menyimpan[cite: 5]
       }
-      return false; // Batalkan proses keluar, tetap di dialog edit[cite: 8]
+      return false; // Batalkan proses keluar, tetap di dialog edit[cite: 5]
     }
 
     showDialog(
       context: context,
       builder: (dialogContext) {
-        // Bungkus dengan Theme kustom lokal agar widget Dialog internal milik BasePopupDialog ikut melebar[cite: 8]
+        // Bungkus dengan Theme kustom lokal agar widget Dialog internal milik BasePopupDialog ikut melebar[cite: 5]
         return Theme(
           data: Theme.of(dialogContext).copyWith(
             dialogTheme: DialogThemeData(
-              // Jarak tepi luar dialog seminimal mungkin agar area checklist terasa luas[cite: 8]
+              // Jarak tepi luar dialog seminimal mungkin agar area checklist terasa luas[cite: 5]
               insetPadding: const EdgeInsets.symmetric(
                 horizontal: 12.0,
                 vertical: 24.0,
               ),
-              // Konfigurasi pembatas melar: 92% layar smartphone, maksimal lebar 960px pada tablet/PC[cite: 8]
+              // Konfigurasi pembatas melar: 92% layar smartphone, maksimal lebar 960px pada tablet/PC[cite: 5]
               constraints: BoxConstraints(
                 minWidth: (screenWidth * 0.92).clamp(0.0, 960.0),
                 maxWidth: 960,
@@ -502,11 +504,11 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
           ),
           child: PopScope(
             canPop:
-                false, // Menutup pop otomatis bawaan sistem demi intervensi dialog konfirmasi[cite: 8]
+                false, // Menutup pop otomatis bawaan sistem demi intervensi dialog konfirmasi[cite: 5]
             onPopInvokedWithResult: (didPop, result) async {
               if (didPop) return;
 
-              // Ambil status riil modifikasi catatan langsung dari state dialog kustom[cite: 8]
+              // Ambil status riil modifikasi catatan langsung dari state dialog kustom[cite: 5]
               final stateObj = globalDialogKey.currentState;
               bool hasNoteChanges = false;
               if (stateObj != null) {
@@ -521,7 +523,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                 }
               }
 
-              // Pemicu validasi pop-up pengaman jika tipe dialog saat ini adalah catatan berkonten modifikasi[cite: 8]
+              // Pemicu validasi pop-up pengaman jika tipe dialog saat ini adalah catatan berkonten modifikasi[cite: 5]
               if (subject.type == 'note' && hasNoteChanges) {
                 final shouldPop = await _showExitConfirmationDialog(
                   dialogContext,
@@ -535,18 +537,18 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
             },
             child: DailyChecklistDialog(
               key:
-                  globalDialogKey, // Pasang instans kunci kontrol state[cite: 8]
+                  globalDialogKey, // Pasang instans kunci kontrol state[cite: 5]
               subject: subject,
               allAvailableSubjects: allAvailableSubjects,
               allAvailableGroups:
-                  _loadedAllGroups, // <-- OVERRIDE SINKRONISASI: Suntikkan seluruh manifest grup terunduh ke dialog[cite: 8]
+                  _loadedAllGroups, // <-- OVERRIDE SINKRONISASI: Suntikkan seluruh manifest grup terunduh ke dialog[cite: 5]
               baseDir: widget
-                  .baseDir, // <--- BARU: Menyuntikkan baseDir penyimpanan untuk sinkronisasi otomatis[cite: 8]
+                  .baseDir, // <--- BARU: Menyuntikkan baseDir penyimpanan untuk sinkronisasi otomatis
               onDataChanged: () {
                 saveGroupData();
                 setState(() {});
               },
-              // Parameter kustom penangan aksi tombol tutup dari internal widget[cite: 8]
+              // Parameter kustom penangan aksi tombol tutup dari internal widget[cite: 5]
               onCustomClosePressed: () async {
                 final stateObj = globalDialogKey.currentState;
                 bool hasNoteChanges = false;
@@ -582,49 +584,49 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
 
   @override
   Widget build(BuildContext context) {
-    // Fungsi rekursif menggunakan double agar bisa menghitung nilai pecahan koma[cite: 8]
+    // Fungsi rekursif menggunakan double agar bisa menghitung nilai pecahan koma[cite: 5]
     double _countTotalItems(List<SubSubjectItem> items) {
       double count = 0;
       for (var item in items) {
-        // === PERBAIKAN: Lewati penghitungan jika item DINONAKTIFKAN ===[cite: 8]
+        // === PERBAIKAN: Lewati penghitungan jika item DINONAKTIFKAN ===[cite: 5]
         if (item.isDisabled) continue;
 
         if (item.subMateri.isNotEmpty) {
-          // Jika memiliki anak (nested list), induk diabaikan dan lanjut menghitung turunannya[cite: 8]
+          // Jika memiliki anak (nested list), induk diabaikan dan lanjut menghitung turunannya[cite: 5]
           count += _countTotalItems(item.subMateri);
         } else {
-          // Jika daun akhir (bukan nested list), dihitung sebagai 1 item[cite: 8]
+          // Jika daun akhir (bukan nested list), dihitung sebagai 1 item[cite: 5]
           count += 1.0;
         }
       }
       return count;
     }
 
-    // Fungsi rekursif menggunakan double untuk menghitung item selesai[cite: 8]
+    // Fungsi rekursif menggunakan double untuk menghitung item selesai[cite: 5]
     double _countFinishedItems(List<SubSubjectItem> items) {
       double count = 0;
       for (var item in items) {
-        // === PERBAIKAN: Lewati penghitungan jika item DINONAKTIFKAN ===[cite: 8]
+        // === PERBAIKAN: Lewati penghitungan jika item DINONAKTIFKAN ===[cite: 5]
         if (item.isDisabled) continue;
 
         if (item.subMateri.isNotEmpty) {
-          // Jika memiliki anak (nested list), telusuri anak-anaknya saja tanpa menghitung induk[cite: 8]
+          // Jika memiliki anak (nested list), telusuri anak-anaknya saja tanpa menghitung induk[cite: 5]
           count += _countFinishedItems(item.subMateri);
         } else {
-          // === PERUBAHAN: Hitung kontribusi proporsional jika bertipe progress/countdown ===[cite: 8]
+          // === PERUBAHAN: Hitung kontribusi proporsional jika bertipe progress/countdown ===[cite: 5]
           if (item.itemType == 'progress' && item.targetValue > 0) {
             double progressRatio = item.currentValue / item.targetValue;
             count += progressRatio.clamp(
               0.0,
               1.0,
-            ); // Batasi rasio antara 0.0 - 1.0[cite: 8]
+            ); // Batasi rasio antara 0.0 - 1.0[cite: 5]
           } else if (item.itemType == 'countdown' && item.targetValue > 0) {
-            // Tipe hitung mundur: Kemajuan dihitung berdasarkan sisa yang sudah berkurang (Target - Saat Ini) / Target[cite: 8]
+            // Tipe hitung mundur: Kemajuan dihitung berdasarkan sisa yang sudah berkurang (Target - Saat Ini) / Target[cite: 5]
             double progressRatio =
                 (item.targetValue - item.currentValue) / item.targetValue;
             count += progressRatio.clamp(0.0, 1.0);
           } else {
-            // Hanya hitung item ujung (tanpa anak) yang status progressnya selesai[cite: 8]
+            // Hanya hitung item ujung (tanpa anak) yang status progressnya selesai[cite: 5]
             if (item.progress == 'selesai') {
               count += 1.0;
             }
@@ -634,7 +636,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
       return count;
     }
 
-    // 1. Tangani keadaan awal kosong dengan integrasi UniversalEmptyState terpusat (Tema Teal)[cite: 8]
+    // 1. Tangani keadaan awal kosong dengan integrasi UniversalEmptyState terpusat (Tema Teal)[cite: 5]
     if (currentGroup.allList.isEmpty) {
       return Scaffold(
         backgroundColor: Colors.grey[200],
@@ -661,17 +663,17 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
       );
     }
 
-    // 2. Siapkan list seksi awal (Hanya yang memiliki item terlihat / tidak disembunyikan secara default)[cite: 8]
+    // 2. Siapkan list seksi awal (Hanya yang memiliki item terlihat / tidak disembunyikan secara default)[cite: 5]
     final List<String> allKeys = currentGroup.allList
         .map((s) => s.sectionName)
         .toList();
     final int visibleKeysCount = allKeys.length;
 
-    // 3. Bangun Map item yang telah disaring berdasarkan query pencarian (searchQuery) dan visibilitas (isHidden)[cite: 8]
+    // 3. Bangun Map item yang telah disaring berdasarkan query pencarian (searchQuery) dan visibilitas (isHidden)[cite: 5]
     final Map<String, List<DailySubject>> allItems = {
       for (var section in currentGroup.allList)
         section.sectionName: section.items.where((subject) {
-          // Hanya muat seksi yang aktif (tidak disembunyikan) untuk grid utama[cite: 8]
+          // Hanya muat seksi yang aktif (tidak disembunyikan) untuk grid utama[cite: 5]
           if (subject.isHidden) return false;
           if (searchQuery.isEmpty) return true;
           return subject.subjectName.toLowerCase().contains(searchQuery);
@@ -697,17 +699,17 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
       }
     }
 
-    // Hitung total item riil hasil penyaringan pencarian untuk memantau keadaan kosong[cite: 8]
+    // Hitung total item riil hasil penyaringan pencarian untuk memantau keadaan kosong[cite: 5]
     int totalFilteredItems = 0;
     allItems.forEach((key, list) => totalFilteredItems += list.length);
 
-    // Dibungkus Scaffold terluar agar properti bottomNavigationBar bisa merender layout iklan[cite: 8]
+    // Dibungkus Scaffold terluar agar properti bottomNavigationBar bisa merender layout iklan[cite: 5]
     return Scaffold(
       body: GroupedSectionLayout<DailySubject>(
         title: '${currentGroup.icon} ${currentGroup.groupName}',
         isLoading: false,
 
-        // Jika seksi visual di layout kosong DAN data raw kosong, baru tampilkan empty placeholder[cite: 8]
+        // Jika seksi visual di layout kosong DAN data raw kosong, baru tampilkan empty placeholder[cite: 5]
         isEmpty: currentGroup.allList.isEmpty && totalFilteredItems == 0,
         emptyMessage: 'Item tidak ditemukan atau belum ada seksi.',
 
@@ -720,7 +722,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
         enableSearch: true,
         enableMultiSelect: false,
 
-        // Hubungkan fungsi pencarian dan penambahan seksi utama ke layout AppBar[cite: 8]
+        // Hubungkan fungsi pencarian dan penambahan seksi utama ke layout AppBar[cite: 5]
         onSearchChanged: updateSearchQuery,
         onAddPressed: showAddSectionDialog,
 
@@ -741,7 +743,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
         ),
 
         sectionHeaderBuilder: (context, index, sectionKey, isLayoutEditMode) {
-          // === RENDERING KONDISI TERSEMBUNYI DI BAWAH GARIS DIVIDER ===[cite: 8]
+          // === RENDERING KONDISI TERSEMBUNYI DI BAWAH GARIS DIVIDER ===[cite: 5]
           if (index >= visibleKeysCount) {
             String originalName = sectionKey.replaceAll('_hidden_key', '');
             return Column(
@@ -793,14 +795,14 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
         },
 
         gridItemBuilder: (context, subject, index, sectionItems, isLayoutEditMode) {
-          // Menggunakan hitungan double koma[cite: 8]
+          // Menggunakan hitungan double koma[cite: 5]
           double totalSub = _countTotalItems(subject.subMateri);
           double selesaiSub = _countFinishedItems(subject.subMateri);
           bool isAllDone = totalSub > 0 && totalSub == selesaiSub;
 
           String topListText = "Tidak ada list";
           if (subject.subMateri.isNotEmpty) {
-            // Cari item pertama yang belum selesai dan TIDAK dinonaktifkan[cite: 8]
+            // Cari item pertama yang belum selesai dan TIDAK dinonaktifkan[cite: 5]
             final firstUnfinishedItem = subject.subMateri.firstWhere(
               (sm) => sm.progress != 'selesai' && !sm.isDisabled,
               orElse: () =>
@@ -813,16 +815,24 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
             }
           }
 
-          // --- PEMPROSESAN LOGIKA PRATINU TEKS CATATAN ---[cite: 8]
+          // --- PEMPROSESAN LOGIKA PRATINU TEKS CATATAN MULTI-HALAMAN ---[cite: 5]
           String notePreviewText = "Catatan kosong...";
-          if (subject.noteContent != null &&
-              subject.noteContent!.trim().isNotEmpty) {
-            // Memisahkan teks berdasarkan spasi/whitespace berlebih[cite: 8]
-            List<String> words = subject.noteContent!.trim().split(
-              RegExp(r'\s+'),
-            );
+          String targetText = "";
+
+          if (subject.notePages != null && subject.notePages!.isNotEmpty) {
+            int activeIndex = subject.currentNotePage ?? 0;
+            if (activeIndex >= 0 && activeIndex < subject.notePages!.length) {
+              targetText = subject.notePages![activeIndex];
+            }
+          } else {
+            targetText = subject.noteContent ?? "";
+          }
+
+          if (targetText.trim().isNotEmpty) {
+            // Memisahkan teks berdasarkan spasi/whitespace berlebih[cite: 5]
+            List<String> words = targetText.trim().split(RegExp(r'\s+'));
             if (words.length > 4) {
-              // Mengambil 4 kata pertama dan menambahkan akhiran titik-titik[cite: 8]
+              // Mengambil 4 kata pertama dan menambahkan akhiran titik-titik[cite: 5]
               notePreviewText = '${words.take(4).join(' ')}...';
             } else {
               notePreviewText = words.join(' ');
@@ -858,9 +868,9 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
               ],
               const SizedBox(height: 6),
 
-              // --- PENGKONDISIAN UTAMA BERDASARKAN TIPE SUBJECT ---[cite: 8]
+              // --- PENGKONDISIAN UTAMA BERDASARKAN TIPE SUBJECT ---[cite: 5]
               if (subject.type == 'note') ...[
-                // TAMPILAN JIKA BERUPA CATATAN (NOTE)[cite: 8]
+                // TAMPILAN JIKA BERUPA CATATAN (NOTE)[cite: 5]
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 6,
@@ -875,7 +885,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       const Icon(
-                        Icons.push_pin, // Ikon paku (push pin)[cite: 8]
+                        Icons.push_pin, // Ikon paku (push pin)[cite: 5]
                         size: 13,
                         color: Colors.redAccent,
                       ),
@@ -897,10 +907,10 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                     ],
                   ),
                 ),
-                // Menyembunyikan progress bar dengan memberikan spacer kosong seukuran tingginya (22px)[cite: 8]
+                // Menyembunyikan progress bar dengan memberikan spacer kosong seukuran tingginya (22px)[cite: 5]
                 const SizedBox(height: 22),
               ] else ...[
-                // TAMPILAN NORMAL JIKA BERUPA LIST DAFTAR TUGAS[cite: 8]
+                // TAMPILAN NORMAL JIKA BERUPA LIST DAFTAR TUGAS[cite: 5]
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 6,
@@ -939,11 +949,11 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                               ? Colors.orange[700]!
                               : Colors.green[700]!);
 
-                    // Hitung persentase dengan format 1 angka di belakang koma[cite: 8]
+                    // Hitung persentase dengan format 1 angka di belakang koma[cite: 5]
                     String percentageText = (progressPercent * 100)
                         .toStringAsFixed(1);
 
-                    // Format cetak text pembagian angka agar menghilangkan sisa .0 jika bilangan bulat[cite: 8]
+                    // Format cetak text pembagian angka agar menghilangkan sisa .0 jika bilangan bulat[cite: 5]
                     String selesaiText = selesaiSub % 1 == 0
                         ? selesaiSub.toInt().toString()
                         : selesaiSub.toStringAsFixed(1);
@@ -1122,7 +1132,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                 ),
               ),
 
-              // === SELESAI INTEGRASI MENU POPUP: AKSI EDIT RAW JSON CARD ===[cite: 8]
+              // === SELESAI INTEGRASI MENU POPUP: AKSI EDIT RAW JSON CARD ===[cite: 5]
               const PopupMenuDivider(),
               const PopupMenuItem<String>(
                 value: 'EDIT_RAW_JSON',
@@ -1173,7 +1183,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
               } else if (value == 'EDIT_RAW_JSON') {
                 _showEditJsonDialog(
                   subject,
-                ); // Memicu Editor Dialog JSON interaktif yang baru dibuat[cite: 8]
+                ); // Memicu Editor Dialog JSON interaktif yang baru dibuat[cite: 5]
               } else if (value == 'CHOOSE_EXTERNAL_GROUP_DIALOG') {
                 _showTargetGroupSelectionDialog(
                   originalSection: originalSection,

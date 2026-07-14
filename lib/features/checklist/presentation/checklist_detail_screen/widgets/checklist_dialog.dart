@@ -205,6 +205,23 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
     }
   }
 
+  void deleteCurrentNotePageView() async {
+    bool confirm = await showConfirmDialogView(
+      title: 'Hapus Halaman',
+      content:
+          'Apakah Anda yakin ingin menghapus halaman catatan aktif saat ini secara permanen?',
+    );
+    if (confirm) {
+      deleteCurrentNotePage();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('🗑️ Halaman catatan berhasil dihapus!'),
+          duration: Duration(seconds: 1),
+        ),
+      );
+    }
+  }
+
   void handleTapToggleStatusView(SubSubjectItem target) {
     if (target.linkedSubjectName != null &&
         target.linkedSubjectName!.isNotEmpty) {
@@ -452,6 +469,26 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                       },
                     ),
                   ),
+                  // ICON BUTTON BARU KHUSUS BUAT HALAMAN MANDIRI OLEH PENGGUNA
+                  IconButton(
+                    icon: const Icon(
+                      Icons.note_add_outlined,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    tooltip: 'Tambah Halaman Catatan Baru',
+                    onPressed: addNewNotePage,
+                  ),
+                  if (notePages.length > 1)
+                    IconButton(
+                      icon: const Icon(
+                        Icons.delete_forever_outlined,
+                        color: Colors.redAccent,
+                        size: 20,
+                      ),
+                      tooltip: 'Hapus Halaman Ini',
+                      onPressed: deleteCurrentNotePageView,
+                    ),
                 ],
                 IconButton(
                   icon: Icon(
@@ -491,8 +528,7 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                     subject: widget.subject,
                     onColorSaved: () {
                       setState(() {});
-                      widget
-                          .onDataChanged(); // Menambahkan fungsi penyimpan data
+                      widget.onDataChanged();
                     },
                   ),
                 ),
@@ -610,7 +646,10 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                     isMarkdownEnabled: isMarkdownEnabled,
                     isViewMode: isNoteViewMode,
                     onChanged: (text) {
-                      final orig = widget.subject.noteContent ?? '';
+                      // Modifikasi pelacakan perubahan teks agar sensitif terhadap halaman aktif saat ini
+                      final String orig = notePages.isNotEmpty
+                          ? notePages[currentNotePage]
+                          : '';
                       setState(() => isNoteModified = text != orig);
                     },
                   )
@@ -895,21 +934,68 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                   ),
                 ],
               ),
-              ElevatedButton(
-                onPressed: () {
-                  if (widget.onCustomClosePressed != null) {
-                    widget.onCustomClosePressed!();
-                  } else {
-                    Navigator.pop(context);
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(widget.subject.backgroundColor),
-                ),
-                child: Text(
-                  'Tutup',
-                  style: TextStyle(color: Color(widget.subject.textColor)),
-                ),
+
+              // =========================================================================
+              // SAKELAR INTEGRASI PAGINASI HALAMAN DAN TOMBOL TUTUP DI FOOTER
+              // =========================================================================
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // TOMBOL PINDAH HALAMAN: Hanya dirender apabila total halaman > 1
+                  if (widget.subject.type == 'note' &&
+                      notePages.length > 1) ...[
+                    IconButton(
+                      icon: Icon(
+                        Icons.chevron_left,
+                        color: Color(widget.subject.textColor),
+                      ),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      onPressed: currentNotePage > 0
+                          ? () => switchNotePage(currentNotePage - 1)
+                          : null,
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6.0),
+                      child: Text(
+                        '${currentNotePage + 1} / ${notePages.length}',
+                        style: TextStyle(
+                          color: Color(widget.subject.textColor),
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        Icons.chevron_right,
+                        color: Color(widget.subject.textColor),
+                      ),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      onPressed: currentNotePage < notePages.length - 1
+                          ? () => switchNotePage(currentNotePage + 1)
+                          : null,
+                    ),
+                    const SizedBox(width: 10),
+                  ],
+                  ElevatedButton(
+                    onPressed: () {
+                      if (widget.onCustomClosePressed != null) {
+                        widget.onCustomClosePressed!();
+                      } else {
+                        Navigator.pop(context);
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Color(widget.subject.backgroundColor),
+                    ),
+                    child: Text(
+                      'Tutup',
+                      style: TextStyle(color: Color(widget.subject.textColor)),
+                    ),
+                  ),
+                ],
               ),
             ],
           ],

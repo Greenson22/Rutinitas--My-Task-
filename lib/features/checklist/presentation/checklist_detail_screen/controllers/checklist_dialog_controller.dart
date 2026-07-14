@@ -23,15 +23,36 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
   bool isMarkdownEnabled = false;
   bool isNoteViewMode = true;
 
+  // =========================================================================
+  // STATE BARU: MANAJEMEN PAGING HALAMAN CATATAN
+  // =========================================================================
+  int currentNotePage = 0;
+  List<String> notePages = [];
+
   bool get isNoteModifiedExternal => isNoteModified;
   void saveManualNoteExternal() => saveManualNote();
 
   @override
   void initState() {
     super.initState();
-    noteController = TextEditingController(
-      text: widget.subject.noteContent ?? '',
-    );
+
+    // Inisialisasi daftar halaman catatan dinamis
+    if (widget.subject.notePages != null &&
+        widget.subject.notePages!.isNotEmpty) {
+      notePages = List<String>.from(widget.subject.notePages!);
+    } else {
+      // Fail-safe migrasi dari skema catatan satu halaman versi lama
+      notePages = [widget.subject.noteContent ?? ''];
+    }
+
+    // Mengunci posisi halaman aktif dari objek manifes
+    currentNotePage = widget.subject.currentNotePage ?? 0;
+    if (currentNotePage >= notePages.length || currentNotePage < 0) {
+      currentNotePage = 0;
+    }
+
+    noteController = TextEditingController(text: notePages[currentNotePage]);
+
     isMarkdownEnabled = widget.subject.isMarkdownEnabled;
     isNoteViewMode = noteController.text.isNotEmpty;
 
@@ -46,6 +67,77 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
     singleInputController.dispose();
     noteController.dispose();
     super.dispose();
+  }
+
+  // =========================================================================
+  // LOGIKA MANAJEMEN HALAMAN CATATAN (NEW PAGE METHODS)
+  // =========================================================================
+
+  void addNewNotePage() {
+    // Jalankan komit penyimpanan otomatis jika halaman aktif saat ini sedang diubah
+    if (isNoteModified) {
+      notePages[currentNotePage] = noteController.text;
+    }
+
+    setState(() {
+      notePages.add(''); // Alokasikan halaman string kosong baru
+      currentNotePage = notePages.length - 1;
+      noteController.text = notePages[currentNotePage];
+      isNoteViewMode = false; // Langsung arahkan fokus ke mode Edit
+      isNoteModified = true;
+    });
+
+    _syncNoteDataToModel();
+  }
+
+  void switchNotePage(int newIndex) {
+    if (newIndex < 0 || newIndex >= notePages.length) return;
+
+    // Komit perubahan teks sebelum melompat ke indeks halaman lain
+    if (isNoteModified) {
+      notePages[currentNotePage] = noteController.text;
+    }
+
+    setState(() {
+      currentNotePage = newIndex;
+      noteController.text = notePages[currentNotePage];
+      isNoteModified = false;
+      isNoteViewMode = noteController.text.isNotEmpty;
+    });
+
+    _syncNoteDataToModel();
+  }
+
+  void deleteCurrentNotePage() {
+    if (notePages.length <= 1) {
+      // Jika halaman tunggal, bersihkan konten teks ke bentuk dasar
+      setState(() {
+        notePages[0] = '';
+        noteController.text = '';
+        isNoteModified = true;
+      });
+      saveManualNote();
+      return;
+    }
+
+    setState(() {
+      notePages.removeAt(currentNotePage);
+      if (currentNotePage >= notePages.length) {
+        currentNotePage = notePages.length - 1;
+      }
+      noteController.text = notePages[currentNotePage];
+      isNoteModified = true;
+    });
+
+    saveManualNote();
+  }
+
+  void _syncNoteDataToModel() {
+    widget.subject.notePages = notePages;
+    widget.subject.currentNotePage = currentNotePage;
+    // Fallback sinkronisasi properti string tunggal versi lama agar card layout terluar tidak crash
+    widget.subject.noteContent = notePages.isNotEmpty ? notePages[0] : '';
+    widget.onDataChanged();
   }
 
   // =========================================================================
@@ -292,7 +384,6 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
         }
       }
 
-      // Akumulasi Internal Lintas Item
       if (item.accumulatorItemName != null &&
           item.accumulatorItemName!.isNotEmpty) {
         List<SubSubjectItem> flattened = [];
@@ -332,7 +423,6 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
         }
       }
 
-      // Akumulasi Eksternal Lintas Card Checklist
       if (item.linkedExternalCardName != null &&
           item.linkedExternalItemName != null) {
         final externalCard = widget.allAvailableSubjects.firstWhere(
@@ -655,12 +745,11 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
 
   void saveManualNote() {
     setState(() {
-      widget.subject.noteContent = noteController.text;
-      widget.subject.isMarkdownEnabled = isMarkdownEnabled;
+      notePages[currentNotePage] = noteController.text;
       isNoteModified = false;
       isNoteViewMode = true;
     });
-    widget.onDataChanged();
+    _syncNoteDataToModel();
   }
 
   // =========================================================================

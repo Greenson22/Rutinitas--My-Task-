@@ -13,6 +13,11 @@ class DailySubject {
   String section;
   String type;
   String? noteContent;
+
+  // === PROPERTI BARU UNTUK DUKUNGAN MULTI-HALAMAN CATATAN ===
+  List<String>? notePages; // Menampung kumpulan daftar halaman catatan teks
+  int? currentNotePage; // Melacak indeks halaman aktif/terakhir yang dibuka
+
   String? date;
   bool isDateActive;
   String dateType;
@@ -64,6 +69,8 @@ class DailySubject {
     this.section = "focus",
     this.type = "list",
     this.noteContent,
+    this.notePages,
+    this.currentNotePage,
     this.date,
     this.isDateActive = false,
     this.dateType = 'single',
@@ -90,6 +97,13 @@ class DailySubject {
       section: json['section'] ?? "focus",
       type: json['type'] ?? "list",
       noteContent: json['noteContent'],
+
+      // PARSING REKURENSI LIST HALAMAN DAN POSISI HALAMAN AKTIF
+      notePages: json['notePages'] != null
+          ? List<String>.from(json['notePages'])
+          : null,
+      currentNotePage: json['currentNotePage'] ?? 0,
+
       date: json['date'],
       isDateActive: json['isDateActive'] ?? false,
       dateType: json['dateType'] ?? 'single',
@@ -112,6 +126,11 @@ class DailySubject {
       'section': section,
       'type': type,
       'noteContent': noteContent,
+
+      // KONVERSI BALIK STRUKTUR DATA HALAMAN KE FORMAT JSON
+      'notePages': notePages,
+      'currentNotePage': currentNotePage,
+
       'date': date,
       'isDateActive': isDateActive,
       'dateType': dateType,
@@ -309,7 +328,6 @@ class SubSubjectItem {
       if (itemType == 'progress' && targetValue > 0) {
         progress = currentValue >= targetValue ? 'selesai' : 'belum';
       } else if (itemType == 'countdown' && targetValue > 0) {
-        // Tipe Countdown: Selesai ketika nilai berjalan menyentuh angka 0 atau di bawahnya
         progress = currentValue <= 0 ? 'selesai' : 'belum';
       }
       return;
@@ -342,7 +360,7 @@ class ChecklistGroup {
   String sectionCategory;
   List<ChecklistSection> allList;
   bool isHidden;
-  bool isEncrypted; // <--- BARU: Status enkripsi per-berkas
+  bool isEncrypted;
   int orderIndex;
 
   ChecklistGroup({
@@ -351,7 +369,7 @@ class ChecklistGroup {
     required this.icon,
     this.sectionCategory = "Lainnya",
     this.isHidden = false,
-    this.isEncrypted = false, // <--- BARU
+    this.isEncrypted = false,
     this.orderIndex = 0,
     required this.allList,
   });
@@ -368,7 +386,7 @@ class ChecklistGroup {
       icon: json['ikon'] ?? '📁',
       sectionCategory: json['kategori_seksi'] ?? 'Lainnya',
       isHidden: json['isHidden'] ?? false,
-      isEncrypted: json['isEncrypted'] ?? false, // <--- BARU
+      isEncrypted: json['isEncrypted'] ?? false,
       orderIndex: json['order_index'] ?? 0,
       allList: list.map((i) => ChecklistSection.fromJson(i)).toList(),
     );
@@ -381,7 +399,7 @@ class ChecklistGroup {
       'ikon': icon,
       'kategori_seksi': sectionCategory,
       'isHidden': isHidden,
-      'isEncrypted': isEncrypted, // <--- BARU
+      'isEncrypted': isEncrypted,
       'order_index': orderIndex,
       'semua_list': allList.map((e) => e.toJson()).toList(),
     };
