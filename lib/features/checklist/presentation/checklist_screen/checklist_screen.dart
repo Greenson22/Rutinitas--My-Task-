@@ -10,6 +10,7 @@ import '../../../../core/presentation/widgets/universal_empty_state.dart'; // Us
 import '../../../../core/presentation/widgets/adaptive_banner_ad.dart'; // <--- IMPORT WIDGET ADMOB BARU
 import '../../../../core/utils/crypto_helper.dart'; // Import CryptoHelper untuk Dekripsi Manual
 import '../../../../core/services/storage_service.dart'; // <--- IMPORT BARU KUNCI PENYIMPANAN
+import '../../../../core/utils/atomic_write_helper.dart'; // <--- IMPORT BARU UNTUK ATOMIC WRITE[cite: 1, 3]
 import '../../data/models/daily_model.dart';
 import 'controllers/daily_controller.dart';
 import '../checklist_detail_screen/checklist_detail_screen.dart';
@@ -358,8 +359,11 @@ class _DailyScreenState extends State<DailyScreen> {
                   _controller.loadGroupsData();
                 }
               } catch (e) {
-                // Fallback to raw text writing for completely broken syntax save override
-                await storageService.saveJsonData(targetFile, newContent);
+                // TERAPKAN ATOMIC WRITE DI SINI PADA BLOK FALLBACK PENULISAN TEKS MENTAH[cite: 1, 3]
+                await AtomicWriteHelper.writeSafe(
+                  targetFile: targetFile,
+                  content: newContent,
+                );
                 if (mounted) {
                   Navigator.pop(context);
                   _controller.loadGroupsData();

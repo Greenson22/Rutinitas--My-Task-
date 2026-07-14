@@ -1,7 +1,9 @@
 // lib/features/daily/presentation/widgets/checklist_detail/checklist_dialog/checklist_dialog_controller.dart
 
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:rutinitasku/core/utils/atomic_write_helper.dart'; // <--- IMPORT BARU UNTUK ATOMIC WRITE
 import '../../../data/models/daily_model.dart';
 import '../widgets/checklist_dialog.dart';
 import '../../../../../core/services/storage_service.dart';
@@ -791,8 +793,12 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
           ).convert(group.toJson());
           storageService.getSpecificGroupFile(widget.baseDir!, group.id).then((
             file,
-          ) {
-            storageService.saveJsonData(file, jsonString);
+          ) async {
+            // TERAPKAN ATOMIC WRITE DI SINI[cite: 1, 2]
+            await AtomicWriteHelper.writeSafe(
+              targetFile: file,
+              content: jsonString,
+            );
           });
           break;
         }
@@ -950,8 +956,12 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
               '  ',
             ).convert(group.toJson());
             storageService.getSpecificGroupFile(widget.baseDir!, group.id).then(
-              (file) {
-                storageService.saveJsonData(file, jsonString);
+              (file) async {
+                // TERAPKAN ATOMIC WRITE DI SINI[cite: 1, 2]
+                await AtomicWriteHelper.writeSafe(
+                  targetFile: file,
+                  content: jsonString,
+                );
               },
             );
           } catch (e) {
