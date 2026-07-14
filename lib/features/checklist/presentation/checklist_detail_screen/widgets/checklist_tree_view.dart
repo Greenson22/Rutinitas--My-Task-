@@ -214,6 +214,20 @@ class ChecklistTreeView extends StatelessWidget {
                                             ),
                                           ),
                                         ),
+                                      // MENAMPILKAN TANGGAL SELESAI DI MODE EDIT BERBASIS TEXTSPAN
+                                      if (isChecked &&
+                                          item.finishedDate != null &&
+                                          item.finishedDate!.isNotEmpty)
+                                        TextSpan(
+                                          text: ' (${item.finishedDate})',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.normal,
+                                            color: Colors.green.shade700,
+                                            decoration: TextDecoration
+                                                .none, // Supaya tanggal tidak ikut tercoret
+                                          ),
+                                        ),
                                     ],
                                   ),
                                 ),
@@ -345,6 +359,20 @@ class ChecklistTreeView extends StatelessWidget {
                                                         ? Colors.grey
                                                         : Colors.amber[700],
                                                   ),
+                                                ),
+                                              ),
+                                            // MENAMPILKAN TANGGAL SELESAI DI MODE NORMAL/PRATINJAU BERBASIS TEXTSPAN
+                                            if (isChecked &&
+                                                item.finishedDate != null &&
+                                                item.finishedDate!.isNotEmpty)
+                                              TextSpan(
+                                                text: ' (${item.finishedDate})',
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.normal,
+                                                  color: Colors.green.shade600,
+                                                  decoration: TextDecoration
+                                                      .none, // Supaya tanggal tidak ikut tercoret
                                                 ),
                                               ),
                                           ],
