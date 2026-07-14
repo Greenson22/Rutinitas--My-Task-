@@ -731,12 +731,30 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
   void handleToggleDisableItem(SubSubjectItem item) {
     saveToHistory();
     setState(() {
-      item.isDisabled = !item.isDisabled;
-      if (item.isDisabled) {
-        item.progress = 'belum';
-        item.currentValue = item.itemType == 'countdown' ? item.targetValue : 0;
-        item.finishedDate = null;
+      // Menentukan status target baru (kebalikan dari status induk saat ini)
+      final bool targetDisableStatus = !item.isDisabled;
+
+      // Fungsi internal rekursif untuk mengubah status induk beserta seluruh anak bersarangnya
+      void toggleDisableRecursive(SubSubjectItem currentItem, bool isDisabled) {
+        currentItem.isDisabled = isDisabled;
+        if (isDisabled) {
+          currentItem.progress = 'belum';
+          currentItem.currentValue = currentItem.itemType == 'countdown'
+              ? currentItem.targetValue
+              : 0;
+          currentItem.finishedDate = null;
+        }
+
+        // Telusuri struktur pohon subMateri lebih dalam jika ada
+        for (var child in currentItem.subMateri) {
+          toggleDisableRecursive(child, isDisabled);
+        }
       }
+
+      // Jalankan rekursif dari item utama yang dipilih
+      toggleDisableRecursive(item, targetDisableStatus);
+
+      // Sinkronisasi status naik kembali ke atas (parent status calculation)
       for (var r in widget.subject.subMateri) r.updateStatusFromChildren();
     });
     updateSubjectOverallProgress();
@@ -877,7 +895,7 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
 
     if (widget.allAvailableGroups != null && widget.baseDir != null) {
       final storageService = StorageService();
-      final String todayStr =
+      final String =
           "${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}";
 
       for (var group in widget.allAvailableGroups!) {
@@ -890,7 +908,7 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
                   if (widget.subject.progress == 'selesai') {
                     if (item.progress != 'selesai') {
                       item.progress = 'selesai';
-                      item.finishedDate = todayStr;
+                      item.finishedDate = String;
                       groupChanged = true;
                     }
                   } else {
@@ -928,7 +946,7 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
 
         if (groupChanged) {
           try {
-            final String jsonString = const JsonEncoder.withIndent(
+            final jsonString = const JsonEncoder.withIndent(
               '  ',
             ).convert(group.toJson());
             storageService.getSpecificGroupFile(widget.baseDir!, group.id).then(
