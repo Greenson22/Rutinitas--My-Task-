@@ -10,6 +10,7 @@ import '../../../../core/presentation/widgets/interactive_section_header.dart';
 import '../../../../core/presentation/widgets/interactive_grid_card.dart';
 import '../../../../core/presentation/widgets/universal_empty_state.dart';
 import '../../../../core/utils/crypto_helper.dart';
+import '../../../../core/utils/atomic_write_helper.dart'; // <--- TAMBAHKAN IMPORT HELPER ATOMIC WRITE
 import '../../data/models/prompt_model.dart';
 import '../controllers/prompt_controller.dart';
 import 'prompt_detail_screen.dart';
@@ -361,22 +362,53 @@ class _PromptScreenState extends State<PromptScreen> {
                 if (!confirm) return; // Batal simpan
               }
 
-              // Simpan menggunakan savePromptGroup agar otomatis terenkripsi kembali jika enkripsi aktif
-              await _storageService.savePromptGroup(
-                baseDir,
-                targetId,
-                newContent,
-              );
+              // === PERBAIKAN: PENERAPAN STRUKTUR ATOMIC WRITE PADA PENYIMPANAN RAW EDIT JSON ===[cite: 3]
+              try {
+                bool isEncrypted = await _storageService.isEncryptionEnabled();
+                String? password = await _storageService
+                    .getEncryptionPassword();
+                String finalContent = newContent;
 
-              if (mounted) {
-                Navigator.pop(context); // Tutup dialog editor
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('File JSON berhasil diperbarui!'),
-                    backgroundColor: Colors.green,
-                  ),
+                if (isEncrypted && password != null) {
+                  final trimmed = newContent.trim();
+                  // Jika data merupakan format plain JSON baru yang polos, enkripsi kembali sebelum ditulis[cite: 3]
+                  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+                    finalContent = CryptoHelper.encrypt(newContent, password);
+                  }
+                }
+
+                // Gunakan helper atomic write terpusat agar penulisan file fisik aman dari korupsi data[cite: 3]
+                await AtomicWriteHelper.writeSafe(
+                  targetFile: targetFile,
+                  content: finalContent,
                 );
-                _controller.loadAllPrompts(context); // Refresh UI
+
+                if (mounted) {
+                  Navigator.pop(context); // Tutup dialog editor
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'File JSON berhasil diperbarui secara aman!',
+                      ),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                  _controller.loadAllPrompts(context); // Refresh UI
+                }
+              } catch (err) {
+                debugPrint(
+                  "Gagal mengamankan penyimpanan kustom raw JSON via Atomic Write: $err",
+                );
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Gagal menyimpan perubahan berkas! Detail: $err',
+                      ),
+                      backgroundColor: Colors.redAccent,
+                    ),
+                  );
+                }
               }
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
