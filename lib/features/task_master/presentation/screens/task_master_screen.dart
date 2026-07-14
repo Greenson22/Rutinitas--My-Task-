@@ -221,12 +221,38 @@ class _HomeScreenState extends State<HomeScreen> {
 
               try {
                 final parsed = jsonDecode(newContent);
-                // Jika ingin parsing menggunakan controller
                 final List<dynamic> catList = parsed['categories'] ?? [];
                 _controller.allCategoriesRaw = catList
                     .map((json) => TaskCategory.fromJson(json))
                     .toList();
-                await _controller.saveAllCategoriesToFile();
+
+                // === PERBAIKAN: Sinkronisasi Enkripsi Sebelum Atomic Write ===[cite: 2]
+                final Map<String, dynamic> updatedMap = {
+                  'categories': _controller.allCategoriesRaw
+                      .map((cat) => cat.toJson())
+                      .toList(),
+                };
+                String finalContent = const JsonEncoder.withIndent(
+                  '  ',
+                ).convert(updatedMap);
+
+                bool isEncrypted = await _controller.storageService
+                    .isEncryptionEnabled();
+                String? password = await _controller.storageService
+                    .getEncryptionPassword();
+
+                if (isEncrypted && password != null && password.isNotEmpty) {
+                  finalContent = CryptoHelper.encrypt(finalContent, password);
+                }
+
+                await AtomicWriteHelper.writeSafe(
+                  targetFile: targetFile,
+                  content: finalContent,
+                );
+
+                await _controller
+                    .initStorageAndLoadData(); // Muat ulang visual status data ke memori
+
                 if (mounted) {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
