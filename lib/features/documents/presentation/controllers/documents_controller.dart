@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../../core/services/storage_service.dart';
+import '../../../../core/utils/atomic_write_helper.dart'; // <--- TAMBAHAN: Import Atomic Write Helper[cite: 1, 3]
 import '../../data/models/document_model.dart';
 
 class DocumentsController extends ChangeNotifier {
@@ -82,21 +83,30 @@ class DocumentsController extends ChangeNotifier {
     }
   }
 
+  // <--- PERUBAHAN: Menerapkan mekanisme Atomic Write saat menyimpan file JSON[cite: 3]
   Future<void> saveGroupDataToFile(DocumentGroup group) async {
     try {
       File file = await storageService.getSpecificDocumentGroupFile(
         selectedBaseDir,
         group.id,
       );
-      String jsonStr = jsonEncode(group.toJson());
-      await file.writeAsString(jsonStr);
+
+      // Menggunakan formating JSON Pretty Print agar struktur data file .json rapi
+      String jsonStr = const JsonEncoder.withIndent(
+        '  ',
+      ).convert(group.toJson());
+
+      // EKSEKUSI PENULISAN SECARA AMAN DENGAN ATOMIC WRITE[cite: 1, 3]
+      await AtomicWriteHelper.writeSafe(targetFile: file, content: jsonStr);
 
       final dir = Directory('$selectedBaseDir/my_documents/${group.id}');
       if (!await dir.exists()) {
         await dir.create(recursive: true);
       }
     } catch (e) {
-      debugPrint("Gagal menyimpan Document Group: $e");
+      debugPrint(
+        "Gagal menyimpan Document Group dengan aman (Atomic Write): $e",
+      );
     }
   }
 
