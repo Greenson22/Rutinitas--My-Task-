@@ -529,11 +529,10 @@ class _NotesScreenState extends State<NotesScreen> {
                   _loadNotesData(); // Refresh UI
                 }
               } catch (e) {
-                // Fallback langsung tulis mentah menggunakan helper bawaan jika format custom JSON dipaksa rusak
-                await _storageService.saveNoteGroup(
-                  baseDir,
-                  targetId,
-                  newContent,
+                // ✅ PERBAIKAN: Amankan jalur fallback dengan Atomic Write Helper Terpusat
+                await AtomicWriteHelper.writeSafe(
+                  targetFile: targetFile,
+                  content: newContent,
                 );
                 if (mounted) {
                   Navigator.pop(context);
