@@ -446,61 +446,107 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (widget.subject.type == 'note') ...[
-                if (!isNoteViewMode) ...[
-                  const Text(
-                    'MD',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Transform.scale(
-                    scale: 0.7,
-                    child: Switch(
-                      value: isMarkdownEnabled,
-                      activeColor: Colors.tealAccent,
-                      inactiveThumbColor: Colors.white70,
-                      onChanged: (value) {
-                        setState(() {
-                          isMarkdownEnabled = value;
-                          isNoteModified = true;
-                        });
-                      },
-                    ),
-                  ),
-                  // ICON BUTTON BARU KHUSUS BUAT HALAMAN MANDIRI OLEH PENGGUNA
-                  IconButton(
-                    icon: const Icon(
-                      Icons.note_add_outlined,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                    tooltip: 'Tambah Halaman Catatan Baru',
-                    onPressed: addNewNotePage,
-                  ),
-                  if (notePages.length > 1)
-                    IconButton(
-                      icon: const Icon(
-                        Icons.delete_forever_outlined,
-                        color: Colors.redAccent,
-                        size: 20,
-                      ),
-                      tooltip: 'Hapus Halaman Ini',
-                      onPressed: deleteCurrentNotePageView,
-                    ),
-                ],
-                IconButton(
-                  icon: Icon(
-                    isNoteViewMode ? Icons.edit : Icons.chrome_reader_mode,
+                PopupMenuButton<String>(
+                  icon: const Icon(
+                    Icons.more_vert,
                     color: Colors.white,
-                    size: 20,
+                    size: 22,
                   ),
-                  tooltip: isNoteViewMode
-                      ? 'Edit Catatan'
-                      : 'Pratinjau Catatan',
-                  onPressed: () =>
-                      setState(() => isNoteViewMode = !isNoteViewMode),
+                  tooltip: 'Opsi Catatan',
+                  onSelected: (String value) {
+                    if (value == 'toggle_view') {
+                      setState(() => isNoteViewMode = !isNoteViewMode);
+                    } else if (value == 'toggle_md') {
+                      setState(() {
+                        isMarkdownEnabled = !isMarkdownEnabled;
+                        isNoteModified = true;
+                      });
+                    } else if (value == 'add_page') {
+                      addNewNotePage();
+                    } else if (value == 'delete_page') {
+                      deleteCurrentNotePageView();
+                    }
+                  },
+                  itemBuilder: (BuildContext context) => [
+                    PopupMenuItem<String>(
+                      value: 'toggle_view',
+                      child: Row(
+                        children: [
+                          Icon(
+                            isNoteViewMode
+                                ? Icons.edit
+                                : Icons.chrome_reader_mode,
+                            color: Colors.blueGrey,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            isNoteViewMode
+                                ? 'Edit Catatan'
+                                : 'Pratinjau Catatan',
+                          ),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuDivider(),
+                    PopupMenuItem<String>(
+                      value: 'toggle_md',
+                      child: Row(
+                        children: [
+                          Icon(
+                            isMarkdownEnabled
+                                ? Icons.toggle_on
+                                : Icons.toggle_off_outlined,
+                            color: isMarkdownEnabled
+                                ? Colors.teal
+                                : Colors.grey,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            isMarkdownEnabled
+                                ? 'Markdown: Aktif'
+                                : 'Markdown: Nonaktif',
+                          ),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuDivider(),
+                    PopupMenuItem<String>(
+                      value: 'add_page',
+                      child: Row(
+                        children: const [
+                          Icon(
+                            Icons.note_add_outlined,
+                            color: Colors.indigo,
+                            size: 18,
+                          ),
+                          SizedBox(width: 10),
+                          Text('Tambah Halaman'),
+                        ],
+                      ),
+                    ),
+                    if (notePages.length > 1) ...[
+                      const PopupMenuDivider(),
+                      PopupMenuItem<String>(
+                        value: 'delete_page',
+                        child: Row(
+                          children: const [
+                            Icon(
+                              Icons.delete_forever_outlined,
+                              color: Colors.redAccent,
+                              size: 18,
+                            ),
+                            SizedBox(width: 10),
+                            Text(
+                              'Hapus Halaman Ini',
+                              style: TextStyle(color: Colors.redAccent),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ],
               if (widget.subject.type == 'note' && isNoteModified)
@@ -935,9 +981,6 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                 ],
               ),
 
-              // =========================================================================
-              // SAKELAR INTEGRASI PAGINASI HALAMAN DAN TOMBOL TUTUP DI FOOTER
-              // =========================================================================
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
