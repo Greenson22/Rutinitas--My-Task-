@@ -484,6 +484,7 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                             isNoteViewMode
                                 ? 'Edit Catatan'
                                 : 'Pratinjau Catatan',
+                            style: const TextStyle(fontSize: 13),
                           ),
                         ],
                       ),
@@ -500,13 +501,14 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                             color: isMarkdownEnabled
                                 ? Colors.teal
                                 : Colors.grey,
-                            size: 20,
+                            size: 18,
                           ),
                           const SizedBox(width: 10),
                           Text(
                             isMarkdownEnabled
                                 ? 'Markdown: Aktif'
                                 : 'Markdown: Nonaktif',
+                            style: const TextStyle(fontSize: 13),
                           ),
                         ],
                       ),
@@ -522,7 +524,10 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                             size: 18,
                           ),
                           SizedBox(width: 10),
-                          Text('Tambah Halaman'),
+                          Text(
+                            'Tambah Halaman',
+                            style: TextStyle(fontSize: 13),
+                          ),
                         ],
                       ),
                     ),
@@ -540,7 +545,10 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                             SizedBox(width: 10),
                             Text(
                               'Hapus Halaman Ini',
-                              style: TextStyle(color: Colors.redAccent),
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.redAccent,
+                              ),
                             ),
                           ],
                         ),
@@ -549,6 +557,7 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                   ],
                 ),
               ],
+
               if (widget.subject.type == 'note' && isNoteModified)
                 IconButton(
                   icon: const Icon(
