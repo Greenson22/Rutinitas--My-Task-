@@ -1,6 +1,7 @@
+// lib/features/notes/presentation/controllers/note_detail_controller.dart
+
 import 'dart:convert';
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:rutinitasku/core/services/storage_service.dart';
@@ -10,7 +11,6 @@ import '../../models/note_model.dart';
 
 class NoteDetailController {
   final StorageService _storageService = StorageService();
-
   late NoteGroup currentGroup;
   final VoidCallback onStateChanged;
   final BuildContext context;
@@ -30,9 +30,11 @@ class NoteDetailController {
       final File targetFile = File('$baseDir/notes/${currentGroup.id}.json');
       bool isEncrypted = await _storageService.isEncryptionEnabled();
       String? password = await _storageService.getEncryptionPassword();
+
       String jsonString = _storageService.formatJsonPretty(
         currentGroup.toJson(),
       );
+
       if (isEncrypted && password != null) {
         jsonString = CryptoHelper.encrypt(jsonString, password);
       }
@@ -108,7 +110,7 @@ class NoteDetailController {
         currentFieldKeys.add(key);
         currentFieldTypes[key] = type;
 
-        // <-- PERBAIKAN: Menentukan default value awal untuk tipe data Option
+        // Menentukan default value awal untuk tipe data Option
         String defaultVal = '';
         if (type == 'Boolean') {
           defaultVal = 'Tidak';
@@ -122,7 +124,6 @@ class NoteDetailController {
         }
 
         formControllers[key] = TextEditingController(text: defaultVal);
-
         for (var row in tableRows) {
           row[key] = TextEditingController(text: defaultVal);
         }
@@ -160,7 +161,6 @@ class NoteDetailController {
     });
   }
 
-  // BARU: Fungsi untuk mengubah nama kolom dan memigrasikan datanya di setiap baris
   void renameFieldKey({
     required StateSetter setDialogState,
     required List<String> currentFieldKeys,
@@ -173,7 +173,6 @@ class NoteDetailController {
   }) {
     if (newKey.isEmpty || oldKey == newKey) return;
 
-    // Validasi jika nama kolom baru sudah ada
     if (currentFieldKeys.contains(newKey)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -185,35 +184,26 @@ class NoteDetailController {
     }
 
     setDialogState(() {
-      // 1. Perbarui daftar kunci utama
       int index = currentFieldKeys.indexOf(oldKey);
       if (index != -1) {
         currentFieldKeys[index] = newKey;
       }
-
-      // 2. Migrasikan tipe data map
       final String type = currentFieldTypes.remove(oldKey) ?? 'String';
       currentFieldTypes[newKey] = type;
-
-      // 3. Migrasikan controller form input utama
       final TextEditingController? formCtrl = formControllers.remove(oldKey);
       if (formCtrl != null) {
         formControllers[newKey] = formCtrl;
       }
-
-      // 4. Urus migrasi data pada setiap baris tersimpan
       for (var row in tableRows) {
         final TextEditingController? rowCtrl = row.remove(oldKey);
         if (rowCtrl != null) {
           row.addAll({newKey: rowCtrl});
         }
       }
-
       triggerChange();
     });
   }
 
-  // BARU: Fungsi untuk mengubah tipe data kolom dan memvalidasi nilai yang sudah ada
   void updateFieldType({
     required StateSetter setDialogState,
     required Map<String, String> currentFieldTypes,
@@ -224,11 +214,9 @@ class NoteDetailController {
   }) {
     setDialogState(() {
       currentFieldTypes[key] = newType;
-
       for (var row in tableRows) {
         if (row[key] != null) {
           String currentText = row[key]!.text.trim();
-
           if (newType == 'Boolean') {
             if (currentText != 'Ya' && currentText != 'Tidak') {
               row[key]!.text = 'Tidak';
@@ -265,21 +253,17 @@ class NoteDetailController {
         targetColumnIndex = columnIndex;
         targetAscending = true;
       }
-
       onSortUpdated(targetColumnIndex, targetAscending);
 
       String type = currentFieldTypes[key] ?? 'String';
-
       tableRows.sort((a, b) {
         final valA = a[key]?.text.trim() ?? '';
         final valB = b[key]?.text.trim() ?? '';
-
         if (type == 'Numerik') {
           final numA = double.tryParse(valA) ?? 0.0;
           final numB = double.tryParse(valB) ?? 0.0;
           return targetAscending ? numA.compareTo(numB) : numB.compareTo(numA);
         }
-
         return targetAscending
             ? valA.toLowerCase().compareTo(valB.toLowerCase())
             : valB.toLowerCase().compareTo(valA.toLowerCase());
@@ -317,13 +301,11 @@ class NoteDetailController {
   }) {
     setDialogState(() {
       if (moveUp && currentIndex > 0) {
-        // Tukar ke atas
         final temp = tableRows[currentIndex];
         tableRows[currentIndex] = tableRows[currentIndex - 1];
         tableRows[currentIndex - 1] = temp;
         triggerChange();
       } else if (!moveUp && currentIndex < tableRows.length - 1) {
-        // Tukar ke bawah
         final temp = tableRows[currentIndex];
         tableRows[currentIndex] = tableRows[currentIndex + 1];
         tableRows[currentIndex + 1] = temp;
@@ -332,6 +314,7 @@ class NoteDetailController {
     });
   }
 
+  // === PENAMBAHAN PARAMETER: notePages dan currentNotePage ===
   Future<NoteModel> performSave({
     required NoteModel? existingNote,
     required String originalTitle,
@@ -343,6 +326,8 @@ class NoteDetailController {
     required Map<String, String> currentFieldTypes,
     required List<Map<String, TextEditingController>> tableRows,
     bool isMarkdownEnabled = false,
+    List<String>? notePages, // <--- BARU
+    int? currentNotePage, // <--- BARU
   }) async {
     String finalTitle = titleController.text.trim();
     if (finalTitle.isEmpty) finalTitle = originalTitle;
@@ -358,10 +343,20 @@ class NoteDetailController {
       }
     }
 
+    // Ekstrak teks pratinjau utama untuk parameter content bawaan
+    String fallbackContent = '';
+    if (currentType == 'text') {
+      if (notePages != null && notePages.isNotEmpty) {
+        fallbackContent = notePages[0];
+      } else {
+        fallbackContent = contentController.text.trim();
+      }
+    }
+
     final newNote = NoteModel(
       id: existingNote?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
       title: finalTitle,
-      content: currentType == 'text' ? contentController.text.trim() : '',
+      content: fallbackContent,
       backContent: backContentController.text.trim(),
       createdAt: existingNote?.createdAt ?? DateTime.now(),
       updatedAt: DateTime.now(),
@@ -370,6 +365,10 @@ class NoteDetailController {
       fieldTypes: currentType == 'table' ? currentFieldTypes : {},
       tableData: currentType == 'table' ? finalTableData : [],
       isMarkdownEnabled: isMarkdownEnabled,
+      notePages: currentType == 'text' ? notePages : null, // <--- BARU
+      currentNotePage: currentType == 'text'
+          ? currentNotePage
+          : null, // <--- BARU
     );
 
     if (existingNote == null) {
@@ -383,7 +382,6 @@ class NoteDetailController {
 
     onStateChanged();
     await saveCurrentGroup();
-
     return newNote;
   }
 
@@ -397,22 +395,20 @@ class NoteDetailController {
     try {
       final baseDir = await _storageService.getBaseDirSetting();
       final files = await _storageService.getAllNoteGroups(baseDir);
-
       bool isEncrypted = await _storageService.isEncryptionEnabled();
       String? password = await _storageService.getEncryptionPassword();
 
       List<NoteGroup> loadedGroups = [];
+
       for (var file in files) {
         if (!await file.exists()) continue;
-
         String content = await file.readAsString();
-
         if (isEncrypted && password != null && content.contains(':')) {
           content = CryptoHelper.decrypt(content, password);
         }
-
         loadedGroups.add(NoteGroup.fromJson(jsonDecode(content)));
       }
+
       return loadedGroups;
     } catch (e) {
       debugPrint("Gagal memuat seluruh data daftar grup notes: $e");
@@ -420,7 +416,6 @@ class NoteDetailController {
     }
   }
 
-  // === MODIFIKASI: PROTEKSI ATOMIC WRITE SAAT MASSIVE MOVE (GRUP TARGET) ===
   Future<void> moveMassiveNotes(
     List<NoteModel> selectedItems,
     NoteGroup targetGroup,
@@ -432,12 +427,11 @@ class NoteDetailController {
     currentGroup.notes.removeWhere((note) => selectedIds.contains(note.id));
 
     onStateChanged();
-    await saveCurrentGroup(); // Menggunakan Atomic Write bawaan untuk grup asal
+    await saveCurrentGroup();
 
     try {
       final baseDir = await _storageService.getBaseDirSetting();
       final File targetFile = File('$baseDir/notes/${targetGroup.id}.json');
-
       bool isEncrypted = await _storageService.isEncryptionEnabled();
       String? password = await _storageService.getEncryptionPassword();
 
@@ -449,14 +443,13 @@ class NoteDetailController {
         jsonString = CryptoHelper.encrypt(jsonString, password);
       }
 
-      // Eksekusi penulisan atomik untuk berkas grup target
       await AtomicWriteHelper.writeSafe(
         targetFile: targetFile,
         content: jsonString,
       );
     } catch (e) {
       debugPrint(
-        "Gagal mengamankan penyimpanan grup target saat memindahkan notes (Atomic Write Error): $e",
+        "Gagal mengamankan penyimpanan grup target saat memindahkan notes: $e",
       );
     }
   }
@@ -469,11 +462,11 @@ class NoteDetailController {
       content:
           'Apakah Anda yakin ingin menghapus ${selectedItems.length} item notes yang dipilih secara masal? Tindakan ini tidak dapat dibatalkan.',
     );
+
     if (!confirm) return;
 
     final selectedIds = selectedItems.map((e) => e.id).toSet();
     currentGroup.notes.removeWhere((note) => selectedIds.contains(note.id));
-
     onStateChanged();
     await saveCurrentGroup();
   }

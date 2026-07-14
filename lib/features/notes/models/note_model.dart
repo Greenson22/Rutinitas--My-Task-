@@ -9,7 +9,7 @@ class NoteGroup {
   final Map<String, String> fields;
   String sectionName; // Menyimpan informasi seksi tempat grup ini berada
   bool isHidden;
-  int orderIndex; // <--- BARU: Menyimpan urutan posisi group note
+  int orderIndex; // Menyimpan urutan posisi group note
 
   NoteGroup({
     required this.id,
@@ -20,7 +20,7 @@ class NoteGroup {
     this.fields = const {},
     this.sectionName = 'Catatan Utama', // Default seksi awal
     this.isHidden = false,
-    this.orderIndex = 0, // <--- BARU: Default value urutan
+    this.orderIndex = 0, // Default value urutan
   });
 
   Map<String, dynamic> toJson() => {
@@ -32,13 +32,13 @@ class NoteGroup {
     'fields': fields,
     'sectionName': sectionName,
     'isHidden': isHidden,
-    'order_index': orderIndex, // <--- BARU: Menyimpan ke JSON storage
+    'order_index': orderIndex,
   };
 
   factory NoteGroup.fromJson(Map<String, dynamic> json) => NoteGroup(
     id: json['id'],
     groupName: json['groupName'],
-    icon: json['icon'] ?? '📁',
+    icon: json['icon'] ?? '',
     notes: (json['notes'] as List)
         .map((e) => NoteModel.fromJson(e as Map<String, dynamic>))
         .toList(),
@@ -54,45 +54,49 @@ class NoteModel {
   String id;
   String title;
   String content;
-  String
-  backContent; // <--- BARU: Properti untuk menampung data catatan dibaliknya
+  String backContent; // Properti untuk menampung data catatan dibaliknya
   DateTime createdAt;
   DateTime updatedAt;
   final String type;
   final List<String> fieldKeys;
-  final Map<String, String> fieldTypes; // BARU
+  final Map<String, String> fieldTypes;
   final List<Map<String, String>> tableData;
-  bool
-  isMarkdownEnabled; // <--- BARU: Menyimpan state apakah tampilan markdown aktif
+  bool isMarkdownEnabled; // Menyimpan state apakah tampilan markdown aktif
+
+  // === PROPERTI BARU: DUKUNGAN MULTI-HALAMAN CATATAN ===
+  List<String>? notePages;
+  int? currentNotePage;
 
   NoteModel({
     required this.id,
     required this.title,
     required this.content,
-    this.backContent =
-        '', // <--- BARU: Default berupa string kosong jika tidak diisi
+    this.backContent = '', // Default berupa string kosong jika tidak diisi
     required this.createdAt,
     required this.updatedAt,
     this.type = 'text',
     this.fieldKeys = const [],
     this.fieldTypes = const {},
     this.tableData = const [],
-    this.isMarkdownEnabled = false, // <--- BARU: Default awal diset off (false)
+    this.isMarkdownEnabled = false, // Default awal diset off (false)
+    this.notePages,
+    this.currentNotePage,
   });
 
   Map<String, dynamic> toJson() => {
     'id': id,
     'title': title,
     'content': content,
-    'backContent':
-        backContent, // <--- BARU: Simpan data sisi belakang ke JSON storage
+    'backContent': backContent, // Simpan data sisi belakang ke JSON storage
     'createdAt': createdAt.toIso8601String(),
     'updatedAt': updatedAt.toIso8601String(),
     'type': type,
     'fieldKeys': fieldKeys,
-    'fieldTypes': fieldTypes, // BARU
+    'fieldTypes': fieldTypes,
     'tableData': tableData,
-    'isMarkdownEnabled': isMarkdownEnabled, // <--- BARU: Simpan ke JSON storage
+    'isMarkdownEnabled': isMarkdownEnabled, // Simpan ke JSON storage
+    'notePages': notePages, // Simpan halaman ke JSON
+    'currentNotePage': currentNotePage, // Simpan indeks halaman aktif
   };
 
   factory NoteModel.fromJson(Map<String, dynamic> json) {
@@ -117,17 +121,18 @@ class NoteModel {
       title: json['title'] ?? '',
       content: json['content'] ?? '',
       backContent:
-          json['backContent'] ??
-          '', // <--- BARU: Parsing data sisi belakang dari JSON
+          json['backContent'] ?? '', // Parsing data sisi belakang dari JSON
       createdAt: DateTime.parse(json['createdAt']),
       updatedAt: DateTime.parse(json['updatedAt']),
       type: json['type'] ?? 'text',
       fieldKeys: parsedKeys,
       fieldTypes: parsedTypes,
       tableData: parsedData,
-      isMarkdownEnabled:
-          json['isMarkdownEnabled'] ??
-          false, // <--- BARU: Parsing dari JSON storage
+      isMarkdownEnabled: json['isMarkdownEnabled'] ?? false,
+      notePages: json['notePages'] != null
+          ? List<String>.from(json['notePages'])
+          : null,
+      currentNotePage: json['currentNotePage'] ?? 0,
     );
   }
 }

@@ -1,8 +1,9 @@
 // lib/features/notes/presentation/screens/note_edit_dialog.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
-import 'package:qr_flutter/qr_flutter.dart'; // <--- Impor library QR Flutter
+import 'package:qr_flutter/qr_flutter.dart';
 import '../../models/note_model.dart';
 import '../controllers/note_detail_controller.dart';
 import '../../../../core/presentation/widgets/base_popup_dialog.dart';
@@ -30,26 +31,28 @@ class _NoteEditDialogState extends State<NoteEditDialog>
   late String _currentType;
   late TextEditingController _titleController;
   late TextEditingController _contentController;
-  late TextEditingController
-  _backContentController; // <--- Controller Sisi Belakang
+  late TextEditingController _backContentController;
   late List<String> _currentFieldKeys;
   late Map<String, String> _currentFieldTypes;
+
   final List<Map<String, TextEditingController>> _tableRows = [];
   final Map<String, TextEditingController> _formControllers = {};
+
   bool _isEditingTitle = false;
   bool _hasChanges = false;
   bool _isSaving = false;
-  bool _isViewMode = false; // State untuk mengontrol mode view/edit
+  bool _isViewMode = false;
   int? _sortColumnIndex;
   bool _isAscending = true;
   bool _isMarkdownEnabled = false;
-
-  // STATE BARU: Mode seleksi QR langsung pada tabel
   bool _isQrSelectMode = false;
 
-  // ANIMASI STATE BARU
   late AnimationController _flipController;
   bool _isFrontSide = true;
+
+  // === STATE BARU MULTI-HALAMAN ===
+  List<String> _notePages = [];
+  int _currentNotePage = 0;
 
   @override
   void initState() {
@@ -62,20 +65,32 @@ class _NoteEditDialogState extends State<NoteEditDialog>
     _isViewMode = _editableNote != null;
     _isMarkdownEnabled = _editableNote?.isMarkdownEnabled ?? false;
 
+    // === INISIALISASI DATA MULTI-HALAMAN ===
+    if (_editableNote != null &&
+        _editableNote!.notePages != null &&
+        _editableNote!.notePages!.isNotEmpty) {
+      _notePages = List.from(_editableNote!.notePages!);
+      _currentNotePage = _editableNote!.currentNotePage ?? 0;
+    } else {
+      // Fallback integrasi berkas lama (1 halaman)
+      _notePages = [_editableNote?.content ?? ''];
+      _currentNotePage = 0;
+    }
+
     _titleController = TextEditingController(text: _originalTitle);
     _contentController = TextEditingController(
-      text: _editableNote?.content ?? '',
+      text: _notePages[_currentNotePage],
     );
     _backContentController = TextEditingController(
       text: _editableNote?.backContent ?? '',
     );
-
     _currentFieldKeys = List.from(_editableNote?.fieldKeys ?? []);
     _currentFieldTypes = Map.from(_editableNote?.fieldTypes ?? {});
+
     _initializeFormControllers();
     _initializeTableRows();
-    _isEditingTitle = _editableNote == null;
 
+    _isEditingTitle = _editableNote == null;
     _titleController.addListener(_triggerChange);
     _contentController.addListener(_triggerChange);
     _backContentController.addListener(_triggerChange);
@@ -125,9 +140,51 @@ class _NoteEditDialogState extends State<NoteEditDialog>
     });
   }
 
-  // =========================================================================
-  // FITUR BARU: DIALOG TAMPILAN QR CODE DARI SEL YANG DIKETUK
-  // =========================================================================
+  // === FUNGSI BANTUAN MANAJEMEN HALAMAN ===
+  void _addNewNotePage() {
+    if (_currentType != 'text') return;
+    setState(() {
+      _notePages[_currentNotePage] =
+          _contentController.text; // Simpan teks saat ini
+      _notePages.add(''); // Buat halaman baru
+      _currentNotePage =
+          _notePages.length - 1; // Pindahkan fokus ke halaman baru
+      _contentController.text = _notePages[_currentNotePage];
+      _isViewMode = false;
+      _hasChanges = true;
+    });
+  }
+
+  void _switchNotePage(int newIndex) {
+    if (newIndex < 0 || newIndex >= _notePages.length) return;
+    setState(() {
+      _notePages[_currentNotePage] =
+          _contentController.text; // Simpan teks saat ini
+      _currentNotePage = newIndex;
+      _contentController.text = _notePages[_currentNotePage];
+    });
+  }
+
+  void _deleteCurrentNotePage() {
+    if (_notePages.length <= 1) {
+      // Jika hanya ada 1 halaman, reset isi teks ke bentuk awal kosong
+      setState(() {
+        _notePages[0] = '';
+        _contentController.text = '';
+        _hasChanges = true;
+      });
+      return;
+    }
+    setState(() {
+      _notePages.removeAt(_currentNotePage);
+      if (_currentNotePage >= _notePages.length) {
+        _currentNotePage = _notePages.length - 1;
+      }
+      _contentController.text = _notePages[_currentNotePage];
+      _hasChanges = true;
+    });
+  }
+
   void _showQrCodeDialog(String cellText) {
     if (cellText.isEmpty || cellText == '-') {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -140,7 +197,6 @@ class _NoteEditDialogState extends State<NoteEditDialog>
       );
       return;
     }
-
     showDialog(
       context: context,
       builder: (ctx) => BasePopupDialog(
@@ -213,19 +269,29 @@ class _NoteEditDialogState extends State<NoteEditDialog>
 
   Future<bool> _executeSaveAction() async {
     setState(() => _isSaving = true);
+
+    // Sinkronisasi teks dari text field ke array sebelum disimpan
+    if (_currentType == 'text') {
+      _notePages[_currentNotePage] = _contentController.text;
+    }
+
     final NoteModel savedNote = await widget.controller.performSave(
       existingNote: _editableNote,
       originalTitle: _originalTitle,
       currentType: _currentType,
       titleController: _titleController,
-      contentController: _contentController,
+      contentController: _contentController, // Fallback param
       backContentController: _backContentController,
       currentFieldKeys: _currentFieldKeys,
       currentFieldTypes: _currentFieldTypes,
       tableRows: _tableRows,
       isMarkdownEnabled: _isMarkdownEnabled,
+      notePages: _notePages, // Simpan array halamannya
+      currentNotePage: _currentNotePage, // Simpan state posisinya
     );
+
     _editableNote = savedNote;
+
     if (mounted) {
       ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -236,11 +302,13 @@ class _NoteEditDialogState extends State<NoteEditDialog>
           behavior: SnackBarBehavior.floating,
         ),
       );
+
       setState(() {
         _hasChanges = false;
         _isSaving = false;
         _isViewMode = true;
       });
+
       return true;
     }
     return false;
@@ -281,6 +349,7 @@ class _NoteEditDialogState extends State<NoteEditDialog>
         ],
       ),
     );
+
     if (result == 'save') {
       return await _executeSaveAction();
     } else if (result == 'discard') {
@@ -366,9 +435,6 @@ class _NoteEditDialogState extends State<NoteEditDialog>
                 ),
                 const SizedBox(width: 8),
 
-                // ========================================================
-                // MODIFIKASI: TOMBOL QR CODE (MENGAKTIFKAN MODE PILIH LANGSUNG DI TABEL)
-                // ========================================================
                 if (_currentType == 'table') ...[
                   IconButton(
                     padding: EdgeInsets.zero,
@@ -445,6 +511,7 @@ class _NoteEditDialogState extends State<NoteEditDialog>
                   ),
                   const SizedBox(width: 4),
                 ],
+
                 if (_isViewMode) ...[
                   IconButton(
                     padding: EdgeInsets.zero,
@@ -484,6 +551,7 @@ class _NoteEditDialogState extends State<NoteEditDialog>
                           ),
                     const SizedBox(width: 10),
                   ],
+
                   if (_isFrontSide) ...[
                     IconButton(
                       padding: EdgeInsets.zero,
@@ -509,6 +577,7 @@ class _NoteEditDialogState extends State<NoteEditDialog>
                     ),
                     const SizedBox(width: 10),
                   ],
+
                   IconButton(
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
@@ -556,14 +625,109 @@ class _NoteEditDialogState extends State<NoteEditDialog>
                 );
               },
             ),
+            // === FOOTER DENGAN NAVIGASI MENU HALAMAN BARU ===
             footer: Padding(
               padding: const EdgeInsets.symmetric(
                 horizontal: 16.0,
                 vertical: 12.0,
               ),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  // Rendering tombol navigasi Multi-Halaman Note
+                  if (_currentType == 'text' && _isFrontSide)
+                    Row(
+                      children: [
+                        if (_notePages.length > 1) ...[
+                          IconButton(
+                            icon: const Icon(
+                              Icons.chevron_left,
+                              color: Colors.white,
+                            ),
+                            onPressed: _currentNotePage > 0
+                                ? () => _switchNotePage(_currentNotePage - 1)
+                                : null,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8.0,
+                            ),
+                            child: Text(
+                              '${_currentNotePage + 1} / ${_notePages.length}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.chevron_right,
+                              color: Colors.white,
+                            ),
+                            onPressed: _currentNotePage < _notePages.length - 1
+                                ? () => _switchNotePage(_currentNotePage + 1)
+                                : null,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                          const SizedBox(width: 12),
+                        ],
+                        IconButton(
+                          icon: const Icon(
+                            Icons.note_add_outlined,
+                            color: Colors.tealAccent,
+                            size: 20,
+                          ),
+                          tooltip: 'Tambah Halaman',
+                          onPressed: _addNewNotePage,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                        if (_notePages.length > 1) ...[
+                          const SizedBox(width: 16),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.delete_outline,
+                              color: Colors.redAccent,
+                              size: 20,
+                            ),
+                            tooltip: 'Hapus Halaman Ini',
+                            onPressed: () async {
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  title: const Text('Hapus Halaman?'),
+                                  content: const Text(
+                                    'Apakah Anda yakin ingin menghapus halaman catatan ini?',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(ctx, false),
+                                      child: const Text('Batal'),
+                                    ),
+                                    ElevatedButton(
+                                      onPressed: () => Navigator.pop(ctx, true),
+                                      child: const Text('Hapus'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirm == true) _deleteCurrentNotePage();
+                            },
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        ],
+                      ],
+                    )
+                  else
+                    const SizedBox.shrink(),
+
                   ElevatedButton(
                     onPressed: () async {
                       if (_hasChanges) {
@@ -642,12 +806,10 @@ class _NoteEditDialogState extends State<NoteEditDialog>
                 isAscending: _isAscending,
                 onChanged: _triggerChange,
                 isViewMode: true,
-                isQrSelectMode: _isQrSelectMode, // <--- Oper State Mode QR
+                isQrSelectMode: _isQrSelectMode,
                 onCellTapForQr: (text) {
                   _showQrCodeDialog(text);
-                  setState(
-                    () => _isQrSelectMode = false,
-                  ); // Nonaktifkan setelah memilih
+                  setState(() => _isQrSelectMode = false);
                 },
                 onSortChanged: (index, ascending) {
                   setState(() {
@@ -691,8 +853,7 @@ class _NoteEditDialogState extends State<NoteEditDialog>
                           isAscending: _isAscending,
                           onChanged: _triggerChange,
                           isViewMode: false,
-                          isQrSelectMode:
-                              _isQrSelectMode, // <--- Oper State Mode QR
+                          isQrSelectMode: _isQrSelectMode,
                           onCellTapForQr: (text) {
                             _showQrCodeDialog(text);
                             setState(() => _isQrSelectMode = false);
