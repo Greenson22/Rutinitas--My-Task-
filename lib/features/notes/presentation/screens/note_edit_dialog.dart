@@ -1,5 +1,6 @@
 // lib/features/notes/presentation/screens/note_edit_dialog.dart
 
+import 'dart:convert'; // TAMBAHAN: Diperlukan untuk parsing JSON encoder & decoder
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
@@ -262,6 +263,248 @@ class _NoteEditDialogState extends State<NoteEditDialog>
     );
   }
 
+  // =========================================================================
+  // FITUR UTAMA BARU: Dialog Editor Raw JSON Item Catatan (NoteModel)
+  // =========================================================================
+  void _showEditRawJsonDialog() {
+    if (_editableNote == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Silakan simpan catatan ini terlebih dahulu sebelum memodifikasi JSON.',
+          ),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    final TextEditingController jsonController = TextEditingController();
+
+    try {
+      final map = _editableNote!.toJson();
+      jsonController.text = const JsonEncoder.withIndent('  ').convert(map);
+    } catch (e) {
+      jsonController.text = "{}";
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.data_object_rounded, color: Colors.deepOrange),
+              SizedBox(width: 8),
+              Text(
+                'Edit Raw JSON Catatan',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            height: MediaQuery.of(context).size.height * 0.62,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Peringatan: Perubahan struktur properti JSON wajib valid. Mengubah format secara sembarangan dapat merusak data.',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.redAccent,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(
+                            Icons.copy_all,
+                            color: Colors.indigo,
+                            size: 20,
+                          ),
+                          tooltip: 'Salin JSON',
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          onPressed: () async {
+                            await Clipboard.setData(
+                              ClipboardData(text: jsonController.text),
+                            );
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'JSON berhasil disalin ke clipboard!',
+                                  ),
+                                  duration: Duration(seconds: 1),
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                        const SizedBox(width: 14),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.paste,
+                            color: Colors.teal,
+                            size: 20,
+                          ),
+                          tooltip: 'Tempel JSON',
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          onPressed: () async {
+                            final clipboardData = await Clipboard.getData(
+                              Clipboard.kTextPlain,
+                            );
+                            if (clipboardData != null &&
+                                clipboardData.text != null) {
+                              jsonController.text = clipboardData.text!;
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: TextField(
+                    controller: jsonController,
+                    maxLines: null,
+                    expands: true,
+                    textAlignVertical: TextAlignVertical.top,
+                    style: const TextStyle(
+                      fontFamily: 'Courier',
+                      fontSize: 13,
+                      height: 1.3,
+                    ),
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      fillColor: Color(0xFFF8F9FA),
+                      filled: true,
+                      hintText:
+                          'Tempel atau ketik modifikasi struktur objek JSON catatan disini...',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                try {
+                  final String rawInput = jsonController.text.trim();
+                  if (rawInput.isEmpty)
+                    throw Exception("Konten JSON tidak boleh kosong.");
+                  final decodedJson = jsonDecode(rawInput);
+                  if (decodedJson is! Map<String, dynamic>) {
+                    throw const FormatException(
+                      'Format root JSON utama wajib berupa Objek Map kriting {...}',
+                    );
+                  }
+
+                  final parsedNote = NoteModel.fromJson(decodedJson);
+
+                  // Mengunci ID agar tidak berubah secara tidak sengaja untuk mencegah putusnya relasi data
+                  parsedNote.id = _editableNote!.id;
+
+                  setState(() {
+                    _editableNote = parsedNote;
+                    _titleController.text = parsedNote.title;
+                    _originalTitle = parsedNote.title;
+                    _currentType = parsedNote.type;
+                    _isMarkdownEnabled = parsedNote.isMarkdownEnabled;
+                    _backContentController.text = parsedNote.backContent;
+                    _currentFieldKeys = List.from(parsedNote.fieldKeys);
+                    _currentFieldTypes = Map.from(parsedNote.fieldTypes);
+
+                    if (parsedNote.type == 'text' &&
+                        parsedNote.notePages != null &&
+                        parsedNote.notePages!.isNotEmpty) {
+                      _notePages = List.from(parsedNote.notePages!);
+                      _currentNotePage = parsedNote.currentNotePage ?? 0;
+                      if (_currentNotePage >= _notePages.length)
+                        _currentNotePage = 0;
+                      _contentController.text = _notePages[_currentNotePage];
+                    } else {
+                      _contentController.text = parsedNote.content;
+                    }
+
+                    // Re-inisialisasi controller visual untuk formulir dan baris tabel
+                    _formControllers.clear();
+                    _initializeFormControllers();
+                    _tableRows.clear();
+                    _initializeTableRows();
+
+                    _hasChanges = false;
+                    _isViewMode = true;
+                  });
+
+                  // Update referensi objek catatan di level list parent group milik controller
+                  final indexInGroup = widget.controller.currentGroup.notes
+                      .indexWhere((n) => n.id == _editableNote!.id);
+                  if (indexInGroup != -1) {
+                    widget.controller.currentGroup.notes[indexInGroup] =
+                        _editableNote!;
+                  }
+
+                  // Komit dan tulis ulang file grup secara persisten ke disk
+                  await widget.controller.saveCurrentGroup();
+
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Sempurna! Perubahan via JSON catatan berhasil diterapkan.',
+                        ),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  }
+                } catch (err) {
+                  debugPrint("Gagal memproses pengeditan JSON Note: $err");
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Gagal menyimpan! Format atau parameter JSON tidak valid.\nDetail: $err',
+                        ),
+                        backgroundColor: Colors.redAccent,
+                        duration: const Duration(seconds: 4),
+                      ),
+                    );
+                  }
+                }
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
+              child: const Text(
+                'Simpan JSON',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   void dispose() {
     _titleController.dispose();
@@ -443,17 +686,21 @@ class _NoteEditDialogState extends State<NoteEditDialog>
                 ),
                 const SizedBox(width: 8),
 
-                // ========================================================
-                // INTEGRASI POPUP MENU BARU: MENGGABUNGKAN OPSI DAN KONTROL KE SATU TOMBOL DI HEADER
-                // ========================================================
-                if (_currentType == 'text' && !_isViewMode && _isFrontSide) ...[
+                // =========================================================================
+                // MODIFIKASI POPUP MENU: MENDUKUNG EDIT RAW JSON UNTUK TEKS MAUPUN TABEL
+                // =========================================================================
+                if ((_currentType == 'text' && !_isViewMode && _isFrontSide) ||
+                    (_currentType == 'table' &&
+                        _editableNote != null &&
+                        !_isViewMode &&
+                        _isFrontSide)) ...[
                   PopupMenuButton<String>(
                     icon: const Icon(
                       Icons.more_vert,
                       color: Colors.white,
                       size: 22,
                     ),
-                    tooltip: 'Opsi Halaman',
+                    tooltip: 'Opsi Catatan',
                     onSelected: (String value) async {
                       if (value == 'add_page') {
                         _addNewNotePage();
@@ -462,6 +709,8 @@ class _NoteEditDialogState extends State<NoteEditDialog>
                           () => _isMarkdownEnabled = !_isMarkdownEnabled,
                         );
                         _triggerChange();
+                      } else if (value == 'edit_raw_json') {
+                        _showEditRawJsonDialog();
                       } else if (value == 'delete_page') {
                         final confirm = await showDialog<bool>(
                           context: context,
@@ -486,64 +735,90 @@ class _NoteEditDialogState extends State<NoteEditDialog>
                       }
                     },
                     itemBuilder: (BuildContext context) => [
-                      PopupMenuItem<String>(
-                        value: 'add_page',
-                        child: Row(
-                          children: const [
-                            Icon(
-                              Icons.note_add_outlined,
-                              color: Colors.indigo,
-                              size: 18,
-                            ),
-                            SizedBox(width: 10),
-                            Text(
-                              'Tambah Halaman',
-                              style: TextStyle(fontSize: 13),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const PopupMenuDivider(),
-                      PopupMenuItem<String>(
-                        value: 'toggle_md',
-                        child: Row(
-                          children: [
-                            Icon(
-                              _isMarkdownEnabled
-                                  ? Icons.toggle_on
-                                  : Icons.toggle_off_outlined,
-                              color: _isMarkdownEnabled
-                                  ? Colors.teal
-                                  : Colors.grey,
-                              size: 18,
-                            ),
-                            const SizedBox(width: 10),
-                            Text(
-                              _isMarkdownEnabled
-                                  ? 'Markdown: Aktif'
-                                  : 'Markdown: Nonaktif',
-                              style: const TextStyle(fontSize: 13),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (_notePages.length > 1) ...[
-                        const PopupMenuDivider(),
+                      if (_currentType == 'text') ...[
                         PopupMenuItem<String>(
-                          value: 'delete_page',
+                          value: 'add_page',
                           child: Row(
                             children: const [
                               Icon(
-                                Icons.delete_forever_outlined,
-                                color: Colors.redAccent,
+                                Icons.note_add_outlined,
+                                color: Colors.indigo,
                                 size: 18,
                               ),
                               SizedBox(width: 10),
                               Text(
-                                'Hapus Halaman Ini',
-                                style: TextStyle(
+                                'Tambah Halaman',
+                                style: TextStyle(fontSize: 13),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const PopupMenuDivider(),
+                        PopupMenuItem<String>(
+                          value: 'toggle_md',
+                          child: Row(
+                            children: [
+                              Icon(
+                                _isMarkdownEnabled
+                                    ? Icons.toggle_on
+                                    : Icons.toggle_off_outlined,
+                                color: _isMarkdownEnabled
+                                    ? Colors.teal
+                                    : Colors.grey,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 10),
+                              Text(
+                                _isMarkdownEnabled
+                                    ? 'Markdown: Aktif'
+                                    : 'Markdown: Nonaktif',
+                                style: const TextStyle(fontSize: 13),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (_notePages.length > 1) ...[
+                          const PopupMenuDivider(),
+                          PopupMenuItem<String>(
+                            value: 'delete_page',
+                            child: Row(
+                              children: const [
+                                Icon(
+                                  Icons.delete_forever_outlined,
                                   color: Colors.redAccent,
+                                  size: 18,
+                                ),
+                                SizedBox(width: 10),
+                                Text(
+                                  'Hapus Halaman Ini',
+                                  style: TextStyle(
+                                    color: Colors.redAccent,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                      if (_editableNote != null) ...[
+                        if (_currentType == 'text') const PopupMenuDivider(),
+                        const PopupMenuItem<String>(
+                          value: 'edit_raw_json',
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.data_object_rounded,
+                                color: Colors.deepOrange,
+                                size: 18,
+                              ),
+                              SizedBox(width: 10),
+                              Text(
+                                'Edit Raw JSON Catatan',
+                                style: TextStyle(
                                   fontSize: 13,
+                                  color: Colors.deepOrange,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
                             ],
@@ -717,17 +992,14 @@ class _NoteEditDialogState extends State<NoteEditDialog>
                 );
               },
             ),
-            // === FOOTER DENGAN STRUKTUR POSISI BARU ===
             footer: Padding(
               padding: const EdgeInsets.symmetric(
                 horizontal: 16.0,
                 vertical: 12.0,
               ),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment
-                    .end, // Menggeser seluruh elemen footer ke kanan
+                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  // Rendering tombol navigasi Multi-Halaman Note di sebelah kiri tombol Tutup
                   if (_currentType == 'text' &&
                       _isFrontSide &&
                       _notePages.length > 1) ...[
@@ -735,7 +1007,7 @@ class _NoteEditDialogState extends State<NoteEditDialog>
                       icon: const Icon(
                         Icons.chevron_left,
                         color: Colors.indigo,
-                      ), // Mengubah warna ke indigo
+                      ),
                       onPressed: _currentNotePage > 0
                           ? () => _switchNotePage(_currentNotePage - 1)
                           : null,
@@ -747,8 +1019,7 @@ class _NoteEditDialogState extends State<NoteEditDialog>
                       child: Text(
                         '${_currentNotePage + 1} / ${_notePages.length}',
                         style: const TextStyle(
-                          color: Colors
-                              .black87, // Mengubah warna ke hitam agar kontras dan terbaca
+                          color: Colors.black87,
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),
@@ -758,16 +1029,14 @@ class _NoteEditDialogState extends State<NoteEditDialog>
                       icon: const Icon(
                         Icons.chevron_right,
                         color: Colors.indigo,
-                      ), // Mengubah warna ke indigo
+                      ),
                       onPressed: _currentNotePage < _notePages.length - 1
                           ? () => _switchNotePage(_currentNotePage + 1)
                           : null,
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                     ),
-                    const SizedBox(
-                      width: 16,
-                    ), // Jarak antara navigasi halaman dan tombol Tutup
+                    const SizedBox(width: 16),
                   ],
 
                   ElevatedButton(
