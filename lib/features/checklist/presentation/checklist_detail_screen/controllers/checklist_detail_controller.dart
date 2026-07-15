@@ -45,10 +45,8 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
       if (currentGroup.isEncrypted) {
         String? password = await storageService.getEncryptionPassword();
         if (password != null && password.isNotEmpty) {
-          jsonString = CryptoHelper.decrypt(
-            jsonString,
-            password,
-          ); // Sesuai logika bawaan kode Anda
+          // PERBAIKAN: Ubah decrypt menjadi encrypt
+          jsonString = CryptoHelper.encrypt(jsonString, password);
         }
       }
 
