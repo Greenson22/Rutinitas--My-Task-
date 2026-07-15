@@ -163,6 +163,14 @@ class _NoteEditDialogState extends State<NoteEditDialog>
       _currentNotePage = newIndex;
       _contentController.text = _notePages[_currentNotePage];
     });
+
+    // === PENERAPAN AUTO-SAVE SAAT PINDAH HALAMAN ===
+    if (_editableNote != null) {
+      _editableNote!.notePages = _notePages;
+      _editableNote!.currentNotePage = _currentNotePage;
+      widget.controller
+          .saveCurrentGroup(); // Commit dan tulis persisten ke disk
+    }
   }
 
   void _deleteCurrentNotePage() {
@@ -570,7 +578,7 @@ class _NoteEditDialogState extends State<NoteEditDialog>
                         SnackBar(
                           content: Text(
                             _isQrSelectMode
-                                ? 'Mode QR Aktif! Ketuk sel data pada tabel di bawah untuk membuat QR Code.'
+                                ? 'Mode QR Active! Ketuk sel data pada tabel di bawah untuk membuat QR Code.'
                                 : 'Mode QR dinonaktifkan.',
                           ),
                           duration: const Duration(seconds: 3),
