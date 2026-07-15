@@ -375,11 +375,20 @@ class TaskMasterController {
           }
         }
         if (isUpdated) {
-          final String updatedJsonContent = jsonEncode(
+          // Ganti variabel finalContent agar bisa dimutasi sebelum ditulis
+          String updatedJsonContent = jsonEncode(
             loadedLogs.map((e) => e.toJson()).toList(),
           );
 
-          // === UBAH DI SINI: Gunakan Atomic Write Safe untuk file Jurnal ===
+          // === PERBAIKAN: Enkripsi konten jurnal jika mode keamanan aktif ===
+          if (isEncrypted && password != null && password.isNotEmpty) {
+            updatedJsonContent = CryptoHelper.encrypt(
+              updatedJsonContent,
+              password,
+            );
+          }
+
+          // === Gunakan Atomic Write Safe untuk file Jurnal ===
           await AtomicWriteHelper.writeSafe(
             targetFile: JurnalFile,
             content: updatedJsonContent,
@@ -431,17 +440,25 @@ class TaskMasterController {
       'categories': allCategoriesRaw.map((cat) => cat.toJson()).toList(),
     };
 
-    final String updatedJsonString = shouldRefresh
+    // Gunakan String penampung sementara
+    String finalJsonContent = shouldRefresh
         ? const JsonEncoder.withIndent('  ').convert(updatedMap)
         : jsonEncode(updatedMap);
 
     try {
       File jsonFile = await storageService.getTargetJsonFile(selectedBaseDir);
 
-      // === UBAH DI SINI: Gunakan Atomic Write Safe ===
+      // === PERBAIKAN: Periksa status enkripsi global sebelum menulis data ===
+      bool isEncrypted = await storageService.isEncryptionEnabled();
+      String? password = await storageService.getEncryptionPassword();
+      if (isEncrypted && password != null && password.isNotEmpty) {
+        finalJsonContent = CryptoHelper.encrypt(finalJsonContent, password);
+      }
+
+      // Gunakan Atomic Write Safe
       await AtomicWriteHelper.writeSafe(
         targetFile: jsonFile,
-        content: updatedJsonString,
+        content: finalJsonContent,
       );
 
       if (shouldRefresh) {
