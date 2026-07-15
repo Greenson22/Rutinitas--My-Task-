@@ -649,14 +649,35 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
   void moveSelectedItemsToOtherSubject(DailySubject targetSubject) {
     saveToHistory();
     setState(() {
+      // 1. Hapus semua item yang dipilih dari tree asal terlebih dahulu
       for (var item in selectedItems) {
         deleteItemFromTree(widget.subject.subMateri, item);
       }
-      targetSubject.subMateri.addAll(selectedItems);
+
+      // 2. Saring item terpilih agar item yang merupakan "anak" dari item terpilih lainnya tidak di-insert ulang
+      final topLevelItemsToMove = selectedItems.where((item) {
+        bool hasParentInSelection(
+          List<SubSubjectItem> checklist,
+          SubSubjectItem target,
+        ) {
+          for (var element in checklist) {
+            if (element.subMateri.contains(target)) return true;
+            if (hasParentInSelection(element.subMateri, target)) return true;
+          }
+          return false;
+        }
+
+        // Jika parent dari item ini juga ada di dalam selectedItems, jangan masukkan lagi
+        return !hasParentInSelection(selectedItems, item);
+      }).toList();
+
+      // 3. Masukkan hanya top-level items yang disaring ke target baru
+      targetSubject.subMateri.addAll(topLevelItemsToMove);
       selectedItems.clear();
       isEditMode = false;
     });
 
+    // Logika kalkulasi progress di bawah tetap sama...
     for (var root in widget.subject.subMateri) root.updateStatusFromChildren();
     updateSubjectOverallProgress();
 
@@ -688,17 +709,37 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
   void moveSelectedItemsToTarget({SubSubjectItem? targetParent}) {
     saveToHistory();
     setState(() {
+      // 1. Hapus semua dari tree asal
       for (var item in selectedItems) {
         deleteItemFromTree(widget.subject.subMateri, item);
       }
+
+      // 2. Saring hanya top-level items dari list yang dipilih
+      final topLevelItemsToMove = selectedItems.where((item) {
+        bool hasParentInSelection(
+          List<SubSubjectItem> checklist,
+          SubSubjectItem target,
+        ) {
+          for (var element in checklist) {
+            if (element.subMateri.contains(target)) return true;
+            if (hasParentInSelection(element.subMateri, target)) return true;
+          }
+          return false;
+        }
+
+        return !hasParentInSelection(selectedItems, item);
+      }).toList();
+
+      // 3. Tambahkan ke target parent internal yang dituju
       if (targetParent == null) {
-        widget.subject.subMateri.addAll(selectedItems);
+        widget.subject.subMateri.addAll(topLevelItemsToMove);
       } else {
-        targetParent.subMateri.addAll(selectedItems);
+        targetParent.subMateri.addAll(topLevelItemsToMove);
       }
       selectedItems.clear();
       isEditMode = false;
     });
+
     for (var root in widget.subject.subMateri) root.updateStatusFromChildren();
     updateSubjectOverallProgress();
     widget.onDataChanged();
