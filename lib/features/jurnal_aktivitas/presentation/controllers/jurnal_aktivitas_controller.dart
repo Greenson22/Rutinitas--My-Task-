@@ -4,7 +4,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/services/storage_service.dart';
 import '../../../../core/utils/crypto_helper.dart';
 import '../../../../core/utils/atomic_write_helper.dart';
@@ -42,7 +41,7 @@ class JurnalAktivitasController {
     );
   }
 
-  // File baru khusus untuk menyimpan daftar kerangka tugas utama (Template)
+  // File baru khusus untuk menyimpan daftar kerangka tugas utama (Template) dan Settings
   Future<File> _getTemplateFile() async {
     final Directory jurnalDir = Directory('$baseDir/jurnal_aktivitas');
     if (!await jurnalDir.exists()) await jurnalDir.create(recursive: true);
@@ -58,8 +57,6 @@ class JurnalAktivitasController {
 
     File? jsonFile;
     try {
-      final prefs = await SharedPreferences.getInstance();
-      defaultIncrementMinutes = prefs.getInt('default_increment_minutes') ?? 30;
       baseDir = await _storageService.getBaseDirSetting();
 
       // 1. Cek & jalankan migrasi file lama jika perlu
@@ -91,19 +88,38 @@ class JurnalAktivitasController {
           .map((e) => TimeLogEntry.fromJson(e))
           .toList();
 
-      // 3. Muat Template Tugas (Daftar list aktivitas saat ini)
+      // 3. Muat Template Tugas & Settings dari jurnal_template.json
       File templateFile = await _getTemplateFile();
       List<TimeLogTask> templateTasks = [];
       if (await templateFile.exists()) {
         String tempString = await templateFile.readAsString();
         if (isEncrypted &&
             password != null &&
+            !tempString.trim().startsWith('{') &&
             !tempString.trim().startsWith('[')) {
           tempString = CryptoHelper.decrypt(tempString, password);
         }
         try {
-          final List<dynamic> decTemp = jsonDecode(tempString);
-          templateTasks = decTemp.map((e) => TimeLogTask.fromJson(e)).toList();
+          final dynamic decTemp = jsonDecode(tempString);
+          if (decTemp is Map<String, dynamic>) {
+            // Membaca konfigurasi default waktu dari key 'settings'
+            if (decTemp['settings'] != null &&
+                decTemp['settings']['default_increment_minutes'] != null) {
+              defaultIncrementMinutes =
+                  decTemp['settings']['default_increment_minutes'] as int;
+            }
+            // Membaca daftar tugas dari key 'tasks'
+            if (decTemp['tasks'] != null) {
+              templateTasks = (decTemp['tasks'] as List<dynamic>)
+                  .map((e) => TimeLogTask.fromJson(e as Map<String, dynamic>))
+                  .toList();
+            }
+          } else if (decTemp is List<dynamic>) {
+            // Fallback jika file template lama masih berupa array List
+            templateTasks = decTemp
+                .map((e) => TimeLogTask.fromJson(e as Map<String, dynamic>))
+                .toList();
+          }
         } catch (_) {}
       } else {
         // Fallback jika file template belum ada (misal: baru update app)
@@ -196,7 +212,7 @@ class JurnalAktivitasController {
       bool isEncrypted = await _storageService.isEncryptionEnabled();
       String? password = await _storageService.getEncryptionPassword();
 
-      // 1. Simpan full list tugas hari ini sebagai File Template (Menjadi acuan untuk besok)
+      // 1. Simpan full list tugas hari ini & settings default waktu sebagai File Template
       await _saveTemplateTasks(isEncrypted, password);
 
       // 2. Simpan File Riwayat Bulanan
@@ -207,8 +223,6 @@ class JurnalAktivitasController {
         final bool isToday = entry.tanggal == getTodayDateString();
 
         // PERBAIKAN LOGIKA: Jangan saring/buang durasi 0 menit khusus untuk tugas hari ini.
-        // Hal ini memastikan ID relasi tautan tetap tersimpan di berkas disk lokal sehingga
-        // background updater dari Task Master dapat mendeteksi dan menambah durasi dengan sukses.
         List<TimeLogTask> activeTasks = isToday
             ? entry.tasks
             : entry.tasks.where((t) => t.durasiMenit > 0).toList();
@@ -230,11 +244,12 @@ class JurnalAktivitasController {
   Future<void> _saveTemplateTasks(bool isEncrypted, String? password) async {
     final String todayStr = getTodayDateString();
     final int todayIdx = logs.indexWhere((e) => e.tanggal == todayStr);
+
+    List<TimeLogTask> cleanTemplate = [];
     if (todayIdx != -1) {
       List<TimeLogTask> todayTasks = logs[todayIdx].tasks;
-
       // Bersihkan nilainya jadi 0 sebelum disave ke file template
-      List<TimeLogTask> cleanTemplate = todayTasks
+      cleanTemplate = todayTasks
           .map(
             (t) => TimeLogTask(
               id: t.id,
@@ -245,20 +260,25 @@ class JurnalAktivitasController {
             ),
           )
           .toList();
-
-      File templateFile = await _getTemplateFile();
-      String finalContent = jsonEncode(
-        cleanTemplate.map((e) => e.toJson()).toList(),
-      );
-
-      if (isEncrypted && password != null && password.isNotEmpty) {
-        finalContent = CryptoHelper.encrypt(finalContent, password);
-      }
-      await AtomicWriteHelper.writeSafe(
-        targetFile: templateFile,
-        content: finalContent,
-      );
     }
+
+    File templateFile = await _getTemplateFile();
+
+    // STRUKTUR BARU MAP: Memisah settings agar tidak dibaca sebagai tugas
+    Map<String, dynamic> templateData = {
+      'settings': {'default_increment_minutes': defaultIncrementMinutes},
+      'tasks': cleanTemplate.map((e) => e.toJson()).toList(),
+    };
+
+    String finalContent = jsonEncode(templateData);
+
+    if (isEncrypted && password != null && password.isNotEmpty) {
+      finalContent = CryptoHelper.encrypt(finalContent, password);
+    }
+    await AtomicWriteHelper.writeSafe(
+      targetFile: templateFile,
+      content: finalContent,
+    );
   }
 
   Future<void> _saveLogsToFile(
@@ -360,9 +380,14 @@ class JurnalAktivitasController {
             )
             .toList();
         File templateFile = await _getTemplateFile();
-        String tContent = jsonEncode(
-          initialTemplate.map((e) => e.toJson()).toList(),
-        );
+
+        // Sesuaikan inisialisasi migrasi dengan objek map baru
+        Map<String, dynamic> templateData = {
+          'settings': {'default_increment_minutes': defaultIncrementMinutes},
+          'tasks': initialTemplate.map((e) => e.toJson()).toList(),
+        };
+
+        String tContent = jsonEncode(templateData);
         if (isEncrypted && password != null && password.isNotEmpty) {
           tContent = CryptoHelper.encrypt(tContent, password);
         }
@@ -443,8 +468,10 @@ class JurnalAktivitasController {
 
   Future<void> updateDefaultIncrement(int newMinutes) async {
     defaultIncrementMinutes = newMinutes;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('default_increment_minutes', newMinutes);
+    // Mengamankan pembaruan langsung ke file lokal
+    bool isEncrypted = await _storageService.isEncryptionEnabled();
+    String? password = await _storageService.getEncryptionPassword();
+    await _saveTemplateTasks(isEncrypted, password);
   }
 
   Future<void> resetAndCreateNewLog(File jsonFile) async {
@@ -455,10 +482,6 @@ class JurnalAktivitasController {
       String rawJson = jsonEncode([]);
       if (isEncrypted && password != null) {
         rawJson = CryptoHelper.encrypt(rawJson, password);
-      } else {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool('is_encrypted', false);
-        await prefs.remove('encryption_password');
       }
       await AtomicWriteHelper.writeSafe(targetFile: jsonFile, content: rawJson);
     } catch (err) {
@@ -470,7 +493,6 @@ class JurnalAktivitasController {
   Future<bool> handleManualUnlock(String decryptedContent) async {
     final parsed = jsonDecode(decryptedContent);
     if (parsed is List) {
-      // Struktur terbaca benar, kembalikan true agar View memanggil _triggerLoadData()
       isJurnalFileCorrupted = false;
       return true;
     }

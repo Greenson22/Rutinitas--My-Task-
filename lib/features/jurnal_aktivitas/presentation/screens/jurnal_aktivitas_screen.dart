@@ -330,8 +330,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
 
               try {
                 final parsed = jsonDecode(newContent);
-                if (parsed is List) {
-                  // === PERBAIKAN: Sinkronisasi Enkripsi Sebelum Atomic Write ===
+                if (parsed is Map || parsed is List) {
                   String finalContent = jsonEncode(parsed);
                   bool isEncrypted = await storageService.isEncryptionEnabled();
                   String? password = await storageService
@@ -702,15 +701,20 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                   durationController.text.trim(),
                 );
                 await _controller.updateDefaultIncrement(newMinutes);
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'Default waktu berhasil diubah menjadi $newMinutes menit!',
+                if (mounted) {
+                  setState(
+                    () {},
+                  ); // Memicu pembaruan teks default waktu di header UI utama
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Default waktu berhasil diubah menjadi $newMinutes menit!',
+                      ),
+                      backgroundColor: Colors.teal,
                     ),
-                    backgroundColor: Colors.teal,
-                  ),
-                );
+                  );
+                }
               }
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
@@ -1031,7 +1035,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
             onPressed: () async {
               if (_controller.logs.isEmpty) return;
 
-              // Tampilkan indikator loading kecil agar UX mulus saat membaca multi-file disk[cite: 5]
+              // Tampilkan indikator loading kecil agar UX mulus saat membaca multi-file disk
               showDialog(
                 context: context,
                 barrierDismissible: false,
@@ -1040,7 +1044,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                 ),
               );
 
-              // Definisikan rentang maksimal pembacaan berkas (contoh: 1 tahun ke belakang s.d hari ini)[cite: 5]
+              // Definisikan rentang maksimal pembacaan berkas (contoh: 1 tahun ke belakang s.d hari ini)
               final DateTime now = DateTime.now();
               final DateTime oneYearAgo = DateTime(
                 now.year - 1,
@@ -1048,18 +1052,18 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                 now.day,
               );
 
-              // Panggil helper pemuat multi-file bulanan yang baru dibuat[cite: 5]
+              // Panggil helper pemuat multi-file bulanan yang baru dibuat
               List<TimeLogEntry> allPeriodLogs = await _controller
                   .loadAllLogsForRange(oneYearAgo, now);
 
               if (context.mounted) {
-                Navigator.pop(context); // Tutup loading indicator[cite: 5]
+                Navigator.pop(context); // Tutup loading indicator
 
                 showDialog(
                   context: context,
                   builder: (context) => JurnalStatistikDialog(
                     logs: allPeriodLogs,
-                  ), // Suplai dengan seluruh data[cite: 5]
+                  ), // Suplai dengan seluruh data
                 );
               }
             },
@@ -1094,12 +1098,16 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                     children: [
                       const Icon(Icons.today, size: 20, color: Colors.teal),
                       const SizedBox(width: 8),
-                      Text(
-                        'Aktivitas Hari Ini ($todayStr)',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.indigo[900],
+                      // MENAMPILKAN TANGGAL BESERTA KONFIGURASI DEFAULT WAKTU DI UI
+                      Expanded(
+                        child: Text(
+                          'Aktivitas Hari Ini ($todayStr) • Default: ${_controller.defaultIncrementMinutes} mnt',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.indigo[900],
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
