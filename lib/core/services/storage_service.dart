@@ -270,9 +270,31 @@ class StorageService {
   }
 
   // =========================================================================
-  // === JURNAL AKTIVITAS STORAGE (Mendukung Dekripsi Otomatis) ===
+  // === JURNAL AKTIVITAS STORAGE (PARTISI BULANAN BARU) ===
   // =========================================================================
 
+  /// Mendapatkan berkas JSON berdasarkan bulan spesifik.
+  /// Format keluaran berkas: `jurnal_YYYY_MM.json`
+  Future<File> getJurnalFileForMonth(
+    String baseDirSetting,
+    DateTime date,
+  ) async {
+    final Directory jurnalDir = Directory('$baseDirSetting/jurnal_aktivitas');
+    if (!await jurnalDir.exists()) await jurnalDir.create(recursive: true);
+
+    String monthStr = date.month.toString().padLeft(2, '0');
+    return File('${jurnalDir.path}/jurnal_${date.year}_$monthStr.json');
+  }
+
+  /// Referensi berkas master lama sebelum dipartisi (`time_log.json`).
+  /// Digunakan oleh Controller untuk mendeteksi ketersediaan data migrasi.
+  Future<File> getOldMasterJurnalFile(String baseDirSetting) async {
+    final Directory jurnalDir = Directory('$baseDirSetting/jurnal_aktivitas');
+    return File('${jurnalDir.path}/time_log.json');
+  }
+
+  /// @deprecated Gunakan [getJurnalFileForMonth] untuk arsitektur partisi baru.
+  /// Metode ini dipertahankan agar tidak merusak kompilasi lama sebelum integrasi menyeluruh.
   Future<File> getJurnalJsonFile(String baseDirSetting) async {
     final Directory jurnalDir = Directory('$baseDirSetting/jurnal_aktivitas');
     if (!await jurnalDir.exists()) await jurnalDir.create(recursive: true);
@@ -509,7 +531,17 @@ class StorageService {
     allTargetFiles.addAll(await getAllChecklistGroups(baseDir));
     allTargetFiles.addAll(await getAllPromptGroups(baseDir));
     allTargetFiles.addAll(await getAllNoteGroups(baseDir));
-    // Dokumen sengaja dilewati dari perulangan migrasi enkripsi massal sesuai instruksi awal "tidak diencrypt"
+
+    // Scan berkas pecahan jurnal kustom bulanan jika ada untuk dienkripsi massal
+    final Directory jurnalDir = Directory('$baseDir/jurnal_aktivitas');
+    if (await jurnalDir.exists()) {
+      try {
+        final PecahanJurnal = jurnalDir.listSync().whereType<File>().where(
+          (f) => f.path.contains('jurnal_'),
+        );
+        allTargetFiles.addAll(PecahanJurnal);
+      } catch (_) {}
+    }
 
     for (var file in allTargetFiles) {
       if (!await file.exists()) continue;
@@ -550,10 +582,17 @@ class StorageService {
     if (taskFile.existsSync()) await taskFile.delete();
     await loadOrInitializeJson(taskFile);
 
-    // 2. Reset time_log.json ke file default awal
-    final File jurnalFile = await getJurnalJsonFile(baseDir);
-    if (jurnalFile.existsSync()) await jurnalFile.delete();
-    await loadOrInitializeJurnalJson(jurnalFile);
+    // 2. Bersihkan seluruh direktori jurnal_aktivitas (termasuk pecahan bulanan)
+    final Directory jurnalDir = Directory('$baseDir/jurnal_aktivitas');
+    if (jurnalDir.existsSync()) {
+      jurnalDir.deleteSync(recursive: true);
+    }
+    // Inisialisasi ulang file default bulan ini agar aman
+    final File currentMonthFile = await getJurnalFileForMonth(
+      baseDir,
+      DateTime.now(),
+    );
+    await loadOrInitializeJurnalJson(currentMonthFile);
 
     // 3. Hapus seluruh isi direktori my_checklist
     final Directory checklistDir = await getChecklistDir(baseDir);
@@ -593,11 +632,22 @@ class StorageService {
       File fileTasks = await storageService.getTargetJsonFile(baseDir);
       await _encryptSingleFile(fileTasks, password);
 
-      // 2. Enkripsi Jurnal Aktivitas[cite: 1]
+      // 2. Enkripsi Jurnal Aktivitas Lama (jika masih ada)[cite: 4]
       File fileJurnal = await storageService.getJurnalJsonFile(baseDir);
       await _encryptSingleFile(fileJurnal, password);
 
-      // 3. Enkripsi Checklist[cite: 1]
+      // 3. Enkripsi Pecahan Jurnal Bulanan
+      final Directory jurnalDir = Directory('$baseDir/jurnal_aktivitas');
+      if (await jurnalDir.exists()) {
+        final filePecahan = jurnalDir.listSync().whereType<File>().where(
+          (f) => f.path.contains('jurnal_'),
+        );
+        for (File f in filePecahan) {
+          await _encryptSingleFile(f, password);
+        }
+      }
+
+      // 4. Enkripsi Checklist[cite: 4]
       List<File> checklistFiles = await storageService.getAllChecklistGroups(
         baseDir,
       );
@@ -605,13 +655,13 @@ class StorageService {
         await _encryptSingleFile(file, password);
       }
 
-      // 4. Enkripsi Notes[cite: 1]
+      // 5. Enkripsi Notes[cite: 4]
       List<File> noteFiles = await storageService.getAllNoteGroups(baseDir);
       for (File file in noteFiles) {
         await _encryptSingleFile(file, password);
       }
 
-      // 5. Enkripsi Prompts[cite: 1]
+      // 6. Enkripsi Prompts[cite: 4]
       List<File> promptFiles = await storageService.getAllPromptGroups(baseDir);
       for (File file in promptFiles) {
         await _encryptSingleFile(file, password);
@@ -628,12 +678,12 @@ class StorageService {
     if (await targetFile.exists()) {
       String content = await targetFile.readAsString();
 
-      // Validasi agar tidak mengenkripsi berkas yang sudah terenkripsi[cite: 1]
-      // Berkas JSON mentah akan selalu diawali dengan '{' atau '['[cite: 1]
+      // Validasi agar tidak mengenkripsi berkas yang sudah terenkripsi[cite: 4]
+      // Berkas JSON mentah akan selalu diawali dengan '{' atau '['[cite: 4]
       if (content.trim().startsWith('{') || content.trim().startsWith('[')) {
         String encryptedContent = CryptoHelper.encrypt(content, password);
 
-        // Menggunakan AtomicWriteHelper untuk mencegah korupsi data saat penulisan[cite: 1]
+        // Menggunakan AtomicWriteHelper untuk mencegah korupsi data saat penulisan[cite: 4]
         await AtomicWriteHelper.writeSafe(
           targetFile: targetFile,
           content: encryptedContent,
