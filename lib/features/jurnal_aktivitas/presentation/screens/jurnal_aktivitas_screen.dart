@@ -8,7 +8,7 @@ import 'package:rutinitasku/core/presentation/widgets/drawer_menu.dart';
 import 'package:rutinitasku/core/services/storage_service.dart'; // DIperlukan untuk akses konfigurasi penyimpanan berkas
 import 'package:rutinitasku/core/utils/crypto_helper.dart';
 import 'package:rutinitasku/core/utils/atomic_write_helper.dart'; // <--- IMPORT BARU UNTUK ATOMIC WRITE
-import 'package:rutinitasku/core/presentation/widgets/adaptive_banner_ad.dart'; // <--- IMPORT WIDGET ADMOB BARU DARI CORE[cite: 2]
+import 'package:rutinitasku/core/presentation/widgets/adaptive_banner_ad.dart'; // <--- IMPORT WIDGET ADMOB BARU DARI CORE
 import '../../data/models/time_log_model.dart';
 import '../controllers/jurnal_aktivitas_controller.dart';
 import '../widgets/jurnal_statistik_dialog.dart'; // Import sub-widget baru
@@ -929,6 +929,12 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
             icon: const Icon(Icons.history, color: Colors.white),
             onPressed: _showDialogHistory,
           ),
+          // TAMBAHAN TOMBOL BARU: Tambah Tugas/Aktivitas di PALING KANAN!
+          IconButton(
+            icon: const Icon(Icons.add, color: Colors.white),
+            tooltip: 'Tambah Aktivitas Hari Ini',
+            onPressed: _showAddActivityDialog,
+          ),
         ],
       ),
       drawer: const DrawerMenu(isJurnalActive: true),
@@ -1000,7 +1006,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                 ),
               ],
             ),
-      // MENGGUNAKAN WIDGET KUSTOM ADMOB YANG BARU DAN MODULAR PADA FOOTER LAYOUT[cite: 2]
+      // MENGGUNAKAN WIDGET KUSTOM ADMOB YANG BARU DAN MODULAR PADA FOOTER LAYOUT
       bottomNavigationBar: const AdaptiveBannerAd(
         adKey: 'jurnal_activity_banner',
       ),
