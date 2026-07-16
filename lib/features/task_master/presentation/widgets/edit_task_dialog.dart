@@ -66,26 +66,60 @@ class _EditTaskDialogState extends State<EditTaskDialog> {
     super.dispose();
   }
 
+  // PERBAIKAN & PENINGKATAN: Mengintegrasikan DatePicker dan TimePicker secara berurutan[cite: 4]
   Future<void> _selectDate(BuildContext context) async {
     DateTime initialDate = DateTime.now();
+    TimeOfDay initialTime = TimeOfDay.now();
+
     if (_dateController.text.isNotEmpty) {
       try {
-        initialDate = DateTime.parse(_dateController.text);
+        // Ekstrak bagian tanggal saja untuk inisialisasi awal DatePicker jika string berformat "YYYY-MM-DD HH:mm"
+        final String datePart = _dateController.text.trim().split(' ')[0];
+        initialDate = DateTime.parse(datePart);
+
+        // Ekstrak bagian waktu jika tersedia
+        final List<String> parts = _dateController.text.trim().split(' ');
+        if (parts.length > 1) {
+          final List<String> timeParts = parts[1].split(':');
+          if (timeParts.length > 1) {
+            initialTime = TimeOfDay(
+              hour: int.parse(timeParts[0]),
+              minute: int.parse(timeParts[1]),
+            );
+          }
+        }
       } catch (_) {}
     }
 
-    final DateTime? picked = await showDatePicker(
+    // 1. Tampilkan Pemilih Tanggal
+    final DateTime? pickedDate = await showDatePicker(
       context: context,
       initialDate: initialDate,
       firstDate: DateTime(2000),
       lastDate: DateTime(2101),
     );
 
-    if (picked != null) {
-      setState(() {
-        _dateController.text =
-            "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
-      });
+    if (pickedDate != null) {
+      if (!context.mounted) return;
+
+      // 2. Tampilkan Pemilih Jam & Menit
+      final TimeOfDay? pickedTime = await showTimePicker(
+        context: context,
+        initialTime: initialTime,
+      );
+
+      if (pickedTime != null) {
+        setState(() {
+          final String year = pickedDate.year.toString();
+          final String month = pickedDate.month.toString().padLeft(2, '0');
+          final String day = pickedDate.day.toString().padLeft(2, '0');
+          final String hour = pickedTime.hour.toString().padLeft(2, '0');
+          final String minute = pickedTime.minute.toString().padLeft(2, '0');
+
+          // Simpan dengan format gabungan YYYY-MM-DD HH:mm
+          _dateController.text = "$year-$month-$day $hour:$minute";
+        });
+      }
     }
   }
 
@@ -191,8 +225,9 @@ class _EditTaskDialogState extends State<EditTaskDialog> {
                 controller: _dateController,
                 readOnly: true,
                 decoration: InputDecoration(
-                  labelText: 'Tanggal Terakhir Update (YYYY-MM-DD)',
-                  hintText: 'Pilih Tanggal',
+                  labelText:
+                      'Tanggal & Waktu Update (YYYY-MM-DD HH:mm)', // UBAH: Deskripsi label format baru
+                  hintText: 'Pilih Tanggal & Waktu',
                   icon: const Icon(Icons.calendar_today, size: 20),
                   suffixIcon: _dateController.text.isNotEmpty
                       ? IconButton(

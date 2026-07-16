@@ -31,9 +31,22 @@ class TaskMasterController {
 
   TaskMasterController({required this.onUpdate});
 
+  // UBAH: Mengembalikan string berformat "YYYY-MM-DD HH:mm"
   String getTodayDateString() {
     final now = DateTime.now();
-    return "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+    final String datePart =
+        "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+    final String timePart =
+        "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
+    return "$datePart $timePart";
+  }
+
+  // HELPER BARU: Mengambil hanya bagian tanggal "YYYY-MM-DD" saja untuk sinkronisasi antarsistem harian
+  String _getJustDateString(String fullDateStr) {
+    if (fullDateStr.length >= 10) {
+      return fullDateStr.substring(0, 10);
+    }
+    return fullDateStr;
   }
 
   void togglePageEditMode() {
@@ -82,9 +95,10 @@ class TaskMasterController {
               .map((e) => TimeLogEntry.fromJson(e))
               .toList();
 
-          String todayStr = getTodayDateString();
+          // PERBAIKAN: Gunakan pembanding substring "YYYY-MM-DD" untuk melacak log jurnal hari ini
+          String todayDateOnly = _getJustDateString(getTodayDateString());
           final int todayLogIndex = logs.indexWhere(
-            (entry) => entry.tanggal == todayStr,
+            (entry) => _getJustDateString(entry.tanggal) == todayDateOnly,
           );
 
           if (todayLogIndex != -1) {
@@ -138,13 +152,17 @@ class TaskMasterController {
           .map((json) => TaskCategory.fromJson(json))
           .toList();
 
-      String todayStr = getTodayDateString();
+      // PERBAIKAN: Bandingkan hanya bagian tanggalnya ("YYYY-MM-DD") agar countToday berhasil di-reset saat berganti hari
+      String todayDateOnly = _getJustDateString(getTodayDateString());
       bool isDataChanged = false;
       for (var category in loadedCategories) {
         for (var task in category.tasks) {
-          if (task.date != todayStr && task.countToday > 0) {
-            task.countToday = 0;
-            isDataChanged = true;
+          if (task.date != null && task.date!.isNotEmpty) {
+            String taskDateOnly = _getJustDateString(task.date!);
+            if (taskDateOnly != todayDateOnly && task.countToday > 0) {
+              task.countToday = 0;
+              isDataChanged = true;
+            }
           }
         }
       }
@@ -298,7 +316,8 @@ class TaskMasterController {
     // 1. UPDATE INSTAN KE MEMORI & REAL-TIME REFRESH UI (Tanpa Lag)
     task.count += 1;
     task.countToday += 1;
-    task.date = getTodayDateString();
+    task.date =
+        getTodayDateString(); // Otomatis menyimpan tanggal beserta jam & menit baru
 
     // Perbarui UI lokal secara instan agar efek klik terasa instan
     processCategoriesDisplay();
@@ -343,8 +362,14 @@ class TaskMasterController {
       List<TimeLogEntry> loadedLogs = decodedJson
           .map((e) => TimeLogEntry.fromJson(e))
           .toList();
-      final String todayStr = getTodayDateString();
-      bool hasTodayLog = loadedLogs.any((entry) => entry.tanggal == todayStr);
+
+      // PERBAIKAN: Pembersihan string pembanding log jurnal harian agar tetap menggunakan dasar "YYYY-MM-DD" saja
+      final String fullTodayStr = getTodayDateString();
+      final String todayDateOnly = _getJustDateString(fullTodayStr);
+
+      bool hasTodayLog = loadedLogs.any(
+        (entry) => _getJustDateString(entry.tanggal) == todayDateOnly,
+      );
       if (!hasTodayLog && loadedLogs.isNotEmpty) {
         final lastLog = loadedLogs.last;
         List<TimeLogTask> copiedTasks = lastLog.tasks.map((task) {
@@ -356,12 +381,16 @@ class TaskMasterController {
             linkedTaskIds: task.linkedTaskIds,
           );
         }).toList();
-        loadedLogs.add(TimeLogEntry(tanggal: todayStr, tasks: copiedTasks));
+        // Simpan log jurnal baru dengan struktur tanggal murni hari ini
+        loadedLogs.add(
+          TimeLogEntry(tanggal: todayDateOnly, tasks: copiedTasks),
+        );
       } else if (loadedLogs.isEmpty) {
-        loadedLogs.add(TimeLogEntry(tanggal: todayStr, tasks: []));
+        loadedLogs.add(TimeLogEntry(tanggal: todayDateOnly, tasks: []));
       }
+
       int todayIndex = loadedLogs.indexWhere(
-        (entry) => entry.tanggal == todayStr,
+        (entry) => _getJustDateString(entry.tanggal) == todayDateOnly,
       );
       if (todayIndex != -1) {
         bool isUpdated = false;

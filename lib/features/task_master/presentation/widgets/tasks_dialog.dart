@@ -32,11 +32,18 @@ class TasksDialog extends StatelessWidget {
     required this.onReorderTasks,
   });
 
-  List<TextSpan> _buildIndonesianDateSpans(String? dateStr, bool isActive) {
-    if (dateStr == null || dateStr.trim().isEmpty) return [];
+  // PERBAIKAN & MODIFIKASI: Mengubah TextSpan lama menjadi struktur Widget Badge yang estetik[cite: 3]
+  Widget _buildBeautifulDateTimeBadge(String? dateStr, bool isActive) {
+    if (dateStr == null || dateStr.trim().isEmpty)
+      return const SizedBox.shrink();
 
     try {
-      final DateTime parsedDate = DateTime.parse(dateStr);
+      // Pecah string berformat "YYYY-MM-DD HH:mm" menjadi bagian terpisah
+      final parts = dateStr.trim().split(' ');
+      final String rawDate = parts[0];
+      final String rawTime = parts.length > 1 ? parts[1] : '--:--';
+
+      final DateTime parsedDate = DateTime.parse(rawDate);
       const List<String> namaHari = [
         'Senin',
         'Selasa',
@@ -47,70 +54,89 @@ class TasksDialog extends StatelessWidget {
         'Minggu',
       ];
       const List<String> namaBulan = [
-        'Januari',
-        'Februari',
-        'Maret',
-        'April',
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
         'Mei',
-        'Juni',
-        'Juli',
-        'Agustus',
-        'September',
-        'Oktober',
-        'November',
-        'Desember',
+        'Jun',
+        'Jul',
+        'Agu',
+        'Sep',
+        'Okt',
+        'Nov',
+        'Des',
       ];
 
-      final String hari = '(${namaHari[parsedDate.weekday - 1]}) ';
-      final String tanggal = '${parsedDate.day} ';
-      final String bulan = '${namaBulan[parsedDate.month - 1]} ';
-      final String tahun = '${parsedDate.year}';
+      final String hari = namaHari[parsedDate.weekday - 1];
+      final String formattedDate =
+          "${parsedDate.day} ${namaBulan[parsedDate.month - 1]} ${parsedDate.year}";
 
-      return [
-        TextSpan(
-          text: ' | Update: ',
-          style: TextStyle(
-            color: isActive ? Colors.blueGrey : Colors.grey[400],
+      return Container(
+        margin: const EdgeInsets.only(top: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: isActive ? Colors.indigo.withOpacity(0.06) : Colors.grey[200],
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: isActive
+                ? Colors.indigo.withOpacity(0.15)
+                : Colors.grey[300]!,
+            width: 0.8,
           ),
         ),
-        TextSpan(
-          text: hari,
-          style: TextStyle(
-            color: isActive ? Colors.purple[900] : Colors.grey,
-            fontWeight: FontWeight.bold,
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.access_time_filled_rounded,
+              size: 11,
+              color: isActive ? Colors.indigo[700] : Colors.grey,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              "$hari, $formattedDate",
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+                color: isActive ? Colors.grey[800] : Colors.grey,
+              ),
+            ),
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 6),
+              height: 8,
+              width: 1,
+              color: Colors.grey[400],
+            ),
+            Text(
+              rawTime,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: isActive ? Colors.pink[700] : Colors.grey,
+              ),
+            ),
+          ],
         ),
-        TextSpan(
-          text: tanggal,
-          style: TextStyle(
-            color: isActive ? Colors.pink[700] : Colors.grey,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        TextSpan(
-          text: bulan,
-          style: TextStyle(
-            color: isActive ? Colors.teal[700] : Colors.grey,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        TextSpan(
-          text: tahun,
-          style: TextStyle(
-            color: isActive ? Colors.deepOrange[700] : Colors.grey,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ];
+      );
     } catch (_) {
-      return [
-        TextSpan(
-          text: ' | Update: $dateStr',
-          style: TextStyle(color: isActive ? Colors.purple : Colors.grey),
+      // Fallback aman jika data lama masih berformat "YYYY-MM-DD" biasa tanpa jam
+      return Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Text(
+          'Update: $dateStr',
+          style: TextStyle(
+            fontSize: 10,
+            color: isActive ? Colors.blueGrey : Colors.grey,
+          ),
         ),
-      ];
+      );
     }
   }
+
+  // Method ini dipertahankan kosong untuk menjaga integritas kompilasi parameter class lama jika dibutuhkan di file luar[cite: 3]
+  List<TextSpan> _buildIndonesianDateSpans(String? dateStr, bool isActive) =>
+      [];
 
   void _showEditTaskDetailDialog(
     BuildContext context,
@@ -536,39 +562,49 @@ class TasksDialog extends StatelessWidget {
                                             : Colors.grey,
                                       ),
                                     ),
-                                    subtitle: Text.rich(
-                                      TextSpan(
-                                        children: [
-                                          if (todayText != null)
-                                            TextSpan(
-                                              text: todayText,
-                                              style: TextStyle(
-                                                color: todayColor,
-                                                fontWeight:
-                                                    (task.countToday >=
-                                                                task.targetCountToday ||
-                                                            task.targetCountToday ==
-                                                                0) &&
-                                                        task.isActive
-                                                    ? FontWeight.bold
-                                                    : FontWeight.normal,
-                                              ),
-                                            ),
+                                    // UBAH PANEL SUBTITLE: Memanfaatkan Column agar struktur badge waktu berada di baris baru secara eksklusif[cite: 3]
+                                    subtitle: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const SizedBox(height: 2),
+                                        Text.rich(
                                           TextSpan(
-                                            text: totalText,
-                                            style: TextStyle(
-                                              color: task.isActive
-                                                  ? Colors.blue[800]
-                                                  : Colors.grey,
-                                            ),
+                                            children: [
+                                              if (todayText != null)
+                                                TextSpan(
+                                                  text: todayText,
+                                                  style: TextStyle(
+                                                    color: todayColor,
+                                                    fontWeight:
+                                                        (task.countToday >=
+                                                                    task.targetCountToday ||
+                                                                task.targetCountToday ==
+                                                                    0) &&
+                                                            task.isActive
+                                                        ? FontWeight.bold
+                                                        : FontWeight.normal,
+                                                  ),
+                                                ),
+                                              TextSpan(
+                                                text: totalText,
+                                                style: TextStyle(
+                                                  color: task.isActive
+                                                      ? Colors.blue[800]
+                                                      : Colors.grey,
+                                                ),
+                                              ),
+                                            ],
                                           ),
-                                          ..._buildIndonesianDateSpans(
-                                            task.date,
-                                            task.isActive,
-                                          ),
-                                        ],
-                                      ),
-                                      style: const TextStyle(fontSize: 11),
+                                          style: const TextStyle(fontSize: 11),
+                                        ),
+                                        // Panggilan render widget badge visual jam:menit buatan baru
+                                        _buildBeautifulDateTimeBadge(
+                                          task.date,
+                                          task.isActive,
+                                        ),
+                                      ],
                                     ),
                                     trailing: Builder(
                                       builder: (buttonContext) {
