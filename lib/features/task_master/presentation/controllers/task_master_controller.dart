@@ -330,19 +330,45 @@ class TaskMasterController {
     saveAllCategoriesToFile(shouldRefresh: false);
 
     // Proses pencatatan jurnal dijalankan di background
-    _add30MinutesToJurnal(task.id, context);
+    _addTimeToJurnal(task.id, context);
 
     return true;
   }
 
-  Future<bool> _add30MinutesToJurnal(
-    String myTaskId,
-    BuildContext context,
-  ) async {
+  Future<bool> _addTimeToJurnal(String myTaskId, BuildContext context) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final int minutesToAdd = prefs.getInt('default_increment_minutes') ?? 30;
+      int minutesToAdd = 30; // Nilai default fallback
 
+      // 1. BACA PENGATURAN DEFAULT DARI jurnal_template.json
+      try {
+        final File templateFile = File(
+          '$selectedBaseDir/jurnal_aktivitas/jurnal_template.json',
+        );
+        if (await templateFile.exists()) {
+          String tempString = await templateFile.readAsString();
+          bool isEncrypted = await storageService.isEncryptionEnabled();
+          String? password = await storageService.getEncryptionPassword();
+
+          if (isEncrypted &&
+              password != null &&
+              !tempString.trim().startsWith('{') &&
+              !tempString.trim().startsWith('[')) {
+            tempString = CryptoHelper.decrypt(tempString, password);
+          }
+
+          final dynamic parsed = jsonDecode(tempString);
+          if (parsed is Map<String, dynamic> &&
+              parsed['settings'] != null &&
+              parsed['settings']['default_increment_minutes'] != null) {
+            minutesToAdd =
+                parsed['settings']['default_increment_minutes'] as int;
+          }
+        }
+      } catch (e) {
+        debugPrint("Gagal membaca setting waktu default jurnal: $e");
+      }
+
+      // 2. PROSES PENAMBAHAN WAKTU KE JURNAL BULANAN
       // PERBAIKAN UTAMA: Menggunakan getJurnalFileForMonth agar mengarah ke file bulanan yang sama dengan Jurnal AktivitasScreen
       final File JurnalFile = await storageService.getJurnalFileForMonth(
         selectedBaseDir,
