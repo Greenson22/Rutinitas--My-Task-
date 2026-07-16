@@ -107,7 +107,7 @@ class SharingServer {
             );
             if (handledByDocSync) return;
 
-            // PERBAIKAN: Jaga-jaga agar JSON Parser di bawah tidak crash akibat data biner yang nyasar
+            // PERBAIKAN: Jaga-jaga agar JSON Parser di bawah tidak crash akibat data biner yang nyasar[cite: 5]
             if (pesanMasuk is! String) return;
 
             BuildContext? progressCtx;
@@ -128,7 +128,8 @@ class SharingServer {
                 }
                 statusNotifier.value = 'Membaca paket enkripsi masuk...';
                 String clientTasks = dateReceived['task_master'];
-                String clientJurnal = dateReceived['jurnal_aktivitas'];
+                String clientJurnalZipBase64 =
+                    dateReceived['jurnal_aktivitas']; // Mengubah variabel teks menjadi ZIP Base64
                 String clientZipBase64 = dateReceived['checklist_zip'];
                 String clientNotesZipBase64 = dateReceived['notes_zip'] ?? "";
                 String clientPromptsZipBase64 =
@@ -142,10 +143,25 @@ class SharingServer {
                 clientArchive.addFile(
                   ArchiveFile('my_tasks.json', tasksBytes.length, tasksBytes),
                 );
-                List<int> jurnalBytes = utf8.encode(clientJurnal);
-                clientArchive.addFile(
-                  ArchiveFile('time_log.json', jurnalBytes.length, jurnalBytes),
-                );
+
+                // Mengurai paket arsip partisi Jurnal Aktivitas dari Client ke paket ZIP utama
+                if (clientJurnalZipBase64.isNotEmpty) {
+                  statusNotifier.value =
+                      'Memproses data modul Jurnal (Multi-file)...';
+                  List<int> jrnBytes = base64Decode(clientJurnalZipBase64);
+                  Archive jurnalArchive = ZipDecoder().decodeBytes(jrnBytes);
+                  for (ArchiveFile file in jurnalArchive) {
+                    if (file.isFile) {
+                      clientArchive.addFile(
+                        ArchiveFile(
+                          'jurnal_aktivitas/${file.name}',
+                          file.content.length,
+                          file.content,
+                        ),
+                      );
+                    }
+                  }
+                }
 
                 if (clientZipBase64.isNotEmpty) {
                   statusNotifier.value = 'Memproses data modul Checklist...';
@@ -360,16 +376,37 @@ class SharingServer {
           );
         }
         try {
-          statusNotifier.value = 'Membaca berkas Task Master & Jurnal...';
+          statusNotifier.value = 'Membaca berkas Task Master...';
           String currentDir = await _storageService.getBaseDirSetting();
           File fileTasks = await _storageService.getTargetJsonFile(currentDir);
           String tasksContent = await fileTasks.exists()
               ? await fileTasks.readAsString()
               : "{}";
-          File fileJurnal = await _storageService.getJurnalJsonFile(currentDir);
-          String journalContent = await fileJurnal.exists()
-              ? await fileJurnal.readAsString()
-              : "[]";
+
+          // Logika baru untuk mengompresi partisi multi-file dari folder jurnal_aktivitas
+          statusNotifier.value = 'Mengompresi partisi berkas Jurnal (ZIP)...';
+          final Directory jurnalDir = Directory('$currentDir/jurnal_aktivitas');
+          final Archive jurnalArchive = Archive();
+          if (await jurnalDir.exists()) {
+            List<File> jurnalFiles = jurnalDir
+                .listSync()
+                .whereType<File>()
+                .where((f) => f.path.endsWith('.json'))
+                .toList();
+            for (var file in jurnalFiles) {
+              jurnalArchive.addFile(
+                ArchiveFile(
+                  file.path.split('/').last,
+                  file.lengthSync(),
+                  await file.readAsBytes(),
+                ),
+              );
+            }
+          }
+          final List<int>? jrnZipBytes = ZipEncoder().encode(jurnalArchive);
+          String jurnalBase64Content = jrnZipBytes != null
+              ? base64Encode(jrnZipBytes)
+              : "";
 
           statusNotifier.value = 'Mengompresi data Checklist (ZIP)...';
           List<File> groupFiles = await _storageService.getAllChecklistGroups(
@@ -463,7 +500,8 @@ class SharingServer {
           Map<String, dynamic> sendBigPackage = {
             'tipe_pesan': 'data_transfer',
             'task_master': tasksContent,
-            'jurnal_aktivitas': journalContent,
+            'jurnal_aktivitas':
+                jurnalBase64Content, // Mengirimkan bundle arsip Base64 ZIP
             'checklist_zip': zipBase64Content,
             'notes_zip': notesBase64Content,
             'prompts_zip': promptsBase64Content,

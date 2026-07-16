@@ -176,11 +176,16 @@ class BackupTabState extends State<BackupTab> {
           ? await fileTasks.readAsString()
           : "{}";
 
-      statusNotifier.value = 'Membaca data Jurnal...';
-      File fileJurnal = await _storageService.getJurnalJsonFile(_baseDir);
-      String kontenJurnal = await fileJurnal.exists()
-          ? await fileJurnal.readAsString()
-          : "[]";
+      statusNotifier.value = 'Mengumpulkan berkas Jurnal (Multi-file)...';
+      final Directory jurnalDir = Directory('$_baseDir/jurnal_aktivitas');
+      List<File> jurnalFiles = [];
+      if (await jurnalDir.exists()) {
+        jurnalFiles = jurnalDir
+            .listSync()
+            .whereType<File>()
+            .where((f) => f.path.endsWith('.json'))
+            .toList();
+      }
 
       statusNotifier.value = 'Mengumpulkan data Checklist...';
       List<File> hubFiles = await _storageService.getAllChecklistGroups(
@@ -205,13 +210,14 @@ class BackupTabState extends State<BackupTab> {
         ),
       );
 
-      backupArchive.addFile(
-        ArchiveFile(
-          'time_log.json',
-          utf8.encode(kontenJurnal).length,
-          utf8.encode(kontenJurnal),
-        ),
-      );
+      // Memasukkan seluruh partisi file JSON Jurnal bulanan & template harian ke arsip ZIP
+      for (var file in jurnalFiles) {
+        final String namaFile = file.path.split('/').last;
+        final List<int> bytes = await file.readAsBytes();
+        backupArchive.addFile(
+          ArchiveFile('jurnal_aktivitas/$namaFile', bytes.length, bytes),
+        );
+      }
 
       for (var file in hubFiles) {
         final String namaFile = file.path.split('/').last;
@@ -318,6 +324,7 @@ class BackupTabState extends State<BackupTab> {
   }
 
   void _exportBackupToCustomFolder(File fileBackup) async {
+    key:
     try {
       final String namaFile = fileBackup.path.split('/').last;
 
@@ -421,36 +428,59 @@ class BackupTabState extends State<BackupTab> {
 
   void _exportJurnal() async {
     try {
-      File fileAsli = await _storageService.getJurnalJsonFile(_baseDir);
-      if (await fileAsli.exists()) {
-        if (Platform.isLinux) {
-          String? lokasiSimpan = await FilePicker.saveFile(
-            dialogTitle: 'Simpan Backup Jurnal Aktivitas',
-            fileName: _getFormattedFileName('time_log_backup', 'json'),
-            type: FileType.custom,
-            allowedExtensions: ['json'],
-          );
-          if (lokasiSimpan != null) {
-            await fileAsli.copy(lokasiSimpan);
-            if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Backup Jurnal Berhasil Disimpan di Linux!'),
-              ),
-            );
-          }
-        } else {
-          String namaDinamis = _getFormattedFileName('time_log_backup', 'json');
-          final tempFile = await fileAsli.copy(
-            '${Directory.systemTemp.path}/$namaDinamis',
-          );
-          await Share.shareXFiles([
-            XFile(tempFile.path),
-          ], text: 'Backup Jurnal Aktivitas Data');
-        }
+      final Directory jurnalDir = Directory('$_baseDir/jurnal_aktivitas');
+      if (!await jurnalDir.exists()) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Tidak ada data Jurnal ditemukan.')),
+        );
+        return;
+      }
+      final List<File> jurnalFiles = jurnalDir
+          .listSync()
+          .whereType<File>()
+          .where((f) => f.path.endsWith('.json'))
+          .toList();
+
+      if (jurnalFiles.isEmpty) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Folder Jurnal kosong.')));
+        return;
+      }
+
+      final Archive archive = Archive();
+      for (var file in jurnalFiles) {
+        archive.addFile(
+          ArchiveFile(
+            file.path.split('/').last,
+            file.lengthSync(),
+            await file.readAsBytes(),
+          ),
+        );
+      }
+
+      final List<int>? zipBytes = ZipEncoder().encode(archive);
+      if (zipBytes == null) return;
+
+      String namaZipDinamis = _getFormattedFileName('jurnal_backup', 'zip');
+      final File zipFile = File('${Directory.systemTemp.path}/$namaZipDinamis')
+        ..writeAsBytesSync(zipBytes);
+
+      if (Platform.isLinux) {
+        String? lokasiSimpan = await FilePicker.saveFile(
+          dialogTitle: 'Simpan Backup Jurnal (ZIP)',
+          fileName: namaZipDinamis,
+          type: FileType.custom,
+          allowedExtensions: ['zip'],
+        );
+        if (lokasiSimpan != null) await zipFile.copy(lokasiSimpan);
+      } else {
+        await Share.shareXFiles([
+          XFile(zipFile.path),
+        ], text: 'Backup Semua Partisi Jurnal Aktivitas (ZIP)');
       }
     } catch (e) {
-      debugPrint("Gagal export Jurnal: $e");
+      debugPrint("Gagal export ZIP Jurnal: $e");
     }
   }
 
@@ -458,18 +488,43 @@ class BackupTabState extends State<BackupTab> {
     try {
       FilePickerResult? result = await FilePicker.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['json'],
+        allowedExtensions: ['zip'],
       );
       if (result != null && result.files.single.path != null) {
-        String fileContent = await File(
-          result.files.single.path!,
-        ).readAsString();
-        File targetFile = await _storageService.getJurnalJsonFile(_baseDir);
-        await _storageService.saveJsonData(targetFile, fileContent);
+        File selectedZipFile = File(result.files.single.path!);
+        List<int> bytes = await selectedZipFile.readAsBytes();
+        Archive archive = ZipDecoder().decodeBytes(bytes);
+
+        String targetFolder = '$_baseDir/jurnal_aktivitas';
+        Directory(targetFolder).createSync(recursive: true);
+
+        int hitungSukses = 0;
+        for (ArchiveFile file in archive) {
+          if (file.isFile) {
+            String namaFileBaru = file.name;
+            File fileBaru = File('$targetFolder/$namaFileBaru');
+
+            if (await fileBaru.exists()) {
+              final String timestamp = DateTime.now().millisecondsSinceEpoch
+                  .toString();
+              namaFileBaru = namaFileBaru.replaceAll(
+                '.json',
+                '_$timestamp.json',
+              );
+              fileBaru = File('$targetFolder/$namaFileBaru');
+            }
+
+            await fileBaru.writeAsBytes(file.content);
+            hitungSukses++;
+          }
+        }
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Data Jurnal Aktivitas berhasil di-import!'),
+          SnackBar(
+            content: Text(
+              'Berhasil mengimport $hitungSukses partisi file Jurnal!',
+            ),
+            backgroundColor: Colors.teal,
           ),
         );
       }

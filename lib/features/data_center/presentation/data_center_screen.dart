@@ -5,7 +5,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:rutinitasku/features/data_center/presentation/backup/backup_tab.dart';
 import 'package:rutinitasku/features/data_center/presentation/local_sharing/local_sharing_tab.dart';
-import 'package:rutinitasku/core/presentation/widgets/adaptive_banner_ad.dart'; // <--- IMPORT WIDGET ADMOB BARU DARI CORE[cite: 2]
+import 'package:rutinitasku/core/presentation/widgets/adaptive_banner_ad.dart'; // <--- IMPORT WIDGET ADMOB BARU DARI CORE[cite: 2, 4]
 import '../../../core/services/storage_service.dart';
 import '../../../core/presentation/widgets/drawer_menu.dart';
 import 'widgets/last_restore_banner.dart';
@@ -225,6 +225,14 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
       List<int> bytes = await zipFile.readAsBytes();
       Archive archive = ZipDecoder().decodeBytes(bytes);
 
+      // Bersihkan dan inisialisasi folder Jurnal Aktivitas partisi multi-file kustom
+      String folderJurnal = '$_baseDir/jurnal_aktivitas';
+      Directory jurnalDir = Directory(folderJurnal);
+      if (jurnalDir.existsSync()) {
+        jurnalDir.deleteSync(recursive: true);
+      }
+      jurnalDir.createSync(recursive: true);
+
       String folderChecklist = await _storageService.getChecklistDirPath(
         _baseDir,
       );
@@ -262,9 +270,14 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
           if (file.name == 'my_tasks.json') {
             File target = await _storageService.getTargetJsonFile(_baseDir);
             await target.writeAsBytes(file.content);
-          } else if (file.name == 'time_log.json') {
-            File target = await _storageService.getJurnalJsonFile(_baseDir);
-            await target.writeAsBytes(file.content);
+          } else if (file.name.startsWith('jurnal_aktivitas/')) {
+            // Mengekstraksi multi-file berkas partisi bulanan ke dalam subfolder jurnal_aktivitas/
+            String namaFileJurnal = file.name.split('/').last;
+            if (namaFileJurnal.isNotEmpty) {
+              await File(
+                '$folderJurnal/$namaFileJurnal',
+              ).writeAsBytes(file.content);
+            }
           } else if (file.name.startsWith('my_checklist/')) {
             String namaFileHub = file.name.split('/').last;
             if (namaFileHub.isNotEmpty) {
