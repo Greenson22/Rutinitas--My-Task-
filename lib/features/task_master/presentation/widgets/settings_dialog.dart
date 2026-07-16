@@ -26,6 +26,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
   late String _tempSelection;
   bool _isEncryptionEnabled = false;
   bool _rememberPassword = false;
+  bool _enableRandomGenerator = false; // Flag untuk status Random Generator
 
   final StorageService _storageService = StorageService();
 
@@ -41,6 +42,9 @@ class _SettingsDialogState extends State<SettingsDialog> {
     setState(() {
       _isEncryptionEnabled = prefs.getBool('is_encrypted') ?? false;
       _rememberPassword = prefs.getBool('remember_password') ?? false;
+      // Membaca status fitur eksperimental, defaultnya false
+      _enableRandomGenerator =
+          prefs.getBool('enable_random_generator') ?? false;
     });
   }
 
@@ -225,8 +229,6 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 onPressed: () {
                   final input = passwordController.text.trim();
                   if (input.isNotEmpty) {
-                    // PERBAIKAN: Validasi kecocokan sandi lama dihapus total.
-                    // Aplikasi akan langsung melanjutkan proses migrasi menggunakan kata sandi apa pun yang diinput.
                     Navigator.pop(ctx, true);
                   }
                 },
@@ -255,8 +257,6 @@ class _SettingsDialogState extends State<SettingsDialog> {
       );
 
       try {
-        // Memanggil fungsi bawaan 'migrateFilesEncryption' dari StorageService Anda.
-        // Karena gerbang validasi telah dilewati, fungsi ini akan langsung dipaksa berjalan.
         await _storageService.migrateFilesEncryption(
           value,
           inputPassword,
@@ -296,6 +296,14 @@ class _SettingsDialogState extends State<SettingsDialog> {
         );
       }
     }
+  }
+
+  Future<void> _handleRandomGeneratorToggle(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _enableRandomGenerator = value;
+    });
+    await prefs.setBool('enable_random_generator', value);
   }
 
   @override
@@ -408,37 +416,44 @@ class _SettingsDialogState extends State<SettingsDialog> {
                     : null,
               ),
             ),
-
             const Divider(),
             const SizedBox(height: 10),
+
+            // ==================== FITUR EKSPERIMENTAL ====================
             Row(
               children: [
-                Icon(Icons.info_outline, color: Colors.indigo[700], size: 18),
+                Icon(
+                  Icons.science_outlined,
+                  color: Colors.deepPurple[700],
+                  size: 18,
+                ),
                 const SizedBox(width: 6),
                 Text(
-                  'Informasi Penyimpanan',
+                  'Fitur Eksperimental',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: Colors.indigo[900],
+                    color: Colors.deepPurple[900],
                     fontSize: 13,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Aplikasi akan otomatis membuat 3 subfolder berikut di dalam direktori terpilih untuk menyimpan data secara lokal:',
-              style: TextStyle(color: Colors.grey[700], fontSize: 12),
-            ),
-            const SizedBox(height: 8),
-            _buildFolderInfoItem('📁 /mytask', 'Data manajemen tugas utama'),
-            _buildFolderInfoItem(
-              '📁 /my_checklist',
-              'Data pengaturan checklist hub',
-            ),
-            _buildFolderInfoItem(
-              '📁 /jurnal_aktivitas',
-              'Data log waktu produktif harian',
+            const SizedBox(height: 4),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text(
+                'Tampilkan Random Generator',
+                style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+              ),
+              subtitle: const Text(
+                'Aktifkan menu pembuatan angka/kategori acak di laci navigasi.',
+                style: TextStyle(fontSize: 11, color: Colors.black54),
+              ),
+              trailing: Switch(
+                value: _enableRandomGenerator,
+                activeColor: Colors.deepPurple,
+                onChanged: _handleRandomGeneratorToggle,
+              ),
             ),
           ],
         ),
@@ -460,36 +475,6 @@ class _SettingsDialogState extends State<SettingsDialog> {
           child: const Text('Simpan'),
         ),
       ],
-    );
-  }
-
-  Widget _buildFolderInfoItem(String folderName, String description) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 4.0, bottom: 6.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            flex: 4,
-            child: Text(
-              folderName,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 12,
-                color: Colors.black87,
-              ),
-            ),
-          ),
-          const Text(' : ', style: TextStyle(fontSize: 12, color: Colors.grey)),
-          Expanded(
-            flex: 6,
-            child: Text(
-              description,
-              style: TextStyle(color: Colors.grey[600], fontSize: 12),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

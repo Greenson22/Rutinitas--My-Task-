@@ -1,6 +1,7 @@
 // lib/core/presentation/widgets/drawer_menu.dart
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // IMPORT SHAREDPREFERENCES
 import '../../../features/task_master/presentation/screens/task_master_screen.dart';
 import '../../../features/checklist/presentation/checklist_screen/checklist_screen.dart';
 import '../../../features/notes/presentation/screens/note_screen.dart';
@@ -40,16 +41,29 @@ class DrawerMenu extends StatefulWidget {
 class _DrawerMenuState extends State<DrawerMenu> {
   final StorageService _storageService = StorageService();
   String _selectedBaseDir = 'Documents';
+  bool _showRandomGeneratorMenu = false; // State visibilitas Random Generator
 
   @override
   void initState() {
     super.initState();
     _loadBaseDir();
+    _checkRandomMenuVisibility(); // Jalankan pengecekan visibilitas menu
   }
 
   Future<void> _loadBaseDir() async {
     String baseDir = await _storageService.getBaseDirSetting();
     if (mounted) setState(() => _selectedBaseDir = baseDir);
+  }
+
+  // Fungsi pengecekan visibilitas menu berdasarkan Shared Preferences (default: false)
+  Future<void> _checkRandomMenuVisibility() async {
+    final prefs = await SharedPreferences.getInstance();
+    final isAllowed = prefs.getBool('enable_random_generator') ?? false;
+    if (mounted) {
+      setState(() {
+        _showRandomGeneratorMenu = isAllowed;
+      });
+    }
   }
 
   void _showSettingsDialog() {
@@ -70,7 +84,10 @@ class _DrawerMenuState extends State<DrawerMenu> {
           }
         },
       ),
-    );
+    ).then((_) {
+      // Refresh visibilitas menu setelah dialog pengaturan ditutup
+      _checkRandomMenuVisibility();
+    });
   }
 
   // Helper untuk navigasi ulang setelah pengaturan berubah
@@ -249,21 +266,24 @@ class _DrawerMenuState extends State<DrawerMenu> {
             },
           ),
 
-          // 7. Menu Random Generator
-          _buildMenuTile(
-            icon: Icons.casino_outlined,
-            title: 'Random Generator',
-            isActive: widget.isRandomActive,
-            onTap: () {
-              Navigator.pop(context);
-              if (!widget.isRandomActive) {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => const RandomScreen()),
-                );
-              }
-            },
-          ),
+          // 7. Menu Random Generator (Dikondisikan berdasarkan pengaturan Fitur Eksperimental)
+          if (_showRandomGeneratorMenu)
+            _buildMenuTile(
+              icon: Icons.casino_outlined,
+              title: 'Random Generator',
+              isActive: widget.isRandomActive,
+              onTap: () {
+                Navigator.pop(context);
+                if (!widget.isRandomActive) {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const RandomScreen(),
+                    ),
+                  );
+                }
+              },
+            ),
 
           // 8. Menu Data Center (Utilitas Penyimpanan)
           _buildMenuTile(
