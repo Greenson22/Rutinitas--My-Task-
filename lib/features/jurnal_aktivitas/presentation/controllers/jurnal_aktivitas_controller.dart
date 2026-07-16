@@ -1,4 +1,5 @@
 // lib/features/jurnal_aktivitas/presentation/controllers/jurnal_aktivitas_controller.dart
+
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
@@ -13,12 +14,12 @@ import '../../data/models/time_log_model.dart';
 class JurnalAktivitasController {
   final StorageService _storageService = StorageService();
 
-  // State yang diekspos ke UI (Hanya menyimpan log bulan yang sedang aktif / ditampilkan)
+  // State yang diekspos ke UI (Menyimpan log bulan aktif & template tugas hari ini)
   List<TimeLogEntry> logs = [];
   List<TaskCategory> allTaskCategories = [];
   String baseDir = '';
 
-  // Karena sekarang memakai per bulan, kita simpan referensi waktu saat ini
+  // Referensi waktu saat ini untuk sistem partisi file bulanan
   DateTime currentActiveMonth = DateTime.now();
 
   bool isLoading = true;
@@ -32,7 +33,8 @@ class JurnalAktivitasController {
     return "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
   }
 
-  // File target sekarang dinamis berdasarkan bulan aktif
+  // --- HELPER PATH BERKAS ---
+
   Future<File> getJurnalFile() async {
     return await _storageService.getJurnalFileForMonth(
       baseDir,
@@ -40,58 +42,14 @@ class JurnalAktivitasController {
     );
   }
 
-  /// Membaca secara dinamis seluruh file log bulanan yang tercakup dalam rentang waktu tertentu.
-  /// Digunakan khusus untuk menyuplai data penuh ke Dialog Analitik/Statistik tanpa mengotori
-  /// state utama `logs` yang sedang aktif di UI utama.
-  Future<List<TimeLogEntry>> loadAllLogsForRange(
-    DateTime start,
-    DateTime end,
-  ) async {
-    List<TimeLogEntry> combinedLogs = [];
-
-    // Cari tahu bulan apa saja yang berada di dalam rentang waktu start s.d end
-    List<DateTime> monthsToLoad = [];
-    DateTime current = DateTime(start.year, start.month, 1);
-    DateTime targetEnd = DateTime(end.year, end.month, 1);
-
-    while (!current.isAfter(targetEnd)) {
-      monthsToLoad.add(current);
-      current = DateTime(current.year, current.month + 1, 1);
-    }
-
-    bool isEncrypted = await _storageService.isEncryptionEnabled();
-    String? password = await _storageService.getEncryptionPassword();
-
-    for (DateTime monthDate in monthsToLoad) {
-      try {
-        File monthFile = await _storageService.getJurnalFileForMonth(
-          baseDir,
-          monthDate,
-        );
-        if (await monthFile.exists()) {
-          String jsonString = await monthFile.readAsString();
-
-          if (isEncrypted &&
-              password != null &&
-              !jsonString.trim().startsWith('[')) {
-            jsonString = CryptoHelper.decrypt(jsonString, password);
-          }
-
-          final List<dynamic> decodedJson = jsonDecode(jsonString);
-          List<TimeLogEntry> monthlyLogs = decodedJson
-              .map((e) => TimeLogEntry.fromJson(e))
-              .toList();
-          combinedLogs.addAll(monthlyLogs);
-        }
-      } catch (e) {
-        debugPrint(
-          "Gagal memuat potongan log bulan ${monthDate.year}-${monthDate.month} untuk statistik: $e",
-        );
-      }
-    }
-
-    return combinedLogs;
+  // File baru khusus untuk menyimpan daftar kerangka tugas utama (Template)
+  Future<File> _getTemplateFile() async {
+    final Directory jurnalDir = Directory('$baseDir/jurnal_aktivitas');
+    if (!await jurnalDir.exists()) await jurnalDir.create(recursive: true);
+    return File('${jurnalDir.path}/jurnal_template.json');
   }
+
+  // --- SISTEM PEMUATAN DATA UTAMA ---
 
   Future<void> loadData({required VoidCallback onNotify}) async {
     isLoading = true;
@@ -104,25 +62,23 @@ class JurnalAktivitasController {
       defaultIncrementMinutes = prefs.getInt('default_increment_minutes') ?? 30;
       baseDir = await _storageService.getBaseDirSetting();
 
-      // 1. CEK & JALANKAN MIGRASI JIKA PERLU
+      // 1. Cek & jalankan migrasi file lama jika perlu
       File oldMaster = await _storageService.getOldMasterJurnalFile(baseDir);
       if (await oldMaster.exists()) {
         await _migrateOldData(oldMaster);
       }
 
-      // 2. MUAT DATA BULAN INI SAJA
-      jsonFile = await getJurnalFile();
+      bool isEncrypted = await _storageService.isEncryptionEnabled();
+      String? password = await _storageService.getEncryptionPassword();
 
+      // 2. Muat Riwayat Bulan Ini (Hanya berisi aktivitas > 0 menit)
+      jsonFile = await getJurnalFile();
       String jsonString = '[]';
       if (await jsonFile.exists()) {
         jsonString = await jsonFile.readAsString();
       } else {
-        // Jika file bulan ini belum ada, inisialisasi kosong
         await AtomicWriteHelper.writeSafe(targetFile: jsonFile, content: '[]');
       }
-
-      bool isEncrypted = await _storageService.isEncryptionEnabled();
-      String? password = await _storageService.getEncryptionPassword();
 
       if (isEncrypted &&
           password != null &&
@@ -135,32 +91,87 @@ class JurnalAktivitasController {
           .map((e) => TimeLogEntry.fromJson(e))
           .toList();
 
-      // Logika menambahkan hari ini jika belum ada (hanya jika currentActiveMonth adalah bulan ini)
+      // 3. Muat Template Tugas (Daftar list aktivitas saat ini)
+      File templateFile = await _getTemplateFile();
+      List<TimeLogTask> templateTasks = [];
+      if (await templateFile.exists()) {
+        String tempString = await templateFile.readAsString();
+        if (isEncrypted &&
+            password != null &&
+            !tempString.trim().startsWith('[')) {
+          tempString = CryptoHelper.decrypt(tempString, password);
+        }
+        try {
+          final List<dynamic> decTemp = jsonDecode(tempString);
+          templateTasks = decTemp.map((e) => TimeLogTask.fromJson(e)).toList();
+        } catch (_) {}
+      } else {
+        // Fallback jika file template belum ada (misal: baru update app)
+        if (loadedLogs.isNotEmpty) {
+          templateTasks = loadedLogs.last.tasks
+              .map(
+                (t) => TimeLogTask(
+                  id: t.id,
+                  nama: t.nama,
+                  durasiMenit: 0,
+                  kategori: t.kategori,
+                  linkedTaskIds: List.from(t.linkedTaskIds),
+                ),
+              )
+              .toList();
+        }
+      }
+
+      // Pastikan template murni bernilai 0 menit
+      for (var t in templateTasks) {
+        t.durasiMenit = 0;
+      }
+
+      // 4. Gabungkan (Merge) Kerangka Template dengan Riwayat Hari Ini
       final DateTime now = DateTime.now();
       if (currentActiveMonth.year == now.year &&
           currentActiveMonth.month == now.month) {
         final String todayStr = getTodayDateString();
-        bool hasTodayLog = loadedLogs.any((entry) => entry.tanggal == todayStr);
+        int todayIdx = loadedLogs.indexWhere(
+          (entry) => entry.tanggal == todayStr,
+        );
 
-        if (!hasTodayLog && loadedLogs.isNotEmpty) {
-          final lastLog = loadedLogs.last;
-          List<TimeLogTask> copiedTasks = lastLog.tasks.map((task) {
-            return TimeLogTask(
-              id: task.id,
-              nama: task.nama,
-              durasiMenit: 0,
-              kategori: task.kategori,
-              linkedTaskIds: List.from(
-                task.linkedTaskIds,
-              ), // Pastikan deep copy list
-            );
-          }).toList();
-          loadedLogs.add(TimeLogEntry(tanggal: todayStr, tasks: copiedTasks));
-          await _saveLogsToFile(jsonFile, loadedLogs, isEncrypted, password);
-        } else if (loadedLogs.isEmpty) {
-          // Coba ambil dari bulan lalu jika bulan ini masih kosong total
-          await _copyTasksFromLastMonth(loadedLogs, todayStr);
-          await _saveLogsToFile(jsonFile, loadedLogs, isEncrypted, password);
+        if (todayIdx != -1) {
+          // Jika hari ini sudah ada lognya, padukan durasi tersimpan ke dalam struktur template
+          List<TimeLogTask> savedTodayTasks = loadedLogs[todayIdx].tasks;
+          List<TimeLogTask> mergedTasks = [];
+
+          for (var tTask in templateTasks) {
+            var matched = savedTodayTasks.where((s) => s.id == tTask.id);
+            if (matched.isNotEmpty) {
+              tTask.durasiMenit =
+                  matched.first.durasiMenit; // Masukkan durasi aslinya
+            }
+            mergedTasks.add(tTask);
+          }
+
+          // Antisipasi: kembalikan tugas yg ada di riwayat >0 tapi kebetulan sudah terhapus dari template
+          for (var sTask in savedTodayTasks) {
+            if (!mergedTasks.any((m) => m.id == sTask.id)) {
+              mergedTasks.add(sTask);
+            }
+          }
+          loadedLogs[todayIdx].tasks.clear();
+          loadedLogs[todayIdx].tasks.addAll(mergedTasks);
+        } else {
+          // Hari ini belum ada riwayat, siapkan list baru menggunakan template (0 menit)
+          List<TimeLogTask> newTodayTasks = templateTasks
+              .map(
+                (t) => TimeLogTask(
+                  id: t.id,
+                  nama: t.nama,
+                  durasiMenit: 0,
+                  kategori: t.kategori,
+                  linkedTaskIds: List.from(t.linkedTaskIds),
+                ),
+              )
+              .toList();
+          loadedLogs.add(TimeLogEntry(tanggal: todayStr, tasks: newTodayTasks));
         }
       }
 
@@ -178,120 +189,72 @@ class JurnalAktivitasController {
     }
   }
 
-  // Fungsi Helper untuk menyalin tugas bulan lalu jika bulan baru saja dimulai
-  Future<void> _copyTasksFromLastMonth(
-    List<TimeLogEntry> currentLogs,
-    String todayStr,
-  ) async {
-    DateTime lastMonth = DateTime(
-      currentActiveMonth.year,
-      currentActiveMonth.month - 1,
-      1,
-    );
-    File lastMonthFile = await _storageService.getJurnalFileForMonth(
-      baseDir,
-      lastMonth,
-    );
+  // --- SISTEM PENYIMPANAN DATA UTAMA ---
 
-    if (await lastMonthFile.exists()) {
-      try {
-        String jsonString = await lastMonthFile.readAsString();
-        bool isEncrypted = await _storageService.isEncryptionEnabled();
-        String? password = await _storageService.getEncryptionPassword();
-        if (isEncrypted &&
-            password != null &&
-            !jsonString.trim().startsWith('[')) {
-          jsonString = CryptoHelper.decrypt(jsonString, password);
-        }
-        final List<dynamic> decodedJson = jsonDecode(jsonString);
-        List<TimeLogEntry> lastMonthLogs = decodedJson
-            .map((e) => TimeLogEntry.fromJson(e))
-            .toList();
-
-        if (lastMonthLogs.isNotEmpty) {
-          final lastLog = lastMonthLogs.last;
-          List<TimeLogTask> copiedTasks = lastLog.tasks.map((task) {
-            return TimeLogTask(
-              id: task.id,
-              nama: task.nama,
-              durasiMenit: 0,
-              kategori: task.kategori,
-              linkedTaskIds: List.from(task.linkedTaskIds),
-            );
-          }).toList();
-          currentLogs.add(TimeLogEntry(tanggal: todayStr, tasks: copiedTasks));
-          return;
-        }
-      } catch (e) {
-        debugPrint("Gagal menyalin dari bulan lalu: $e");
-      }
-    }
-    // Jika gagal atau tidak ada bulan lalu, buat kosong
-    currentLogs.add(TimeLogEntry(tanggal: todayStr, tasks: []));
-  }
-
-  // --- SCRIPT MIGRASI OTOMATIS ---
-  Future<void> _migrateOldData(File oldMaster) async {
-    debugPrint("Memulai migrasi file jurnal lama ke format bulanan...");
+  Future<void> saveData() async {
     try {
-      String jsonString = await oldMaster.readAsString();
       bool isEncrypted = await _storageService.isEncryptionEnabled();
       String? password = await _storageService.getEncryptionPassword();
 
-      if (isEncrypted &&
-          password != null &&
-          !jsonString.trim().startsWith('[')) {
-        jsonString = CryptoHelper.decrypt(jsonString, password);
-      }
+      // 1. Simpan full list tugas hari ini sebagai File Template (Menjadi acuan untuk besok)
+      await _saveTemplateTasks(isEncrypted, password);
 
-      final List<dynamic> decodedJson = jsonDecode(jsonString);
-      List<TimeLogEntry> allOldLogs = decodedJson
-          .map((e) => TimeLogEntry.fromJson(e))
-          .toList();
+      // 2. Simpan File Riwayat Bulanan (Saring dan HANYA simpan durasi > 0)
+      final File jsonFile = await getJurnalFile();
+      List<TimeLogEntry> filteredLogs = [];
 
-      // Kelompokkan berdasarkan Tahun-Bulan (YYYY-MM)
-      Map<String, List<TimeLogEntry>> groupedByMonth = {};
+      for (var entry in logs) {
+        // Ekstrak hanya task yang punya nilai waktu
+        List<TimeLogTask> activeTasks = entry.tasks
+            .where((t) => t.durasiMenit > 0)
+            .toList();
 
-      for (var log in allOldLogs) {
-        try {
-          DateTime d = DateTime.parse(log.tanggal);
-          String monthKey = "${d.year}-${d.month.toString().padLeft(2, '0')}";
-
-          if (!groupedByMonth.containsKey(monthKey)) {
-            groupedByMonth[monthKey] = [];
-          }
-          groupedByMonth[monthKey]!.add(log);
-        } catch (e) {
-          debugPrint("Lewati tanggal invalid saat migrasi: ${log.tanggal}");
+        // Simpan ke riwayat bulanan HANYA jika ada aktivitas, ATAU jika itu objek untuk hari ini
+        // (Objek kosong hari ini tetap ditulis sbg penanda user membuka app)
+        if (activeTasks.isNotEmpty || entry.tanggal == getTodayDateString()) {
+          filteredLogs.add(
+            TimeLogEntry(tanggal: entry.tanggal, tasks: activeTasks),
+          );
         }
       }
 
-      // Tulis masing-masing kelompok ke file bulanan
-      for (var entry in groupedByMonth.entries) {
-        // Parse kembali key YYYY-MM untuk membuat objek DateTime
-        List<String> parts = entry.key.split('-');
-        DateTime monthDate = DateTime(
-          int.parse(parts[0]),
-          int.parse(parts[1]),
-          1,
-        );
-
-        File monthFile = await _storageService.getJurnalFileForMonth(
-          baseDir,
-          monthDate,
-        );
-
-        // Simpan data
-        await _saveLogsToFile(monthFile, entry.value, isEncrypted, password);
-        debugPrint("Berhasil migrasi data untuk bulan: ${entry.key}");
-      }
-
-      // Rename file master lama agar tidak dijalankan lagi
-      String newName = oldMaster.path.replaceAll('.json', '_backup.json');
-      await oldMaster.rename(newName);
-      debugPrint("Migrasi Selesai! File lama dicadangkan sebagai $newName");
+      await _saveLogsToFile(jsonFile, filteredLogs, isEncrypted, password);
     } catch (e) {
-      debugPrint("MIGRASI GAGAL: $e");
+      debugPrint("Error saving jurnal data: $e");
+    }
+  }
+
+  Future<void> _saveTemplateTasks(bool isEncrypted, String? password) async {
+    final String todayStr = getTodayDateString();
+    final int todayIdx = logs.indexWhere((e) => e.tanggal == todayStr);
+    if (todayIdx != -1) {
+      List<TimeLogTask> todayTasks = logs[todayIdx].tasks;
+
+      // Bersihkan nilainya jadi 0 sebelum disave ke file template
+      List<TimeLogTask> cleanTemplate = todayTasks
+          .map(
+            (t) => TimeLogTask(
+              id: t.id,
+              nama: t.nama,
+              durasiMenit: 0,
+              kategori: t.kategori,
+              linkedTaskIds: List.from(t.linkedTaskIds),
+            ),
+          )
+          .toList();
+
+      File templateFile = await _getTemplateFile();
+      String finalContent = jsonEncode(
+        cleanTemplate.map((e) => e.toJson()).toList(),
+      );
+
+      if (isEncrypted && password != null && password.isNotEmpty) {
+        finalContent = CryptoHelper.encrypt(finalContent, password);
+      }
+      await AtomicWriteHelper.writeSafe(
+        targetFile: templateFile,
+        content: finalContent,
+      );
     }
   }
 
@@ -313,18 +276,144 @@ class JurnalAktivitasController {
     );
   }
 
-  Future<void> saveData() async {
+  // --- STATISTIK & ANALITIK ---
+
+  Future<List<TimeLogEntry>> loadAllLogsForRange(
+    DateTime start,
+    DateTime end,
+  ) async {
+    List<TimeLogEntry> combinedLogs = [];
+    List<DateTime> monthsToLoad = [];
+    DateTime current = DateTime(start.year, start.month, 1);
+    DateTime targetEnd = DateTime(end.year, end.month, 1);
+
+    while (!current.isAfter(targetEnd)) {
+      monthsToLoad.add(current);
+      current = DateTime(current.year, current.month + 1, 1);
+    }
+
+    bool isEncrypted = await _storageService.isEncryptionEnabled();
+    String? password = await _storageService.getEncryptionPassword();
+
+    for (DateTime monthDate in monthsToLoad) {
+      try {
+        File monthFile = await _storageService.getJurnalFileForMonth(
+          baseDir,
+          monthDate,
+        );
+        if (await monthFile.exists()) {
+          String jsonString = await monthFile.readAsString();
+          if (isEncrypted &&
+              password != null &&
+              !jsonString.trim().startsWith('[')) {
+            jsonString = CryptoHelper.decrypt(jsonString, password);
+          }
+          final List<dynamic> decodedJson = jsonDecode(jsonString);
+          List<TimeLogEntry> monthlyLogs = decodedJson
+              .map((e) => TimeLogEntry.fromJson(e))
+              .toList();
+          combinedLogs.addAll(monthlyLogs);
+        }
+      } catch (e) {
+        debugPrint("Gagal memuat potongan log bulan untuk statistik: $e");
+      }
+    }
+    return combinedLogs;
+  }
+
+  // --- SCRIPT MIGRASI OTOMATIS (MENDUKUNG FILTERING 0 MENIT) ---
+
+  Future<void> _migrateOldData(File oldMaster) async {
+    debugPrint(
+      "Memulai migrasi file jurnal lama ke format bulanan dan template...",
+    );
     try {
-      final File jsonFile = await getJurnalFile(); // Simpan ke file bulan ini
+      String jsonString = await oldMaster.readAsString();
       bool isEncrypted = await _storageService.isEncryptionEnabled();
       String? password = await _storageService.getEncryptionPassword();
-      await _saveLogsToFile(jsonFile, logs, isEncrypted, password);
+
+      if (isEncrypted &&
+          password != null &&
+          !jsonString.trim().startsWith('[')) {
+        jsonString = CryptoHelper.decrypt(jsonString, password);
+      }
+
+      final List<dynamic> decodedJson = jsonDecode(jsonString);
+      List<TimeLogEntry> allOldLogs = decodedJson
+          .map((e) => TimeLogEntry.fromJson(e))
+          .toList();
+
+      // Coba ekstrak data terbaru sebagai inisialisasi Template pertama kalinya
+      if (allOldLogs.isNotEmpty) {
+        List<TimeLogTask> initialTemplate = allOldLogs.last.tasks
+            .map(
+              (t) => TimeLogTask(
+                id: t.id,
+                nama: t.nama,
+                durasiMenit: 0,
+                kategori: t.kategori,
+                linkedTaskIds: List.from(t.linkedTaskIds),
+              ),
+            )
+            .toList();
+        File templateFile = await _getTemplateFile();
+        String tContent = jsonEncode(
+          initialTemplate.map((e) => e.toJson()).toList(),
+        );
+        if (isEncrypted && password != null && password.isNotEmpty) {
+          tContent = CryptoHelper.encrypt(tContent, password);
+        }
+        await AtomicWriteHelper.writeSafe(
+          targetFile: templateFile,
+          content: tContent,
+        );
+      }
+
+      Map<String, List<TimeLogEntry>> groupedByMonth = {};
+      for (var log in allOldLogs) {
+        try {
+          // Buang nilai 0 menit pada data lampau untuk menghemat memori
+          List<TimeLogTask> filteredTasks = log.tasks
+              .where((t) => t.durasiMenit > 0)
+              .toList();
+
+          DateTime d = DateTime.parse(log.tanggal);
+          String monthKey = "${d.year}-${d.month.toString().padLeft(2, '0')}";
+
+          if (!groupedByMonth.containsKey(monthKey)) {
+            groupedByMonth[monthKey] = [];
+          }
+          groupedByMonth[monthKey]!.add(
+            TimeLogEntry(tanggal: log.tanggal, tasks: filteredTasks),
+          );
+        } catch (e) {
+          debugPrint("Lewati tanggal invalid saat migrasi: ${log.tanggal}");
+        }
+      }
+
+      for (var entry in groupedByMonth.entries) {
+        List<String> parts = entry.key.split('-');
+        DateTime monthDate = DateTime(
+          int.parse(parts[0]),
+          int.parse(parts[1]),
+          1,
+        );
+        File monthFile = await _storageService.getJurnalFileForMonth(
+          baseDir,
+          monthDate,
+        );
+        await _saveLogsToFile(monthFile, entry.value, isEncrypted, password);
+      }
+
+      String newName = oldMaster.path.replaceAll('.json', '_backup.json');
+      await oldMaster.rename(newName);
+      debugPrint("Migrasi Selesai! File lama dicadangkan sebagai $newName");
     } catch (e) {
-      debugPrint("Error saving jurnal data: $e");
+      debugPrint("MIGRASI GAGAL: $e");
     }
   }
 
-  // --- Fungsi yang lain di bawah ini tetap sama persis seperti kode Anda sebelumnya ---
+  // --- LOGIKA UTILITAS LAINNYA ---
 
   Future<void> _loadTaskMasterData() async {
     try {
@@ -378,33 +467,8 @@ class JurnalAktivitasController {
   Future<bool> handleManualUnlock(String decryptedContent) async {
     final parsed = jsonDecode(decryptedContent);
     if (parsed is List) {
-      logs = parsed.map((e) => TimeLogEntry.fromJson(e)).toList();
-      final String todayStr = getTodayDateString();
-      bool hasTodayLog = logs.any((entry) => entry.tanggal == todayStr);
-      bool isDataChanged = false;
-      if (!hasTodayLog && logs.isNotEmpty) {
-        final lastLog = logs.last;
-        List<TimeLogTask> copiedTasks = lastLog.tasks.map((task) {
-          return TimeLogTask(
-            id: task.id,
-            nama: task.nama,
-            durasiMenit: 0,
-            kategori: task.kategori,
-            linkedTaskIds: task.linkedTaskIds,
-          );
-        }).toList();
-        logs.add(TimeLogEntry(tanggal: todayStr, tasks: copiedTasks));
-        isDataChanged = true;
-      } else if (logs.isEmpty) {
-        logs.add(TimeLogEntry(tanggal: todayStr, tasks: []));
-        isDataChanged = true;
-      }
-      if (isDataChanged) {
-        await saveData();
-      }
-      _loadTaskMasterData();
+      // Struktur terbaca benar, kembalikan true agar View memanggil _triggerLoadData()
       isJurnalFileCorrupted = false;
-      isLoading = false;
       return true;
     }
     return false;
@@ -473,9 +537,9 @@ class JurnalAktivitasController {
   }
 
   void addNewActivity(String activityName) {
-    final String = getTodayDateString();
+    final String todayStr = getTodayDateString();
     final int todayLogIndex = logs.indexWhere(
-      (entry) => entry.tanggal == String,
+      (entry) => entry.tanggal == todayStr,
     );
     if (todayLogIndex != -1) {
       final randomId = Random().nextInt(999999);
