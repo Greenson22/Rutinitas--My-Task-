@@ -199,19 +199,22 @@ class JurnalAktivitasController {
       // 1. Simpan full list tugas hari ini sebagai File Template (Menjadi acuan untuk besok)
       await _saveTemplateTasks(isEncrypted, password);
 
-      // 2. Simpan File Riwayat Bulanan (Saring dan HANYA simpan durasi > 0)
+      // 2. Simpan File Riwayat Bulanan
       final File jsonFile = await getJurnalFile();
       List<TimeLogEntry> filteredLogs = [];
 
       for (var entry in logs) {
-        // Ekstrak hanya task yang punya nilai waktu
-        List<TimeLogTask> activeTasks = entry.tasks
-            .where((t) => t.durasiMenit > 0)
-            .toList();
+        final bool isToday = entry.tanggal == getTodayDateString();
+
+        // PERBAIKAN LOGIKA: Jangan saring/buang durasi 0 menit khusus untuk tugas hari ini.
+        // Hal ini memastikan ID relasi tautan tetap tersimpan di berkas disk lokal sehingga
+        // background updater dari Task Master dapat mendeteksi dan menambah durasi dengan sukses.
+        List<TimeLogTask> activeTasks = isToday
+            ? entry.tasks
+            : entry.tasks.where((t) => t.durasiMenit > 0).toList();
 
         // Simpan ke riwayat bulanan HANYA jika ada aktivitas, ATAU jika itu objek untuk hari ini
-        // (Objek kosong hari ini tetap ditulis sbg penanda user membuka app)
-        if (activeTasks.isNotEmpty || entry.tanggal == getTodayDateString()) {
+        if (activeTasks.isNotEmpty || isToday) {
           filteredLogs.add(
             TimeLogEntry(tanggal: entry.tanggal, tasks: activeTasks),
           );
