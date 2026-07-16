@@ -76,7 +76,11 @@ class TaskMasterController {
 
   Future<void> kalkulasiTotalJurnalHariIni() async {
     try {
-      File fileJurnal = await storageService.getJurnalJsonFile(selectedBaseDir);
+      // PERBAIKAN: Menggunakan getJurnalFileForMonth agar membaca berkas bulanan yang aktif saat ini
+      File fileJurnal = await storageService.getJurnalFileForMonth(
+        selectedBaseDir,
+        DateTime.now(),
+      );
 
       if (await fileJurnal.exists()) {
         String jsonString = await fileJurnal.readAsString();
@@ -338,12 +342,19 @@ class TaskMasterController {
     try {
       final prefs = await SharedPreferences.getInstance();
       final int minutesToAdd = prefs.getInt('default_increment_minutes') ?? 30;
-      final File JurnalFile = await storageService.getJurnalJsonFile(
+
+      // PERBAIKAN UTAMA: Menggunakan getJurnalFileForMonth agar mengarah ke file bulanan yang sama dengan Jurnal AktivitasScreen
+      final File JurnalFile = await storageService.getJurnalFileForMonth(
         selectedBaseDir,
+        DateTime.now(),
       );
-      String jsonString = await storageService.loadOrInitializeJurnalJson(
-        JurnalFile,
-      );
+
+      // Menggunakan inisialisasi aman bawaan storage
+      String jsonString = '[]';
+      if (await JurnalFile.exists()) {
+        jsonString = await JurnalFile.readAsString();
+      }
+
       bool isEncrypted = await storageService.isEncryptionEnabled();
       String? password = await storageService.getEncryptionPassword();
       if (isEncrypted &&
@@ -363,7 +374,7 @@ class TaskMasterController {
           .map((e) => TimeLogEntry.fromJson(e))
           .toList();
 
-      // PERBAIKAN: Pembersihan string pembanding log jurnal harian agar tetap menggunakan dasar "YYYY-MM-DD" saja
+      // Pembersihan string pembanding log jurnal harian agar tetap menggunakan dasar "YYYY-MM-DD" saja
       final String fullTodayStr = getTodayDateString();
       final String todayDateOnly = _getJustDateString(fullTodayStr);
 
@@ -378,7 +389,8 @@ class TaskMasterController {
             nama: task.nama,
             durasiMenit: 0,
             kategori: task.kategori,
-            linkedTaskIds: task.linkedTaskIds,
+            // PERBAIKAN: Safely cast to List<String>
+            linkedTaskIds: List<String>.from(task.linkedTaskIds),
           );
         }).toList();
         // Simpan log jurnal baru dengan struktur tanggal murni hari ini
@@ -396,7 +408,11 @@ class TaskMasterController {
         bool isUpdated = false;
         String updatedJurnalTaskName = "";
         for (var logTask in loadedLogs[todayIndex].tasks) {
-          if (logTask.linkedTaskIds.contains(myTaskId)) {
+          // PERBAIKAN PENCARIAN RELASI: Cast ke murni List<String> sebelum menggunakan .contains()
+          final List<String> safeLinkedIds = List<String>.from(
+            logTask.linkedTaskIds,
+          );
+          if (safeLinkedIds.contains(myTaskId.toString().trim())) {
             logTask.durasiMenit += minutesToAdd;
             isUpdated = true;
             updatedJurnalTaskName = logTask.nama;
@@ -404,12 +420,11 @@ class TaskMasterController {
           }
         }
         if (isUpdated) {
-          // Ganti variabel finalContent agar bisa dimutasi sebelum ditulis
           String updatedJsonContent = jsonEncode(
             loadedLogs.map((e) => e.toJson()).toList(),
           );
 
-          // === PERBAIKAN: Enkripsi konten jurnal jika mode keamanan aktif ===
+          // === Enkripsi konten jurnal jika mode keamanan aktif ===
           if (isEncrypted && password != null && password.isNotEmpty) {
             updatedJsonContent = CryptoHelper.encrypt(
               updatedJsonContent,
@@ -426,17 +441,13 @@ class TaskMasterController {
           // Sinkronisasi total durasi setelah penyimpanan background sukses
           await kalkulasiTotalJurnalHariIni();
           if (context.mounted) {
-            ScaffoldMessenger.of(
-              context,
-            ).hideCurrentSnackBar(); // Hapus snackbar lama agar responsif
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
                   'Terhubung! "$updatedJurnalTaskName" di Jurnal +$minutesToAdd mnt.',
                 ),
-                duration: const Duration(
-                  seconds: 1,
-                ), // Durasi dipersingkat agar bersih
+                duration: const Duration(seconds: 1),
                 backgroundColor: Colors.teal[800],
               ),
             );
@@ -469,7 +480,6 @@ class TaskMasterController {
       'categories': allCategoriesRaw.map((cat) => cat.toJson()).toList(),
     };
 
-    // Gunakan String penampung sementara
     String finalJsonContent = shouldRefresh
         ? const JsonEncoder.withIndent('  ').convert(updatedMap)
         : jsonEncode(updatedMap);
@@ -477,7 +487,7 @@ class TaskMasterController {
     try {
       File jsonFile = await storageService.getTargetJsonFile(selectedBaseDir);
 
-      // === PERBAIKAN: Periksa status enkripsi global sebelum menulis data ===
+      // === Periksa status enkripsi global sebelum menulis data ===
       bool isEncrypted = await storageService.isEncryptionEnabled();
       String? password = await storageService.getEncryptionPassword();
       if (isEncrypted && password != null && password.isNotEmpty) {
