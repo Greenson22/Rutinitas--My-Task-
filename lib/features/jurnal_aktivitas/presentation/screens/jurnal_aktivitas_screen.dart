@@ -56,22 +56,138 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     super.dispose();
   }
 
-  // --- FITUR BARU: Dialog Editor Raw JSON Langsung jurnal_aktivitas.json ---
+  // --- MODIFIKASI FITUR: Dialog Editor Raw JSON dengan Pilihan File Terlebih Dahulu ---
   void _showEditRawJsonDialog() async {
     final StorageService storageService = StorageService();
-    File targetFile = await _controller.getJurnalFile();
+    final String baseDir = _controller.baseDir;
+    final Directory jurnalDir = Directory('$baseDir/jurnal_aktivitas');
 
-    if (!await targetFile.exists()) {
+    if (!await jurnalDir.exists()) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('File master jurnal tidak ditemukan!'),
+          content: Text('Direktori jurnal tidak ditemukan!'),
           backgroundColor: Colors.red,
         ),
       );
       return;
     }
 
+    // Ambil daftar semua berkas JSON di dalam folder jurnal_aktivitas
+    List<File> jsonFiles = [];
+    try {
+      jsonFiles = jurnalDir
+          .listSync()
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.json'))
+          .toList();
+      // Urutkan nama file dari yang paling baru
+      jsonFiles.sort((a, b) => b.path.compareTo(a.path));
+    } catch (e) {
+      debugPrint("Gagal mendaftar file JSON jurnal: $e");
+    }
+
+    if (jsonFiles.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Tidak ada file JSON jurnal yang dapat diedit.'),
+          backgroundColor: Colors.amber,
+        ),
+      );
+      return;
+    }
+
+    File? selectedFile = jsonFiles.first;
+
+    if (!mounted) return;
+
+    // Tahap 1: Memunculkan Pilihan Berkas Terlebih Dahulu
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Pilih Berkas Jurnal (JSON)'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Silakan pilih berkas bulanan atau berkas riwayat backup yang ingin diubah langsung strukturnya.',
+                    style: TextStyle(fontSize: 13, color: Colors.black87),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[300]!),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<File>(
+                        isExpanded: true,
+                        value: selectedFile,
+                        items: jsonFiles.map((File file) {
+                          String fileName = file.path.split('/').last;
+                          return DropdownMenuItem<File>(
+                            value: file,
+                            child: Text(
+                              fileName,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontFamily: 'monospace',
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (File? val) {
+                          if (val != null) {
+                            setDialogState(() {
+                              selectedFile = val;
+                            });
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Batal'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    if (selectedFile != null) {
+                      _openJsonEditorForFile(selectedFile!, storageService);
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.indigo,
+                  ),
+                  child: const Text(
+                    'Buka Editor',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // Fungsi Pembantu Terpisah untuk Membuka Editor dari Berkas yang Dipilih
+  void _openJsonEditorForFile(
+    File targetFile,
+    StorageService storageService,
+  ) async {
     String rawContent = await targetFile.readAsString();
     String displayContent = rawContent.trim();
     String? decryptionError;
@@ -108,7 +224,7 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Edit File Jurnal (JSON)'),
+        title: Text('Edit: ${targetFile.path.split('/').last}'),
         content: SizedBox(
           width: double.maxFinite,
           child: Column(
@@ -215,10 +331,6 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
               try {
                 final parsed = jsonDecode(newContent);
                 if (parsed is List) {
-                  _controller.logs = parsed
-                      .map((e) => TimeLogEntry.fromJson(e))
-                      .toList();
-
                   // === PERBAIKAN: Sinkronisasi Enkripsi Sebelum Atomic Write ===
                   String finalContent = jsonEncode(parsed);
                   bool isEncrypted = await storageService.isEncryptionEnabled();
@@ -239,9 +351,9 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
                 if (mounted) {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
+                    SnackBar(
                       content: Text(
-                        'File jurnal_aktivitas.json berhasil diperbarui!',
+                        'File ${targetFile.path.split('/').last} berhasil diperbarui!',
                       ),
                       backgroundColor: Colors.green,
                     ),
