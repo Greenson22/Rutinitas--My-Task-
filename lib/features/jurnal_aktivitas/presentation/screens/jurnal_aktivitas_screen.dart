@@ -916,13 +916,40 @@ class _JurnalAktivitasScreenState extends State<JurnalAktivitasScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.analytics_outlined, color: Colors.white),
-            onPressed: () {
+            onPressed: () async {
               if (_controller.logs.isEmpty) return;
+
+              // Tampilkan indikator loading kecil agar UX mulus saat membaca multi-file disk[cite: 5]
               showDialog(
                 context: context,
-                builder: (context) =>
-                    JurnalStatistikDialog(logs: _controller.logs),
+                barrierDismissible: false,
+                builder: (context) => const Center(
+                  child: CircularProgressIndicator(color: Colors.amberAccent),
+                ),
               );
+
+              // Definisikan rentang maksimal pembacaan berkas (contoh: 1 tahun ke belakang s.d hari ini)[cite: 5]
+              final DateTime now = DateTime.now();
+              final DateTime oneYearAgo = DateTime(
+                now.year - 1,
+                now.month,
+                now.day,
+              );
+
+              // Panggil helper pemuat multi-file bulanan yang baru dibuat[cite: 5]
+              List<TimeLogEntry> allPeriodLogs = await _controller
+                  .loadAllLogsForRange(oneYearAgo, now);
+
+              if (context.mounted) {
+                Navigator.pop(context); // Tutup loading indicator[cite: 5]
+
+                showDialog(
+                  context: context,
+                  builder: (context) => JurnalStatistikDialog(
+                    logs: allPeriodLogs,
+                  ), // Suplai dengan seluruh data[cite: 5]
+                );
+              }
             },
           ),
           IconButton(

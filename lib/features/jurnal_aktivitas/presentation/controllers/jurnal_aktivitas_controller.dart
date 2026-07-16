@@ -40,6 +40,59 @@ class JurnalAktivitasController {
     );
   }
 
+  /// Membaca secara dinamis seluruh file log bulanan yang tercakup dalam rentang waktu tertentu.
+  /// Digunakan khusus untuk menyuplai data penuh ke Dialog Analitik/Statistik tanpa mengotori
+  /// state utama `logs` yang sedang aktif di UI utama.
+  Future<List<TimeLogEntry>> loadAllLogsForRange(
+    DateTime start,
+    DateTime end,
+  ) async {
+    List<TimeLogEntry> combinedLogs = [];
+
+    // Cari tahu bulan apa saja yang berada di dalam rentang waktu start s.d end
+    List<DateTime> monthsToLoad = [];
+    DateTime current = DateTime(start.year, start.month, 1);
+    DateTime targetEnd = DateTime(end.year, end.month, 1);
+
+    while (!current.isAfter(targetEnd)) {
+      monthsToLoad.add(current);
+      current = DateTime(current.year, current.month + 1, 1);
+    }
+
+    bool isEncrypted = await _storageService.isEncryptionEnabled();
+    String? password = await _storageService.getEncryptionPassword();
+
+    for (DateTime monthDate in monthsToLoad) {
+      try {
+        File monthFile = await _storageService.getJurnalFileForMonth(
+          baseDir,
+          monthDate,
+        );
+        if (await monthFile.exists()) {
+          String jsonString = await monthFile.readAsString();
+
+          if (isEncrypted &&
+              password != null &&
+              !jsonString.trim().startsWith('[')) {
+            jsonString = CryptoHelper.decrypt(jsonString, password);
+          }
+
+          final List<dynamic> decodedJson = jsonDecode(jsonString);
+          List<TimeLogEntry> monthlyLogs = decodedJson
+              .map((e) => TimeLogEntry.fromJson(e))
+              .toList();
+          combinedLogs.addAll(monthlyLogs);
+        }
+      } catch (e) {
+        debugPrint(
+          "Gagal memuat potongan log bulan ${monthDate.year}-${monthDate.month} untuk statistik: $e",
+        );
+      }
+    }
+
+    return combinedLogs;
+  }
+
   Future<void> loadData({required VoidCallback onNotify}) async {
     isLoading = true;
     isJurnalFileCorrupted = false;
@@ -420,9 +473,9 @@ class JurnalAktivitasController {
   }
 
   void addNewActivity(String activityName) {
-    final String todayStr = getTodayDateString();
+    final String = getTodayDateString();
     final int todayLogIndex = logs.indexWhere(
-      (entry) => entry.tanggal == todayStr,
+      (entry) => entry.tanggal == String,
     );
     if (todayLogIndex != -1) {
       final randomId = Random().nextInt(999999);
