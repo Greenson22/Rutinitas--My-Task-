@@ -49,3 +49,8 @@ design
 /Documents_Debug/
 /Downloads
 /Notes
+
+# Keystore & Signing credentials
+*.jks
+*.keystore
+**/android/key.properties
