@@ -14,7 +14,7 @@ import '../controllers/task_master_controller.dart';
 import '../widgets/add_category_dialog.dart';
 import '../widgets/category_grid.dart';
 import '../widgets/corrupted_empty_state.dart';
-import '../widgets/settings_dialog.dart';
+import 'package:rutinitasku/core/presentation/widgets/settings_dialog.dart';
 import '../widgets/task_summary_header.dart';
 import '../widgets/tasks_dialog.dart';
 

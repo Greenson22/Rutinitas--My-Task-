@@ -1,4 +1,4 @@
-// lib/features/task_master/presentation/widgets/settings_dialog.dart
+// lib/core/presentation/widgets/settings_dialog.dart
 
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -360,8 +360,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: _isEncryptionEnabled
-                      ? Colors.teal.withOpacity(0.1)
-                      : Colors.grey.withOpacity(0.1),
+                      ? Colors.teal.withValues(alpha: 0.1)
+                      : Colors.grey.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -379,7 +379,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
               ),
               trailing: Switch(
                 value: _isEncryptionEnabled,
-                activeColor: Colors.teal,
+                activeThumbColor: Colors.teal,
                 onChanged: _handleEncryptionToggle,
               ),
             ),
@@ -389,8 +389,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: _isEncryptionEnabled
-                      ? Colors.amber.withOpacity(0.1)
-                      : Colors.grey.withOpacity(0.1),
+                      ? Colors.amber.withValues(alpha: 0.1)
+                      : Colors.grey.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -410,7 +410,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
               ),
               trailing: Switch(
                 value: _rememberPassword,
-                activeColor: Colors.amber[800],
+                activeThumbColor: Colors.amber[800],
                 onChanged: _isEncryptionEnabled
                     ? _handleRememberPasswordToggle
                     : null,
@@ -451,7 +451,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
               ),
               trailing: Switch(
                 value: _enableRandomGenerator,
-                activeColor: Colors.deepPurple,
+                activeThumbColor: Colors.deepPurple,
                 onChanged: _handleRandomGeneratorToggle,
               ),
             ),

@@ -10,7 +10,7 @@ import 'package:rutinitasku/core/utils/crypto_helper.dart';
 import 'package:rutinitasku/core/presentation/widgets/adaptive_banner_ad.dart'; // <--- IMPORT WIDGET ADMOB BARU
 import '../../models/note_model.dart';
 import '../../../../core/presentation/widgets/widgets.dart';
-import '../../../task_master/presentation/widgets/settings_dialog.dart'; // Pastikan import SettingsDialog tersedia
+import 'package:rutinitasku/core/presentation/widgets/settings_dialog.dart';
 import 'note_detail_screen.dart';
 
 class NotesScreen extends StatefulWidget {
