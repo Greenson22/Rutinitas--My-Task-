@@ -4,15 +4,15 @@
 
 **Blocked by:** 01 — Pindahkan pengaturan folder dan enkripsi ke core
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Skema v2 memuat `schemaVersion`, `id` kategori, `sortOrder`, `kind`, `createdAt`, `updatedAt`, dan `history`.
-- [ ] Data legacy dipetakan dengan `id` kategori yang stabil, `id` tugas yang dipertahankan, dan `TaskKind` yang benar.
-- [ ] `countToday` historis dipindahkan ke riwayat harian agar tidak hilang.
-- [ ] Migrasi membuat backup sebelum menulis dan berjalan idempoten.
-- [ ] Migrasi gagal tidak mengubah file asli dan menampilkan pesan yang dapat ditindaklanjuti.
-- [ ] File terenkripsi dapat dibaca, dimigrasi, dan ditulis ulang dengan atomic write.
-- [ ] Versi skema yang tidak dikenal ditolak tanpa merusak data.
-- [ ] Pengguna melihat kategori dan tugas hasil migrasi dalam tampilan baca-saja.
-- [ ] Ada loading, empty, dan error state yang jelas.
-- [ ] Unit test mapper/migrasi dan contract test repository/local data source lulus.
+- [x] Skema v2 memuat `schemaVersion`, `id` kategori, `sortOrder`, `kind`, `createdAt`, `updatedAt`, dan `history`.
+- [x] Data legacy dipetakan dengan `id` kategori yang stabil, `id` tugas yang dipertahankan, dan `TaskKind` yang benar.
+- [x] `countToday` historis dipindahkan ke riwayat harian agar tidak hilang.
+- [x] Migrasi membuat backup sebelum menulis dan berjalan idempoten.
+- [x] Migrasi gagal tidak mengubah file asli dan menampilkan pesan yang dapat ditindaklanjuti.
+- [x] File terenkripsi dapat dibaca, dimigrasi, dan ditulis ulang dengan atomic write.
+- [x] Versi skema yang tidak dikenal ditolak tanpa merusak data.
+- [x] Pengguna melihat kategori dan tugas hasil migrasi dalam tampilan baca-saja.
+- [x] Ada loading, empty, dan error state yang jelas.
+- [x] Unit test mapper/migrasi dan contract test repository/local data source lulus.
