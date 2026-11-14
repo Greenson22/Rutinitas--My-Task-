@@ -2,15 +2,17 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/presentation/widgets/drawer_menu.dart';
 import '../../data/repositories/task_repository_factory.dart';
+import '../../domain/entities/category.dart';
 import '../../domain/entities/task_master_data.dart';
 import '../../domain/repositories/task_repository.dart';
 import '../controllers/task_master_controller.dart';
 import '../controllers/task_master_state.dart';
-import '../widgets/category_read_only_card.dart';
+import '../widgets/category_card.dart';
+import '../widgets/category_delete_dialog.dart';
+import '../widgets/category_form_dialog.dart';
 import '../widgets/status_views.dart';
 
-/// Task Master New versi fondasi: menampilkan data hasil migrasi secara
-/// baca-saja.
+/// Task Master New: dashboard dan pengelolaan kategori.
 class TaskMasterNewScreen extends StatefulWidget {
   const TaskMasterNewScreen({super.key, this.repository, this.clock});
 
@@ -47,6 +49,7 @@ class _TaskMasterNewScreenState extends State<TaskMasterNewScreen> {
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, _) {
+        final state = _controller.state;
         return Scaffold(
           backgroundColor: Colors.grey[100],
           appBar: AppBar(
@@ -57,7 +60,7 @@ class _TaskMasterNewScreenState extends State<TaskMasterNewScreen> {
               children: [
                 Text('Task Master New', style: TextStyle(fontSize: 18)),
                 Text(
-                  'Tampilan baca-saja',
+                  'Kelola kategori',
                   style: TextStyle(fontSize: 11, color: Colors.white70),
                 ),
               ],
@@ -71,7 +74,17 @@ class _TaskMasterNewScreenState extends State<TaskMasterNewScreen> {
             ],
           ),
           drawer: const DrawerMenu(isTaskMasterNewActive: true),
-          body: _buildBody(_controller.state),
+          floatingActionButton: state.data == null
+              ? null
+              : FloatingActionButton.extended(
+                  key: const Key('addCategoryButton'),
+                  onPressed: state.isSaving ? null : () => _openCategoryForm(),
+                  backgroundColor: Colors.indigo[700],
+                  foregroundColor: Colors.white,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Kategori'),
+                ),
+          body: _buildBody(state),
         );
       },
     );
@@ -90,67 +103,154 @@ class _TaskMasterNewScreenState extends State<TaskMasterNewScreen> {
           onRetry: _controller.load,
         );
       case TaskMasterNewStatus.ready:
-        return _buildReady(state.data!);
+        return _buildReady(state);
     }
   }
 
-  Widget _buildReady(TaskMasterData data) {
+  Widget _buildReady(TaskMasterNewState state) {
+    final data = state.data!;
     final categories = [...data.categories]
       ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
 
     return RefreshIndicator(
       onRefresh: _controller.load,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(14, 14, 14, 28),
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 96),
         children: [
-          const _ReadOnlyBanner(),
-          const SizedBox(height: 14),
+          if (state.actionMessage != null) ...[
+            _ActionMessageBanner(
+              message: state.actionMessage!,
+              onDismiss: _controller.clearActionMessage,
+              onRetry: state.actionRetryable
+                  ? _controller.retryLastAction
+                  : null,
+            ),
+            const SizedBox(height: 12),
+          ],
           _SummaryCard(data: data),
           const SizedBox(height: 18),
+          Text(
+            'Kategori',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: Colors.blueGrey[800],
+              letterSpacing: 0.2,
+            ),
+          ),
+          const SizedBox(height: 8),
           for (final category in categories)
-            CategoryReadOnlyCard(
+            CategoryCard(
               category: category,
               todayKey: _controller.todayKey,
+              onAction: (action) => _handleCategoryAction(category, action),
             ),
         ],
       ),
     );
   }
+
+  Future<void> _handleCategoryAction(
+    Category category,
+    CategoryAction action,
+  ) {
+    switch (action) {
+      case CategoryAction.edit:
+        return _openCategoryForm(category: category);
+      case CategoryAction.toggleHidden:
+        return _controller.setCategoryHidden(
+          category.id,
+          isHidden: !category.isHidden,
+        );
+      case CategoryAction.delete:
+        return _confirmDeleteCategory(category);
+    }
+  }
+
+  Future<void> _openCategoryForm({Category? category}) async {
+    await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => CategoryFormDialog(
+        category: category,
+        onValidateName: (name) => _controller.validateCategoryName(
+          name,
+          categoryId: category?.id,
+        ),
+        onSave: (name, icon) {
+          if (category == null) {
+            return _controller.addCategory(name: name, icon: icon);
+          }
+          return _controller.updateCategory(
+            categoryId: category.id,
+            name: name,
+            icon: icon,
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _confirmDeleteCategory(Category category) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => DeleteCategoryDialog(category: category),
+    );
+    if (confirmed == true) {
+      await _controller.deleteCategory(category.id);
+    }
+  }
 }
 
-class _ReadOnlyBanner extends StatelessWidget {
-  const _ReadOnlyBanner();
+class _ActionMessageBanner extends StatelessWidget {
+  const _ActionMessageBanner({
+    required this.message,
+    required this.onDismiss,
+    this.onRetry,
+  });
+
+  final String message;
+  final VoidCallback onDismiss;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Colors.indigo.withValues(alpha: 0.08),
-            Colors.teal.withValues(alpha: 0.08),
-          ],
-        ),
+        color: Colors.amber.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.indigo.withValues(alpha: 0.15)),
+        border: Border.all(color: Colors.amber.shade700.withValues(alpha: 0.4)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.lock_open_rounded, color: Colors.indigo, size: 20),
+          Icon(
+            Icons.error_outline,
+            size: 20,
+            color: Colors.amber.shade900,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Data lama sudah dimigrasikan ke skema v2 dan ditampilkan '
-              'baca-saja. Pengelolaan kategori dan tugas akan tersedia pada '
-              'tahap berikutnya.',
+              message,
               style: TextStyle(
                 fontSize: 12,
                 height: 1.45,
-                color: Colors.blueGrey[800],
+                color: Colors.brown[800],
               ),
             ),
+          ),
+          if (onRetry != null)
+            TextButton(
+              key: const Key('retryActionButton'),
+              onPressed: onRetry,
+              child: const Text('Coba Lagi'),
+            ),
+          IconButton(
+            tooltip: 'Tutup pesan',
+            visualDensity: VisualDensity.compact,
+            onPressed: onDismiss,
+            icon: const Icon(Icons.close, size: 18),
           ),
         ],
       ),

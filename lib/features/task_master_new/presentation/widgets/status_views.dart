@@ -54,8 +54,8 @@ class TaskMasterEmptyView extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Data Task Master yang sudah dimigrasi akan tampil di sini. '
-              'Saat ini tampilan masih baca-saja.',
+              'Buat kategori pertama untuk mulai mengelompokkan rutinitas '
+              'Anda. Setiap kategori bisa diberi nama dan ikon emoji.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 13,

@@ -10,4 +10,26 @@ abstract interface class TaskRepository {
 
   /// Menyimpan seluruh data dengan skema v2.
   Future<void> save(TaskMasterData data);
+
+  /// Menambah kategori baru, menyimpan, lalu mengembalikan data terbaru.
+  Future<TaskMasterData> addCategory({
+    required String name,
+    required String icon,
+  });
+
+  /// Mengubah nama dan ikon kategori tanpa mengubah `id` atau tugas di dalamnya.
+  Future<TaskMasterData> updateCategory({
+    required String categoryId,
+    required String name,
+    required String icon,
+  });
+
+  /// Menyembunyikan atau menampilkan kembali kategori.
+  Future<TaskMasterData> setCategoryHidden({
+    required String categoryId,
+    required bool isHidden,
+  });
+
+  /// Menghapus kategori beserta tugas di dalamnya.
+  Future<TaskMasterData> deleteCategory(String categoryId);
 }

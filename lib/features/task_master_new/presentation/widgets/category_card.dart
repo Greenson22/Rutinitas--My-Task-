@@ -3,15 +3,20 @@ import 'package:flutter/material.dart';
 import '../../domain/entities/category.dart';
 import 'task_read_only_tile.dart';
 
-class CategoryReadOnlyCard extends StatelessWidget {
-  const CategoryReadOnlyCard({
+enum CategoryAction { edit, toggleHidden, delete }
+
+/// Kartu kategori dengan ringkasan tugas dan aksi kelola.
+class CategoryCard extends StatelessWidget {
+  const CategoryCard({
     super.key,
     required this.category,
     required this.todayKey,
+    required this.onAction,
   });
 
   final Category category;
   final String todayKey;
+  final void Function(CategoryAction action) onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +28,7 @@ class CategoryReadOnlyCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 14),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+        padding: const EdgeInsets.fromLTRB(16, 14, 8, 10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -67,6 +72,46 @@ class CategoryReadOnlyCard extends StatelessWidget {
                       ),
                     ],
                   ),
+                ),
+                PopupMenuButton<CategoryAction>(
+                  key: Key('categoryMenu_${category.id}'),
+                  tooltip: 'Aksi kategori',
+                  onSelected: onAction,
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: CategoryAction.edit,
+                      child: ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.edit_outlined),
+                        title: Text('Ubah'),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: CategoryAction.toggleHidden,
+                      child: ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(
+                          category.isHidden
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                        ),
+                        title: Text(
+                          category.isHidden ? 'Tampilkan' : 'Sembunyikan',
+                        ),
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: CategoryAction.delete,
+                      child: ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.delete_outline, color: Colors.red),
+                        title: Text('Hapus', style: TextStyle(color: Colors.red)),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

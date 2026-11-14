@@ -2,10 +2,12 @@ import 'package:flutter/foundation.dart';
 
 import '../../data/exceptions/task_master_exceptions.dart';
 import '../../domain/entities/daily_progress.dart';
+import '../../domain/entities/task_master_data.dart';
+import '../../domain/operations/category_operations.dart' as ops;
 import '../../domain/repositories/task_repository.dart';
 import 'task_master_state.dart';
 
-/// Controller baca-saja untuk Task Master New.
+/// Controller untuk Task Master New: memuat data dan mengelola kategori.
 class TaskMasterNewController extends ChangeNotifier {
   TaskMasterNewController({
     required TaskRepository repository,
@@ -20,22 +22,16 @@ class TaskMasterNewController extends ChangeNotifier {
   TaskMasterNewState get state => _state;
 
   bool _disposed = false;
+  Future<TaskMasterData> Function()? _retryAction;
 
   String get todayKey => DailyProgress.dateKey(_clock());
 
   Future<void> load() async {
+    _retryAction = null;
     _setState(const TaskMasterNewState.loading());
     try {
       final data = await _repository.load();
-      if (data.categories.isEmpty) {
-        _setState(
-          TaskMasterNewState(status: TaskMasterNewStatus.empty, data: data),
-        );
-        return;
-      }
-      _setState(
-        TaskMasterNewState(status: TaskMasterNewStatus.ready, data: data),
-      );
+      _setState(_stateForData(data));
     } on UnsupportedSchemaVersionException catch (error) {
       _setState(
         TaskMasterNewState(
@@ -95,6 +91,123 @@ class TaskMasterNewController extends ChangeNotifier {
         ),
       );
     }
+  }
+
+  /// Memvalidasi nama kategori untuk form tambah/edit.
+  String? validateCategoryName(String name, {String? categoryId}) {
+    final categories = _state.data?.categories ?? const [];
+    return ops.validateCategoryName(
+      name,
+      existingCategories: categories,
+      exceptId: categoryId,
+    );
+  }
+
+  Future<bool> addCategory({
+    required String name,
+    required String icon,
+  }) async {
+    return _runCategoryAction(
+      () => _repository.addCategory(name: name, icon: icon),
+    );
+  }
+
+  Future<bool> updateCategory({
+    required String categoryId,
+    required String name,
+    required String icon,
+  }) async {
+    return _runCategoryAction(
+      () => _repository.updateCategory(
+        categoryId: categoryId,
+        name: name,
+        icon: icon,
+      ),
+    );
+  }
+
+  Future<bool> setCategoryHidden(
+    String categoryId, {
+    required bool isHidden,
+  }) async {
+    return _runCategoryAction(
+      () => _repository.setCategoryHidden(
+        categoryId: categoryId,
+        isHidden: isHidden,
+      ),
+    );
+  }
+
+  Future<bool> deleteCategory(String categoryId) async {
+    return _runCategoryAction(
+      () => _repository.deleteCategory(categoryId),
+    );
+  }
+
+  void clearActionMessage() {
+    if (_state.actionMessage == null) return;
+    _retryAction = null;
+    _setState(_state.copyWith(clearActionMessage: true));
+  }
+
+  /// Mengulang aksi penyimpanan terakhir yang gagal.
+  Future<void> retryLastAction() async {
+    final action = _retryAction;
+    if (action == null || _state.isSaving) return;
+    await _runCategoryAction(action);
+  }
+
+  Future<bool> _runCategoryAction(
+    Future<TaskMasterData> Function() action,
+  ) async {
+    if (_state.isSaving) return false;
+    _retryAction = null;
+    _setState(_state.copyWith(isSaving: true, clearActionMessage: true));
+    try {
+      final data = await action();
+      _setState(_stateForData(data).copyWith(isSaving: false));
+      return true;
+    } on ops.CategoryValidationException catch (error) {
+      _setState(
+        _state.copyWith(
+          isSaving: false,
+          actionMessage: error.message,
+          actionRetryable: false,
+        ),
+      );
+      return false;
+    } on TaskMasterException catch (error) {
+      _retryAction = action;
+      _setState(
+        _state.copyWith(
+          isSaving: false,
+          actionMessage: error.message,
+          actionRetryable: true,
+        ),
+      );
+      return false;
+    } catch (_) {
+      _retryAction = action;
+      _setState(
+        _state.copyWith(
+          isSaving: false,
+          actionMessage:
+              'Perubahan belum tersimpan. Data lama tetap aman. '
+              'Silakan coba lagi.',
+          actionRetryable: true,
+        ),
+      );
+      return false;
+    }
+  }
+
+  TaskMasterNewState _stateForData(TaskMasterData data) {
+    return TaskMasterNewState(
+      status: data.categories.isEmpty
+          ? TaskMasterNewStatus.empty
+          : TaskMasterNewStatus.ready,
+      data: data,
+    );
   }
 
   void _setState(TaskMasterNewState state) {

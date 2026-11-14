@@ -1,21 +1,27 @@
 import 'dart:convert';
+import 'dart:math';
 
 import '../../domain/entities/task_master_data.dart';
+import '../../domain/operations/category_operations.dart';
 import '../../domain/repositories/task_repository.dart';
 import '../datasources/task_local_data_source.dart';
 import '../exceptions/task_master_exceptions.dart';
 import '../mappers/task_master_mapper.dart';
 
-/// Memuat data, memigrasikan file legacy, dan menyimpan skema v2.
+/// Memuat data, memigrasikan file legacy, menyimpan skema v2, dan menangani
+/// operasi kategori.
 class TaskRepositoryImpl implements TaskRepository {
   TaskRepositoryImpl({
     required TaskLocalDataSource localDataSource,
     TaskMasterMapper? mapper,
+    String Function()? categoryIdGenerator,
   }) : _localDataSource = localDataSource,
-       _mapper = mapper ?? TaskMasterMapper();
+       _mapper = mapper ?? TaskMasterMapper(),
+       _categoryIdGenerator = categoryIdGenerator ?? _defaultCategoryId;
 
   final TaskLocalDataSource _localDataSource;
   final TaskMasterMapper _mapper;
+  final String Function() _categoryIdGenerator;
 
   @override
   Future<TaskMasterData> load() async {
@@ -75,5 +81,73 @@ class TaskRepositoryImpl implements TaskRepository {
   Future<void> save(TaskMasterData data) async {
     final json = _mapper.toJson(data);
     await _localDataSource.write(jsonEncode(json));
+  }
+
+  @override
+  Future<TaskMasterData> addCategory({
+    required String name,
+    required String icon,
+  }) {
+    return _mutateCategories(
+      (data) => addCategoryTo(
+        data,
+        id: _categoryIdGenerator(),
+        name: name,
+        icon: icon,
+      ),
+    );
+  }
+
+  @override
+  Future<TaskMasterData> updateCategory({
+    required String categoryId,
+    required String name,
+    required String icon,
+  }) {
+    return _mutateCategories(
+      (data) => updateCategoryIn(
+        data,
+        categoryId: categoryId,
+        name: name,
+        icon: icon,
+      ),
+    );
+  }
+
+  @override
+  Future<TaskMasterData> setCategoryHidden({
+    required String categoryId,
+    required bool isHidden,
+  }) {
+    return _mutateCategories(
+      (data) => setCategoryHiddenIn(
+        data,
+        categoryId: categoryId,
+        isHidden: isHidden,
+      ),
+    );
+  }
+
+  @override
+  Future<TaskMasterData> deleteCategory(String categoryId) {
+    return _mutateCategories(
+      (data) => deleteCategoryFrom(data, categoryId: categoryId),
+    );
+  }
+
+  Future<TaskMasterData> _mutateCategories(
+    TaskMasterData Function(TaskMasterData data) transform,
+  ) async {
+    final data = await load();
+    final updated = transform(data);
+    await save(updated);
+    return updated;
+  }
+
+  static String _defaultCategoryId() {
+    final random = Random();
+    final suffix = random.nextInt(1 << 32).toRadixString(36);
+    return 'cat_${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}'
+        '_$suffix';
   }
 }
