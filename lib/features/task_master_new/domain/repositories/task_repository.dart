@@ -1,3 +1,4 @@
+import '../entities/task_backup.dart';
 import '../entities/task_kind.dart';
 import '../entities/task_master_data.dart';
 
@@ -7,10 +8,30 @@ import '../entities/task_master_data.dart';
 /// konkret menangani file system, enkripsi, backup, dan migrasi.
 abstract interface class TaskRepository {
   /// Memuat data dan menjalankan migrasi otomatis bila file masih legacy.
-  Future<TaskMasterData> load();
+  ///
+  /// [password] dipakai saat pengguna memasukkan PIN pemulihan. Bila berhasil,
+  /// kata sandi tersebut juga dipakai untuk penulisan berikutnya.
+  Future<TaskMasterData> load({String? password});
 
   /// Menyimpan seluruh data dengan skema v2.
   Future<void> save(TaskMasterData data);
+
+  /// Membaca isi file sebagai teks JSON yang sudah didekripsi.
+  ///
+  /// Dipakai hanya oleh editor JSON area Advanced.
+  Future<String> readRawJson();
+
+  /// Memvalidasi dan menyimpan JSON mentah melalui mapper dan atomic write.
+  Future<TaskMasterData> saveRawJson(String content);
+
+  /// Daftar backup yang tersedia, terbaru lebih dulu.
+  Future<List<TaskBackup>> listBackups();
+
+  /// Memulihkan backup lalu memuat ulang data dari file hasil pemulihan.
+  Future<TaskMasterData> restoreBackup(TaskBackup backup);
+
+  /// Membuat file baru yang kosong setelah membackup file saat ini.
+  Future<TaskMasterData> createNewFile();
 
   /// Menambah kategori baru, menyimpan, lalu mengembalikan data terbaru.
   Future<TaskMasterData> addCategory({

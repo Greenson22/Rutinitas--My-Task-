@@ -33,7 +33,10 @@ class TaskBackupInfo {
 /// Seam penyimpanan tingkat rendah untuk contract test.
 abstract interface class TaskLocalDataSource {
   /// Mengembalikan `null` bila file belum ada.
-  Future<TaskFileSnapshot?> read();
+  ///
+  /// [password] dapat diberikan saat pengguna memasukkan PIN pemulihan. Bila
+  /// berhasil, kata sandi itu dipakai untuk penulisan berikutnya.
+  Future<TaskFileSnapshot?> read({String? password});
 
   /// Menulis dengan atomic write dan enkripsi sesuai pengaturan aktif.
   Future<void> write(String content);
@@ -41,7 +44,15 @@ abstract interface class TaskLocalDataSource {
   /// Membuat backup berisi konten asli sebelum migrasi.
   Future<TaskBackupInfo> createBackup(TaskFileSnapshot snapshot);
 
+  /// Mem-backup file saat ini tanpa perlu mendekripsinya.
+  ///
+  /// Mengembalikan `null` bila file belum ada.
+  Future<TaskBackupInfo?> backupCurrentFile();
+
   Future<List<TaskBackupInfo>> listBackups();
+
+  /// Menyalin isi backup kembali ke file utama dengan atomic write.
+  Future<void> restoreBackup(String backupPath);
 }
 
 /// Implementasi file system untuk `<baseDir>/mytask/my_tasks.json`.
@@ -68,13 +79,17 @@ class FileTaskLocalDataSource implements TaskLocalDataSource {
 
   Future<void> _writeQueue = Future<void>.value();
 
+  /// Kata sandi hasil PIN pemulihan. Menimpa password dari pengaturan agar
+  /// penulisan berikutnya tetap terenkripsi dengan PIN yang benar.
+  String? _sessionPasswordOverride;
+
   Future<File> _resolveFile() async {
     final baseDir = await _baseDirProvider();
     return _storageService.getTargetJsonFile(baseDir);
   }
 
   @override
-  Future<TaskFileSnapshot?> read() async {
+  Future<TaskFileSnapshot?> read({String? password}) async {
     final file = await _resolveFile();
     if (!await file.exists()) return null;
 
@@ -95,8 +110,9 @@ class FileTaskLocalDataSource implements TaskLocalDataSource {
       );
     }
 
-    final password = await _passwordProvider();
-    if (password == null || password.isEmpty) {
+    final effectivePassword =
+        password ?? _sessionPasswordOverride ?? await _passwordProvider();
+    if (effectivePassword == null || effectivePassword.isEmpty) {
       throw TaskLockedException(
         'File Task Master terenkripsi. Masukkan PIN/kata sandi melalui '
         'pengaturan keamanan untuk membuka data.',
@@ -104,7 +120,10 @@ class FileTaskLocalDataSource implements TaskLocalDataSource {
     }
 
     try {
-      final content = CryptoHelper.decrypt(rawContent, password);
+      final content = CryptoHelper.decrypt(rawContent, effectivePassword);
+      if (password != null && password.isNotEmpty) {
+        _sessionPasswordOverride = password;
+      }
       return TaskFileSnapshot(
         rawContent: rawContent,
         content: content,
@@ -140,7 +159,7 @@ class FileTaskLocalDataSource implements TaskLocalDataSource {
     var dataToWrite = content;
     final encryptionEnabled = await _encryptionEnabledProvider();
     if (encryptionEnabled) {
-      final password = await _passwordProvider();
+      final password = _sessionPasswordOverride ?? await _passwordProvider();
       if (password == null || password.isEmpty) {
         throw TaskLockedException(
           'Enkripsi aktif tetapi kata sandi tidak tersedia. '
@@ -194,6 +213,20 @@ class FileTaskLocalDataSource implements TaskLocalDataSource {
   }
 
   @override
+  Future<TaskBackupInfo?> backupCurrentFile() async {
+    final file = await _resolveFile();
+    if (!await file.exists()) return null;
+    final rawContent = await file.readAsString();
+    return createBackup(
+      TaskFileSnapshot(
+        rawContent: rawContent,
+        content: '',
+        wasEncrypted: !_looksLikePlainJson(rawContent),
+      ),
+    );
+  }
+
+  @override
   Future<List<TaskBackupInfo>> listBackups() async {
     final file = await _resolveFile();
     final backupDir = Directory('${file.parent.path}/backup');
@@ -207,6 +240,29 @@ class FileTaskLocalDataSource implements TaskLocalDataSource {
     }
     backups.sort((a, b) => a.createdAt.compareTo(b.createdAt));
     return backups;
+  }
+
+  @override
+  Future<void> restoreBackup(String backupPath) async {
+    final backupFile = File(backupPath);
+    if (!await backupFile.exists()) {
+      throw TaskDataSourceException(
+        'File backup tidak ditemukan. Data saat ini tidak diubah.',
+      );
+    }
+
+    final rawContent = await backupFile.readAsString();
+    final targetFile = await _resolveFile();
+    final success = await AtomicWriteHelper.writeSafe(
+      targetFile: targetFile,
+      content: rawContent,
+    );
+    if (!success) {
+      throw TaskDataSourceException(
+        'Gagal memulihkan backup secara aman. Data saat ini dipertahankan; '
+        'silakan coba lagi.',
+      );
+    }
   }
 
   bool _looksLikePlainJson(String content) {

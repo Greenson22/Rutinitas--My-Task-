@@ -138,5 +138,59 @@ void main() {
         reason: 'penulisan terakhir harus menjadi isi akhir',
       );
     });
+
+    test('PIN pemulihan dapat membaca dan menulis ulang file', () async {
+      encryptionEnabled = true;
+      password = 'pin-benar';
+      const content = '{"schemaVersion":2,"categories":[]}';
+      await dataSource.write(content);
+
+      password = null;
+      await expectLater(dataSource.read(), throwsA(isA<TaskLockedException>()));
+      await expectLater(
+        dataSource.read(password: 'pin-salah'),
+        throwsA(isA<TaskDecryptionException>()),
+      );
+
+      final snapshot = await dataSource.read(password: 'pin-benar');
+      expect(snapshot!.content, content);
+
+      // Penulisan setelah PIN berhasil harus tetap terenkripsi walau
+      // password sesi tidak tersedia.
+      await dataSource.write(
+        '{"schemaVersion":2,"categories":[{"id":"cat_pin"}]}',
+      );
+      final raw = await taskFile().readAsString();
+      expect(raw.trimLeft().startsWith('{'), isFalse);
+      final again = await dataSource.read(password: 'pin-benar');
+      expect(again!.content, contains('cat_pin'));
+    });
+
+    test('backup file saat ini dapat dipulihkan dengan atomic write', () async {
+      const first = '{"schemaVersion":2,"categories":[{"id":"lama"}]}';
+      const second = '{"schemaVersion":2,"categories":[{"id":"baru"}]}';
+      await dataSource.write(first);
+
+      final backup = await dataSource.backupCurrentFile();
+      expect(backup, isNotNull);
+      expect(await File(backup!.path).readAsString(), first);
+
+      await dataSource.write(second);
+      expect((await dataSource.read())!.content, second);
+
+      await dataSource.restoreBackup(backup.path);
+      expect((await dataSource.read())!.content, first);
+    });
+
+    test('restore backup yang hilang gagal tanpa mengubah file', () async {
+      const content = '{"schemaVersion":2,"categories":[]}';
+      await dataSource.write(content);
+
+      await expectLater(
+        dataSource.restoreBackup('/tmp/backup-tidak-ada.json'),
+        throwsA(isA<TaskDataSourceException>()),
+      );
+      expect((await dataSource.read())!.content, content);
+    });
   });
 }

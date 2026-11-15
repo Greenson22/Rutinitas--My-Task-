@@ -5,6 +5,17 @@ import '../../domain/repositories/journal_gateway.dart';
 
 enum TaskMasterNewStatus { loading, ready, empty, error }
 
+/// Jenis kegagalan muat yang menentukan opsi pemulihan yang ditampilkan.
+enum TaskMasterRecoveryKind {
+  none,
+  locked,
+  decryption,
+  corrupted,
+  migration,
+  unsupportedVersion,
+  generic,
+}
+
 /// State immutable untuk layar Task Master New.
 class TaskMasterNewState {
   const TaskMasterNewState({
@@ -19,6 +30,7 @@ class TaskMasterNewState {
     this.journalLinks = JournalLinkState.empty,
     this.searchQuery = '',
     this.taskFilter = TaskFilter.all,
+    this.recoveryKind = TaskMasterRecoveryKind.none,
   });
 
   const TaskMasterNewState.loading()
@@ -32,7 +44,8 @@ class TaskMasterNewState {
       lastIncrement = null,
       journalLinks = JournalLinkState.empty,
       searchQuery = '',
-      taskFilter = TaskFilter.all;
+      taskFilter = TaskFilter.all,
+      recoveryKind = TaskMasterRecoveryKind.none;
 
   final TaskMasterNewStatus status;
   final TaskMasterData? data;
@@ -63,6 +76,20 @@ class TaskMasterNewState {
   /// Filter tugas yang sedang aktif.
   final TaskFilter taskFilter;
 
+  /// Jenis kegagalan muat untuk menentukan opsi pemulihan.
+  final TaskMasterRecoveryKind recoveryKind;
+
+  /// Apakah pengguna dapat mencoba membuka file dengan PIN.
+  bool get canUnlockWithPin =>
+      recoveryKind == TaskMasterRecoveryKind.locked ||
+      recoveryKind == TaskMasterRecoveryKind.decryption;
+
+  /// Opsi backup dan file baru berguna untuk semua kegagalan data, kecuali
+  /// kegagalan umum yang belum tentu berasal dari file.
+  bool get offersFileRecovery =>
+      recoveryKind != TaskMasterRecoveryKind.none &&
+      recoveryKind != TaskMasterRecoveryKind.generic;
+
   /// Apakah pencarian atau filter sedang menyaring daftar.
   bool get isSearchActive =>
       searchQuery.trim().isNotEmpty || taskFilter != TaskFilter.all;
@@ -87,6 +114,7 @@ class TaskMasterNewState {
     JournalLinkState? journalLinks,
     String? searchQuery,
     TaskFilter? taskFilter,
+    TaskMasterRecoveryKind? recoveryKind,
     bool clearActionMessage = false,
     bool clearLastIncrement = false,
   }) {
@@ -108,6 +136,7 @@ class TaskMasterNewState {
       journalLinks: journalLinks ?? this.journalLinks,
       searchQuery: searchQuery ?? this.searchQuery,
       taskFilter: taskFilter ?? this.taskFilter,
+      recoveryKind: recoveryKind ?? this.recoveryKind,
     );
   }
 }

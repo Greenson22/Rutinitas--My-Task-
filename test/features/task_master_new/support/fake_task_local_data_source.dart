@@ -1,4 +1,5 @@
 import 'package:rutinitasku/features/task_master_new/data/datasources/task_local_data_source.dart';
+import 'package:rutinitasku/features/task_master_new/data/exceptions/task_master_exceptions.dart';
 
 class FakeTaskLocalDataSource implements TaskLocalDataSource {
   FakeTaskLocalDataSource({this.snapshot});
@@ -10,11 +11,13 @@ class FakeTaskLocalDataSource implements TaskLocalDataSource {
   int readCount = 0;
   int writeCount = 0;
   int backupCount = 0;
+  int restoreCount = 0;
   final List<String> writes = [];
   final List<TaskFileSnapshot> backups = [];
+  final Map<String, TaskFileSnapshot> backupSnapshots = {};
 
   @override
-  Future<TaskFileSnapshot?> read() async {
+  Future<TaskFileSnapshot?> read({String? password}) async {
     readCount++;
     if (readError != null) throw readError!;
     return snapshot;
@@ -36,10 +39,16 @@ class FakeTaskLocalDataSource implements TaskLocalDataSource {
   Future<TaskBackupInfo> createBackup(TaskFileSnapshot snapshot) async {
     backupCount++;
     backups.add(snapshot);
-    return TaskBackupInfo(
-      path: '/tmp/my_tasks_backup_$backupCount.json',
-      createdAt: DateTime(2026, 11, 14, 12),
-    );
+    final path = '/tmp/my_tasks_backup_$backupCount.json';
+    backupSnapshots[path] = snapshot;
+    return TaskBackupInfo(path: path, createdAt: DateTime(2026, 11, 14, 12));
+  }
+
+  @override
+  Future<TaskBackupInfo?> backupCurrentFile() async {
+    final current = snapshot;
+    if (current == null) return null;
+    return createBackup(current);
   }
 
   @override
@@ -51,5 +60,15 @@ class FakeTaskLocalDataSource implements TaskLocalDataSource {
           createdAt: DateTime(2026, 11, 14, 12, i),
         ),
     ];
+  }
+
+  @override
+  Future<void> restoreBackup(String backupPath) async {
+    restoreCount++;
+    final restored = backupSnapshots[backupPath];
+    if (restored == null) {
+      throw TaskDataSourceException('Backup tidak ditemukan.');
+    }
+    snapshot = restored;
   }
 }

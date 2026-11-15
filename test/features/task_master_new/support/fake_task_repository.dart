@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:rutinitasku/features/task_master_new/data/exceptions/task_master_exceptions.dart';
+import 'package:rutinitasku/features/task_master_new/domain/entities/task_backup.dart';
 import 'package:rutinitasku/features/task_master_new/domain/entities/task_kind.dart';
 import 'package:rutinitasku/features/task_master_new/domain/entities/task_master_data.dart';
 import 'package:rutinitasku/features/task_master_new/domain/operations/category_operations.dart';
@@ -17,6 +19,19 @@ class FakeTaskRepository implements TaskRepository {
   int _categoryIdCounter = 0;
   int _taskIdCounter = 0;
 
+  /// PIN yang diterima saat pemulihan file terkunci.
+  String? expectedPassword;
+
+  /// Data yang dihasilkan setelah backup dipulihkan.
+  TaskMasterData? restoredData;
+  List<TaskBackup> backups = const [];
+  String rawJson = '{"schemaVersion":2,"categories":[]}';
+  Object? rawJsonError;
+  int rawSaveCount = 0;
+  int createNewFileCount = 0;
+  int restoreBackupCount = 0;
+  String? lastRawSavedContent;
+
   /// Bila diisi, operasi kategori melempar error ini.
   Object? categoryActionError;
 
@@ -29,8 +44,14 @@ class FakeTaskRepository implements TaskRepository {
   DateTime now = DateTime(2026, 11, 14, 12);
 
   @override
-  Future<TaskMasterData> load() async {
+  Future<TaskMasterData> load({String? password}) async {
     loadCount++;
+    if (password != null) {
+      if (expectedPassword == null || password != expectedPassword) {
+        throw TaskDecryptionException('Kata sandi salah.');
+      }
+      error = null;
+    }
     if (loadCompleter != null) return loadCompleter!.future;
     if (error != null) throw error!;
     return data ?? TaskMasterData.empty();
@@ -42,6 +63,45 @@ class FakeTaskRepository implements TaskRepository {
     if (failure != null) throw failure;
     saveCount++;
     this.data = data;
+  }
+
+  @override
+  Future<String> readRawJson() async {
+    final failure = rawJsonError;
+    if (failure != null) throw failure;
+    return rawJson;
+  }
+
+  @override
+  Future<TaskMasterData> saveRawJson(String content) async {
+    rawSaveCount++;
+    lastRawSavedContent = content;
+    final failure = rawJsonError;
+    if (failure != null) throw failure;
+    final updated = data ?? TaskMasterData.empty();
+    await save(updated);
+    return updated;
+  }
+
+  @override
+  Future<List<TaskBackup>> listBackups() async => backups;
+
+  @override
+  Future<TaskMasterData> restoreBackup(TaskBackup backup) async {
+    restoreBackupCount++;
+    final restored = restoredData ?? data ?? TaskMasterData.empty();
+    data = restored;
+    error = null;
+    return restored;
+  }
+
+  @override
+  Future<TaskMasterData> createNewFile() async {
+    createNewFileCount++;
+    final empty = TaskMasterData.empty();
+    await save(empty);
+    error = null;
+    return empty;
   }
 
   @override

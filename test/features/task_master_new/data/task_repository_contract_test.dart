@@ -7,6 +7,7 @@ import 'package:rutinitasku/features/task_master_new/data/datasources/task_local
 import 'package:rutinitasku/features/task_master_new/data/exceptions/task_master_exceptions.dart';
 import 'package:rutinitasku/features/task_master_new/data/mappers/task_master_mapper.dart';
 import 'package:rutinitasku/features/task_master_new/data/repositories/task_repository_impl.dart';
+import 'package:rutinitasku/features/task_master_new/domain/entities/task_backup.dart';
 import 'package:rutinitasku/features/task_master_new/domain/entities/task_kind.dart';
 import 'package:rutinitasku/features/task_master_new/domain/entities/task_master_data.dart';
 
@@ -177,6 +178,114 @@ void main() {
       expect(source.writeCount, 1);
       final written = jsonDecode(source.writes.single) as Map<String, dynamic>;
       expect(written['schemaVersion'], 2);
+    });
+
+    test('readRawJson mengembalikan JSON terformat', () async {
+      final source = FakeTaskLocalDataSource(snapshot: legacySnapshot());
+      final repository = buildRepository(source);
+
+      final raw = await repository.readRawJson();
+
+      expect(raw, contains('"Kesehatan"'));
+      expect(raw, contains('\n'));
+    });
+
+    test('saveRawJson menolak JSON tidak valid tanpa menulis', () async {
+      final source = FakeTaskLocalDataSource();
+      final repository = buildRepository(source);
+
+      await expectLater(
+        repository.saveRawJson('{ bukan json'),
+        throwsA(isA<TaskDataCorruptedException>()),
+      );
+      await expectLater(
+        repository.saveRawJson('{"categories":"bukan-list"}'),
+        throwsA(isA<TaskDataCorruptedException>()),
+      );
+      await expectLater(
+        repository.saveRawJson('{"schemaVersion":99,"categories":[]}'),
+        throwsA(isA<UnsupportedSchemaVersionException>()),
+      );
+
+      expect(source.writeCount, 0);
+    });
+
+    test('saveRawJson memvalidasi, menormalkan v2, dan atomic write', () async {
+      final source = FakeTaskLocalDataSource();
+      final repository = buildRepository(source);
+      final raw = jsonEncode({
+        'schemaVersion': 2,
+        'fieldTambahan': 'dipertahankan',
+        'categories': [
+          {
+            'id': 'cat_1',
+            'name': 'Fokus',
+            'icon': '🎯',
+            'tasks': [
+              {
+                'id': 'task_1',
+                'name': 'Deep work',
+                'kind': 'habit',
+                'targetDaily': 2,
+              },
+            ],
+          },
+        ],
+      });
+
+      final data = await repository.saveRawJson(raw);
+
+      expect(data.categories.single.name, 'Fokus');
+      expect(source.writeCount, 1);
+      final written = jsonDecode(source.writes.single) as Map<String, dynamic>;
+      expect(written['schemaVersion'], 2);
+      expect(written['fieldTambahan'], 'dipertahankan');
+      expect(written['categories'][0]['tasks'][0]['id'], 'task_1');
+    });
+
+    test(
+      'createNewFile membackup file lama lalu menulis data kosong',
+      () async {
+        final source = FakeTaskLocalDataSource(snapshot: legacySnapshot());
+        final repository = buildRepository(source);
+
+        final data = await repository.createNewFile();
+
+        expect(data.categories, isEmpty);
+        expect(source.backupCount, 1);
+        expect(source.backups.single.rawContent, legacyJson());
+        expect(source.writeCount, 1);
+        final written =
+            jsonDecode(source.writes.single) as Map<String, dynamic>;
+        expect(written['schemaVersion'], 2);
+        expect(written['categories'], isEmpty);
+      },
+    );
+
+    test('restoreBackup menyalin backup lalu memuat ulang data', () async {
+      final source = FakeTaskLocalDataSource(snapshot: legacySnapshot());
+      final repository = buildRepository(source);
+      final backup = await source.backupCurrentFile();
+
+      final restored = await repository.restoreBackup(
+        TaskBackup(path: backup!.path, createdAt: backup.createdAt),
+      );
+
+      expect(source.restoreCount, 1);
+      expect(restored.categories.single.name, 'Kesehatan');
+      expect(restored.categories.single.tasks.single.id, 'task-1');
+    });
+
+    test('listBackups mengurutkan backup terbaru lebih dulu', () async {
+      final source = FakeTaskLocalDataSource();
+      await source.createBackup(legacySnapshot());
+      await source.createBackup(legacySnapshot());
+      final repository = buildRepository(source);
+
+      final backups = await repository.listBackups();
+
+      expect(backups, hasLength(2));
+      expect(backups.first.createdAt.isAfter(backups.last.createdAt), isTrue);
     });
   });
 

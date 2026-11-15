@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/presentation/widgets/drawer_menu.dart';
+import '../../../../core/presentation/widgets/settings_dialog.dart';
+import '../../../../core/services/storage_service.dart';
 import '../../data/repositories/journal_gateway_factory.dart';
 import '../../data/repositories/task_repository_factory.dart';
 import '../../domain/entities/category.dart';
 import '../../domain/entities/task.dart';
+import '../../domain/entities/task_backup.dart';
 import '../../domain/operations/dashboard_summary.dart';
 import '../../domain/operations/task_search.dart';
 import '../../domain/repositories/journal_gateway.dart';
@@ -20,7 +23,10 @@ import '../widgets/category_form_dialog.dart';
 import '../widgets/category_reorder_sheet.dart';
 import '../widgets/category_summary_card.dart';
 import '../widgets/dashboard_summary_cards.dart';
+import '../widgets/raw_json_editor_dialog.dart';
+import '../widgets/recovery_dialogs.dart';
 import '../widgets/status_views.dart';
+import '../widgets/task_master_advanced_sheet.dart';
 import '../widgets/task_master_shortcuts.dart';
 import '../widgets/task_search_toolbar.dart';
 import '../widgets/task_tile.dart';
@@ -35,12 +41,16 @@ class TaskMasterNewScreen extends StatefulWidget {
     this.repository,
     this.journalGateway,
     this.clock,
+    this.storageService,
   });
 
   /// Dapat diinjeksi pada widget test.
   final TaskRepository? repository;
   final JournalGateway? journalGateway;
   final DateTime Function()? clock;
+
+  /// Dipakai untuk membuka pengaturan folder/enkripsi dari modul baru.
+  final StorageService? storageService;
 
   @override
   State<TaskMasterNewScreen> createState() => _TaskMasterNewScreenState();
@@ -154,6 +164,12 @@ class _TaskMasterNewScreenState extends State<TaskMasterNewScreen> {
                     icon: const Icon(Icons.swap_vert_rounded),
                   ),
                   IconButton(
+                    key: const Key('advancedButton'),
+                    tooltip: 'Advanced',
+                    onPressed: _openAdvanced,
+                    icon: const Icon(Icons.science_outlined),
+                  ),
+                  IconButton(
                     tooltip: 'Muat ulang data',
                     onPressed: _controller.load,
                     icon: const Icon(Icons.refresh),
@@ -195,6 +211,9 @@ class _TaskMasterNewScreenState extends State<TaskMasterNewScreen> {
           title: state.errorTitle ?? 'Gagal memuat data',
           message: state.errorMessage ?? 'Silakan coba lagi.',
           onRetry: _controller.load,
+          onUnlockWithPin: state.canUnlockWithPin ? _unlockWithPin : null,
+          onRestoreBackup: state.offersFileRecovery ? _restoreBackup : null,
+          onCreateNewFile: state.offersFileRecovery ? _createNewFile : null,
         );
       case TaskMasterNewStatus.ready:
         return usesTwoPaneLayout(layout)
@@ -718,6 +737,144 @@ class _TaskMasterNewScreenState extends State<TaskMasterNewScreen> {
     );
   }
 
+  Future<void> _openAdvanced() async {
+    final action = await showModalBottomSheet<_AdvancedAction>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => TaskMasterAdvancedSheet(
+        onOpenRawJsonEditor: () =>
+            Navigator.of(sheetContext).pop(_AdvancedAction.rawJson),
+        onOpenSettings: () =>
+            Navigator.of(sheetContext).pop(_AdvancedAction.settings),
+      ),
+    );
+    if (!mounted) return;
+    switch (action) {
+      case _AdvancedAction.rawJson:
+        await _openRawJsonEditor();
+      case _AdvancedAction.settings:
+        await _openSettings();
+      case null:
+        break;
+    }
+  }
+
+  Future<void> _openRawJsonEditor() async {
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (_) => RawJsonEditorDialog(
+        loadContent: _controller.readRawJson,
+        onSave: _controller.saveRawJson,
+      ),
+    );
+    if (!mounted || saved != true) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('JSON berhasil disimpan dengan atomic write.'),
+        backgroundColor: Colors.teal,
+      ),
+    );
+  }
+
+  Future<void> _openSettings() async {
+    final storage = widget.storageService ?? StorageService();
+    final String currentBaseDir;
+    try {
+      currentBaseDir = await storage.getBaseDirSetting();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Pengaturan folder tidak dapat dibuka.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+    if (!mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      builder: (_) => SettingsDialog(
+        currentBaseDir: currentBaseDir,
+        onSave: (newDir) async {
+          await storage.saveBaseDirSetting(newDir);
+          await _controller.load();
+        },
+        onEncryptionToggled: _controller.load,
+      ),
+    );
+  }
+
+  Future<void> _unlockWithPin() async {
+    await showDialog<bool>(
+      context: context,
+      builder: (_) => TaskMasterPinDialog(onUnlock: _controller.unlockWithPin),
+    );
+  }
+
+  Future<void> _restoreBackup() async {
+    final backups = await _controller.listBackups();
+    if (!mounted) return;
+    if (backups.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Belum ada backup. Gunakan "Buat file baru" atau masukkan PIN.',
+          ),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    final selected = await showDialog<TaskBackup>(
+      context: context,
+      builder: (_) => TaskMasterBackupDialog(backups: backups),
+    );
+    if (!mounted || selected == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => TaskMasterRestoreConfirmDialog(backup: selected),
+    );
+    if (!mounted || confirmed != true) return;
+
+    final restored = await _controller.restoreBackup(selected);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          restored
+              ? 'Backup berhasil dipulihkan.'
+              : 'Backup gagal dipulihkan. Data saat ini tetap aman.',
+        ),
+        backgroundColor: restored ? Colors.teal : Colors.redAccent,
+      ),
+    );
+  }
+
+  Future<void> _createNewFile() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => const TaskMasterCreateNewFileDialog(),
+    );
+    if (!mounted || confirmed != true) return;
+
+    final created = await _controller.createNewFile();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          created
+              ? 'File baru dibuat. Backup file lama tersedia untuk dipulihkan.'
+              : 'File baru gagal dibuat. Data lama tidak diubah.',
+        ),
+        backgroundColor: created ? Colors.teal : Colors.redAccent,
+      ),
+    );
+  }
+
   void _toggleSearch() {
     final layout = taskMasterLayoutForWidth(MediaQuery.sizeOf(context).width);
     if (usesTwoPaneLayout(layout) && _selectedCategoryId != null) {
@@ -848,6 +1005,8 @@ class _SectionHeader extends StatelessWidget {
     );
   }
 }
+
+enum _AdvancedAction { rawJson, settings }
 
 class _CategorySectionHeader extends StatelessWidget {
   const _CategorySectionHeader({

@@ -6,6 +6,7 @@ import '../../data/exceptions/task_master_exceptions.dart';
 import '../../domain/entities/category.dart' as domain;
 import '../../domain/entities/daily_progress.dart';
 import '../../domain/entities/task.dart';
+import '../../domain/entities/task_backup.dart';
 import '../../domain/entities/task_kind.dart';
 import '../../domain/entities/task_master_data.dart';
 import '../../domain/operations/category_operations.dart' as ops;
@@ -113,14 +114,25 @@ class TaskMasterNewController extends ChangeNotifier {
   }
 
   Future<void> load() async {
+    await _load();
+  }
+
+  /// Mencoba membuka file terenkripsi dengan PIN yang dimasukkan pengguna.
+  Future<bool> unlockWithPin(String pin) async {
+    final password = pin.trim();
+    if (password.isEmpty) return false;
+    return _load(password: password);
+  }
+
+  Future<bool> _load({String? password}) async {
     _retryAction = null;
     _lastIncrementTaskId = null;
     _lastIncrementAt = null;
     _lastJournalIncrement = null;
-    if (!await flushPendingSave()) return;
+    if (!await flushPendingSave()) return false;
     _setState(const TaskMasterNewState.loading());
     try {
-      final data = await _repository.load();
+      final data = await _repository.load(password: password);
       final journalResult = await _loadJournalLinks();
       var nextState = _stateForData(data, journalLinks: journalResult.links);
       if (journalResult.warning != null) {
@@ -130,65 +142,168 @@ class TaskMasterNewController extends ChangeNotifier {
         );
       }
       _setState(nextState);
+      return true;
     } on UnsupportedSchemaVersionException catch (error) {
-      _setState(
-        TaskMasterNewState(
-          status: TaskMasterNewStatus.error,
-          errorTitle: 'Versi data tidak didukung',
-          errorMessage: error.message,
-        ),
+      _setError(
+        title: 'Versi data tidak didukung',
+        message: error.message,
+        recoveryKind: TaskMasterRecoveryKind.unsupportedVersion,
       );
     } on TaskMigrationException catch (error) {
-      _setState(
-        TaskMasterNewState(
-          status: TaskMasterNewStatus.error,
-          errorTitle: 'Migrasi data gagal',
-          errorMessage: error.message,
-        ),
+      _setError(
+        title: 'Migrasi data gagal',
+        message: error.message,
+        recoveryKind: TaskMasterRecoveryKind.migration,
       );
     } on TaskLockedException catch (error) {
-      _setState(
-        TaskMasterNewState(
-          status: TaskMasterNewStatus.error,
-          errorTitle: 'Data terkunci',
-          errorMessage: error.message,
-        ),
+      _setError(
+        title: 'Data terkunci',
+        message: error.message,
+        recoveryKind: TaskMasterRecoveryKind.locked,
       );
     } on TaskDecryptionException catch (error) {
-      _setState(
-        TaskMasterNewState(
-          status: TaskMasterNewStatus.error,
-          errorTitle: 'Gagal membuka data',
-          errorMessage: error.message,
-        ),
+      _setError(
+        title: password == null ? 'Gagal membuka data' : 'PIN tidak cocok',
+        message: password == null
+            ? error.message
+            : 'PIN yang dimasukkan tidak dapat membuka file. Periksa kembali '
+                  'PIN Anda, atau pulihkan backup.',
+        recoveryKind: TaskMasterRecoveryKind.decryption,
       );
     } on TaskDataCorruptedException catch (error) {
-      _setState(
-        TaskMasterNewState(
-          status: TaskMasterNewStatus.error,
-          errorTitle: 'Data tidak dapat dibaca',
-          errorMessage: error.message,
-        ),
+      _setError(
+        title: 'Data tidak dapat dibaca',
+        message: error.message,
+        recoveryKind: TaskMasterRecoveryKind.corrupted,
       );
     } on TaskMasterException catch (error) {
-      _setState(
-        TaskMasterNewState(
-          status: TaskMasterNewStatus.error,
-          errorTitle: 'Gagal memuat data',
-          errorMessage: error.message,
-        ),
+      _setError(
+        title: 'Gagal memuat data',
+        message: error.message,
+        recoveryKind: TaskMasterRecoveryKind.generic,
       );
     } catch (error) {
-      _setState(
-        TaskMasterNewState(
-          status: TaskMasterNewStatus.error,
-          errorTitle: 'Gagal memuat data',
-          errorMessage:
-              'Terjadi kesalahan tak terduga saat memuat Task Master. '
-              'Data asli tidak diubah. Silakan coba lagi.\n\n$error',
-        ),
+      _setError(
+        title: 'Gagal memuat data',
+        message:
+            'Terjadi kesalahan tak terduga saat memuat Task Master. '
+            'Data asli tidak diubah. Silakan coba lagi.\n\n$error',
+        recoveryKind: TaskMasterRecoveryKind.generic,
       );
     }
+    return false;
+  }
+
+  /// Daftar backup untuk dialog pemulihan. Kegagalan baca menghasilkan daftar
+  /// kosong agar layar tetap dapat menampilkan opsi lain.
+  Future<List<TaskBackup>> listBackups() async {
+    try {
+      return await _repository.listBackups();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Memulihkan backup lalu menampilkan data hasil pemulihan.
+  Future<bool> restoreBackup(TaskBackup backup) async {
+    if (_state.isSaving) return false;
+    _setState(_state.copyWith(isSaving: true, clearActionMessage: true));
+    try {
+      final data = await _repository.restoreBackup(backup);
+      _setState(_stateForData(data));
+      return true;
+    } on TaskMasterException catch (error) {
+      _setError(
+        title: 'Gagal memulihkan backup',
+        message: error.message,
+        recoveryKind: TaskMasterRecoveryKind.corrupted,
+      );
+      return false;
+    } catch (_) {
+      _setError(
+        title: 'Gagal memulihkan backup',
+        message:
+            'Backup tidak dapat dipulihkan. Data saat ini tidak diubah. '
+            'Silakan coba backup lain atau buat file baru.',
+        recoveryKind: TaskMasterRecoveryKind.corrupted,
+      );
+      return false;
+    }
+  }
+
+  /// Membuat file baru setelah membackup file saat ini.
+  Future<bool> createNewFile() async {
+    if (_state.isSaving) return false;
+    _setState(_state.copyWith(isSaving: true, clearActionMessage: true));
+    try {
+      final data = await _repository.createNewFile();
+      _setState(_stateForData(data));
+      return true;
+    } on TaskMasterException catch (error) {
+      _setError(
+        title: 'Gagal membuat file baru',
+        message: error.message,
+        recoveryKind: TaskMasterRecoveryKind.corrupted,
+      );
+      return false;
+    } catch (_) {
+      _setError(
+        title: 'Gagal membuat file baru',
+        message:
+            'File baru tidak dapat dibuat. Data lama tidak diubah. '
+            'Silakan coba lagi.',
+        recoveryKind: TaskMasterRecoveryKind.corrupted,
+      );
+      return false;
+    }
+  }
+
+  /// Membaca JSON mentah untuk editor area Advanced.
+  Future<String> readRawJson() => _repository.readRawJson();
+
+  /// Menyimpan JSON dari editor Advanced setelah validasi dan atomic write.
+  Future<bool> saveRawJson(String content) async {
+    if (_state.isSaving) return false;
+    _setState(_state.copyWith(isSaving: true, clearActionMessage: true));
+    try {
+      final data = await _repository.saveRawJson(content);
+      _setState(_stateForData(data));
+      return true;
+    } on TaskMasterException catch (error) {
+      _setState(
+        _state.copyWith(
+          isSaving: false,
+          actionMessage: error.message,
+          actionRetryable: false,
+        ),
+      );
+      return false;
+    } catch (_) {
+      _setState(
+        _state.copyWith(
+          isSaving: false,
+          actionMessage:
+              'JSON gagal disimpan. Data lama tetap aman; silakan coba lagi.',
+          actionRetryable: false,
+        ),
+      );
+      return false;
+    }
+  }
+
+  void _setError({
+    required String title,
+    required String message,
+    required TaskMasterRecoveryKind recoveryKind,
+  }) {
+    _setState(
+      TaskMasterNewState(
+        status: TaskMasterNewStatus.error,
+        errorTitle: title,
+        errorMessage: message,
+        recoveryKind: recoveryKind,
+      ),
+    );
   }
 
   /// Memvalidasi nama kategori untuk form tambah/edit.

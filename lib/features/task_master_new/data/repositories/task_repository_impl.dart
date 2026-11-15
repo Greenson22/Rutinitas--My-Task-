@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 
+import '../../domain/entities/task_backup.dart';
 import '../../domain/entities/task_kind.dart';
 import '../../domain/entities/task_master_data.dart';
 import '../../domain/operations/category_operations.dart';
@@ -33,8 +34,8 @@ class TaskRepositoryImpl implements TaskRepository {
   late final String Function() _taskIdGenerator;
 
   @override
-  Future<TaskMasterData> load() async {
-    final snapshot = await _localDataSource.read();
+  Future<TaskMasterData> load({String? password}) async {
+    final snapshot = await _localDataSource.read(password: password);
     if (snapshot == null) return TaskMasterData.empty();
 
     final Map<String, dynamic> decoded;
@@ -90,6 +91,83 @@ class TaskRepositoryImpl implements TaskRepository {
   Future<void> save(TaskMasterData data) async {
     final json = _mapper.toJson(data);
     await _localDataSource.write(jsonEncode(json));
+  }
+
+  @override
+  Future<String> readRawJson() async {
+    final snapshot = await _localDataSource.read();
+    if (snapshot == null) {
+      return const JsonEncoder.withIndent(
+        '  ',
+      ).convert(_mapper.toJson(TaskMasterData.empty()));
+    }
+    try {
+      final decoded = jsonDecode(snapshot.content);
+      return const JsonEncoder.withIndent('  ').convert(decoded);
+    } on FormatException {
+      // File korup tetap dapat dibuka di editor Advanced agar pengguna bisa
+      // memperbaiki struktur JSON-nya.
+      return snapshot.content;
+    }
+  }
+
+  @override
+  Future<TaskMasterData> saveRawJson(String content) async {
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(content);
+    } catch (error) {
+      throw TaskDataCorruptedException(
+        'JSON tidak valid: $error',
+        cause: error,
+      );
+    }
+    if (decoded is! Map) {
+      throw TaskDataCorruptedException(
+        'Akar JSON harus berupa objek, bukan ${decoded.runtimeType}.',
+      );
+    }
+
+    final map = decoded.map((key, value) => MapEntry(key.toString(), value));
+    final version = _mapper.detectSchemaVersion(map);
+    if (version != 1 && version != TaskMasterData.currentSchemaVersion) {
+      throw UnsupportedSchemaVersionException(version);
+    }
+
+    // Validasi dan normalisasi di memori sebelum menyentuh file. Dengan begitu
+    // JSON yang valid secara sintaks tetapi tidak valid sebagai data Task
+    // Master tidak pernah menimpa file asli.
+    final data = _mapper.fromJson(map);
+    final normalized = _mapper.toJson(data, original: map);
+    await _localDataSource.write(
+      const JsonEncoder.withIndent('  ').convert(normalized),
+    );
+    return data;
+  }
+
+  @override
+  Future<List<TaskBackup>> listBackups() async {
+    final backups = await _localDataSource.listBackups();
+    final mapped = [
+      for (final backup in backups)
+        TaskBackup(path: backup.path, createdAt: backup.createdAt),
+    ];
+    mapped.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return mapped;
+  }
+
+  @override
+  Future<TaskMasterData> restoreBackup(TaskBackup backup) async {
+    await _localDataSource.restoreBackup(backup.path);
+    return load();
+  }
+
+  @override
+  Future<TaskMasterData> createNewFile() async {
+    await _localDataSource.backupCurrentFile();
+    final empty = TaskMasterData.empty();
+    await save(empty);
+    return empty;
   }
 
   @override

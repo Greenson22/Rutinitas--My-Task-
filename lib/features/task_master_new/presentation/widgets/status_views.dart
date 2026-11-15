@@ -261,11 +261,19 @@ class TaskMasterErrorView extends StatelessWidget {
     required this.title,
     required this.message,
     required this.onRetry,
+    this.onUnlockWithPin,
+    this.onRestoreBackup,
+    this.onCreateNewFile,
   });
 
   final String title;
   final String message;
   final VoidCallback onRetry;
+
+  /// Opsi pemulihan; hanya ditampilkan bila relevan dengan jenis kegagalan.
+  final VoidCallback? onUnlockWithPin;
+  final VoidCallback? onRestoreBackup;
+  final VoidCallback? onCreateNewFile;
 
   @override
   Widget build(BuildContext context) {
@@ -314,20 +322,53 @@ class TaskMasterErrorView extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 22),
-            ElevatedButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh, color: Colors.white),
-              label: const Text(
-                'Coba Lagi',
-                style: TextStyle(color: Colors.white),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.indigo,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              alignment: WrapAlignment.center,
+              children: [
+                ElevatedButton.icon(
+                  key: const Key('retryLoadButton'),
+                  onPressed: onRetry,
+                  icon: const Icon(Icons.refresh, color: Colors.white),
+                  label: const Text(
+                    'Coba Lagi',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.indigo,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
+                  ),
                 ),
-              ),
+                if (onUnlockWithPin != null)
+                  FilledButton.icon(
+                    key: const Key('unlockWithPinButton'),
+                    onPressed: onUnlockWithPin,
+                    icon: const Icon(Icons.lock_open_rounded, size: 18),
+                    label: const Text('Masukkan PIN'),
+                    style: FilledButton.styleFrom(backgroundColor: Colors.teal),
+                  ),
+                if (onRestoreBackup != null)
+                  OutlinedButton.icon(
+                    key: const Key('restoreBackupButton'),
+                    onPressed: onRestoreBackup,
+                    icon: const Icon(
+                      Icons.settings_backup_restore_rounded,
+                      size: 18,
+                    ),
+                    label: const Text('Pulihkan backup'),
+                  ),
+                if (onCreateNewFile != null)
+                  OutlinedButton.icon(
+                    key: const Key('createNewFileButton'),
+                    onPressed: onCreateNewFile,
+                    icon: const Icon(Icons.note_add_outlined, size: 18),
+                    label: const Text('Buat file baru'),
+                  ),
+              ],
             ),
           ],
         ),
