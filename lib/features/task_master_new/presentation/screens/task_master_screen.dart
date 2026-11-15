@@ -4,6 +4,7 @@ import '../../../../core/presentation/widgets/drawer_menu.dart';
 import '../../data/repositories/journal_gateway_factory.dart';
 import '../../data/repositories/task_repository_factory.dart';
 import '../../domain/entities/category.dart';
+import '../../domain/entities/task.dart';
 import '../../domain/entities/task_master_data.dart';
 import '../../domain/repositories/journal_gateway.dart';
 import '../../domain/repositories/task_repository.dart';
@@ -15,6 +16,7 @@ import '../widgets/category_delete_dialog.dart';
 import '../widgets/category_form_dialog.dart';
 import '../widgets/status_views.dart';
 import 'category_detail_screen.dart';
+import 'task_history_screen.dart';
 
 /// Task Master New: dashboard dan pengelolaan kategori.
 class TaskMasterNewScreen extends StatefulWidget {
@@ -162,9 +164,18 @@ class _TaskMasterNewScreenState extends State<TaskMasterNewScreen> {
               isTaskJournalLinked: _controller.isTaskLinkedToJournal,
               onAction: (action) => _handleCategoryAction(category, action),
               onOpen: () => _openCategoryDetail(category),
+              onShowTaskHistory: _showTaskHistory,
             ),
         ],
       ),
+    );
+  }
+
+  Future<void> _showTaskHistory(Task task) {
+    return openTaskHistory(
+      context,
+      task: task,
+      today: DateTime.parse(_controller.todayKey),
     );
   }
 

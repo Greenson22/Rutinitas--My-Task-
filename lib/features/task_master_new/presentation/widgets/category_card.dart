@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../domain/entities/category.dart';
+import '../../domain/entities/task.dart';
 import 'task_tile.dart';
 
 enum CategoryAction { edit, toggleHidden, delete }
@@ -14,6 +15,7 @@ class CategoryCard extends StatelessWidget {
     required this.onAction,
     required this.onOpen,
     this.isTaskJournalLinked,
+    this.onShowTaskHistory,
   });
 
   final Category category;
@@ -23,6 +25,9 @@ class CategoryCard extends StatelessWidget {
 
   /// Menandai tugas yang tertaut ke aktivitas Jurnal.
   final bool Function(String taskId)? isTaskJournalLinked;
+
+  /// Membuka riwayat harian tugas dari kartu kategori.
+  final void Function(Task task)? onShowTaskHistory;
 
   @override
   Widget build(BuildContext context) {
@@ -152,6 +157,9 @@ class CategoryCard extends StatelessWidget {
                     showActiveStatus: false,
                     isJournalLinked:
                         isTaskJournalLinked?.call(task.id) ?? false,
+                    onShowHistory: onShowTaskHistory == null
+                        ? null
+                        : () => onShowTaskHistory!(task),
                   ),
                 ),
               const SizedBox(height: 2),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../domain/entities/task.dart';
 import '../../domain/entities/task_kind.dart';
+import '../../domain/operations/streak_calculator.dart';
 import 'task_kind_label.dart';
 
 enum TaskAction { edit, toggleActive, delete }
@@ -17,6 +18,7 @@ class TaskTile extends StatelessWidget {
     required this.todayKey,
     this.onAction,
     this.onIncrement,
+    this.onShowHistory,
     this.showActiveStatus = true,
     this.isJournalLinked = false,
   });
@@ -28,6 +30,9 @@ class TaskTile extends StatelessWidget {
   /// Dipanggil saat pengguna menaikkan hitungan satu kali.
   final VoidCallback? onIncrement;
 
+  /// Dipanggil saat pengguna ingin melihat riwayat harian tugas.
+  final VoidCallback? onShowHistory;
+
   /// Menampilkan badge "Aktif" juga, bukan hanya "Nonaktif".
   final bool showActiveStatus;
 
@@ -38,6 +43,7 @@ class TaskTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final countToday = task.countOn(todayKey);
     final isInactive = !task.isActive;
+    final streak = _streakFor(todayKey);
 
     return Opacity(
       opacity: isInactive ? 0.62 : 1,
@@ -82,6 +88,12 @@ class TaskTile extends StatelessWidget {
                             ),
                           if (!task.isActive || showActiveStatus)
                             _StatusBadge(isActive: task.isActive),
+                          if (streak > 0)
+                            _Pill(
+                              key: Key('taskStreak_${task.id}'),
+                              label: '🔥 $streak hari',
+                              color: Colors.orange,
+                            ),
                         ],
                       ),
                       const SizedBox(height: 4),
@@ -95,6 +107,19 @@ class TaskTile extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (onShowHistory != null)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4),
+                    child: IconButton(
+                      key: Key('taskHistory_${task.id}'),
+                      tooltip: 'Riwayat ${task.name}',
+                      onPressed: onShowHistory,
+                      style: IconButton.styleFrom(
+                        foregroundColor: Colors.blueGrey,
+                      ),
+                      icon: const Icon(Icons.history_rounded),
+                    ),
+                  ),
                 if (onIncrement != null)
                   Padding(
                     padding: const EdgeInsets.only(left: 4),
@@ -186,6 +211,12 @@ class TaskTile extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  int _streakFor(String todayKey) {
+    final today = DateTime.tryParse(todayKey);
+    if (today == null) return 0;
+    return calculateStreak(task, today);
   }
 
   String _progressText(int countToday) {

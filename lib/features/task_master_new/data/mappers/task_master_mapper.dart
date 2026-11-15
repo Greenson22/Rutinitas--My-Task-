@@ -8,6 +8,7 @@ import '../../domain/entities/daily_progress.dart';
 import '../../domain/entities/task.dart';
 import '../../domain/entities/task_kind.dart';
 import '../../domain/entities/task_master_data.dart';
+import '../../domain/operations/streak_calculator.dart';
 import '../exceptions/task_master_exceptions.dart';
 
 /// Satu-satunya jalur konversi antara JSON dan entity domain Task Master New.
@@ -277,10 +278,9 @@ class TaskMasterMapper {
     final legacyDate = originalDate is String && originalDate.trim().isNotEmpty
         ? originalDate
         : _formatLegacyDate(task.updatedAt);
-    final cutoffKey = DailyProgress.dateKey(
-      DateTime.parse(
-        '${todayKey}T00:00:00',
-      ).subtract(const Duration(days: 364)),
+    final prunedHistory = pruneHistory(
+      task.history,
+      today: DateTime.parse('${todayKey}T00:00:00'),
     );
 
     return {
@@ -296,29 +296,17 @@ class TaskMasterMapper {
       'targetCount': task.targetTotal,
       'date': legacyDate,
       'lastUpdated': legacyDate,
-      'checked': _checkedFor(task, countToday),
+      'checked': task.isCompleteOn(todayKey),
       'createdAt': task.createdAt.toIso8601String(),
       'updatedAt': updatedIso,
       'history': {
-        for (final entry in task.history.entries)
-          if (entry.value.count > 0 && entry.key.compareTo(cutoffKey) >= 0)
-            entry.key: {
-              'count': entry.value.count,
-              'updatedAt': entry.value.updatedAt.toIso8601String(),
-            },
+        for (final entry in prunedHistory.entries)
+          entry.key: {
+            'count': entry.value.count,
+            'updatedAt': entry.value.updatedAt.toIso8601String(),
+          },
       },
     };
-  }
-
-  bool _checkedFor(Task task, int countToday) {
-    switch (task.kind) {
-      case TaskKind.habit:
-        return task.targetDaily > 0 && countToday >= task.targetDaily;
-      case TaskKind.progress:
-        return task.targetTotal > 0 && task.totalCount >= task.targetTotal;
-      case TaskKind.counter:
-        return false;
-    }
   }
 
   Map<String, dynamic>? _findOriginalCategory(

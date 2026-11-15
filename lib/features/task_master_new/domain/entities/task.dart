@@ -45,6 +45,32 @@ class Task {
   bool get isProgressComplete =>
       kind == TaskKind.progress && targetTotal > 0 && totalCount >= targetTotal;
 
+  /// Aturan berhasil harian yang dipakai untuk streak.
+  ///
+  /// Bila target harian tersedia, hari berhasil hanya ketika hitungan
+  /// mencapai target. Tanpa target harian, hari dianggap aktif bila ada
+  /// hitungan.
+  bool isDailyGoalMetOn(String dateKey) {
+    final count = countOn(dateKey);
+    if (targetDaily > 0) return count >= targetDaily;
+    return count > 0;
+  }
+
+  /// Definisi "selesai" yang konsisten untuk setiap jenis tugas.
+  ///
+  /// `habit` selesai bila target harian tercapai, `progress` selesai bila
+  /// total mencapai target total, dan `counter` tidak memiliki status selesai.
+  bool isCompleteOn(String dateKey) {
+    switch (kind) {
+      case TaskKind.habit:
+        return targetDaily > 0 && countOn(dateKey) >= targetDaily;
+      case TaskKind.counter:
+        return false;
+      case TaskKind.progress:
+        return isProgressComplete;
+    }
+  }
+
   double get progressFraction {
     if (kind != TaskKind.progress || targetTotal <= 0) return 0;
     final fraction = totalCount / targetTotal;

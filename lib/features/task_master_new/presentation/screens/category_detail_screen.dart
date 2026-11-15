@@ -7,6 +7,7 @@ import '../widgets/action_message_banner.dart';
 import '../widgets/task_delete_dialog.dart';
 import '../widgets/task_form_dialog.dart';
 import '../widgets/task_tile.dart';
+import 'task_history_screen.dart';
 
 /// Halaman detail kategori untuk mengelola tugas di dalamnya.
 class CategoryDetailScreen extends StatelessWidget {
@@ -110,6 +111,8 @@ class CategoryDetailScreen extends StatelessWidget {
                               ),
                               onIncrement: () =>
                                   _incrementTask(context, tasks[i]),
+                              onShowHistory: () =>
+                                  _showTaskHistory(context, tasks[i]),
                               onAction: (action) =>
                                   _handleTaskAction(context, tasks[i], action),
                             ),
@@ -123,6 +126,14 @@ class CategoryDetailScreen extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  Future<void> _showTaskHistory(BuildContext context, Task task) {
+    return openTaskHistory(
+      context,
+      task: task,
+      today: DateTime.parse(controller.todayKey),
     );
   }
 

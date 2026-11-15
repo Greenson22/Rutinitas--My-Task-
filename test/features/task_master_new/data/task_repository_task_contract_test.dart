@@ -11,6 +11,7 @@ import 'package:rutinitasku/features/task_master_new/domain/entities/daily_progr
 import 'package:rutinitasku/features/task_master_new/domain/entities/task.dart';
 import 'package:rutinitasku/features/task_master_new/domain/entities/task_kind.dart';
 import 'package:rutinitasku/features/task_master_new/domain/entities/task_master_data.dart';
+import 'package:rutinitasku/features/task_master_new/domain/operations/streak_calculator.dart';
 import 'package:rutinitasku/features/task_master_new/domain/operations/task_operations.dart';
 
 import '../support/fake_task_local_data_source.dart';
@@ -247,6 +248,65 @@ void main() {
       final undone = afterUndo.categories.single.tasks.single;
       expect(undone.totalCount, 120);
       expect(undone.countOn(DailyProgress.dateKey(now)), 15);
+    });
+
+    test('riwayat harian dan streak bertahan pada file nyata', () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'task_master_history_',
+      );
+      addTearDown(() async {
+        if (await tempDir.exists()) {
+          await tempDir.delete(recursive: true);
+        }
+      });
+
+      String key(int daysAgo) => DailyProgress.dateKey(
+        DateTime(now.year, now.month, now.day - daysAgo),
+      );
+
+      TaskRepositoryImpl openRepository() => TaskRepositoryImpl(
+        localDataSource: FileTaskLocalDataSource(
+          storageService: StorageService(),
+          baseDirProvider: () async => tempDir.path,
+          encryptionEnabledProvider: () async => false,
+          clock: () => now,
+        ),
+        mapper: TaskMasterMapper(clock: () => now),
+        clock: () => now,
+      );
+
+      final data = sampleData();
+      final task = data.categories.single.tasks.single;
+      final withHistory = data.copyWith(
+        categories: [
+          data.categories.single.copyWith(
+            tasks: [
+              task.copyWith(
+                history: {
+                  key(1): DailyProgress(
+                    date: key(1),
+                    count: 20,
+                    updatedAt: now,
+                  ),
+                  key(2): DailyProgress(
+                    date: key(2),
+                    count: 22,
+                    updatedAt: now,
+                  ),
+                },
+              ),
+            ],
+          ),
+        ],
+      );
+
+      await openRepository().save(withHistory);
+      final loaded = await openRepository().load();
+      final loadedTask = loaded.categories.single.tasks.single;
+
+      expect(loadedTask.countOn(key(1)), 20);
+      expect(loadedTask.countOn(key(2)), 22);
+      expect(calculateStreak(loadedTask, now), 2);
     });
 
     test('tugas tersimpan pada file nyata di direktori sementara', () async {
