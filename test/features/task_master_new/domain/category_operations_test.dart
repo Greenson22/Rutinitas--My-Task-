@@ -50,10 +50,7 @@ void main() {
 
   group('validasi nama kategori', () {
     test('nama kosong ditolak', () {
-      final error = validateCategoryName(
-        '   ',
-        existingCategories: const [],
-      );
+      final error = validateCategoryName('   ', existingCategories: const []);
 
       expect(error, isNotNull);
     });

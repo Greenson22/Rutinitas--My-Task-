@@ -23,5 +23,6 @@ TaskRepository createTaskRepository({
   return TaskRepositoryImpl(
     localDataSource: localDataSource,
     mapper: TaskMasterMapper(clock: clock),
+    clock: clock,
   );
 }

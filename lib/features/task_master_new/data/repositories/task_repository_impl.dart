@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'dart:math';
 
+import '../../domain/entities/task_kind.dart';
 import '../../domain/entities/task_master_data.dart';
 import '../../domain/operations/category_operations.dart';
+import '../../domain/operations/task_operations.dart';
 import '../../domain/repositories/task_repository.dart';
 import '../datasources/task_local_data_source.dart';
 import '../exceptions/task_master_exceptions.dart';
@@ -15,13 +17,20 @@ class TaskRepositoryImpl implements TaskRepository {
     required TaskLocalDataSource localDataSource,
     TaskMasterMapper? mapper,
     String Function()? categoryIdGenerator,
+    String Function()? taskIdGenerator,
+    DateTime Function()? clock,
   }) : _localDataSource = localDataSource,
        _mapper = mapper ?? TaskMasterMapper(),
-       _categoryIdGenerator = categoryIdGenerator ?? _defaultCategoryId;
+       _clock = clock ?? DateTime.now {
+    _categoryIdGenerator = categoryIdGenerator ?? () => _generateId('cat');
+    _taskIdGenerator = taskIdGenerator ?? () => _generateId('task');
+  }
 
   final TaskLocalDataSource _localDataSource;
   final TaskMasterMapper _mapper;
-  final String Function() _categoryIdGenerator;
+  final DateTime Function() _clock;
+  late final String Function() _categoryIdGenerator;
+  late final String Function() _taskIdGenerator;
 
   @override
   Future<TaskMasterData> load() async {
@@ -88,7 +97,7 @@ class TaskRepositoryImpl implements TaskRepository {
     required String name,
     required String icon,
   }) {
-    return _mutateCategories(
+    return _mutateData(
       (data) => addCategoryTo(
         data,
         id: _categoryIdGenerator(),
@@ -104,7 +113,7 @@ class TaskRepositoryImpl implements TaskRepository {
     required String name,
     required String icon,
   }) {
-    return _mutateCategories(
+    return _mutateData(
       (data) => updateCategoryIn(
         data,
         categoryId: categoryId,
@@ -119,23 +128,96 @@ class TaskRepositoryImpl implements TaskRepository {
     required String categoryId,
     required bool isHidden,
   }) {
-    return _mutateCategories(
-      (data) => setCategoryHiddenIn(
-        data,
-        categoryId: categoryId,
-        isHidden: isHidden,
-      ),
+    return _mutateData(
+      (data) =>
+          setCategoryHiddenIn(data, categoryId: categoryId, isHidden: isHidden),
     );
   }
 
   @override
   Future<TaskMasterData> deleteCategory(String categoryId) {
-    return _mutateCategories(
+    return _mutateData(
       (data) => deleteCategoryFrom(data, categoryId: categoryId),
     );
   }
 
-  Future<TaskMasterData> _mutateCategories(
+  @override
+  Future<TaskMasterData> addTask({
+    required String categoryId,
+    required String name,
+    required TaskKind kind,
+    required int targetDaily,
+    required int targetTotal,
+    required bool isActive,
+  }) {
+    return _mutateData(
+      (data) => addTaskTo(
+        data,
+        id: _taskIdGenerator(),
+        categoryId: categoryId,
+        name: name,
+        kind: kind,
+        targetDaily: targetDaily,
+        targetTotal: targetTotal,
+        isActive: isActive,
+        now: _clock(),
+      ),
+    );
+  }
+
+  @override
+  Future<TaskMasterData> updateTask({
+    required String categoryId,
+    required String taskId,
+    required String name,
+    required TaskKind kind,
+    required int targetDaily,
+    required int targetTotal,
+    required bool isActive,
+  }) {
+    return _mutateData(
+      (data) => updateTaskIn(
+        data,
+        categoryId: categoryId,
+        taskId: taskId,
+        name: name,
+        kind: kind,
+        targetDaily: targetDaily,
+        targetTotal: targetTotal,
+        isActive: isActive,
+        now: _clock(),
+      ),
+    );
+  }
+
+  @override
+  Future<TaskMasterData> setTaskActive({
+    required String categoryId,
+    required String taskId,
+    required bool isActive,
+  }) {
+    return _mutateData(
+      (data) => setTaskActiveIn(
+        data,
+        categoryId: categoryId,
+        taskId: taskId,
+        isActive: isActive,
+        now: _clock(),
+      ),
+    );
+  }
+
+  @override
+  Future<TaskMasterData> deleteTask({
+    required String categoryId,
+    required String taskId,
+  }) {
+    return _mutateData(
+      (data) => deleteTaskFrom(data, categoryId: categoryId, taskId: taskId),
+    );
+  }
+
+  Future<TaskMasterData> _mutateData(
     TaskMasterData Function(TaskMasterData data) transform,
   ) async {
     final data = await load();
@@ -144,10 +226,11 @@ class TaskRepositoryImpl implements TaskRepository {
     return updated;
   }
 
-  static String _defaultCategoryId() {
+  String _generateId(String prefix) {
     final random = Random();
     final suffix = random.nextInt(1 << 32).toRadixString(36);
-    return 'cat_${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}'
+    return '${prefix}_'
+        '${_clock().microsecondsSinceEpoch.toRadixString(36)}'
         '_$suffix';
   }
 }

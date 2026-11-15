@@ -16,6 +16,14 @@ class TaskMasterData {
   Iterable<Task> get allTasks =>
       categories.expand((category) => category.tasks);
 
+  /// Mencari kategori berdasarkan `id`, atau `null` bila tidak ada.
+  Category? categoryById(String categoryId) {
+    for (final category in categories) {
+      if (category.id == categoryId) return category;
+    }
+    return null;
+  }
+
   int get activeTaskCount => categories
       .where((category) => !category.isHidden)
       .expand((category) => category.tasks)

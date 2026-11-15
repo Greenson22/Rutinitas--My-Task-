@@ -205,7 +205,9 @@ class _EmojiChoice extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: selected ? Colors.indigo : Colors.blueGrey.withValues(alpha: 0.2),
+            color: selected
+                ? Colors.indigo
+                : Colors.blueGrey.withValues(alpha: 0.2),
             width: selected ? 2 : 1,
           ),
           color: selected

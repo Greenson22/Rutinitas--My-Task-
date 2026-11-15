@@ -2,16 +2,29 @@ import 'package:flutter/material.dart';
 
 import '../../domain/entities/task.dart';
 import '../../domain/entities/task_kind.dart';
+import 'task_kind_label.dart';
 
-class TaskReadOnlyTile extends StatelessWidget {
-  const TaskReadOnlyTile({
+enum TaskAction { edit, toggleActive, delete }
+
+/// Baris tugas dengan badge jenis, status, hitungan, dan progress bar.
+///
+/// Bila [onAction] diberikan, tombol menu untuk ubah, aktif/nonaktif, dan hapus
+/// ikut ditampilkan.
+class TaskTile extends StatelessWidget {
+  const TaskTile({
     super.key,
     required this.task,
     required this.todayKey,
+    this.onAction,
+    this.showActiveStatus = true,
   });
 
   final Task task;
   final String todayKey;
+  final void Function(TaskAction action)? onAction;
+
+  /// Menampilkan badge "Aktif" juga, bukan hanya "Nonaktif".
+  final bool showActiveStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +32,7 @@ class TaskReadOnlyTile extends StatelessWidget {
     final isInactive = !task.isActive;
 
     return Opacity(
-      opacity: isInactive ? 0.55 : 1,
+      opacity: isInactive ? 0.62 : 1,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 10),
         child: Column(
@@ -53,7 +66,8 @@ class TaskReadOnlyTile extends StatelessWidget {
                             ),
                           ),
                           _KindBadge(kind: task.kind),
-                          if (isInactive) const _StatusBadge(label: 'Nonaktif'),
+                          if (!task.isActive || showActiveStatus)
+                            _StatusBadge(isActive: task.isActive),
                         ],
                       ),
                       const SizedBox(height: 4),
@@ -67,6 +81,53 @@ class TaskReadOnlyTile extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (onAction != null)
+                  PopupMenuButton<TaskAction>(
+                    key: Key('taskMenu_${task.id}'),
+                    tooltip: 'Aksi tugas ${task.name}',
+                    onSelected: onAction,
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(
+                        value: TaskAction.edit,
+                        child: ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(Icons.edit_outlined),
+                          title: Text('Ubah'),
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: TaskAction.toggleActive,
+                        child: ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(
+                            task.isActive
+                                ? Icons.pause_circle_outline
+                                : Icons.play_circle_outline,
+                          ),
+                          title: Text(
+                            task.isActive ? 'Nonaktifkan' : 'Aktifkan',
+                          ),
+                        ),
+                      ),
+                      const PopupMenuItem(
+                        value: TaskAction.delete,
+                        child: ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(
+                            Icons.delete_outline,
+                            color: Colors.red,
+                          ),
+                          title: Text(
+                            'Hapus',
+                            style: TextStyle(color: Colors.red),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
               ],
             ),
             if (task.kind == TaskKind.progress && task.targetTotal > 0) ...[
@@ -109,8 +170,8 @@ class TaskReadOnlyTile extends StatelessWidget {
       case TaskKind.counter:
         return 'Hari ini $countToday • Total ${task.totalCount}';
       case TaskKind.progress:
-        return 'Hari ini $countToday • Total ${task.totalCount}'
-            '${task.targetTotal > 0 ? ' / ${task.targetTotal}' : ''}';
+        final total = task.targetTotal > 0 ? ' / ${task.targetTotal}' : '';
+        return 'Hari ini $countToday • Total ${task.totalCount}$total';
     }
   }
 
@@ -141,18 +202,44 @@ class _KindBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (label, color) = switch (kind) {
-      TaskKind.habit => ('Kebiasaan', Colors.teal),
-      TaskKind.counter => ('Hitungan', Colors.blueGrey),
-      TaskKind.progress => ('Progres', Colors.indigo),
+    final color = switch (kind) {
+      TaskKind.habit => Colors.teal,
+      TaskKind.counter => Colors.blueGrey,
+      TaskKind.progress => Colors.indigo,
     };
 
+    return _Pill(label: taskKindLabel(kind), color: color);
+  }
+}
+
+class _StatusBadge extends StatelessWidget {
+  const _StatusBadge({required this.isActive});
+
+  final bool isActive;
+
+  @override
+  Widget build(BuildContext context) {
+    return _Pill(
+      label: isActive ? 'Aktif' : 'Nonaktif',
+      color: isActive ? Colors.green : Colors.grey,
+    );
+  }
+}
+
+class _Pill extends StatelessWidget {
+  const _Pill({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.35)),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
       ),
       child: Text(
         label,
@@ -160,32 +247,6 @@ class _KindBadge extends StatelessWidget {
           fontSize: 10,
           fontWeight: FontWeight.w600,
           color: color,
-        ),
-      ),
-    );
-  }
-}
-
-class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-      decoration: BoxDecoration(
-        color: Colors.grey.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.withValues(alpha: 0.4)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w600,
-          color: Colors.grey[700],
         ),
       ),
     );

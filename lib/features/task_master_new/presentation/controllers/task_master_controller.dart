@@ -1,13 +1,16 @@
 import 'package:flutter/foundation.dart';
 
 import '../../data/exceptions/task_master_exceptions.dart';
+import '../../domain/entities/category.dart' as domain;
 import '../../domain/entities/daily_progress.dart';
+import '../../domain/entities/task_kind.dart';
 import '../../domain/entities/task_master_data.dart';
 import '../../domain/operations/category_operations.dart' as ops;
+import '../../domain/operations/task_operations.dart' as task_ops;
 import '../../domain/repositories/task_repository.dart';
 import 'task_master_state.dart';
 
-/// Controller untuk Task Master New: memuat data dan mengelola kategori.
+/// Controller untuk Task Master New: memuat data, mengelola kategori dan tugas.
 class TaskMasterNewController extends ChangeNotifier {
   TaskMasterNewController({
     required TaskRepository repository,
@@ -103,11 +106,8 @@ class TaskMasterNewController extends ChangeNotifier {
     );
   }
 
-  Future<bool> addCategory({
-    required String name,
-    required String icon,
-  }) async {
-    return _runCategoryAction(
+  Future<bool> addCategory({required String name, required String icon}) async {
+    return _runDataAction(
       () => _repository.addCategory(name: name, icon: icon),
     );
   }
@@ -117,7 +117,7 @@ class TaskMasterNewController extends ChangeNotifier {
     required String name,
     required String icon,
   }) async {
-    return _runCategoryAction(
+    return _runDataAction(
       () => _repository.updateCategory(
         categoryId: categoryId,
         name: name,
@@ -130,7 +130,7 @@ class TaskMasterNewController extends ChangeNotifier {
     String categoryId, {
     required bool isHidden,
   }) async {
-    return _runCategoryAction(
+    return _runDataAction(
       () => _repository.setCategoryHidden(
         categoryId: categoryId,
         isHidden: isHidden,
@@ -139,8 +139,81 @@ class TaskMasterNewController extends ChangeNotifier {
   }
 
   Future<bool> deleteCategory(String categoryId) async {
-    return _runCategoryAction(
-      () => _repository.deleteCategory(categoryId),
+    return _runDataAction(() => _repository.deleteCategory(categoryId));
+  }
+
+  /// Memvalidasi nama tugas untuk form tambah/edit.
+  String? validateTaskName(String name) {
+    return task_ops.validateTaskName(name);
+  }
+
+  /// Mengambil kategori dari state saat ini, atau `null` bila tidak ada.
+  domain.Category? categoryById(String categoryId) {
+    return _state.data?.categoryById(categoryId);
+  }
+
+  Future<bool> addTask({
+    required String categoryId,
+    required String name,
+    required TaskKind kind,
+    required int targetDaily,
+    required int targetTotal,
+    required bool isActive,
+  }) async {
+    return _runDataAction(
+      () => _repository.addTask(
+        categoryId: categoryId,
+        name: name,
+        kind: kind,
+        targetDaily: targetDaily,
+        targetTotal: targetTotal,
+        isActive: isActive,
+      ),
+    );
+  }
+
+  Future<bool> updateTask({
+    required String categoryId,
+    required String taskId,
+    required String name,
+    required TaskKind kind,
+    required int targetDaily,
+    required int targetTotal,
+    required bool isActive,
+  }) async {
+    return _runDataAction(
+      () => _repository.updateTask(
+        categoryId: categoryId,
+        taskId: taskId,
+        name: name,
+        kind: kind,
+        targetDaily: targetDaily,
+        targetTotal: targetTotal,
+        isActive: isActive,
+      ),
+    );
+  }
+
+  Future<bool> setTaskActive({
+    required String categoryId,
+    required String taskId,
+    required bool isActive,
+  }) async {
+    return _runDataAction(
+      () => _repository.setTaskActive(
+        categoryId: categoryId,
+        taskId: taskId,
+        isActive: isActive,
+      ),
+    );
+  }
+
+  Future<bool> deleteTask({
+    required String categoryId,
+    required String taskId,
+  }) async {
+    return _runDataAction(
+      () => _repository.deleteTask(categoryId: categoryId, taskId: taskId),
     );
   }
 
@@ -154,12 +227,10 @@ class TaskMasterNewController extends ChangeNotifier {
   Future<void> retryLastAction() async {
     final action = _retryAction;
     if (action == null || _state.isSaving) return;
-    await _runCategoryAction(action);
+    await _runDataAction(action);
   }
 
-  Future<bool> _runCategoryAction(
-    Future<TaskMasterData> Function() action,
-  ) async {
+  Future<bool> _runDataAction(Future<TaskMasterData> Function() action) async {
     if (_state.isSaving) return false;
     _retryAction = null;
     _setState(_state.copyWith(isSaving: true, clearActionMessage: true));
@@ -168,6 +239,15 @@ class TaskMasterNewController extends ChangeNotifier {
       _setState(_stateForData(data).copyWith(isSaving: false));
       return true;
     } on ops.CategoryValidationException catch (error) {
+      _setState(
+        _state.copyWith(
+          isSaving: false,
+          actionMessage: error.message,
+          actionRetryable: false,
+        ),
+      );
+      return false;
+    } on task_ops.TaskValidationException catch (error) {
       _setState(
         _state.copyWith(
           isSaving: false,

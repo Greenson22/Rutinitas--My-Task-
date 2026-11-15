@@ -74,10 +74,7 @@ void main() {
         find.byKey(const Key('categoryNameField')),
         'Belajar',
       );
-      await tester.enterText(
-        find.byKey(const Key('categoryIconField')),
-        '📚',
-      );
+      await tester.enterText(find.byKey(const Key('categoryIconField')), '📚');
       await tester.tap(find.byKey(const Key('categorySaveButton')));
       await tester.pumpAndSettle();
 
@@ -104,10 +101,7 @@ void main() {
         find.byKey(const Key('categoryNameField')),
         'Kebugaran',
       );
-      await tester.enterText(
-        find.byKey(const Key('categoryIconField')),
-        '💪',
-      );
+      await tester.enterText(find.byKey(const Key('categoryIconField')), '💪');
       await tester.tap(find.byKey(const Key('categorySaveButton')));
       await tester.pumpAndSettle();
 

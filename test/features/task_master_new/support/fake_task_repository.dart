@@ -1,7 +1,9 @@
 import 'dart:async';
 
+import 'package:rutinitasku/features/task_master_new/domain/entities/task_kind.dart';
 import 'package:rutinitasku/features/task_master_new/domain/entities/task_master_data.dart';
 import 'package:rutinitasku/features/task_master_new/domain/operations/category_operations.dart';
+import 'package:rutinitasku/features/task_master_new/domain/operations/task_operations.dart';
 import 'package:rutinitasku/features/task_master_new/domain/repositories/task_repository.dart';
 
 class FakeTaskRepository implements TaskRepository {
@@ -13,9 +15,15 @@ class FakeTaskRepository implements TaskRepository {
   int loadCount = 0;
   int saveCount = 0;
   int _categoryIdCounter = 0;
+  int _taskIdCounter = 0;
 
   /// Bila diisi, operasi kategori melempar error ini.
   Object? categoryActionError;
+
+  /// Bila diisi, operasi tugas melempar error ini.
+  Object? taskActionError;
+
+  DateTime now = DateTime(2026, 11, 14, 12);
 
   @override
   Future<TaskMasterData> load() async {
@@ -68,11 +76,8 @@ class FakeTaskRepository implements TaskRepository {
     required bool isHidden,
   }) {
     return _mutateCategories(
-      (data) => setCategoryHiddenIn(
-        data,
-        categoryId: categoryId,
-        isHidden: isHidden,
-      ),
+      (data) =>
+          setCategoryHiddenIn(data, categoryId: categoryId, isHidden: isHidden),
     );
   }
 
@@ -83,10 +88,96 @@ class FakeTaskRepository implements TaskRepository {
     );
   }
 
+  @override
+  Future<TaskMasterData> addTask({
+    required String categoryId,
+    required String name,
+    required TaskKind kind,
+    required int targetDaily,
+    required int targetTotal,
+    required bool isActive,
+  }) {
+    return _mutateTasks(
+      (data) => addTaskTo(
+        data,
+        id: 'task_generated_${_taskIdCounter++}',
+        categoryId: categoryId,
+        name: name,
+        kind: kind,
+        targetDaily: targetDaily,
+        targetTotal: targetTotal,
+        isActive: isActive,
+        now: now,
+      ),
+    );
+  }
+
+  @override
+  Future<TaskMasterData> updateTask({
+    required String categoryId,
+    required String taskId,
+    required String name,
+    required TaskKind kind,
+    required int targetDaily,
+    required int targetTotal,
+    required bool isActive,
+  }) {
+    return _mutateTasks(
+      (data) => updateTaskIn(
+        data,
+        categoryId: categoryId,
+        taskId: taskId,
+        name: name,
+        kind: kind,
+        targetDaily: targetDaily,
+        targetTotal: targetTotal,
+        isActive: isActive,
+        now: now,
+      ),
+    );
+  }
+
+  @override
+  Future<TaskMasterData> setTaskActive({
+    required String categoryId,
+    required String taskId,
+    required bool isActive,
+  }) {
+    return _mutateTasks(
+      (data) => setTaskActiveIn(
+        data,
+        categoryId: categoryId,
+        taskId: taskId,
+        isActive: isActive,
+        now: now,
+      ),
+    );
+  }
+
+  @override
+  Future<TaskMasterData> deleteTask({
+    required String categoryId,
+    required String taskId,
+  }) {
+    return _mutateTasks(
+      (data) => deleteTaskFrom(data, categoryId: categoryId, taskId: taskId),
+    );
+  }
+
   Future<TaskMasterData> _mutateCategories(
     TaskMasterData Function(TaskMasterData data) transform,
   ) async {
     final failure = categoryActionError;
+    if (failure != null) throw failure;
+    final updated = transform(data ?? TaskMasterData.empty());
+    await save(updated);
+    return updated;
+  }
+
+  Future<TaskMasterData> _mutateTasks(
+    TaskMasterData Function(TaskMasterData data) transform,
+  ) async {
+    final failure = taskActionError;
     if (failure != null) throw failure;
     final updated = transform(data ?? TaskMasterData.empty());
     await save(updated);

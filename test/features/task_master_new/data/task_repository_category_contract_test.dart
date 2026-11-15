@@ -77,10 +77,7 @@ void main() {
       final source = FakeTaskLocalDataSource();
       final repository = buildRepository(source);
 
-      final added = await repository.addCategory(
-        name: 'Belajar',
-        icon: '📚',
-      );
+      final added = await repository.addCategory(name: 'Belajar', icon: '📚');
       expect(added.categories.single.id, 'cat_new');
 
       final reopened = buildRepository(source);
@@ -134,10 +131,7 @@ void main() {
       final source = sourceWith(sampleData());
       final repository = buildRepository(source);
 
-      await repository.setCategoryHidden(
-        categoryId: 'cat_1',
-        isHidden: true,
-      );
+      await repository.setCategoryHidden(categoryId: 'cat_1', isHidden: true);
 
       final reopened = buildRepository(source);
       final loaded = await reopened.load();
@@ -156,43 +150,46 @@ void main() {
       expect(loaded.categories, isEmpty);
     });
 
-    test('tambah kategori bertahan pada file nyata di direktori sementara', () async {
-      final tempDir = await Directory.systemTemp.createTemp(
-        'task_master_category_',
-      );
-      addTearDown(() async {
-        if (await tempDir.exists()) {
-          await tempDir.delete(recursive: true);
-        }
-      });
+    test(
+      'tambah kategori bertahan pada file nyata di direktori sementara',
+      () async {
+        final tempDir = await Directory.systemTemp.createTemp(
+          'task_master_category_',
+        );
+        addTearDown(() async {
+          if (await tempDir.exists()) {
+            await tempDir.delete(recursive: true);
+          }
+        });
 
-      TaskLocalDataSource dataSource() => FileTaskLocalDataSource(
-        storageService: StorageService(),
-        baseDirProvider: () async => tempDir.path,
-        encryptionEnabledProvider: () async => false,
-        clock: () => now,
-      );
+        TaskLocalDataSource dataSource() => FileTaskLocalDataSource(
+          storageService: StorageService(),
+          baseDirProvider: () async => tempDir.path,
+          encryptionEnabledProvider: () async => false,
+          clock: () => now,
+        );
 
-      final repository = TaskRepositoryImpl(
-        localDataSource: dataSource(),
-        mapper: TaskMasterMapper(clock: () => now),
-        categoryIdGenerator: () => 'cat_file',
-      );
-      await repository.addCategory(name: 'Belajar', icon: '📚');
+        final repository = TaskRepositoryImpl(
+          localDataSource: dataSource(),
+          mapper: TaskMasterMapper(clock: () => now),
+          categoryIdGenerator: () => 'cat_file',
+        );
+        await repository.addCategory(name: 'Belajar', icon: '📚');
 
-      final file = File('${tempDir.path}/mytask/my_tasks.json');
-      expect(await file.exists(), isTrue);
+        final file = File('${tempDir.path}/mytask/my_tasks.json');
+        expect(await file.exists(), isTrue);
 
-      final reopened = TaskRepositoryImpl(
-        localDataSource: dataSource(),
-        mapper: TaskMasterMapper(clock: () => now),
-        categoryIdGenerator: () => 'cat_other',
-      );
-      final loaded = await reopened.load();
+        final reopened = TaskRepositoryImpl(
+          localDataSource: dataSource(),
+          mapper: TaskMasterMapper(clock: () => now),
+          categoryIdGenerator: () => 'cat_other',
+        );
+        final loaded = await reopened.load();
 
-      expect(loaded.categories.single.id, 'cat_file');
-      expect(loaded.categories.single.name, 'Belajar');
-      expect(loaded.categories.single.icon, '📚');
-    });
+        expect(loaded.categories.single.id, 'cat_file');
+        expect(loaded.categories.single.name, 'Belajar');
+        expect(loaded.categories.single.icon, '📚');
+      },
+    );
   });
 }

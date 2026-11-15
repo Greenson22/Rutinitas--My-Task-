@@ -7,10 +7,12 @@ import '../../domain/entities/task_master_data.dart';
 import '../../domain/repositories/task_repository.dart';
 import '../controllers/task_master_controller.dart';
 import '../controllers/task_master_state.dart';
+import '../widgets/action_message_banner.dart';
 import '../widgets/category_card.dart';
 import '../widgets/category_delete_dialog.dart';
 import '../widgets/category_form_dialog.dart';
 import '../widgets/status_views.dart';
+import 'category_detail_screen.dart';
 
 /// Task Master New: dashboard dan pengelolaan kategori.
 class TaskMasterNewScreen extends StatefulWidget {
@@ -118,7 +120,7 @@ class _TaskMasterNewScreenState extends State<TaskMasterNewScreen> {
         padding: const EdgeInsets.fromLTRB(14, 14, 14, 96),
         children: [
           if (state.actionMessage != null) ...[
-            _ActionMessageBanner(
+            ActionMessageBanner(
               message: state.actionMessage!,
               onDismiss: _controller.clearActionMessage,
               onRetry: state.actionRetryable
@@ -144,16 +146,25 @@ class _TaskMasterNewScreenState extends State<TaskMasterNewScreen> {
               category: category,
               todayKey: _controller.todayKey,
               onAction: (action) => _handleCategoryAction(category, action),
+              onOpen: () => _openCategoryDetail(category),
             ),
         ],
       ),
     );
   }
 
-  Future<void> _handleCategoryAction(
-    Category category,
-    CategoryAction action,
-  ) {
+  Future<void> _openCategoryDetail(Category category) {
+    return Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CategoryDetailScreen(
+          controller: _controller,
+          categoryId: category.id,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleCategoryAction(Category category, CategoryAction action) {
     switch (action) {
       case CategoryAction.edit:
         return _openCategoryForm(category: category);
@@ -172,10 +183,8 @@ class _TaskMasterNewScreenState extends State<TaskMasterNewScreen> {
       context: context,
       builder: (dialogContext) => CategoryFormDialog(
         category: category,
-        onValidateName: (name) => _controller.validateCategoryName(
-          name,
-          categoryId: category?.id,
-        ),
+        onValidateName: (name) =>
+            _controller.validateCategoryName(name, categoryId: category?.id),
         onSave: (name, icon) {
           if (category == null) {
             return _controller.addCategory(name: name, icon: icon);
@@ -198,63 +207,6 @@ class _TaskMasterNewScreenState extends State<TaskMasterNewScreen> {
     if (confirmed == true) {
       await _controller.deleteCategory(category.id);
     }
-  }
-}
-
-class _ActionMessageBanner extends StatelessWidget {
-  const _ActionMessageBanner({
-    required this.message,
-    required this.onDismiss,
-    this.onRetry,
-  });
-
-  final String message;
-  final VoidCallback onDismiss;
-  final VoidCallback? onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
-      decoration: BoxDecoration(
-        color: Colors.amber.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.amber.shade700.withValues(alpha: 0.4)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            Icons.error_outline,
-            size: 20,
-            color: Colors.amber.shade900,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              message,
-              style: TextStyle(
-                fontSize: 12,
-                height: 1.45,
-                color: Colors.brown[800],
-              ),
-            ),
-          ),
-          if (onRetry != null)
-            TextButton(
-              key: const Key('retryActionButton'),
-              onPressed: onRetry,
-              child: const Text('Coba Lagi'),
-            ),
-          IconButton(
-            tooltip: 'Tutup pesan',
-            visualDensity: VisualDensity.compact,
-            onPressed: onDismiss,
-            icon: const Icon(Icons.close, size: 18),
-          ),
-        ],
-      ),
-    );
   }
 }
 
