@@ -282,6 +282,147 @@ Task _applyDailyCount(
   );
 }
 
+/// Memindahkan tugas ke posisi [newIndex] di dalam kategorinya.
+///
+/// Indeks dihitung pada urutan tugas yang sudah diurutkan berdasarkan
+/// `sortOrder`. Semua tugas di kategori tersebut dinomori ulang agar urutan
+/// tetap konsisten setelah reload.
+TaskMasterData reorderTaskIn(
+  TaskMasterData data, {
+  required String categoryId,
+  required String taskId,
+  required int newIndex,
+  required DateTime now,
+}) {
+  final categoryIndex = _categoryIndex(data, categoryId);
+  final category = data.categories[categoryIndex];
+  final tasks = [...category.tasks]
+    ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+  final currentIndex = tasks.indexWhere((task) => task.id == taskId);
+  if (currentIndex == -1) {
+    throw TaskValidationException('Tugas tidak ditemukan');
+  }
+
+  final moved = tasks.removeAt(currentIndex);
+  final targetIndex = newIndex.clamp(0, tasks.length);
+  tasks.insert(targetIndex, moved);
+
+  final categories = [...data.categories];
+  categories[categoryIndex] = category.copyWith(
+    tasks: [
+      for (var i = 0; i < tasks.length; i++)
+        tasks[i].id == taskId
+            ? tasks[i].copyWith(sortOrder: i, updatedAt: now)
+            : tasks[i].copyWith(sortOrder: i),
+    ],
+  );
+  return data.copyWith(categories: categories);
+}
+
+/// Memindahkan tugas ke kategori lain tanpa mengubah `id`, riwayat, atau
+/// hitungan totalnya.
+///
+/// Tugas diletakkan di urutan paling akhir kategori tujuan. Memindahkan ke
+/// kategori yang sama akan menolak operasi agar urutan tidak berubah diam-diam;
+/// gunakan [reorderTaskIn] untuk mengubah urutan di dalam kategori.
+TaskMasterData moveTaskToCategoryIn(
+  TaskMasterData data, {
+  required String fromCategoryId,
+  required String taskId,
+  required String toCategoryId,
+  required DateTime now,
+}) {
+  if (fromCategoryId == toCategoryId) {
+    throw TaskValidationException(
+      'Pilih kategori tujuan yang berbeda dari kategori saat ini',
+    );
+  }
+
+  final fromIndex = _categoryIndex(data, fromCategoryId);
+  final toIndex = _categoryIndex(data, toCategoryId);
+  final fromCategory = data.categories[fromIndex];
+  final taskIndex = fromCategory.tasks.indexWhere((task) => task.id == taskId);
+  if (taskIndex == -1) {
+    throw TaskValidationException('Tugas tidak ditemukan');
+  }
+
+  final task = fromCategory.tasks[taskIndex];
+  final remaining = [...fromCategory.tasks]..removeAt(taskIndex);
+  final toCategory = data.categories[toIndex];
+  final nextSortOrder = toCategory.tasks.isEmpty
+      ? 0
+      : toCategory.tasks
+                .map((item) => item.sortOrder)
+                .reduce((a, b) => a > b ? a : b) +
+            1;
+
+  final categories = [...data.categories];
+  categories[fromIndex] = fromCategory.copyWith(tasks: remaining);
+  categories[toIndex] = toCategory.copyWith(
+    tasks: [
+      ...toCategory.tasks,
+      task.copyWith(
+        categoryId: toCategoryId,
+        sortOrder: nextSortOrder,
+        updatedAt: now,
+      ),
+    ],
+  );
+  return data.copyWith(categories: categories);
+}
+
+/// Mengaktifkan atau menonaktifkan beberapa tugas sekaligus.
+TaskMasterData setTasksActiveIn(
+  TaskMasterData data, {
+  required String categoryId,
+  required Iterable<String> taskIds,
+  required bool isActive,
+  required DateTime now,
+}) {
+  final selected = taskIds.toSet();
+  final categoryIndex = _categoryIndex(data, categoryId);
+  final category = data.categories[categoryIndex];
+  var changed = false;
+
+  final tasks = <Task>[];
+  for (final task in category.tasks) {
+    if (selected.contains(task.id)) {
+      changed = true;
+      tasks.add(task.copyWith(isActive: isActive, updatedAt: now));
+    } else {
+      tasks.add(task);
+    }
+  }
+  if (!changed) {
+    throw TaskValidationException('Tidak ada tugas yang dipilih');
+  }
+
+  final categories = [...data.categories];
+  categories[categoryIndex] = category.copyWith(tasks: tasks);
+  return data.copyWith(categories: categories);
+}
+
+/// Menghapus beberapa tugas sekaligus dari satu kategori.
+TaskMasterData deleteTasksFrom(
+  TaskMasterData data, {
+  required String categoryId,
+  required Iterable<String> taskIds,
+}) {
+  final selected = taskIds.toSet();
+  final categoryIndex = _categoryIndex(data, categoryId);
+  final category = data.categories[categoryIndex];
+  final remaining = category.tasks
+      .where((task) => !selected.contains(task.id))
+      .toList();
+  if (remaining.length == category.tasks.length) {
+    throw TaskValidationException('Tidak ada tugas yang dipilih');
+  }
+
+  final categories = [...data.categories];
+  categories[categoryIndex] = category.copyWith(tasks: remaining);
+  return data.copyWith(categories: categories);
+}
+
 /// Menghapus tugas dari kategorinya.
 TaskMasterData deleteTaskFrom(
   TaskMasterData data, {

@@ -31,6 +31,12 @@ abstract interface class TaskRepository {
     required bool isHidden,
   });
 
+  /// Memindahkan kategori ke posisi baru lalu menyimpan urutannya.
+  Future<TaskMasterData> reorderCategory({
+    required String categoryId,
+    required int newIndex,
+  });
+
   /// Menghapus kategori beserta tugas di dalamnya.
   Future<TaskMasterData> deleteCategory(String categoryId);
 
@@ -60,6 +66,33 @@ abstract interface class TaskRepository {
     required String categoryId,
     required String taskId,
     required bool isActive,
+  });
+
+  /// Mengubah urutan tugas di dalam kategori.
+  Future<TaskMasterData> reorderTask({
+    required String categoryId,
+    required String taskId,
+    required int newIndex,
+  });
+
+  /// Memindahkan tugas ke kategori lain tanpa mengubah `id` atau riwayatnya.
+  Future<TaskMasterData> moveTask({
+    required String fromCategoryId,
+    required String taskId,
+    required String toCategoryId,
+  });
+
+  /// Mengaktifkan atau menonaktifkan beberapa tugas sekaligus.
+  Future<TaskMasterData> setTasksActive({
+    required String categoryId,
+    required Iterable<String> taskIds,
+    required bool isActive,
+  });
+
+  /// Menghapus beberapa tugas sekaligus dari kategori.
+  Future<TaskMasterData> deleteTasks({
+    required String categoryId,
+    required Iterable<String> taskIds,
   });
 
   /// Menghapus satu tugas dari kategori.

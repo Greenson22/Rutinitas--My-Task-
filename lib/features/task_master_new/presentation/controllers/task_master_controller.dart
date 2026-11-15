@@ -233,6 +233,19 @@ class TaskMasterNewController extends ChangeNotifier {
     );
   }
 
+  /// Memindahkan kategori ke posisi [newIndex] pada daftar terurut.
+  Future<bool> reorderCategory({
+    required String categoryId,
+    required int newIndex,
+  }) async {
+    return _runDataAction(
+      () => _repository.reorderCategory(
+        categoryId: categoryId,
+        newIndex: newIndex,
+      ),
+    );
+  }
+
   Future<bool> deleteCategory(String categoryId) async {
     return _runDataAction(() => _repository.deleteCategory(categoryId));
   }
@@ -300,6 +313,61 @@ class TaskMasterNewController extends ChangeNotifier {
         taskId: taskId,
         isActive: isActive,
       ),
+    );
+  }
+
+  /// Mengubah urutan tugas di dalam kategori.
+  Future<bool> reorderTask({
+    required String categoryId,
+    required String taskId,
+    required int newIndex,
+  }) async {
+    return _runDataAction(
+      () => _repository.reorderTask(
+        categoryId: categoryId,
+        taskId: taskId,
+        newIndex: newIndex,
+      ),
+    );
+  }
+
+  /// Memindahkan tugas ke kategori lain tanpa mengubah `id` atau riwayatnya.
+  Future<bool> moveTask({
+    required String fromCategoryId,
+    required String taskId,
+    required String toCategoryId,
+  }) async {
+    return _runDataAction(
+      () => _repository.moveTask(
+        fromCategoryId: fromCategoryId,
+        taskId: taskId,
+        toCategoryId: toCategoryId,
+      ),
+    );
+  }
+
+  /// Mengaktifkan atau menonaktifkan beberapa tugas sekaligus.
+  Future<bool> setTasksActive({
+    required String categoryId,
+    required Iterable<String> taskIds,
+    required bool isActive,
+  }) async {
+    return _runDataAction(
+      () => _repository.setTasksActive(
+        categoryId: categoryId,
+        taskIds: taskIds,
+        isActive: isActive,
+      ),
+    );
+  }
+
+  /// Menghapus beberapa tugas sekaligus.
+  Future<bool> deleteTasks({
+    required String categoryId,
+    required Iterable<String> taskIds,
+  }) async {
+    return _runDataAction(
+      () => _repository.deleteTasks(categoryId: categoryId, taskIds: taskIds),
     );
   }
 

@@ -16,6 +16,7 @@ import '../widgets/action_message_banner.dart';
 import '../widgets/category_card.dart' show CategoryAction;
 import '../widgets/category_delete_dialog.dart';
 import '../widgets/category_form_dialog.dart';
+import '../widgets/category_reorder_sheet.dart';
 import '../widgets/category_summary_card.dart';
 import '../widgets/dashboard_summary_cards.dart';
 import '../widgets/status_views.dart';
@@ -108,6 +109,12 @@ class _TaskMasterNewScreenState extends State<TaskMasterNewScreen> {
                       ? Icons.search_off_rounded
                       : Icons.search_rounded,
                 ),
+              ),
+              IconButton(
+                key: const Key('reorderCategoriesButton'),
+                tooltip: 'Urutkan kategori',
+                onPressed: state.data == null ? null : _openCategoryReorder,
+                icon: const Icon(Icons.swap_vert_rounded),
               ),
               IconButton(
                 tooltip: 'Muat ulang data',
@@ -368,6 +375,15 @@ class _TaskMasterNewScreenState extends State<TaskMasterNewScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _openCategoryReorder() {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => CategoryReorderSheet(controller: _controller),
     );
   }
 

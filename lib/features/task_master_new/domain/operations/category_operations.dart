@@ -104,6 +104,37 @@ TaskMasterData updateCategoryIn(
   );
 }
 
+/// Memindahkan kategori ke posisi [newIndex] lalu menormalkan `sortOrder`.
+///
+/// Indeks dihitung pada urutan kategori yang sudah diurutkan berdasarkan
+/// `sortOrder`. Nilai di luar rentang dijepit agar pemanggil tidak perlu
+/// menghitung batas sendiri.
+TaskMasterData reorderCategoryIn(
+  TaskMasterData data, {
+  required String categoryId,
+  required int newIndex,
+}) {
+  final categories = [...data.categories]
+    ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+  final currentIndex = categories.indexWhere(
+    (category) => category.id == categoryId,
+  );
+  if (currentIndex == -1) {
+    throw CategoryValidationException('Kategori tidak ditemukan');
+  }
+
+  final moved = categories.removeAt(currentIndex);
+  final targetIndex = newIndex.clamp(0, categories.length);
+  categories.insert(targetIndex, moved);
+
+  return data.copyWith(
+    categories: [
+      for (var i = 0; i < categories.length; i++)
+        categories[i].copyWith(sortOrder: i),
+    ],
+  );
+}
+
 /// Menyembunyikan atau menampilkan kembali kategori.
 TaskMasterData setCategoryHiddenIn(
   TaskMasterData data, {

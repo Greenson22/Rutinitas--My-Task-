@@ -5,12 +5,13 @@ import '../../domain/entities/task_kind.dart';
 import '../../domain/operations/streak_calculator.dart';
 import 'task_kind_label.dart';
 
-enum TaskAction { edit, toggleActive, delete }
+enum TaskAction { edit, toggleActive, moveToCategory, delete }
 
 /// Baris tugas dengan badge jenis, status, hitungan, dan progress bar.
 ///
-/// Bila [onAction] diberikan, tombol menu untuk ubah, aktif/nonaktif, dan hapus
-/// ikut ditampilkan.
+/// Bila [onAction] diberikan, tombol menu untuk ubah, aktif/nonaktif, pindah
+/// kategori, dan hapus ikut ditampilkan. Mode seleksi diaktifkan lewat
+/// [selectionMode] dan long press pada baris.
 class TaskTile extends StatelessWidget {
   const TaskTile({
     super.key,
@@ -19,6 +20,14 @@ class TaskTile extends StatelessWidget {
     this.onAction,
     this.onIncrement,
     this.onShowHistory,
+    this.onLongPress,
+    this.selectionMode = false,
+    this.isSelected = false,
+    this.onToggleSelection,
+    this.dragHandle,
+    this.onMoveUp,
+    this.onMoveDown,
+    this.onMoveToCategory,
     this.showActiveStatus = true,
     this.isJournalLinked = false,
   });
@@ -33,11 +42,31 @@ class TaskTile extends StatelessWidget {
   /// Dipanggil saat pengguna ingin melihat riwayat harian tugas.
   final VoidCallback? onShowHistory;
 
+  /// Long press membuka mode seleksi tugas.
+  final VoidCallback? onLongPress;
+
+  /// Mode seleksi aktif; ketukan pada baris menambah/menghapus pilihan.
+  final bool selectionMode;
+  final bool isSelected;
+  final VoidCallback? onToggleSelection;
+
+  /// Pegangan drag untuk mengubah urutan tugas.
+  final Widget? dragHandle;
+
+  /// Fallback aksesibilitas untuk mengubah urutan tanpa drag.
+  final VoidCallback? onMoveUp;
+  final VoidCallback? onMoveDown;
+
+  /// Membuka pilihan kategori tujuan saat tugas dipindahkan.
+  final VoidCallback? onMoveToCategory;
+
   /// Menampilkan badge "Aktif" juga, bukan hanya "Nonaktif".
   final bool showActiveStatus;
 
   /// Menandai tugas yang tertaut ke aktivitas Jurnal.
   final bool isJournalLinked;
+
+  bool get _isReorderMode => dragHandle != null || onMoveUp != null;
 
   @override
   Widget build(BuildContext context) {
@@ -47,167 +76,222 @@ class TaskTile extends StatelessWidget {
 
     return Opacity(
       opacity: isInactive ? 0.62 : 1,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+      child: Material(
+        color: isSelected
+            ? Colors.indigo.withValues(alpha: 0.08)
+            : Colors.transparent,
+        child: InkWell(
+          onLongPress: onLongPress,
+          onTap: selectionMode ? onToggleSelection : null,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: _kindIcon(task.kind),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 6,
-                        crossAxisAlignment: WrapCrossAlignment.center,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (dragHandle != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: dragHandle,
+                      ),
+                    if (selectionMode)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 1),
+                        child: Icon(
+                          isSelected
+                              ? Icons.check_circle_rounded
+                              : Icons.radio_button_unchecked_rounded,
+                          key: Key('taskSelectCheck_${task.id}'),
+                          size: 20,
+                          color: isSelected ? Colors.indigo : Colors.blueGrey,
+                        ),
+                      )
+                    else
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: _kindIcon(task.kind),
+                      ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 6,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              Text(
+                                task.name,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: isInactive
+                                      ? Colors.grey[700]
+                                      : Colors.black87,
+                                ),
+                              ),
+                              _KindBadge(kind: task.kind),
+                              if (isJournalLinked)
+                                _Pill(
+                                  key: Key('journalLinkBadge_${task.id}'),
+                                  label: 'Jurnal',
+                                  color: Colors.deepPurple,
+                                ),
+                              if (!task.isActive || showActiveStatus)
+                                _StatusBadge(isActive: task.isActive),
+                              if (streak > 0)
+                                _Pill(
+                                  key: Key('taskStreak_${task.id}'),
+                                  label: '🔥 $streak hari',
+                                  color: Colors.orange,
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
                           Text(
-                            task.name,
+                            _progressText(countToday),
                             style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: isInactive
-                                  ? Colors.grey[700]
-                                  : Colors.black87,
+                              fontSize: 12,
+                              color: Colors.blueGrey[700],
                             ),
                           ),
-                          _KindBadge(kind: task.kind),
-                          if (isJournalLinked)
-                            _Pill(
-                              key: Key('journalLinkBadge_${task.id}'),
-                              label: 'Jurnal',
-                              color: Colors.deepPurple,
-                            ),
-                          if (!task.isActive || showActiveStatus)
-                            _StatusBadge(isActive: task.isActive),
-                          if (streak > 0)
-                            _Pill(
-                              key: Key('taskStreak_${task.id}'),
-                              label: '🔥 $streak hari',
-                              color: Colors.orange,
-                            ),
                         ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _progressText(countToday),
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.blueGrey[700],
+                    ),
+                    if (onShowHistory != null)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 4),
+                        child: IconButton(
+                          key: Key('taskHistory_${task.id}'),
+                          tooltip: 'Riwayat ${task.name}',
+                          onPressed: onShowHistory,
+                          style: IconButton.styleFrom(
+                            foregroundColor: Colors.blueGrey,
+                          ),
+                          icon: const Icon(Icons.history_rounded),
                         ),
                       ),
-                    ],
-                  ),
+                    if (onIncrement != null)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 4),
+                        child: IconButton(
+                          key: Key('incrementTask_${task.id}'),
+                          tooltip: 'Tambah hitungan ${task.name}',
+                          onPressed: onIncrement,
+                          style: IconButton.styleFrom(
+                            backgroundColor: Colors.teal.withValues(
+                              alpha: 0.12,
+                            ),
+                            foregroundColor: Colors.teal,
+                          ),
+                          icon: const Icon(Icons.add_rounded),
+                        ),
+                      ),
+                    if (_isReorderMode)
+                      IconButton(
+                        key: Key('moveTaskUp_${task.id}'),
+                        tooltip: 'Naikkan ${task.name}',
+                        onPressed: onMoveUp,
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(Icons.keyboard_arrow_up_rounded),
+                      ),
+                    if (_isReorderMode)
+                      IconButton(
+                        key: Key('moveTaskDown_${task.id}'),
+                        tooltip: 'Turunkan ${task.name}',
+                        onPressed: onMoveDown,
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                      ),
+                    if (onAction != null)
+                      PopupMenuButton<TaskAction>(
+                        key: Key('taskMenu_${task.id}'),
+                        tooltip: 'Aksi tugas ${task.name}',
+                        onSelected: onAction,
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(
+                            value: TaskAction.edit,
+                            child: ListTile(
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(Icons.edit_outlined),
+                              title: Text('Ubah'),
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: TaskAction.toggleActive,
+                            child: ListTile(
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(
+                                task.isActive
+                                    ? Icons.pause_circle_outline
+                                    : Icons.play_circle_outline,
+                              ),
+                              title: Text(
+                                task.isActive ? 'Nonaktifkan' : 'Aktifkan',
+                              ),
+                            ),
+                          ),
+                          if (onMoveToCategory != null)
+                            const PopupMenuItem(
+                              value: TaskAction.moveToCategory,
+                              child: ListTile(
+                                dense: true,
+                                contentPadding: EdgeInsets.zero,
+                                leading: Icon(Icons.drive_file_move_outline),
+                                title: Text('Pindahkan'),
+                              ),
+                            ),
+                          const PopupMenuItem(
+                            value: TaskAction.delete,
+                            child: ListTile(
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(
+                                Icons.delete_outline,
+                                color: Colors.red,
+                              ),
+                              title: Text(
+                                'Hapus',
+                                style: TextStyle(color: Colors.red),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                  ],
                 ),
-                if (onShowHistory != null)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 4),
-                    child: IconButton(
-                      key: Key('taskHistory_${task.id}'),
-                      tooltip: 'Riwayat ${task.name}',
-                      onPressed: onShowHistory,
-                      style: IconButton.styleFrom(
-                        foregroundColor: Colors.blueGrey,
+                if (task.kind == TaskKind.progress && task.targetTotal > 0) ...[
+                  const SizedBox(height: 10),
+                  Semantics(
+                    label:
+                        'Progres ${task.name}: ${task.totalCount} dari '
+                        '${task.targetTotal}',
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: LinearProgressIndicator(
+                        value: task.progressFraction,
+                        minHeight: 7,
+                        backgroundColor: Colors.indigo.withValues(alpha: 0.12),
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                          Colors.teal,
+                        ),
                       ),
-                      icon: const Icon(Icons.history_rounded),
                     ),
                   ),
-                if (onIncrement != null)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 4),
-                    child: IconButton(
-                      key: Key('incrementTask_${task.id}'),
-                      tooltip: 'Tambah hitungan ${task.name}',
-                      onPressed: onIncrement,
-                      style: IconButton.styleFrom(
-                        backgroundColor: Colors.teal.withValues(alpha: 0.12),
-                        foregroundColor: Colors.teal,
-                      ),
-                      icon: const Icon(Icons.add_rounded),
-                    ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${task.totalCount} / ${task.targetTotal}',
+                    style: TextStyle(fontSize: 11, color: Colors.blueGrey[600]),
                   ),
-                if (onAction != null)
-                  PopupMenuButton<TaskAction>(
-                    key: Key('taskMenu_${task.id}'),
-                    tooltip: 'Aksi tugas ${task.name}',
-                    onSelected: onAction,
-                    itemBuilder: (context) => [
-                      const PopupMenuItem(
-                        value: TaskAction.edit,
-                        child: ListTile(
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                          leading: Icon(Icons.edit_outlined),
-                          title: Text('Ubah'),
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: TaskAction.toggleActive,
-                        child: ListTile(
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                          leading: Icon(
-                            task.isActive
-                                ? Icons.pause_circle_outline
-                                : Icons.play_circle_outline,
-                          ),
-                          title: Text(
-                            task.isActive ? 'Nonaktifkan' : 'Aktifkan',
-                          ),
-                        ),
-                      ),
-                      const PopupMenuItem(
-                        value: TaskAction.delete,
-                        child: ListTile(
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                          leading: Icon(
-                            Icons.delete_outline,
-                            color: Colors.red,
-                          ),
-                          title: Text(
-                            'Hapus',
-                            style: TextStyle(color: Colors.red),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                ],
               ],
             ),
-            if (task.kind == TaskKind.progress && task.targetTotal > 0) ...[
-              const SizedBox(height: 10),
-              Semantics(
-                label:
-                    'Progres ${task.name}: ${task.totalCount} dari '
-                    '${task.targetTotal}',
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: LinearProgressIndicator(
-                    value: task.progressFraction,
-                    minHeight: 7,
-                    backgroundColor: Colors.indigo.withValues(alpha: 0.12),
-                    valueColor: const AlwaysStoppedAnimation<Color>(
-                      Colors.teal,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '${task.totalCount} / ${task.targetTotal}',
-                style: TextStyle(fontSize: 11, color: Colors.blueGrey[600]),
-              ),
-            ],
-          ],
+          ),
         ),
       ),
     );

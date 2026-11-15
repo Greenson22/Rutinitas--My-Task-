@@ -87,6 +87,17 @@ class FakeTaskRepository implements TaskRepository {
   }
 
   @override
+  Future<TaskMasterData> reorderCategory({
+    required String categoryId,
+    required int newIndex,
+  }) {
+    return _mutateCategories(
+      (data) =>
+          reorderCategoryIn(data, categoryId: categoryId, newIndex: newIndex),
+    );
+  }
+
+  @override
   Future<TaskMasterData> deleteCategory(String categoryId) {
     return _mutateCategories(
       (data) => deleteCategoryFrom(data, categoryId: categoryId),
@@ -156,6 +167,67 @@ class FakeTaskRepository implements TaskRepository {
         isActive: isActive,
         now: now,
       ),
+    );
+  }
+
+  @override
+  Future<TaskMasterData> reorderTask({
+    required String categoryId,
+    required String taskId,
+    required int newIndex,
+  }) {
+    return _mutateTasks(
+      (data) => reorderTaskIn(
+        data,
+        categoryId: categoryId,
+        taskId: taskId,
+        newIndex: newIndex,
+        now: now,
+      ),
+    );
+  }
+
+  @override
+  Future<TaskMasterData> moveTask({
+    required String fromCategoryId,
+    required String taskId,
+    required String toCategoryId,
+  }) {
+    return _mutateTasks(
+      (data) => moveTaskToCategoryIn(
+        data,
+        fromCategoryId: fromCategoryId,
+        taskId: taskId,
+        toCategoryId: toCategoryId,
+        now: now,
+      ),
+    );
+  }
+
+  @override
+  Future<TaskMasterData> setTasksActive({
+    required String categoryId,
+    required Iterable<String> taskIds,
+    required bool isActive,
+  }) {
+    return _mutateTasks(
+      (data) => setTasksActiveIn(
+        data,
+        categoryId: categoryId,
+        taskIds: taskIds,
+        isActive: isActive,
+        now: now,
+      ),
+    );
+  }
+
+  @override
+  Future<TaskMasterData> deleteTasks({
+    required String categoryId,
+    required Iterable<String> taskIds,
+  }) {
+    return _mutateTasks(
+      (data) => deleteTasksFrom(data, categoryId: categoryId, taskIds: taskIds),
     );
   }
 
