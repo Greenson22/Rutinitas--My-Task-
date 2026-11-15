@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/presentation/widgets/drawer_menu.dart';
+import '../../data/repositories/journal_gateway_factory.dart';
 import '../../data/repositories/task_repository_factory.dart';
 import '../../domain/entities/category.dart';
 import '../../domain/entities/task_master_data.dart';
+import '../../domain/repositories/journal_gateway.dart';
 import '../../domain/repositories/task_repository.dart';
 import '../controllers/task_master_controller.dart';
 import '../controllers/task_master_state.dart';
@@ -16,10 +18,16 @@ import 'category_detail_screen.dart';
 
 /// Task Master New: dashboard dan pengelolaan kategori.
 class TaskMasterNewScreen extends StatefulWidget {
-  const TaskMasterNewScreen({super.key, this.repository, this.clock});
+  const TaskMasterNewScreen({
+    super.key,
+    this.repository,
+    this.journalGateway,
+    this.clock,
+  });
 
   /// Dapat diinjeksi pada widget test.
   final TaskRepository? repository;
+  final JournalGateway? journalGateway;
   final DateTime Function()? clock;
 
   @override
@@ -32,9 +40,15 @@ class _TaskMasterNewScreenState extends State<TaskMasterNewScreen> {
   @override
   void initState() {
     super.initState();
+    final journalGateway =
+        widget.journalGateway ??
+        (widget.repository == null
+            ? createJournalGateway(clock: widget.clock)
+            : null);
     _controller = TaskMasterNewController(
       repository:
           widget.repository ?? createTaskRepository(clock: widget.clock),
+      journalGateway: journalGateway,
       clock: widget.clock,
     );
     _controller.load();
@@ -145,6 +159,7 @@ class _TaskMasterNewScreenState extends State<TaskMasterNewScreen> {
             CategoryCard(
               category: category,
               todayKey: _controller.todayKey,
+              isTaskJournalLinked: _controller.isTaskLinkedToJournal,
               onAction: (action) => _handleCategoryAction(category, action),
               onOpen: () => _openCategoryDetail(category),
             ),

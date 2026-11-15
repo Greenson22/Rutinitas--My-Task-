@@ -1,5 +1,6 @@
 import '../../domain/entities/task_master_data.dart';
 import '../../domain/operations/task_operations.dart';
+import '../../domain/repositories/journal_gateway.dart';
 
 enum TaskMasterNewStatus { loading, ready, empty, error }
 
@@ -14,6 +15,7 @@ class TaskMasterNewState {
     this.actionRetryable = false,
     this.isSaving = false,
     this.lastIncrement,
+    this.journalLinks = JournalLinkState.empty,
   });
 
   const TaskMasterNewState.loading()
@@ -24,7 +26,8 @@ class TaskMasterNewState {
       actionMessage = null,
       actionRetryable = false,
       isSaving = false,
-      lastIncrement = null;
+      lastIncrement = null,
+      journalLinks = JournalLinkState.empty;
 
   final TaskMasterNewStatus status;
   final TaskMasterData? data;
@@ -45,8 +48,14 @@ class TaskMasterNewState {
   /// di-undo lagi setelah increment baru terjadi.
   final TaskIncrement? lastIncrement;
 
+  /// Relasi Jurnal yang dibaca dari sumber Jurnal, bukan disimpan di data
+  /// Task Master.
+  final JournalLinkState journalLinks;
+
   bool get isLoading => status == TaskMasterNewStatus.loading;
   bool get hasError => status == TaskMasterNewStatus.error;
+  bool isTaskLinkedToJournal(String taskId) => journalLinks.isLinked(taskId);
+  int get journalIncrementMinutes => journalLinks.incrementMinutes;
 
   TaskMasterNewState copyWith({
     TaskMasterNewStatus? status,
@@ -57,6 +66,7 @@ class TaskMasterNewState {
     bool? actionRetryable,
     bool? isSaving,
     TaskIncrement? lastIncrement,
+    JournalLinkState? journalLinks,
     bool clearActionMessage = false,
     bool clearLastIncrement = false,
   }) {
@@ -75,6 +85,7 @@ class TaskMasterNewState {
       lastIncrement: clearLastIncrement
           ? null
           : (lastIncrement ?? this.lastIncrement),
+      journalLinks: journalLinks ?? this.journalLinks,
     );
   }
 }

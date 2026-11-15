@@ -18,6 +18,7 @@ class TaskTile extends StatelessWidget {
     this.onAction,
     this.onIncrement,
     this.showActiveStatus = true,
+    this.isJournalLinked = false,
   });
 
   final Task task;
@@ -29,6 +30,9 @@ class TaskTile extends StatelessWidget {
 
   /// Menampilkan badge "Aktif" juga, bukan hanya "Nonaktif".
   final bool showActiveStatus;
+
+  /// Menandai tugas yang tertaut ke aktivitas Jurnal.
+  final bool isJournalLinked;
 
   @override
   Widget build(BuildContext context) {
@@ -70,6 +74,12 @@ class TaskTile extends StatelessWidget {
                             ),
                           ),
                           _KindBadge(kind: task.kind),
+                          if (isJournalLinked)
+                            _Pill(
+                              key: Key('journalLinkBadge_${task.id}'),
+                              label: 'Jurnal',
+                              color: Colors.deepPurple,
+                            ),
                           if (!task.isActive || showActiveStatus)
                             _StatusBadge(isActive: task.isActive),
                         ],
@@ -245,7 +255,7 @@ class _StatusBadge extends StatelessWidget {
 }
 
 class _Pill extends StatelessWidget {
-  const _Pill({required this.label, required this.color});
+  const _Pill({super.key, required this.label, required this.color});
 
   final String label;
   final Color color;

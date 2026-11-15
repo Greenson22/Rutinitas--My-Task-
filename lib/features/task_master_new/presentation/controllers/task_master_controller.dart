@@ -9,6 +9,7 @@ import '../../domain/entities/task_kind.dart';
 import '../../domain/entities/task_master_data.dart';
 import '../../domain/operations/category_operations.dart' as ops;
 import '../../domain/operations/task_operations.dart' as task_ops;
+import '../../domain/repositories/journal_gateway.dart';
 import '../../domain/repositories/task_repository.dart';
 import 'task_master_state.dart';
 
@@ -19,13 +20,16 @@ const Duration incrementDoubleTapWindow = Duration(milliseconds: 400);
 class TaskMasterNewController extends ChangeNotifier {
   TaskMasterNewController({
     required TaskRepository repository,
+    JournalGateway? journalGateway,
     DateTime Function()? clock,
     Duration saveDebounce = const Duration(milliseconds: 300),
   }) : _repository = repository,
+       _journalGateway = journalGateway,
        _clock = clock ?? DateTime.now,
        _saveDebounce = saveDebounce;
 
   final TaskRepository _repository;
+  final JournalGateway? _journalGateway;
   final DateTime Function() _clock;
   final Duration _saveDebounce;
 
@@ -39,6 +43,14 @@ class TaskMasterNewController extends ChangeNotifier {
   DateTime? _lastIncrementAt;
   Timer? _saveTimer;
   TaskMasterData? _pendingSave;
+  _PendingJournalIncrement? _lastJournalIncrement;
+
+  /// Apakah tugas ini tertaut ke aktivitas Jurnal.
+  bool isTaskLinkedToJournal(String taskId) =>
+      _state.isTaskLinkedToJournal(taskId);
+
+  /// Durasi Jurnal yang akan ditambahkan pada increment berikutnya.
+  int get journalIncrementMinutes => _state.journalIncrementMinutes;
 
   String get todayKey => DailyProgress.dateKey(_clock());
 
@@ -46,11 +58,20 @@ class TaskMasterNewController extends ChangeNotifier {
     _retryAction = null;
     _lastIncrementTaskId = null;
     _lastIncrementAt = null;
+    _lastJournalIncrement = null;
     if (!await flushPendingSave()) return;
     _setState(const TaskMasterNewState.loading());
     try {
       final data = await _repository.load();
-      _setState(_stateForData(data));
+      final journalResult = await _loadJournalLinks();
+      var nextState = _stateForData(data, journalLinks: journalResult.links);
+      if (journalResult.warning != null) {
+        nextState = nextState.copyWith(
+          actionMessage: journalResult.warning,
+          actionRetryable: false,
+        );
+      }
+      _setState(nextState);
     } on UnsupportedSchemaVersionException catch (error) {
       _setState(
         TaskMasterNewState(
@@ -263,8 +284,23 @@ class TaskMasterNewController extends ChangeNotifier {
       return false;
     }
 
+    final isLinked = _state.isTaskLinkedToJournal(taskId);
+    final journalGateway = _journalGateway;
+    _PendingJournalIncrement? journalIncrement;
+    if (isLinked && journalGateway != null) {
+      journalIncrement = _PendingJournalIncrement(
+        at: now,
+        addFuture: _addJournalDuration(
+          gateway: journalGateway,
+          taskId: taskId,
+          at: now,
+        ),
+      );
+    }
+
     _lastIncrementTaskId = taskId;
     _lastIncrementAt = now;
+    _lastJournalIncrement = journalIncrement;
     _setState(
       _state.copyWith(
         data: result.data,
@@ -291,7 +327,16 @@ class TaskMasterNewController extends ChangeNotifier {
       );
     } on task_ops.TaskValidationException {
       _setState(_state.copyWith(clearLastIncrement: true));
+      _lastJournalIncrement = null;
       return false;
+    }
+
+    // Rollback Task Master selalu selesai lebih dulu. Rollback Jurnal bersifat
+    // best-effort dan tidak boleh membatalkan pengembalian data tugas.
+    final journalIncrement = _lastJournalIncrement;
+    _lastJournalIncrement = null;
+    if (journalIncrement != null) {
+      unawaited(_rollbackJournalIncrement(journalIncrement));
     }
 
     _setState(
@@ -326,6 +371,71 @@ class TaskMasterNewController extends ChangeNotifier {
     final action = _retryAction;
     if (action == null || _state.isSaving) return;
     await _runDataAction(action);
+  }
+
+  Future<({JournalLinkState links, String? warning})>
+  _loadJournalLinks() async {
+    final gateway = _journalGateway;
+    if (gateway == null) {
+      return (links: JournalLinkState.empty, warning: null);
+    }
+    try {
+      return (links: await gateway.loadLinks(), warning: null);
+    } catch (_) {
+      // Integrasi Jurnal bersifat tambahan. Kegagalan membaca Jurnal tidak
+      // boleh menghalangi pengguna membuka Task Master, tetapi tautan yang
+      // tidak diketahui tidak boleh tampil seolah-olah tidak ada tautan.
+      return (
+        links: JournalLinkState.empty,
+        warning:
+            'Relasi Jurnal tidak dapat dibaca. Tugas yang tertaut mungkin '
+            'tidak menampilkan indikator Jurnal.',
+      );
+    }
+  }
+
+  Future<JournalAdjustment?> _addJournalDuration({
+    required JournalGateway gateway,
+    required String taskId,
+    required DateTime at,
+  }) async {
+    try {
+      return await gateway.addDuration(taskId: taskId, at: at);
+    } catch (_) {
+      _setState(
+        _state.copyWith(
+          actionMessage:
+              'Hitungan tugas bertambah, tetapi durasi Jurnal gagal '
+              'ditambahkan. Periksa Jurnal secara manual.',
+          actionRetryable: false,
+        ),
+      );
+      return null;
+    }
+  }
+
+  Future<void> _rollbackJournalIncrement(
+    _PendingJournalIncrement pending,
+  ) async {
+    final adjustment = await pending.addFuture;
+    if (adjustment == null) return;
+
+    final gateway = _journalGateway;
+    if (gateway == null) return;
+    try {
+      // Gunakan waktu increment, bukan waktu undo, agar undo yang melewati
+      // tengah malam tetap mengurangi entri Jurnal pada hari yang benar.
+      await gateway.subtractDuration(adjustment: adjustment, at: pending.at);
+    } catch (_) {
+      _setState(
+        _state.copyWith(
+          actionMessage:
+              'Hitungan tugas sudah dikembalikan, tetapi durasi Jurnal gagal '
+              'dikurangi. Periksa Jurnal secara manual.',
+          actionRetryable: false,
+        ),
+      );
+    }
   }
 
   void _scheduleSave(TaskMasterData data) {
@@ -427,12 +537,16 @@ class TaskMasterNewController extends ChangeNotifier {
     }
   }
 
-  TaskMasterNewState _stateForData(TaskMasterData data) {
+  TaskMasterNewState _stateForData(
+    TaskMasterData data, {
+    JournalLinkState? journalLinks,
+  }) {
     return TaskMasterNewState(
       status: data.categories.isEmpty
           ? TaskMasterNewStatus.empty
           : TaskMasterNewStatus.ready,
       data: data,
+      journalLinks: journalLinks ?? _state.journalLinks,
     );
   }
 
@@ -454,4 +568,16 @@ class TaskMasterNewController extends ChangeNotifier {
     }
     super.dispose();
   }
+}
+
+/// Increment Jurnal yang masih menunggu hasil penambahan durasi.
+///
+/// Undo menunggu future ini agar pengurangan hanya dilakukan setelah durasi
+/// benar-benar ditambahkan.
+class _PendingJournalIncrement {
+  const _PendingJournalIncrement({required this.at, required this.addFuture});
+
+  /// Waktu increment yang dipakai untuk menulis dan membatalkan Jurnal.
+  final DateTime at;
+  final Future<JournalAdjustment?> addFuture;
 }

@@ -105,6 +105,9 @@ class CategoryDetailScreen extends StatelessWidget {
                               key: Key('taskTile_${tasks[i].id}'),
                               task: tasks[i],
                               todayKey: controller.todayKey,
+                              isJournalLinked: controller.isTaskLinkedToJournal(
+                                tasks[i].id,
+                              ),
                               onIncrement: () =>
                                   _incrementTask(context, tasks[i]),
                               onAction: (action) =>
@@ -131,13 +134,18 @@ class CategoryDetailScreen extends StatelessWidget {
     );
     if (!applied) return;
 
+    final isLinked = controller.isTaskLinkedToJournal(task.id);
+    final message = isLinked
+        ? '${task.name} +1 • Jurnal +${controller.journalIncrementMinutes} menit'
+        : '${task.name} +1 • Jurnal tidak tertaut';
+
     final messenger = ScaffoldMessenger.of(context);
     // Ganti SnackBar lama seketika agar Undo selalu merujuk increment terakhir.
     messenger.removeCurrentSnackBar();
     messenger.showSnackBar(
       SnackBar(
         key: const Key('incrementSnackBar'),
-        content: Text('${task.name} +1'),
+        content: Text(message),
         duration: const Duration(seconds: 5),
         action: SnackBarAction(
           key: const Key('undoIncrementAction'),

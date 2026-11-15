@@ -13,12 +13,16 @@ class CategoryCard extends StatelessWidget {
     required this.todayKey,
     required this.onAction,
     required this.onOpen,
+    this.isTaskJournalLinked,
   });
 
   final Category category;
   final String todayKey;
   final void Function(CategoryAction action) onAction;
   final VoidCallback onOpen;
+
+  /// Menandai tugas yang tertaut ke aktivitas Jurnal.
+  final bool Function(String taskId)? isTaskJournalLinked;
 
   @override
   Widget build(BuildContext context) {
@@ -146,6 +150,8 @@ class CategoryCard extends StatelessWidget {
                     task: task,
                     todayKey: todayKey,
                     showActiveStatus: false,
+                    isJournalLinked:
+                        isTaskJournalLinked?.call(task.id) ?? false,
                   ),
                 ),
               const SizedBox(height: 2),
