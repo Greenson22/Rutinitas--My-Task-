@@ -104,6 +104,7 @@ class TodayTaskTile extends StatelessWidget {
                     label:
                         'Progres ${task.name}: ${task.totalCount} dari '
                         '${task.targetTotal}',
+                    value: '${(task.progressFraction * 100).round()} persen',
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(6),
                       child: LinearProgressIndicator(
@@ -123,26 +124,35 @@ class TodayTaskTile extends StatelessWidget {
           if (onShowHistory != null)
             Padding(
               padding: const EdgeInsets.only(left: 2),
-              child: IconButton(
-                key: Key('taskHistory_${task.id}'),
-                tooltip: 'Riwayat ${task.name}',
-                onPressed: onShowHistory,
-                visualDensity: VisualDensity.compact,
-                style: IconButton.styleFrom(foregroundColor: Colors.blueGrey),
-                icon: const Icon(Icons.history_rounded, size: 20),
+              child: Semantics(
+                label: 'Riwayat ${task.name}',
+                child: IconButton(
+                  key: Key('taskHistory_${task.id}'),
+                  tooltip: 'Riwayat ${task.name}',
+                  onPressed: onShowHistory,
+                  style: IconButton.styleFrom(
+                    foregroundColor: Colors.blueGrey,
+                    minimumSize: const Size(48, 48),
+                    tapTargetSize: MaterialTapTargetSize.padded,
+                  ),
+                  icon: const Icon(Icons.history_rounded, size: 20),
+                ),
               ),
             ),
           Padding(
             padding: const EdgeInsets.only(left: 2),
-            child: IconButton(
-              key: Key('dashboardIncrement_${task.id}'),
-              tooltip: 'Tambah hitungan ${task.name}',
-              onPressed: onIncrement,
-              style: IconButton.styleFrom(
-                backgroundColor: Colors.teal.withValues(alpha: 0.12),
-                foregroundColor: Colors.teal,
+            child: Semantics(
+              label: 'Tambah hitungan ${task.name}',
+              child: IconButton(
+                key: Key('dashboardIncrement_${task.id}'),
+                tooltip: 'Tambah hitungan ${task.name}',
+                onPressed: onIncrement,
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.teal.withValues(alpha: 0.12),
+                  foregroundColor: Colors.teal,
+                ),
+                icon: const Icon(Icons.add_rounded),
               ),
-              icon: const Icon(Icons.add_rounded),
             ),
           ),
         ],

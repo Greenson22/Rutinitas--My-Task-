@@ -164,30 +164,38 @@ class TaskTile extends StatelessWidget {
                     if (onShowHistory != null)
                       Padding(
                         padding: const EdgeInsets.only(left: 4),
-                        child: IconButton(
-                          key: Key('taskHistory_${task.id}'),
-                          tooltip: 'Riwayat ${task.name}',
-                          onPressed: onShowHistory,
-                          style: IconButton.styleFrom(
-                            foregroundColor: Colors.blueGrey,
+                        child: Semantics(
+                          label: 'Riwayat ${task.name}',
+                          child: IconButton(
+                            key: Key('taskHistory_${task.id}'),
+                            tooltip: 'Riwayat ${task.name}',
+                            onPressed: onShowHistory,
+                            style: IconButton.styleFrom(
+                              foregroundColor: Colors.blueGrey,
+                              minimumSize: const Size(48, 48),
+                              tapTargetSize: MaterialTapTargetSize.padded,
+                            ),
+                            icon: const Icon(Icons.history_rounded),
                           ),
-                          icon: const Icon(Icons.history_rounded),
                         ),
                       ),
                     if (onIncrement != null)
                       Padding(
                         padding: const EdgeInsets.only(left: 4),
-                        child: IconButton(
-                          key: Key('incrementTask_${task.id}'),
-                          tooltip: 'Tambah hitungan ${task.name}',
-                          onPressed: onIncrement,
-                          style: IconButton.styleFrom(
-                            backgroundColor: Colors.teal.withValues(
-                              alpha: 0.12,
+                        child: Semantics(
+                          label: 'Tambah hitungan ${task.name}',
+                          child: IconButton(
+                            key: Key('incrementTask_${task.id}'),
+                            tooltip: 'Tambah hitungan ${task.name}',
+                            onPressed: onIncrement,
+                            style: IconButton.styleFrom(
+                              backgroundColor: Colors.teal.withValues(
+                                alpha: 0.12,
+                              ),
+                              foregroundColor: Colors.teal,
                             ),
-                            foregroundColor: Colors.teal,
+                            icon: const Icon(Icons.add_rounded),
                           ),
-                          icon: const Icon(Icons.add_rounded),
                         ),
                       ),
                     if (_isReorderMode)
@@ -195,7 +203,10 @@ class TaskTile extends StatelessWidget {
                         key: Key('moveTaskUp_${task.id}'),
                         tooltip: 'Naikkan ${task.name}',
                         onPressed: onMoveUp,
-                        visualDensity: VisualDensity.compact,
+                        style: IconButton.styleFrom(
+                          minimumSize: const Size(48, 48),
+                          tapTargetSize: MaterialTapTargetSize.padded,
+                        ),
                         icon: const Icon(Icons.keyboard_arrow_up_rounded),
                       ),
                     if (_isReorderMode)
@@ -203,7 +214,10 @@ class TaskTile extends StatelessWidget {
                         key: Key('moveTaskDown_${task.id}'),
                         tooltip: 'Turunkan ${task.name}',
                         onPressed: onMoveDown,
-                        visualDensity: VisualDensity.compact,
+                        style: IconButton.styleFrom(
+                          minimumSize: const Size(48, 48),
+                          tapTargetSize: MaterialTapTargetSize.padded,
+                        ),
                         icon: const Icon(Icons.keyboard_arrow_down_rounded),
                       ),
                     if (onAction != null)
@@ -271,6 +285,7 @@ class TaskTile extends StatelessWidget {
                     label:
                         'Progres ${task.name}: ${task.totalCount} dari '
                         '${task.targetTotal}',
+                    value: '${(task.progressFraction * 100).round()} persen',
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(6),
                       child: LinearProgressIndicator(

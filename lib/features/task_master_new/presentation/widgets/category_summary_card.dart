@@ -160,6 +160,9 @@ class CategorySummaryCard extends StatelessWidget {
                   label:
                       'Progres target ${category.name}: '
                       '$completedTargets dari $targetTasks',
+                  value:
+                      '${((completedTargets / targetTasks) * 100).round()} '
+                      'persen',
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(6),
                     child: LinearProgressIndicator(
@@ -178,6 +181,10 @@ class CategorySummaryCard extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: TextButton.icon(
                   onPressed: onOpen,
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(48, 48),
+                    tapTargetSize: MaterialTapTargetSize.padded,
+                  ),
                   icon: const Icon(Icons.tune, size: 18),
                   label: const Text('Kelola tugas'),
                 ),

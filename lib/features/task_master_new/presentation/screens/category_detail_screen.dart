@@ -11,33 +11,65 @@ import '../widgets/status_views.dart';
 import '../widgets/task_bulk_actions_dialog.dart';
 import '../widgets/task_delete_dialog.dart';
 import '../widgets/task_form_dialog.dart';
+import '../widgets/task_master_shortcuts.dart';
 import '../widgets/task_search_toolbar.dart';
 import '../widgets/task_tile.dart';
 import 'task_history_screen.dart';
 
 /// Halaman detail kategori untuk mengelola tugas di dalamnya.
+///
+/// Pada mobile dan tablet layar ini dibuka lewat [Navigator.push]. Pada
+/// desktop layar ini ditanam sebagai panel kanan ([embedded]) sehingga tidak
+/// membuat rute baru.
 class CategoryDetailScreen extends StatefulWidget {
   const CategoryDetailScreen({
     super.key,
     required this.controller,
     required this.categoryId,
+    this.embedded = false,
+    this.onClose,
   });
 
   final TaskMasterNewController controller;
   final String categoryId;
 
+  /// Menampilkan detail tanpa `Scaffold` agar dapat menjadi panel kanan.
+  final bool embedded;
+
+  /// Menutup panel kanan dan kembali ke dashboard pada layout desktop.
+  final VoidCallback? onClose;
+
   @override
-  State<CategoryDetailScreen> createState() => _CategoryDetailScreenState();
+  State<CategoryDetailScreen> createState() => CategoryDetailScreenState();
 }
 
-class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
+/// State publik agar layout desktop dapat mengarahkan shortcut global ke panel
+/// detail yang sedang tampil.
+class CategoryDetailScreenState extends State<CategoryDetailScreen> {
   final Set<String> _selectedTaskIds = {};
+  final FocusNode _searchFocusNode = FocusNode(debugLabel: 'taskSearchDetail');
   bool _reorderMode = false;
   bool _bulkActionRunning = false;
 
   TaskMasterNewController get controller => widget.controller;
   String get categoryId => widget.categoryId;
   bool get _selectionMode => _selectedTaskIds.isNotEmpty;
+
+  @override
+  void dispose() {
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant CategoryDetailScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.categoryId != widget.categoryId) {
+      _selectedTaskIds.clear();
+      _reorderMode = false;
+      _bulkActionRunning = false;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,14 +80,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
         final category = controller.categoryById(categoryId);
 
         if (category == null) {
-          return Scaffold(
-            appBar: AppBar(
-              backgroundColor: Colors.indigo[700],
-              foregroundColor: Colors.white,
-              title: const Text('Kategori'),
-            ),
-            body: const Center(child: Text('Kategori tidak ditemukan.')),
-          );
+          return _buildMissingCategory();
         }
 
         // Pilihan tugas yang sudah tidak ada, misalnya setelah dihapus atau
@@ -75,72 +100,138 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
             ? '${filtered.length} dari ${allTasks.length} tugas'
             : '${allTasks.length} tugas';
 
-        return Scaffold(
-          backgroundColor: Colors.grey[100],
-          appBar: _buildAppBar(category, subtitle, state),
-          floatingActionButton: state.isSaving || _selectionMode || _reorderMode
-              ? null
-              : FloatingActionButton.extended(
-                  key: const Key('addTaskButton'),
-                  onPressed: () => _openTaskForm(context),
-                  backgroundColor: Colors.indigo[700],
-                  foregroundColor: Colors.white,
-                  icon: const Icon(Icons.add),
-                  label: const Text('Tugas'),
+        final body = RefreshIndicator(
+          onRefresh: controller.load,
+          child: ListView(
+            key: const Key('categoryDetailScrollView'),
+            padding: EdgeInsets.fromLTRB(14, 14, 14, widget.embedded ? 24 : 96),
+            children: [
+              if (state.actionMessage != null) ...[
+                ActionMessageBanner(
+                  message: state.actionMessage!,
+                  onDismiss: controller.clearActionMessage,
+                  onRetry: state.actionRetryable
+                      ? controller.retryLastAction
+                      : null,
                 ),
-          body: RefreshIndicator(
-            onRefresh: controller.load,
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(14, 14, 14, 96),
-              children: [
-                if (state.actionMessage != null) ...[
-                  ActionMessageBanner(
-                    message: state.actionMessage!,
-                    onDismiss: controller.clearActionMessage,
-                    onRetry: state.actionRetryable
-                        ? controller.retryLastAction
-                        : null,
-                  ),
-                  const SizedBox(height: 12),
-                ],
-                if (allTasks.isNotEmpty && !_reorderMode) ...[
-                  TaskSearchToolbar(
-                    query: controller.searchQuery,
-                    filter: controller.taskFilter,
-                    onQueryChanged: controller.setSearchQuery,
-                    onFilterChanged: controller.setTaskFilter,
-                    hintText: 'Cari tugas di kategori ini',
-                  ),
-                  const SizedBox(height: 12),
-                ],
-                if (_reorderMode) ...[
-                  _ReorderHint(onDone: _toggleReorderMode),
-                  const SizedBox(height: 8),
-                ],
-                if (allTasks.isEmpty)
-                  _EmptyTasksView(
-                    categoryName: category.name,
-                    onAdd: () => _openTaskForm(context),
-                  )
-                else if (tasks.isEmpty)
-                  SearchEmptyView(onClear: controller.clearSearchAndFilter)
-                else
-                  Card(
-                    elevation: 1.5,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 2, 8, 8),
-                      child: _buildTaskList(tasks),
-                    ),
-                  ),
+                const SizedBox(height: 12),
               ],
-            ),
+              if (allTasks.isNotEmpty && !_reorderMode) ...[
+                TaskSearchToolbar(
+                  query: controller.searchQuery,
+                  filter: controller.taskFilter,
+                  onQueryChanged: controller.setSearchQuery,
+                  onFilterChanged: controller.setTaskFilter,
+                  hintText: 'Cari tugas di kategori ini',
+                  focusNode: _searchFocusNode,
+                ),
+                const SizedBox(height: 12),
+              ],
+              if (_reorderMode) ...[
+                _ReorderHint(onDone: _toggleReorderMode),
+                const SizedBox(height: 8),
+              ],
+              if (allTasks.isEmpty)
+                _EmptyTasksView(
+                  categoryName: category.name,
+                  onAdd: () => _openTaskForm(context),
+                )
+              else if (tasks.isEmpty)
+                SearchEmptyView(onClear: controller.clearSearchAndFilter)
+              else
+                Card(
+                  elevation: 1.5,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 2, 8, 8),
+                    child: _buildTaskList(tasks),
+                  ),
+                ),
+            ],
           ),
+        );
+
+        final content = widget.embedded
+            ? Column(
+                key: const Key('desktopDetailPanel'),
+                children: [
+                  _buildAppBar(category, subtitle, state),
+                  Expanded(child: body),
+                ],
+              )
+            : Scaffold(
+                backgroundColor: Colors.grey[100],
+                appBar: _buildAppBar(category, subtitle, state),
+                floatingActionButton:
+                    state.isSaving || _selectionMode || _reorderMode
+                    ? null
+                    : FloatingActionButton.extended(
+                        key: const Key('addTaskButton'),
+                        onPressed: () => _openTaskForm(context),
+                        backgroundColor: Colors.indigo[700],
+                        foregroundColor: Colors.white,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Tugas'),
+                      ),
+                body: body,
+              );
+
+        return TaskMasterShortcuts(
+          onSearch: focusSearch,
+          onAdd: openTaskForm,
+          onEscape: _handleEscape,
+          child: content,
         );
       },
     );
+  }
+
+  Widget _buildMissingCategory() {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.indigo[700],
+        foregroundColor: Colors.white,
+        automaticallyImplyLeading: false,
+        title: const Text('Kategori'),
+        leading: widget.onClose == null
+            ? null
+            : IconButton(
+                key: const Key('closeDesktopDetailButton'),
+                tooltip: 'Kembali ke dashboard',
+                onPressed: widget.onClose,
+                icon: const Icon(Icons.arrow_back),
+              ),
+      ),
+      body: const Center(child: Text('Kategori tidak ditemukan.')),
+    );
+  }
+
+  /// Memfokuskan kolom pencarian dari shortcut atau layout desktop.
+  void focusSearch() {
+    if (_reorderMode) return;
+    if (!_searchFocusNode.hasFocus) {
+      _searchFocusNode.requestFocus();
+    }
+  }
+
+  /// Membuka form tugas baru dari shortcut `Ctrl/Cmd + N`.
+  void openTaskForm() {
+    if (controller.state.isSaving || _selectionMode || _reorderMode) return;
+    _openTaskForm(context);
+  }
+
+  void _handleEscape() {
+    if (_selectionMode) {
+      _clearSelection();
+      return;
+    }
+    if (_reorderMode) {
+      _toggleReorderMode();
+      return;
+    }
+    widget.onClose?.call();
   }
 
   PreferredSizeWidget _buildAppBar(
@@ -151,12 +242,20 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
     return AppBar(
       backgroundColor: Colors.indigo[700],
       foregroundColor: Colors.white,
+      automaticallyImplyLeading: !widget.embedded,
       leading: _selectionMode
           ? IconButton(
               key: const Key('exitSelectionButton'),
               tooltip: 'Keluar dari mode seleksi',
               onPressed: _clearSelection,
               icon: const Icon(Icons.close_rounded),
+            )
+          : widget.embedded && widget.onClose != null
+          ? IconButton(
+              key: const Key('closeDesktopDetailButton'),
+              tooltip: 'Kembali ke dashboard',
+              onPressed: widget.onClose,
+              icon: const Icon(Icons.arrow_back),
             )
           : null,
       title: Column(
@@ -166,10 +265,14 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
             _selectionMode
                 ? '${_selectedTaskIds.length} tugas dipilih'
                 : '${category.icon} ${category.name}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontSize: 18),
           ),
           Text(
             subtitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontSize: 11, color: Colors.white70),
           ),
         ],
@@ -200,6 +303,15 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
               ),
             ]
           : [
+              if (widget.embedded)
+                IconButton(
+                  key: const Key('addTaskButton'),
+                  tooltip: shortcutTooltip('Tambah tugas', shortcut: 'Ctrl+N'),
+                  onPressed: state.isSaving || _selectionMode || _reorderMode
+                      ? null
+                      : () => _openTaskForm(context),
+                  icon: const Icon(Icons.add_rounded),
+                ),
               IconButton(
                 key: const Key('reorderTasksButton'),
                 tooltip: _reorderMode ? 'Selesai mengurutkan' : 'Urutkan tugas',
@@ -241,9 +353,12 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                 ? ReorderableDragStartListener(
                     key: Key('reorderTaskHandle_${task.id}'),
                     index: index,
-                    child: const Icon(
-                      Icons.drag_indicator_rounded,
-                      color: Colors.blueGrey,
+                    child: Semantics(
+                      label: 'Pegang untuk mengubah urutan ${task.name}',
+                      child: const Icon(
+                        Icons.drag_indicator_rounded,
+                        color: Colors.blueGrey,
+                      ),
                     ),
                   )
                 : null,

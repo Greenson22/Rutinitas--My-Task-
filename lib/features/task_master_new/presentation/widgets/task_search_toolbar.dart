@@ -18,6 +18,7 @@ class TaskSearchToolbar extends StatefulWidget {
     required this.onQueryChanged,
     required this.onFilterChanged,
     this.hintText = 'Cari kategori atau tugas',
+    this.focusNode,
   });
 
   final String query;
@@ -25,6 +26,9 @@ class TaskSearchToolbar extends StatefulWidget {
   final ValueChanged<String> onQueryChanged;
   final ValueChanged<TaskFilter> onFilterChanged;
   final String hintText;
+
+  /// Dipakai shortcut `Ctrl/Cmd + F` untuk memfokuskan kolom pencarian.
+  final FocusNode? focusNode;
 
   @override
   State<TaskSearchToolbar> createState() => _TaskSearchToolbarState();
@@ -98,6 +102,7 @@ class _TaskSearchToolbarState extends State<TaskSearchToolbar> {
             return TextField(
               key: const Key('taskSearchField'),
               controller: _textController,
+              focusNode: widget.focusNode,
               onChanged: _handleQueryChanged,
               textInputAction: TextInputAction.search,
               decoration: InputDecoration(
@@ -122,6 +127,10 @@ class _TaskSearchToolbarState extends State<TaskSearchToolbar> {
                   borderRadius: BorderRadius.circular(14),
                   borderSide: BorderSide.none,
                 ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: Colors.indigo, width: 2),
+                ),
               ),
             );
           },
@@ -137,7 +146,7 @@ class _TaskSearchToolbarState extends State<TaskSearchToolbar> {
                 label: Text(taskFilterLabel(filter)),
                 selected: widget.filter == filter,
                 onSelected: (_) => widget.onFilterChanged(filter),
-                visualDensity: VisualDensity.compact,
+                materialTapTargetSize: MaterialTapTargetSize.padded,
                 labelStyle: TextStyle(
                   fontSize: 11,
                   fontWeight: widget.filter == filter
