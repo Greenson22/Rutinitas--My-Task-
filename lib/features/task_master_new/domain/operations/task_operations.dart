@@ -1,3 +1,4 @@
+import '../entities/daily_progress.dart';
 import '../entities/task.dart';
 import '../entities/task_kind.dart';
 import '../entities/task_master_data.dart';
@@ -167,6 +168,117 @@ TaskMasterData setTaskActiveIn(
     categoryId: categoryId,
     taskId: taskId,
     update: (task) => task.copyWith(isActive: isActive, updatedAt: now),
+  );
+}
+
+/// Informasi minimum untuk membatalkan satu increment terakhir.
+class TaskIncrement {
+  const TaskIncrement({
+    required this.categoryId,
+    required this.taskId,
+    required this.dateKey,
+  });
+
+  final String categoryId;
+  final String taskId;
+
+  /// Tanggal lokal `YYYY-MM-DD` tempat increment dicatat.
+  final String dateKey;
+}
+
+/// Hasil increment: data terbaru beserta informasi undo.
+class IncrementResult {
+  const IncrementResult({required this.data, required this.increment});
+
+  final TaskMasterData data;
+  final TaskIncrement increment;
+}
+
+/// Menaikkan hitungan tugas sebanyak satu pada tanggal lokal [now].
+///
+/// Total, riwayat harian, dan `updatedAt` diperbarui dalam satu langkah.
+/// Entri riwayat dibuat bila belum ada.
+IncrementResult incrementTaskIn(
+  TaskMasterData data, {
+  required String categoryId,
+  required String taskId,
+  required DateTime now,
+}) {
+  final dateKey = DailyProgress.dateKey(now);
+  final updated = _replaceTask(
+    data,
+    categoryId: categoryId,
+    taskId: taskId,
+    update: (task) => _applyDailyCount(
+      task,
+      dateKey: dateKey,
+      count: task.countOn(dateKey) + 1,
+      totalDelta: 1,
+      now: now,
+    ),
+  );
+
+  return IncrementResult(
+    data: updated,
+    increment: TaskIncrement(
+      categoryId: categoryId,
+      taskId: taskId,
+      dateKey: dateKey,
+    ),
+  );
+}
+
+/// Mengembalikan efek satu increment [increment].
+///
+/// Hitungan harian dikurangi satu; entri riwayat dihapus bila menjadi nol.
+/// Bila entri riwayat sudah tidak ada, total tidak diubah agar total dan
+/// riwayat tidak saling menyimpang.
+TaskMasterData undoIncrementIn(
+  TaskMasterData data, {
+  required TaskIncrement increment,
+  required DateTime now,
+}) {
+  return _replaceTask(
+    data,
+    categoryId: increment.categoryId,
+    taskId: increment.taskId,
+    update: (task) {
+      final current = task.history[increment.dateKey];
+      if (current == null) return task.copyWith(updatedAt: now);
+      return _applyDailyCount(
+        task,
+        dateKey: increment.dateKey,
+        count: current.count - 1,
+        totalDelta: -1,
+        now: now,
+      );
+    },
+  );
+}
+
+Task _applyDailyCount(
+  Task task, {
+  required String dateKey,
+  required int count,
+  required int totalDelta,
+  required DateTime now,
+}) {
+  final history = Map<String, DailyProgress>.from(task.history);
+  if (count <= 0) {
+    history.remove(dateKey);
+  } else {
+    history[dateKey] = DailyProgress(
+      date: dateKey,
+      count: count,
+      updatedAt: now,
+    );
+  }
+
+  final total = task.totalCount + totalDelta;
+  return task.copyWith(
+    totalCount: total < 0 ? 0 : total,
+    updatedAt: now,
+    history: history,
   );
 }
 

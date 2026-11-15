@@ -189,6 +189,128 @@ void main() {
       expect(active.categories.single.tasks.single.countOn(today), 15);
     });
 
+    test('increment menambah total, hitungan hari ini, dan riwayat', () {
+      final result = incrementTaskIn(
+        sampleData(),
+        categoryId: 'cat_1',
+        taskId: 'task_1',
+        now: now.add(const Duration(minutes: 1)),
+      );
+
+      final task = result.data.categories.single.tasks.single;
+      expect(task.totalCount, 121);
+      expect(task.countOn(today), 16);
+      expect(
+        task.history[today]!.updatedAt,
+        now.add(const Duration(minutes: 1)),
+      );
+      expect(task.updatedAt, now.add(const Duration(minutes: 1)));
+      expect(result.increment.categoryId, 'cat_1');
+      expect(result.increment.taskId, 'task_1');
+      expect(result.increment.dateKey, today);
+      expect(task.sortOrder, 0);
+      expect(task.name, 'Push up');
+    });
+
+    test('increment membuat entri riwayat bila hari ini belum ada', () {
+      final data = sampleData();
+      final task = data.categories.single.tasks.single;
+      final withoutToday = data.copyWith(
+        categories: [
+          data.categories.single.copyWith(
+            tasks: [task.copyWith(history: const {})],
+          ),
+        ],
+      );
+
+      final result = incrementTaskIn(
+        withoutToday,
+        categoryId: 'cat_1',
+        taskId: 'task_1',
+        now: now,
+      );
+
+      final updated = result.data.categories.single.tasks.single;
+      expect(updated.totalCount, 121);
+      expect(updated.countOn(today), 1);
+      expect(updated.history[today]!.count, 1);
+    });
+
+    test('undo mengembalikan total, hitungan, dan riwayat hari ini', () {
+      final incremented = incrementTaskIn(
+        sampleData(),
+        categoryId: 'cat_1',
+        taskId: 'task_1',
+        now: now,
+      );
+
+      final reverted = undoIncrementIn(
+        incremented.data,
+        increment: incremented.increment,
+        now: now.add(const Duration(seconds: 2)),
+      );
+
+      final task = reverted.categories.single.tasks.single;
+      expect(task.totalCount, 120);
+      expect(task.countOn(today), 15);
+      expect(task.history[today]!.count, 15);
+    });
+
+    test('undo menghapus riwayat hari ini bila hitungan menjadi nol', () {
+      final data = sampleData();
+      final task = data.categories.single.tasks.single;
+      final withoutToday = data.copyWith(
+        categories: [
+          data.categories.single.copyWith(
+            tasks: [task.copyWith(history: const {})],
+          ),
+        ],
+      );
+      final incremented = incrementTaskIn(
+        withoutToday,
+        categoryId: 'cat_1',
+        taskId: 'task_1',
+        now: now,
+      );
+
+      final reverted = undoIncrementIn(
+        incremented.data,
+        increment: incremented.increment,
+        now: now,
+      );
+
+      final updated = reverted.categories.single.tasks.single;
+      expect(updated.totalCount, 120);
+      expect(updated.countOn(today), 0);
+      expect(updated.history.containsKey(today), isFalse);
+    });
+
+    test('undo tanpa entri riwayat tidak mengubah total', () {
+      final data = sampleData();
+      final task = data.categories.single.tasks.single;
+      final withoutHistory = data.copyWith(
+        categories: [
+          data.categories.single.copyWith(
+            tasks: [task.copyWith(history: const {})],
+          ),
+        ],
+      );
+
+      final reverted = undoIncrementIn(
+        withoutHistory,
+        increment: TaskIncrement(
+          categoryId: 'cat_1',
+          taskId: 'task_1',
+          dateKey: today,
+        ),
+        now: now,
+      );
+
+      final updated = reverted.categories.single.tasks.single;
+      expect(updated.totalCount, 120);
+      expect(updated.history, isEmpty);
+    });
+
     test('hapus tugas hanya menghapus tugas yang dipilih', () {
       final data = addTaskTo(
         sampleData(),

@@ -105,6 +105,8 @@ class CategoryDetailScreen extends StatelessWidget {
                               key: Key('taskTile_${tasks[i].id}'),
                               task: tasks[i],
                               todayKey: controller.todayKey,
+                              onIncrement: () =>
+                                  _incrementTask(context, tasks[i]),
                               onAction: (action) =>
                                   _handleTaskAction(context, tasks[i], action),
                             ),
@@ -118,6 +120,31 @@ class CategoryDetailScreen extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  /// Increment satu klik tanpa dialog, lalu tampilkan Undo selama 5 detik.
+  void _incrementTask(BuildContext context, Task task) {
+    final applied = controller.incrementTask(
+      categoryId: categoryId,
+      taskId: task.id,
+    );
+    if (!applied) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    // Ganti SnackBar lama seketika agar Undo selalu merujuk increment terakhir.
+    messenger.removeCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        key: const Key('incrementSnackBar'),
+        content: Text('${task.name} +1'),
+        duration: const Duration(seconds: 5),
+        action: SnackBarAction(
+          key: const Key('undoIncrementAction'),
+          label: 'Undo',
+          onPressed: controller.undoLastIncrement,
+        ),
+      ),
     );
   }
 

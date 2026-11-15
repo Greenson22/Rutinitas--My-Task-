@@ -1,4 +1,5 @@
 import '../../domain/entities/task_master_data.dart';
+import '../../domain/operations/task_operations.dart';
 
 enum TaskMasterNewStatus { loading, ready, empty, error }
 
@@ -12,6 +13,7 @@ class TaskMasterNewState {
     this.actionMessage,
     this.actionRetryable = false,
     this.isSaving = false,
+    this.lastIncrement,
   });
 
   const TaskMasterNewState.loading()
@@ -21,7 +23,8 @@ class TaskMasterNewState {
       errorMessage = null,
       actionMessage = null,
       actionRetryable = false,
-      isSaving = false;
+      isSaving = false,
+      lastIncrement = null;
 
   final TaskMasterNewStatus status;
   final TaskMasterData? data;
@@ -36,6 +39,12 @@ class TaskMasterNewState {
   final bool actionRetryable;
   final bool isSaving;
 
+  /// Increment terakhir yang masih dapat dibatalkan.
+  ///
+  /// Hanya satu nilai yang disimpan, sehingga increment sebelumnya tidak bisa
+  /// di-undo lagi setelah increment baru terjadi.
+  final TaskIncrement? lastIncrement;
+
   bool get isLoading => status == TaskMasterNewStatus.loading;
   bool get hasError => status == TaskMasterNewStatus.error;
 
@@ -47,7 +56,9 @@ class TaskMasterNewState {
     String? actionMessage,
     bool? actionRetryable,
     bool? isSaving,
+    TaskIncrement? lastIncrement,
     bool clearActionMessage = false,
+    bool clearLastIncrement = false,
   }) {
     return TaskMasterNewState(
       status: status ?? this.status,
@@ -61,6 +72,9 @@ class TaskMasterNewState {
           ? false
           : (actionRetryable ?? this.actionRetryable),
       isSaving: isSaving ?? this.isSaving,
+      lastIncrement: clearLastIncrement
+          ? null
+          : (lastIncrement ?? this.lastIncrement),
     );
   }
 }

@@ -16,12 +16,16 @@ class TaskTile extends StatelessWidget {
     required this.task,
     required this.todayKey,
     this.onAction,
+    this.onIncrement,
     this.showActiveStatus = true,
   });
 
   final Task task;
   final String todayKey;
   final void Function(TaskAction action)? onAction;
+
+  /// Dipanggil saat pengguna menaikkan hitungan satu kali.
+  final VoidCallback? onIncrement;
 
   /// Menampilkan badge "Aktif" juga, bukan hanya "Nonaktif".
   final bool showActiveStatus;
@@ -81,6 +85,20 @@ class TaskTile extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (onIncrement != null)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4),
+                    child: IconButton(
+                      key: Key('incrementTask_${task.id}'),
+                      tooltip: 'Tambah hitungan ${task.name}',
+                      onPressed: onIncrement,
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.teal.withValues(alpha: 0.12),
+                        foregroundColor: Colors.teal,
+                      ),
+                      icon: const Icon(Icons.add_rounded),
+                    ),
+                  ),
                 if (onAction != null)
                   PopupMenuButton<TaskAction>(
                     key: Key('taskMenu_${task.id}'),

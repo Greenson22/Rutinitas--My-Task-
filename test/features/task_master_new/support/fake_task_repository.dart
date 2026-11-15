@@ -23,6 +23,9 @@ class FakeTaskRepository implements TaskRepository {
   /// Bila diisi, operasi tugas melempar error ini.
   Object? taskActionError;
 
+  /// Bila diisi, pemanggilan [save] melempar error ini.
+  Object? saveError;
+
   DateTime now = DateTime(2026, 11, 14, 12);
 
   @override
@@ -35,6 +38,8 @@ class FakeTaskRepository implements TaskRepository {
 
   @override
   Future<void> save(TaskMasterData data) async {
+    final failure = saveError;
+    if (failure != null) throw failure;
     saveCount++;
     this.data = data;
   }

@@ -199,6 +199,56 @@ void main() {
       expect(loaded.categories.single.tasks, isEmpty);
     });
 
+    test('increment dan undo bertahan pada file nyata', () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'task_master_increment_',
+      );
+      addTearDown(() async {
+        if (await tempDir.exists()) {
+          await tempDir.delete(recursive: true);
+        }
+      });
+
+      TaskRepositoryImpl openRepository() => TaskRepositoryImpl(
+        localDataSource: FileTaskLocalDataSource(
+          storageService: StorageService(),
+          baseDirProvider: () async => tempDir.path,
+          encryptionEnabledProvider: () async => false,
+          clock: () => now,
+        ),
+        mapper: TaskMasterMapper(clock: () => now),
+        clock: () => now,
+      );
+
+      final repository = openRepository();
+      await repository.save(sampleData());
+      final loaded = await repository.load();
+      final result = incrementTaskIn(
+        loaded,
+        categoryId: 'cat_1',
+        taskId: 'task_1',
+        now: now,
+      );
+      await repository.save(result.data);
+
+      final afterIncrement = await openRepository().load();
+      final incremented = afterIncrement.categories.single.tasks.single;
+      expect(incremented.totalCount, 121);
+      expect(incremented.countOn(DailyProgress.dateKey(now)), 16);
+
+      final reverted = undoIncrementIn(
+        afterIncrement,
+        increment: result.increment,
+        now: now,
+      );
+      await openRepository().save(reverted);
+
+      final afterUndo = await openRepository().load();
+      final undone = afterUndo.categories.single.tasks.single;
+      expect(undone.totalCount, 120);
+      expect(undone.countOn(DailyProgress.dateKey(now)), 15);
+    });
+
     test('tugas tersimpan pada file nyata di direktori sementara', () async {
       final tempDir = await Directory.systemTemp.createTemp(
         'task_master_task_',
