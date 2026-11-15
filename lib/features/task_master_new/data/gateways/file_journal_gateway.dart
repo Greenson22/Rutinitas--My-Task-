@@ -79,38 +79,37 @@ class FileJournalGateway implements JournalGateway {
       // Template bisa tertinggal dari log hari ini bila tautan baru diubah.
       // Hanya entri hari ini yang digabungkan agar tautan lama tidak menempel.
       final monthFile = await _monthFile(_clock());
+      var todayMinutes = 0;
       if (await monthFile.exists()) {
+        final logs = await _readLogs(monthFile);
         linkedTaskIds.addAll(
-          _collectLinkedTaskIdsFromLogs(
-            await _readLogs(monthFile),
-            dateKey: todayKey,
-          ),
+          _collectLinkedTaskIdsFromLogs(logs, dateKey: todayKey),
         );
+        todayMinutes = _todayMinutesFromLogs(logs, dateKey: todayKey);
       }
 
       return JournalLinkState(
         linkedTaskIds: linkedTaskIds,
         incrementMinutes: _incrementMinutesFrom(decoded),
+        todayMinutes: todayMinutes,
       );
     }
 
     final monthFile = await _monthFile(_clock());
     if (await monthFile.exists()) {
+      final logs = await _readLogs(monthFile);
       return JournalLinkState(
-        linkedTaskIds: _collectLinkedTaskIdsFromLogs(
-          await _readLogs(monthFile),
-          dateKey: todayKey,
-        ),
+        linkedTaskIds: _collectLinkedTaskIdsFromLogs(logs, dateKey: todayKey),
+        todayMinutes: _todayMinutesFromLogs(logs, dateKey: todayKey),
       );
     }
 
     final oldMasterFile = await _oldMasterFile();
     if (await oldMasterFile.exists()) {
+      final logs = await _readLogs(oldMasterFile);
       return JournalLinkState(
-        linkedTaskIds: _collectLinkedTaskIdsFromLogs(
-          await _readLogs(oldMasterFile),
-          dateKey: todayKey,
-        ),
+        linkedTaskIds: _collectLinkedTaskIdsFromLogs(logs, dateKey: todayKey),
+        todayMinutes: _todayMinutesFromLogs(logs, dateKey: todayKey),
       );
     }
 
@@ -451,6 +450,18 @@ class FileJournalGateway implements JournalGateway {
       ids.addAll(_collectLinkedTaskIds(_asList(entry['tasks'])));
     }
     return ids;
+  }
+
+  int _todayMinutesFromLogs(List<dynamic> logs, {required String dateKey}) {
+    final entry = _findEntry(logs, dateKey);
+    if (entry == null) return 0;
+
+    var total = 0;
+    for (final task in _asList(entry['tasks'])) {
+      if (task is! Map) continue;
+      total += _intValue(task['durasi_menit']);
+    }
+    return total;
   }
 
   Map<String, dynamic>? _findLinkedTask(List<dynamic> tasks, String taskId) {

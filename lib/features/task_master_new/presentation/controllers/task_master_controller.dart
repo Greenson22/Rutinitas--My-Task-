@@ -5,10 +5,12 @@ import 'package:flutter/foundation.dart';
 import '../../data/exceptions/task_master_exceptions.dart';
 import '../../domain/entities/category.dart' as domain;
 import '../../domain/entities/daily_progress.dart';
+import '../../domain/entities/task.dart';
 import '../../domain/entities/task_kind.dart';
 import '../../domain/entities/task_master_data.dart';
 import '../../domain/operations/category_operations.dart' as ops;
 import '../../domain/operations/task_operations.dart' as task_ops;
+import '../../domain/operations/task_search.dart';
 import '../../domain/repositories/journal_gateway.dart';
 import '../../domain/repositories/task_repository.dart';
 import 'task_master_state.dart';
@@ -52,7 +54,63 @@ class TaskMasterNewController extends ChangeNotifier {
   /// Durasi Jurnal yang akan ditambahkan pada increment berikutnya.
   int get journalIncrementMinutes => _state.journalIncrementMinutes;
 
+  /// Total durasi Jurnal hari ini menurut data terakhir yang dibaca.
+  int get journalTodayMinutes => _state.journalTodayMinutes;
+
+  /// Query pencarian yang sudah diterapkan.
+  String get searchQuery => _state.searchQuery;
+
+  /// Filter tugas yang sedang aktif.
+  TaskFilter get taskFilter => _state.taskFilter;
+
+  /// Apakah pencarian atau filter sedang menyaring daftar.
+  bool get isSearchActive => _state.isSearchActive;
+
   String get todayKey => DailyProgress.dateKey(_clock());
+
+  /// Mengelompokkan hasil pencarian per kategori dari data terakhir.
+  List<TaskSearchGroup> searchGroups({bool includeHidden = false}) {
+    final data = _state.data;
+    if (data == null) return const [];
+    return searchTaskGroups(
+      data,
+      query: _state.searchQuery,
+      filter: _state.taskFilter,
+      includeHidden: includeHidden,
+    );
+  }
+
+  /// Menyaring tugas di dalam satu kategori.
+  List<Task> filteredTasksIn(
+    domain.Category category, {
+    String? query,
+    TaskFilter? filter,
+  }) {
+    return filterTasksInCategory(
+      category,
+      query: query ?? _state.searchQuery,
+      filter: filter ?? _state.taskFilter,
+    );
+  }
+
+  /// Menerapkan query pencarian. Debounce dilakukan oleh widget pencarian.
+  void setSearchQuery(String query) {
+    final normalized = query.trim();
+    if (normalized == _state.searchQuery) return;
+    _setState(_state.copyWith(searchQuery: normalized));
+  }
+
+  /// Mengganti filter tugas tanpa menunggu debounce.
+  void setTaskFilter(TaskFilter filter) {
+    if (filter == _state.taskFilter) return;
+    _setState(_state.copyWith(taskFilter: filter));
+  }
+
+  /// Menghapus pencarian dan mengembalikan filter ke "Semua".
+  void clearSearchAndFilter() {
+    if (!_state.isSearchActive) return;
+    _setState(_state.copyWith(searchQuery: '', taskFilter: TaskFilter.all));
+  }
 
   Future<void> load() async {
     _retryAction = null;
@@ -400,7 +458,11 @@ class TaskMasterNewController extends ChangeNotifier {
     required DateTime at,
   }) async {
     try {
-      return await gateway.addDuration(taskId: taskId, at: at);
+      final adjustment = await gateway.addDuration(taskId: taskId, at: at);
+      if (adjustment != null) {
+        _adjustJournalTodayMinutes(adjustment.minutes);
+      }
+      return adjustment;
     } catch (_) {
       _setState(
         _state.copyWith(
@@ -426,6 +488,7 @@ class TaskMasterNewController extends ChangeNotifier {
       // Gunakan waktu increment, bukan waktu undo, agar undo yang melewati
       // tengah malam tetap mengurangi entri Jurnal pada hari yang benar.
       await gateway.subtractDuration(adjustment: adjustment, at: pending.at);
+      _adjustJournalTodayMinutes(-adjustment.minutes);
     } catch (_) {
       _setState(
         _state.copyWith(
@@ -436,6 +499,14 @@ class TaskMasterNewController extends ChangeNotifier {
         ),
       );
     }
+  }
+
+  void _adjustJournalTodayMinutes(int deltaMinutes) {
+    final links = _state.journalLinks;
+    final nextMinutes = (links.todayMinutes + deltaMinutes).clamp(0, 1 << 31);
+    _setState(
+      _state.copyWith(journalLinks: links.copyWith(todayMinutes: nextMinutes)),
+    );
   }
 
   void _scheduleSave(TaskMasterData data) {
@@ -547,6 +618,8 @@ class TaskMasterNewController extends ChangeNotifier {
           : TaskMasterNewStatus.ready,
       data: data,
       journalLinks: journalLinks ?? _state.journalLinks,
+      searchQuery: _state.searchQuery,
+      taskFilter: _state.taskFilter,
     );
   }
 

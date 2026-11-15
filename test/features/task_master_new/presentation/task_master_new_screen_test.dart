@@ -85,7 +85,7 @@ void main() {
     expect(find.text('Buku'), findsOneWidget);
     expect(find.text('Kebiasaan'), findsOneWidget);
     expect(find.text('Progres'), findsOneWidget);
-    expect(find.byType(LinearProgressIndicator), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsAtLeastNWidgets(1));
     expect(find.textContaining('Hari ini 15 / 20'), findsOneWidget);
   });
 

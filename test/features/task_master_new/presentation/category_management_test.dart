@@ -171,6 +171,21 @@ void main() {
       await tester.tap(find.text('Sembunyikan'));
       await tester.pumpAndSettle();
 
+      // Kategori tersembunyi tidak tampil sampai mode ditampilkan aktif.
+      expect(find.text('Disembunyikan'), findsNothing);
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('showHiddenToggle')),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.byKey(const Key('showHiddenToggle')));
+      await tester.pumpAndSettle();
+
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('manageTasks_cat_1')),
+        250,
+        scrollable: find.byType(Scrollable).first,
+      );
       expect(find.text('Disembunyikan'), findsOneWidget);
       expect(repository.data!.categories.single.isHidden, isTrue);
 

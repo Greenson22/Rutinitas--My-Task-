@@ -21,10 +21,18 @@ class TaskMasterLoadingView extends StatelessWidget {
   }
 }
 
+/// Empty state saat belum ada kategori sama sekali.
 class TaskMasterEmptyView extends StatelessWidget {
-  const TaskMasterEmptyView({super.key, required this.onRefresh});
+  const TaskMasterEmptyView({
+    super.key,
+    required this.onRefresh,
+    this.onCreateCategory,
+  });
 
   final VoidCallback onRefresh;
+
+  /// Mengarahkan pengguna baru untuk membuat kategori pertama.
+  final VoidCallback? onCreateCategory;
 
   @override
   Widget build(BuildContext context) {
@@ -64,13 +72,184 @@ class TaskMasterEmptyView extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 22),
-            OutlinedButton.icon(
-              onPressed: onRefresh,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Muat Ulang'),
+            Wrap(
+              spacing: 10,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
+              children: [
+                if (onCreateCategory != null)
+                  FilledButton.icon(
+                    key: const Key('emptyCreateCategoryButton'),
+                    onPressed: onCreateCategory,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Buat kategori pertama'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.indigo,
+                    ),
+                  ),
+                OutlinedButton.icon(
+                  onPressed: onRefresh,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Muat Ulang'),
+                ),
+              ],
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Empty state ringan ketika kategori sudah ada tetapi belum ada tugas yang
+/// perlu dikerjakan hari ini.
+class EmptyTodayTasksView extends StatelessWidget {
+  const EmptyTodayTasksView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('emptyTodayTasks'),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.teal.withValues(alpha: 0.15)),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.teal.withValues(alpha: 0.08),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.check_circle_outline_rounded,
+              size: 36,
+              color: Colors.teal,
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Belum ada tugas hari ini',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            'Tugas dengan target harian atau aktivitas hari ini akan muncul '
+            'di sini. Tambahkan target pada tugas agar mudah dipantau.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.5,
+              color: Colors.blueGrey[700],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Ditampilkan ketika semua kategori sedang disembunyikan.
+class HiddenCategoriesView extends StatelessWidget {
+  const HiddenCategoriesView({super.key, required this.onShowHidden});
+
+  final VoidCallback onShowHidden;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('hiddenCategoriesView'),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.visibility_off_outlined, size: 38, color: Colors.blueGrey),
+          const SizedBox(height: 10),
+          const Text(
+            'Semua kategori disembunyikan',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Aktifkan "Tampilkan tersembunyi" untuk mengelola kategori ini.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 12, color: Colors.blueGrey[700]),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            key: const Key('showHiddenFromEmptyButton'),
+            onPressed: onShowHidden,
+            icon: const Icon(Icons.visibility, size: 18),
+            label: const Text('Tampilkan tersembunyi'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Empty state saat pencarian atau filter tidak menemukan tugas.
+class SearchEmptyView extends StatelessWidget {
+  const SearchEmptyView({super.key, required this.onClear});
+
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('searchEmptyState'),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.indigo.withValues(alpha: 0.12)),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.indigo.withValues(alpha: 0.06),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.search_off_rounded,
+              size: 36,
+              color: Colors.indigo,
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Tidak ada hasil',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            'Coba kata kunci lain, atau hapus pencarian dan filter untuk '
+            'melihat semua tugas.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.5,
+              color: Colors.blueGrey[700],
+            ),
+          ),
+          const SizedBox(height: 14),
+          OutlinedButton.icon(
+            key: const Key('clearSearchFiltersButton'),
+            onPressed: onClear,
+            icon: const Icon(Icons.filter_alt_off_rounded, size: 18),
+            label: const Text('Hapus pencarian dan filter'),
+          ),
+        ],
       ),
     );
   }

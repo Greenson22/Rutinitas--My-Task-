@@ -1,5 +1,6 @@
 import '../../domain/entities/task_master_data.dart';
 import '../../domain/operations/task_operations.dart';
+import '../../domain/operations/task_search.dart';
 import '../../domain/repositories/journal_gateway.dart';
 
 enum TaskMasterNewStatus { loading, ready, empty, error }
@@ -16,6 +17,8 @@ class TaskMasterNewState {
     this.isSaving = false,
     this.lastIncrement,
     this.journalLinks = JournalLinkState.empty,
+    this.searchQuery = '',
+    this.taskFilter = TaskFilter.all,
   });
 
   const TaskMasterNewState.loading()
@@ -27,7 +30,9 @@ class TaskMasterNewState {
       actionRetryable = false,
       isSaving = false,
       lastIncrement = null,
-      journalLinks = JournalLinkState.empty;
+      journalLinks = JournalLinkState.empty,
+      searchQuery = '',
+      taskFilter = TaskFilter.all;
 
   final TaskMasterNewStatus status;
   final TaskMasterData? data;
@@ -52,10 +57,23 @@ class TaskMasterNewState {
   /// Task Master.
   final JournalLinkState journalLinks;
 
+  /// Query pencarian yang sudah diterapkan (setelah debounce).
+  final String searchQuery;
+
+  /// Filter tugas yang sedang aktif.
+  final TaskFilter taskFilter;
+
+  /// Apakah pencarian atau filter sedang menyaring daftar.
+  bool get isSearchActive =>
+      searchQuery.trim().isNotEmpty || taskFilter != TaskFilter.all;
+
   bool get isLoading => status == TaskMasterNewStatus.loading;
   bool get hasError => status == TaskMasterNewStatus.error;
   bool isTaskLinkedToJournal(String taskId) => journalLinks.isLinked(taskId);
   int get journalIncrementMinutes => journalLinks.incrementMinutes;
+
+  /// Total durasi Jurnal yang tercatat hari ini, dalam menit.
+  int get journalTodayMinutes => journalLinks.todayMinutes;
 
   TaskMasterNewState copyWith({
     TaskMasterNewStatus? status,
@@ -67,6 +85,8 @@ class TaskMasterNewState {
     bool? isSaving,
     TaskIncrement? lastIncrement,
     JournalLinkState? journalLinks,
+    String? searchQuery,
+    TaskFilter? taskFilter,
     bool clearActionMessage = false,
     bool clearLastIncrement = false,
   }) {
@@ -86,6 +106,8 @@ class TaskMasterNewState {
           ? null
           : (lastIncrement ?? this.lastIncrement),
       journalLinks: journalLinks ?? this.journalLinks,
+      searchQuery: searchQuery ?? this.searchQuery,
+      taskFilter: taskFilter ?? this.taskFilter,
     );
   }
 }

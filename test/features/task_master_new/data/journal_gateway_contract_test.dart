@@ -101,6 +101,18 @@ void main() {
       expect(task['linkedTaskIds'], ['task_1']);
     });
 
+    test('melaporkan total durasi Jurnal hari ini', () async {
+      await writeTemplate(incrementMinutes: 45);
+
+      expect((await gateway.loadLinks()).todayMinutes, 0);
+
+      await gateway.addDuration(taskId: 'task_1', at: now);
+      expect((await gateway.loadLinks()).todayMinutes, 45);
+
+      await gateway.addDuration(taskId: 'task_1', at: now);
+      expect((await gateway.loadLinks()).todayMinutes, 90);
+    });
+
     test('mengurangi durasi yang sama saat undo', () async {
       await writeTemplate(incrementMinutes: 45);
       final adjustment = await gateway.addDuration(taskId: 'task_1', at: now);

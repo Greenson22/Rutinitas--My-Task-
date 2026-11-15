@@ -39,7 +39,13 @@ void main() {
   }
 
   Future<void> openDetail(WidgetTester tester) async {
-    await tester.tap(find.byKey(const Key('manageTasks_cat_1')));
+    final finder = find.byKey(const Key('manageTasks_cat_1'));
+    await tester.scrollUntilVisible(
+      finder,
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(finder);
     await tester.pumpAndSettle();
   }
 

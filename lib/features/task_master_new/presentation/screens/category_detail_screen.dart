@@ -3,10 +3,13 @@ import 'package:flutter/material.dart';
 import '../../domain/entities/task.dart';
 import '../../domain/entities/task_kind.dart';
 import '../controllers/task_master_controller.dart';
+import '../increment_flow.dart';
 import '../widgets/action_message_banner.dart';
 import '../widgets/task_delete_dialog.dart';
 import '../widgets/task_form_dialog.dart';
+import '../widgets/task_search_toolbar.dart';
 import '../widgets/task_tile.dart';
+import '../widgets/status_views.dart';
 import 'task_history_screen.dart';
 
 /// Halaman detail kategori untuk mengelola tugas di dalamnya.
@@ -39,8 +42,14 @@ class CategoryDetailScreen extends StatelessWidget {
           );
         }
 
-        final tasks = [...category.tasks]
+        final allTasks = [...category.tasks]
           ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+        final tasks = state.isSearchActive
+            ? controller.filteredTasksIn(category)
+            : allTasks;
+        final subtitle = state.isSearchActive
+            ? '${tasks.length} dari ${allTasks.length} tugas'
+            : '${allTasks.length} tugas';
 
         return Scaffold(
           backgroundColor: Colors.grey[100],
@@ -55,7 +64,7 @@ class CategoryDetailScreen extends StatelessWidget {
                   style: const TextStyle(fontSize: 18),
                 ),
                 Text(
-                  '${tasks.length} tugas',
+                  subtitle,
                   style: const TextStyle(fontSize: 11, color: Colors.white70),
                 ),
               ],
@@ -84,11 +93,23 @@ class CategoryDetailScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                 ],
-                if (tasks.isEmpty)
+                if (allTasks.isNotEmpty) ...[
+                  TaskSearchToolbar(
+                    query: controller.searchQuery,
+                    filter: controller.taskFilter,
+                    onQueryChanged: controller.setSearchQuery,
+                    onFilterChanged: controller.setTaskFilter,
+                    hintText: 'Cari tugas di kategori ini',
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                if (allTasks.isEmpty)
                   _EmptyTasksView(
                     categoryName: category.name,
                     onAdd: () => _openTaskForm(context),
                   )
+                else if (tasks.isEmpty)
+                  SearchEmptyView(onClear: controller.clearSearchAndFilter)
                 else
                   Card(
                     elevation: 1.5,
@@ -139,32 +160,7 @@ class CategoryDetailScreen extends StatelessWidget {
 
   /// Increment satu klik tanpa dialog, lalu tampilkan Undo selama 5 detik.
   void _incrementTask(BuildContext context, Task task) {
-    final applied = controller.incrementTask(
-      categoryId: categoryId,
-      taskId: task.id,
-    );
-    if (!applied) return;
-
-    final isLinked = controller.isTaskLinkedToJournal(task.id);
-    final message = isLinked
-        ? '${task.name} +1 • Jurnal +${controller.journalIncrementMinutes} menit'
-        : '${task.name} +1 • Jurnal tidak tertaut';
-
-    final messenger = ScaffoldMessenger.of(context);
-    // Ganti SnackBar lama seketika agar Undo selalu merujuk increment terakhir.
-    messenger.removeCurrentSnackBar();
-    messenger.showSnackBar(
-      SnackBar(
-        key: const Key('incrementSnackBar'),
-        content: Text(message),
-        duration: const Duration(seconds: 5),
-        action: SnackBarAction(
-          key: const Key('undoIncrementAction'),
-          label: 'Undo',
-          onPressed: controller.undoLastIncrement,
-        ),
-      ),
-    );
+    incrementTaskWithFeedback(context, controller, task);
   }
 
   Future<void> _handleTaskAction(

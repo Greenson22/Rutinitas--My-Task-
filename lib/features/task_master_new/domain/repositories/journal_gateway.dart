@@ -10,6 +10,7 @@ class JournalLinkState {
   const JournalLinkState({
     this.linkedTaskIds = const {},
     this.incrementMinutes = defaultJournalIncrementMinutes,
+    this.todayMinutes = 0,
   });
 
   static const empty = JournalLinkState();
@@ -19,7 +20,22 @@ class JournalLinkState {
   /// Durasi yang ditambahkan ke Jurnal untuk setiap increment.
   final int incrementMinutes;
 
+  /// Total durasi aktivitas Jurnal yang tercatat hari ini, dalam menit.
+  final int todayMinutes;
+
   bool isLinked(String taskId) => linkedTaskIds.contains(taskId);
+
+  JournalLinkState copyWith({
+    Set<String>? linkedTaskIds,
+    int? incrementMinutes,
+    int? todayMinutes,
+  }) {
+    return JournalLinkState(
+      linkedTaskIds: linkedTaskIds ?? this.linkedTaskIds,
+      incrementMinutes: incrementMinutes ?? this.incrementMinutes,
+      todayMinutes: todayMinutes ?? this.todayMinutes,
+    );
+  }
 }
 
 /// Perubahan durasi yang benar-benar diterapkan ke satu aktivitas Jurnal.
