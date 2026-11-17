@@ -24,6 +24,27 @@ abstract interface class TaskRepository {
   /// Memvalidasi dan menyimpan JSON mentah melalui mapper dan atomic write.
   Future<TaskMasterData> saveRawJson(String content);
 
+  /// Menghasilkan konten file untuk diekspor Data Center.
+  ///
+  /// Konten diambil apa adanya dari penyimpanan agar status enkripsi file asli
+  /// tetap terjaga. Import memahami konten terenkripsi dan mendekripsinya
+  /// dengan PIN sesi sebelum memvalidasi. Ekspor hanya membaca, tidak menulis
+  /// atau memigrasikan file asli.
+  Future<String> exportJson();
+
+  /// Memvalidasi konten impor tanpa menulis apa pun.
+  ///
+  /// Dipakai Data Center untuk memastikan file valid sebelum operasi yang
+  /// bersifat destruktif dijalankan.
+  Future<TaskMasterData> validateImportJson(String content);
+
+  /// Memvalidasi file impor, membackup file saat ini, lalu menulis file impor.
+  ///
+  /// Konten yang tidak valid ditolak sebelum backup dan penulisan, sehingga
+  /// data lama tidak berubah. File legacy ditulis apa adanya dan akan
+  /// dimigrasikan saat Task Master dibuka.
+  Future<TaskMasterData> importJson(String content);
+
   /// Daftar backup yang tersedia, terbaru lebih dulu.
   Future<List<TaskBackup>> listBackups();
 

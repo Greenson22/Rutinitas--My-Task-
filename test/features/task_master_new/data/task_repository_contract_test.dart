@@ -289,7 +289,257 @@ void main() {
     });
   });
 
+  group('kompatibilitas Data Center', () {
+    String v2Json() {
+      return jsonEncode({
+        'schemaVersion': 2,
+        'fieldTambahan': 'dipertahankan',
+        'categories': [
+          {
+            'id': 'cat_sehat',
+            'name': 'Kesehatan',
+            'icon': '💚',
+            'isHidden': false,
+            'sortOrder': 0,
+            'tasks': [
+              {
+                'id': 'task-lari',
+                'name': 'Lari pagi',
+                'kind': 'habit',
+                'isActive': true,
+                'sortOrder': 0,
+                'targetDaily': 2,
+                'targetTotal': 0,
+                'count': 8,
+                'createdAt': '2026-11-01T07:00:00.000',
+                'updatedAt': '2026-11-14T08:00:00.000',
+                'history': {
+                  '2026-11-13': {
+                    'count': 2,
+                    'updatedAt': '2026-11-13T08:00:00.000',
+                  },
+                  '2026-11-14': {
+                    'count': 1,
+                    'updatedAt': '2026-11-14T08:00:00.000',
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      });
+    }
+
+    test(
+      'import v2 memulihkan kategori, tugas, target, status, dan riwayat',
+      () async {
+        final source = FakeTaskLocalDataSource(snapshot: legacySnapshot());
+        final repository = buildRepository(source);
+
+        final imported = await repository.importJson(v2Json());
+
+        expect(imported.categories.single.id, 'cat_sehat');
+        final task = imported.categories.single.tasks.single;
+        expect(task.id, 'task-lari');
+        expect(task.kind, TaskKind.habit);
+        expect(task.targetDaily, 2);
+        expect(task.isActive, isTrue);
+        expect(task.history, hasLength(2));
+        expect(task.countOn('2026-11-13'), 2);
+
+        expect(source.backupCount, 1);
+        expect(source.writeCount, 1);
+
+        final loaded = await repository.load();
+        final reloaded = loaded.categories.single.tasks.single;
+        expect(reloaded.id, 'task-lari');
+        expect(reloaded.targetDaily, 2);
+        expect(reloaded.totalCount, 8);
+        expect(reloaded.isActive, isTrue);
+        expect(reloaded.countOn('2026-11-13'), 2);
+      },
+    );
+
+    test('import legacy dimigrasikan saat data dibuka', () async {
+      final source = FakeTaskLocalDataSource();
+      final repository = buildRepository(source);
+
+      await repository.importJson(legacyJson());
+      expect(source.writeCount, 1);
+      final written = jsonDecode(source.writes.single) as Map<String, dynamic>;
+      expect(
+        written['schemaVersion'],
+        isNull,
+        reason: 'legacy ditulis apa adanya',
+      );
+
+      final data = await repository.load();
+
+      expect(data.categories.single.name, 'Kesehatan');
+      expect(data.categories.single.tasks.single.id, 'task-1');
+      expect(data.categories.single.tasks.single.kind, TaskKind.habit);
+      expect(data.categories.single.tasks.single.countOn('2026-11-13'), 4);
+      expect(source.writeCount, 2, reason: 'migrasi menulis ulang v2');
+      expect(source.backupCount, 1, reason: 'backup dibuat saat migrasi');
+    });
+
+    test('import tidak valid tidak mengubah data lama', () async {
+      final original = legacySnapshot();
+      final source = FakeTaskLocalDataSource(snapshot: original);
+      final repository = buildRepository(source);
+
+      await expectLater(
+        repository.importJson('{ bukan json'),
+        throwsA(isA<TaskDataCorruptedException>()),
+      );
+      await expectLater(
+        repository.importJson('{"categories":"bukan-list"}'),
+        throwsA(isA<TaskDataCorruptedException>()),
+      );
+      await expectLater(
+        repository.importJson('{"schemaVersion":99,"categories":[]}'),
+        throwsA(isA<UnsupportedSchemaVersionException>()),
+      );
+
+      expect(source.writeCount, 0);
+      expect(source.backupCount, 0);
+      expect(source.snapshot!.rawContent, original.rawContent);
+    });
+
+    test('export lalu import round-trip menghasilkan data setara', () async {
+      final sourceA = FakeTaskLocalDataSource();
+      final mapper = TaskMasterMapper(
+        clock: () => now,
+        idGenerator: () => 'generated',
+      );
+      final repoA = TaskRepositoryImpl(
+        localDataSource: sourceA,
+        mapper: mapper,
+      );
+      // saveRawJson menormalkan ke v2 sekaligus mempertahankan field tak
+      // dikenal dan menulis field legacy untuk kompatibilitas.
+      await repoA.saveRawJson(v2Json());
+      final dataA = await repoA.load();
+
+      final exported = await repoA.exportJson();
+      expect(exported.trimLeft().startsWith('{'), isTrue);
+
+      final sourceB = FakeTaskLocalDataSource();
+      final repoB = buildRepository(sourceB);
+      await repoB.importJson(exported);
+      final dataB = await repoB.load();
+
+      expect(dataB.categories.length, dataA.categories.length);
+      final categoryA = dataA.categories.single;
+      final categoryB = dataB.categories.single;
+      expect(categoryB.id, categoryA.id);
+      expect(categoryB.name, categoryA.name);
+      expect(categoryB.icon, categoryA.icon);
+      expect(categoryB.isHidden, categoryA.isHidden);
+      expect(categoryB.sortOrder, categoryA.sortOrder);
+
+      final taskA = categoryA.tasks.single;
+      final taskB = categoryB.tasks.single;
+      expect(taskB.id, taskA.id);
+      expect(taskB.name, taskA.name);
+      expect(taskB.kind, taskA.kind);
+      expect(taskB.isActive, taskA.isActive);
+      expect(taskB.sortOrder, taskA.sortOrder);
+      expect(taskB.targetDaily, taskA.targetDaily);
+      expect(taskB.targetTotal, taskA.targetTotal);
+      expect(taskB.totalCount, taskA.totalCount);
+      expect(taskB.createdAt, taskA.createdAt);
+      expect(taskB.updatedAt, taskA.updatedAt);
+      expect(taskB.history, taskA.history);
+
+      final importedJson =
+          jsonDecode(sourceB.writes.single) as Map<String, dynamic>;
+      expect(importedJson['fieldTambahan'], 'dipertahankan');
+      expect(importedJson['schemaVersion'], 2);
+      final importedTask =
+          importedJson['categories'][0]['tasks'][0] as Map<String, dynamic>;
+      expect(importedTask['type'], 0);
+      expect(importedTask['countToday'], 1);
+    });
+
+    test('validateImportJson tidak menulis atau membuat backup', () async {
+      final original = legacySnapshot();
+      final source = FakeTaskLocalDataSource(snapshot: original);
+      final repository = buildRepository(source);
+
+      final preview = await repository.validateImportJson(v2Json());
+
+      expect(preview.categories.single.name, 'Kesehatan');
+      expect(source.writeCount, 0);
+      expect(source.backupCount, 0);
+      expect(source.snapshot!.rawContent, original.rawContent);
+    });
+  });
+
   group('migrasi file terenkripsi end-to-end', () {
+    test(
+      'ekspor mentah terenkripsi dapat diimpor kembali dengan PIN sesi',
+      () async {
+        final tempDirA = await Directory.systemTemp.createTemp(
+          'task_master_export_a_',
+        );
+        final tempDirB = await Directory.systemTemp.createTemp(
+          'task_master_export_b_',
+        );
+        addTearDown(() async {
+          if (await tempDirA.exists()) await tempDirA.delete(recursive: true);
+          if (await tempDirB.exists()) await tempDirB.delete(recursive: true);
+        });
+
+        const v2 =
+            '{"schemaVersion":2,"categories":[{"id":"cat_x","name":"Fokus",'
+            '"icon":"🎯","isHidden":false,"sortOrder":0,"tasks":[{"id":'
+            '"task_x","name":"Latihan","kind":"habit","isActive":true,'
+            '"sortOrder":0,"targetDaily":1,"targetTotal":0,"count":3,'
+            '"history":{"2026-11-14":{"count":1,"updatedAt":'
+            '"2026-11-14T08:00:00.000"}}}]}]}';
+
+        FileTaskLocalDataSource buildSource(String path) {
+          return FileTaskLocalDataSource(
+            storageService: StorageService(),
+            baseDirProvider: () async => path,
+            encryptionEnabledProvider: () async => true,
+            passwordProvider: () async => 'pin-rahasia',
+            clock: () => now,
+          );
+        }
+
+        final sourceA = buildSource(tempDirA.path);
+        final repoA = TaskRepositoryImpl(
+          localDataSource: sourceA,
+          mapper: TaskMasterMapper(clock: () => now),
+        );
+        await repoA.saveRawJson(v2);
+
+        final exported = await repoA.exportJson();
+        expect(exported.trimLeft().startsWith('{'), isFalse);
+
+        final sourceB = buildSource(tempDirB.path);
+        final repoB = TaskRepositoryImpl(
+          localDataSource: sourceB,
+          mapper: TaskMasterMapper(clock: () => now),
+        );
+        await repoB.importJson(exported);
+        final data = await repoB.load();
+
+        final task = data.categories.single.tasks.single;
+        expect(task.id, 'task_x');
+        expect(task.targetDaily, 1);
+        expect(task.totalCount, 3);
+        expect(task.countOn('2026-11-14'), 1);
+
+        final rawB = await File(
+          '${tempDirB.path}/mytask/my_tasks.json',
+        ).readAsString();
+        expect(rawB.trimLeft().startsWith('{'), isFalse);
+      },
+    );
+
     test(
       'membaca, memigrasikan, dan menulis ulang secara terenkripsi',
       () async {

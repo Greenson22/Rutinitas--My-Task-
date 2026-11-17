@@ -7,6 +7,7 @@ class FakeTaskLocalDataSource implements TaskLocalDataSource {
   TaskFileSnapshot? snapshot;
   Object? readError;
   Object? writeError;
+  Object? decodeExternalError;
 
   int readCount = 0;
   int writeCount = 0;
@@ -21,6 +22,12 @@ class FakeTaskLocalDataSource implements TaskLocalDataSource {
     readCount++;
     if (readError != null) throw readError!;
     return snapshot;
+  }
+
+  @override
+  Future<String> decodeExternalContent(String rawContent) async {
+    if (decodeExternalError != null) throw decodeExternalError!;
+    return rawContent;
   }
 
   @override

@@ -8,7 +8,8 @@ import 'package:rutinitasku/features/data_center/presentation/local_sharing/loca
 import 'package:rutinitasku/core/presentation/widgets/adaptive_banner_ad.dart'; // <--- IMPORT WIDGET ADMOB BARU DARI CORE[cite: 2, 4]
 import '../../../core/services/storage_service.dart';
 import '../../../core/presentation/widgets/drawer_menu.dart';
-import 'widgets/last_restore_banner.dart';
+import '../../task_master_new/data/repositories/task_repository_factory.dart';
+import '../../task_master_new/domain/repositories/task_repository.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:archive/archive_io.dart';
 
@@ -21,6 +22,9 @@ class DataCenterScreen extends StatefulWidget {
 
 class _DataCenterScreenState extends State<DataCenterScreen> {
   final StorageService _storageService = StorageService();
+  late final TaskRepository _taskRepository = createTaskRepository(
+    storageService: _storageService,
+  );
   String _baseDir = 'Documents';
   bool _isLoading = false;
 
@@ -225,6 +229,22 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
       List<int> bytes = await zipFile.readAsBytes();
       Archive archive = ZipDecoder().decodeBytes(bytes);
 
+      // Validasi file Task Master lebih dulu. Bila file di dalam ZIP tidak
+      // valid, seluruh proses restore dibatalkan sebelum data lama disentuh.
+      const taskEntryName = 'my_tasks.json';
+      ArchiveFile? taskArchiveFile;
+      for (final file in archive.files) {
+        if (file.isFile && file.name == taskEntryName) {
+          taskArchiveFile = file;
+          break;
+        }
+      }
+      String? taskContent;
+      if (taskArchiveFile != null) {
+        taskContent = utf8.decode(taskArchiveFile.content as List<int>);
+        await _taskRepository.validateImportJson(taskContent);
+      }
+
       // Bersihkan dan inisialisasi folder Jurnal Aktivitas partisi multi-file kustom
       String folderJurnal = '$_baseDir/jurnal_aktivitas';
       Directory jurnalDir = Directory(folderJurnal);
@@ -267,9 +287,10 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
 
       for (ArchiveFile file in archive) {
         if (file.isFile) {
-          if (file.name == 'my_tasks.json') {
-            File target = await _storageService.getTargetJsonFile(_baseDir);
-            await target.writeAsBytes(file.content);
+          if (file.name == taskEntryName) {
+            // Ditangani setelah seluruh ekstraksi selesai agar memakai jalur
+            // validasi, backup, dan atomic write Task Master New.
+            continue;
           } else if (file.name.startsWith('jurnal_aktivitas/')) {
             // Mengekstraksi multi-file berkas partisi bulanan ke dalam subfolder jurnal_aktivitas/
             String namaFileJurnal = file.name.split('/').last;
@@ -308,6 +329,10 @@ class _DataCenterScreenState extends State<DataCenterScreen> {
             await targetFile.writeAsBytes(file.content);
           }
         }
+      }
+
+      if (taskContent != null) {
+        await _taskRepository.importJson(taskContent);
       }
 
       _loadBaseDirectory();

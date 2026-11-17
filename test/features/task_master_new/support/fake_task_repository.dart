@@ -31,6 +31,10 @@ class FakeTaskRepository implements TaskRepository {
   int createNewFileCount = 0;
   int restoreBackupCount = 0;
   String? lastRawSavedContent;
+  String exportedJson = '{"schemaVersion":2,"categories":[]}';
+  int importCount = 0;
+  int validateImportCount = 0;
+  String? lastImportedContent;
 
   /// Bila diisi, operasi kategori melempar error ini.
   Object? categoryActionError;
@@ -84,8 +88,32 @@ class FakeTaskRepository implements TaskRepository {
   }
 
   @override
-  Future<List<TaskBackup>> listBackups() async => backups;
+  Future<String> exportJson() async {
+    final failure = rawJsonError;
+    if (failure != null) throw failure;
+    return exportedJson;
+  }
 
+  @override
+  Future<TaskMasterData> validateImportJson(String content) async {
+    validateImportCount++;
+    lastImportedContent = content;
+    final failure = rawJsonError;
+    if (failure != null) throw failure;
+    return data ?? TaskMasterData.empty();
+  }
+
+  @override
+  Future<TaskMasterData> importJson(String content) async {
+    importCount++;
+    lastImportedContent = content;
+    final failure = rawJsonError;
+    if (failure != null) throw failure;
+    return data ?? TaskMasterData.empty();
+  }
+
+  @override
+  Future<List<TaskBackup>> listBackups() async => backups;
   @override
   Future<TaskMasterData> restoreBackup(TaskBackup backup) async {
     restoreBackupCount++;

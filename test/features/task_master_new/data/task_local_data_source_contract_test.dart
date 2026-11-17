@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rutinitasku/core/services/storage_service.dart';
+import 'package:rutinitasku/core/utils/crypto_helper.dart';
 import 'package:rutinitasku/features/task_master_new/data/datasources/task_local_data_source.dart';
 import 'package:rutinitasku/features/task_master_new/data/exceptions/task_master_exceptions.dart';
 
@@ -192,5 +193,35 @@ void main() {
       );
       expect((await dataSource.read())!.content, content);
     });
+
+    test('konten impor JSON biasa dikembalikan apa adanya', () async {
+      const content = '{"schemaVersion":2,"categories":[]}';
+
+      expect(await dataSource.decodeExternalContent(content), content);
+    });
+
+    test(
+      'konten impor terenkripsi didekripsi dengan kata sandi sesi',
+      () async {
+        encryptionEnabled = true;
+        password = 'pin-rahasia';
+        const content = '{"schemaVersion":2,"categories":[{"id":"cat_x"}]}';
+        final encrypted = CryptoHelper.encrypt(content, 'pin-rahasia');
+
+        expect(await dataSource.decodeExternalContent(encrypted), content);
+
+        password = null;
+        await expectLater(
+          dataSource.decodeExternalContent(encrypted),
+          throwsA(isA<TaskLockedException>()),
+        );
+
+        password = 'pin-salah';
+        await expectLater(
+          dataSource.decodeExternalContent(encrypted),
+          throwsA(isA<TaskDecryptionException>()),
+        );
+      },
+    );
   });
 }

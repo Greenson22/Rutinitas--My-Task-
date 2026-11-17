@@ -38,27 +38,14 @@ class TaskRepositoryImpl implements TaskRepository {
     final snapshot = await _localDataSource.read(password: password);
     if (snapshot == null) return TaskMasterData.empty();
 
-    final Map<String, dynamic> decoded;
-    try {
-      final parsed = jsonDecode(snapshot.content);
-      if (parsed is! Map) {
-        throw const FormatException('Akar JSON bukan objek.');
-      }
-      decoded = parsed.map((key, value) => MapEntry(key.toString(), value));
-    } catch (error) {
-      throw TaskDataCorruptedException(
-        'File Task Master tidak berisi JSON yang valid. '
-        'Data tidak diubah; pulihkan backup atau buat file baru.',
-        cause: error,
-      );
-    }
+    final decoded = _decodeJsonMap(
+      snapshot.content,
+      invalidMessage:
+          'File Task Master tidak berisi JSON yang valid. '
+          'Data tidak diubah; pulihkan backup atau buat file baru.',
+    );
 
-    final version = _mapper.detectSchemaVersion(decoded);
-    if (version != 1 && version != TaskMasterData.currentSchemaVersion) {
-      // Jangan membuat backup atau menulis apa pun untuk versi yang tidak dikenal.
-      throw UnsupportedSchemaVersionException(version);
-    }
-
+    final version = _validateSchemaVersion(decoded);
     if (version == TaskMasterData.currentSchemaVersion) {
       return _mapper.fromJson(decoded);
     }
@@ -113,26 +100,8 @@ class TaskRepositoryImpl implements TaskRepository {
 
   @override
   Future<TaskMasterData> saveRawJson(String content) async {
-    final Object? decoded;
-    try {
-      decoded = jsonDecode(content);
-    } catch (error) {
-      throw TaskDataCorruptedException(
-        'JSON tidak valid: $error',
-        cause: error,
-      );
-    }
-    if (decoded is! Map) {
-      throw TaskDataCorruptedException(
-        'Akar JSON harus berupa objek, bukan ${decoded.runtimeType}.',
-      );
-    }
-
-    final map = decoded.map((key, value) => MapEntry(key.toString(), value));
-    final version = _mapper.detectSchemaVersion(map);
-    if (version != 1 && version != TaskMasterData.currentSchemaVersion) {
-      throw UnsupportedSchemaVersionException(version);
-    }
+    final map = _decodeJsonMap(content, invalidMessage: 'JSON tidak valid');
+    _validateSchemaVersion(map);
 
     // Validasi dan normalisasi di memori sebelum menyentuh file. Dengan begitu
     // JSON yang valid secara sintaks tetapi tidak valid sebagai data Task
@@ -143,6 +112,75 @@ class TaskRepositoryImpl implements TaskRepository {
       const JsonEncoder.withIndent('  ').convert(normalized),
     );
     return data;
+  }
+
+  @override
+  Future<String> exportJson() async {
+    final snapshot = await _localDataSource.read();
+    if (snapshot == null) {
+      return const JsonEncoder.withIndent(
+        '  ',
+      ).convert(_mapper.toJson(TaskMasterData.empty()));
+    }
+    // Konten mentah dipertahankan agar ekspor mengikuti status enkripsi file.
+    return snapshot.rawContent;
+  }
+
+  @override
+  Future<TaskMasterData> validateImportJson(String content) async {
+    return (await _prepareImport(content)).data;
+  }
+
+  @override
+  Future<TaskMasterData> importJson(String content) async {
+    final prepared = await _prepareImport(content);
+
+    // Backup dibuat sebelum file utama disentuh. Bila backup gagal, import
+    // dibatalkan sehingga data lama tetap utuh.
+    await _localDataSource.backupCurrentFile();
+    await _localDataSource.write(prepared.content);
+    return prepared.data;
+  }
+
+  Future<({TaskMasterData data, String content})> _prepareImport(
+    String rawContent,
+  ) async {
+    final content = await _localDataSource.decodeExternalContent(rawContent);
+    final map = _decodeJsonMap(
+      content,
+      invalidMessage:
+          'File yang diimpor bukan JSON Task Master yang valid. '
+          'Data saat ini tidak diubah.',
+    );
+    _validateSchemaVersion(map);
+
+    // Pemetakan memvalidasi struktur kategori/tugas sebelum file ditulis.
+    final data = _mapper.fromJson(map);
+    return (data: data, content: content);
+  }
+
+  Map<String, dynamic> _decodeJsonMap(
+    String content, {
+    required String invalidMessage,
+  }) {
+    try {
+      final parsed = jsonDecode(content);
+      if (parsed is! Map) {
+        throw const FormatException('Akar JSON bukan objek.');
+      }
+      return parsed.map((key, value) => MapEntry(key.toString(), value));
+    } catch (error) {
+      throw TaskDataCorruptedException('$invalidMessage: $error', cause: error);
+    }
+  }
+
+  int _validateSchemaVersion(Map<String, dynamic> json) {
+    final version = _mapper.detectSchemaVersion(json);
+    if (version != 1 && version != TaskMasterData.currentSchemaVersion) {
+      // Jangan membuat backup atau menulis apa pun untuk versi yang tidak dikenal.
+      throw UnsupportedSchemaVersionException(version);
+    }
+    return version;
   }
 
   @override

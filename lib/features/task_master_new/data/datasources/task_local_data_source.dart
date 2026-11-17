@@ -41,6 +41,13 @@ abstract interface class TaskLocalDataSource {
   /// Menulis dengan atomic write dan enkripsi sesuai pengaturan aktif.
   Future<void> write(String content);
 
+  /// Menyiapkan konten file eksternal (misalnya hasil ekspor Data Center)
+  /// sebelum diimpor.
+  ///
+  /// JSON biasa dikembalikan apa adanya. Konten terenkripsi didekripsi dengan
+  /// kata sandi sesi agar file lama hasil ekspor tetap dapat dipulihkan.
+  Future<String> decodeExternalContent(String rawContent);
+
   /// Membuat backup berisi konten asli sebelum migrasi.
   Future<TaskBackupInfo> createBackup(TaskFileSnapshot snapshot);
 
@@ -132,6 +139,29 @@ class FileTaskLocalDataSource implements TaskLocalDataSource {
     } catch (error) {
       throw TaskDecryptionException(
         'Kata sandi salah atau file Task Master korup. Data tidak diubah.',
+        cause: error,
+      );
+    }
+  }
+
+  @override
+  Future<String> decodeExternalContent(String rawContent) async {
+    if (_looksLikePlainJson(rawContent)) return rawContent;
+
+    final password = _sessionPasswordOverride ?? await _passwordProvider();
+    if (password == null || password.isEmpty) {
+      throw TaskLockedException(
+        'File yang diimpor terenkripsi. Masukkan PIN/kata sandi lebih dulu '
+        'agar file dapat dibaca. Data saat ini tidak diubah.',
+      );
+    }
+
+    try {
+      return CryptoHelper.decrypt(rawContent, password);
+    } catch (error) {
+      throw TaskDecryptionException(
+        'File yang diimpor tidak dapat didekripsi dengan PIN/kata sandi saat '
+        'ini. Data saat ini tidak diubah.',
         cause: error,
       );
     }

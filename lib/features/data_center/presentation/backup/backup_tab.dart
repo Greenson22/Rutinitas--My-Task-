@@ -6,6 +6,8 @@ import 'package:rutinitasku/features/data_center/presentation/widgets/transfer_p
 import 'package:share_plus/share_plus.dart';
 import 'package:archive/archive_io.dart';
 import '../../../../core/services/storage_service.dart';
+import '../../../task_master_new/data/repositories/task_repository_factory.dart';
+import '../../../task_master_new/domain/repositories/task_repository.dart';
 import '../widgets/last_restore_banner.dart'; // Sertakan impor banner
 
 class BackupTab extends StatefulWidget {
@@ -26,6 +28,9 @@ class BackupTab extends StatefulWidget {
 
 class BackupTabState extends State<BackupTab> {
   final StorageService _storageService = StorageService();
+  late final TaskRepository _taskRepository = createTaskRepository(
+    storageService: _storageService,
+  );
   String _baseDir = 'Documents';
   List<File> _localBackupFiles = [];
   bool _isSelectionMode = false;
@@ -371,36 +376,45 @@ class BackupTabState extends State<BackupTab> {
 
   void _exportTaskMaster() async {
     try {
-      File fileAsli = await _storageService.getTargetJsonFile(_baseDir);
-      if (await fileAsli.exists()) {
-        if (Platform.isLinux) {
-          String? lokasiSimpan = await FilePicker.saveFile(
-            dialogTitle: 'Simpan Backup Task Master',
-            fileName: _getFormattedFileName('my_tasks_backup', 'json'),
-            type: FileType.custom,
-            allowedExtensions: ['json'],
+      final File fileAsli = await _storageService.getTargetJsonFile(_baseDir);
+      if (!await fileAsli.exists()) return;
+
+      // Ekspor memakai konten file asli agar status enkripsi tetap terjaga.
+      // Import Task Master memahami konten terenkripsi dan memvalidasinya
+      // sebelum menulis, sehingga hasil ekspor tetap dapat dibaca kembali.
+      final String kontenTasks = await _taskRepository.exportJson();
+
+      if (Platform.isLinux) {
+        String? lokasiSimpan = await FilePicker.saveFile(
+          dialogTitle: 'Simpan Backup Task Master',
+          fileName: _getFormattedFileName('my_tasks_backup', 'json'),
+          type: FileType.custom,
+          allowedExtensions: ['json'],
+        );
+        if (lokasiSimpan != null) {
+          await File(lokasiSimpan).writeAsString(kontenTasks, flush: true);
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Backup Berhasil Disimpan di Linux!')),
           );
-          if (lokasiSimpan != null) {
-            await fileAsli.copy(lokasiSimpan);
-            if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Backup Berhasil Disimpan di Linux!'),
-              ),
-            );
-          }
-        } else {
-          String namaDinamis = _getFormattedFileName('my_tasks_backup', 'json');
-          final tempFile = await fileAsli.copy(
-            '${Directory.systemTemp.path}/$namaDinamis',
-          );
-          await Share.shareXFiles([
-            XFile(tempFile.path),
-          ], text: 'Backup Task Master Data');
         }
+      } else {
+        String namaDinamis = _getFormattedFileName('my_tasks_backup', 'json');
+        final tempFile = File('${Directory.systemTemp.path}/$namaDinamis');
+        await tempFile.writeAsString(kontenTasks, flush: true);
+        await Share.shareXFiles([
+          XFile(tempFile.path),
+        ], text: 'Backup Task Master Data');
       }
     } catch (e) {
       debugPrint("Gagal export: $e");
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal mengekspor Task Master: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -414,15 +428,28 @@ class BackupTabState extends State<BackupTab> {
         String fileContent = await File(
           result.files.single.path!,
         ).readAsString();
-        File targetFile = await _storageService.getTargetJsonFile(_baseDir);
-        await _storageService.saveJsonData(targetFile, fileContent);
+
+        // Validasi, backup, dan penulisan semuanya lewat repository Task
+        // Master New. File tidak valid ditolak sebelum data lama disentuh.
+        await _taskRepository.importJson(fileContent);
+
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Data Task Master berhasil di-import!')),
+          const SnackBar(
+            content: Text('Data Task Master berhasil di-import!'),
+            backgroundColor: Colors.teal,
+          ),
         );
       }
     } catch (e) {
       debugPrint("Gagal import Task Master: $e");
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Import Task Master gagal. Data lama tidak diubah: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
