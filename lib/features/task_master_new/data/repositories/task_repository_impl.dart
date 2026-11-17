@@ -1,6 +1,5 @@
-import 'dart:convert';
+import 'dart:async';
 import 'dart:math';
-
 import '../../domain/entities/task_backup.dart';
 import '../../domain/entities/task_kind.dart';
 import '../../domain/entities/task_master_data.dart';
@@ -10,6 +9,7 @@ import '../../domain/repositories/task_repository.dart';
 import '../datasources/task_local_data_source.dart';
 import '../exceptions/task_master_exceptions.dart';
 import '../mappers/task_master_mapper.dart';
+import '../services/background_codec.dart';
 
 /// Memuat data, memigrasikan file legacy, menyimpan skema v2, dan menangani
 /// operasi kategori.
@@ -17,11 +17,13 @@ class TaskRepositoryImpl implements TaskRepository {
   TaskRepositoryImpl({
     required TaskLocalDataSource localDataSource,
     TaskMasterMapper? mapper,
+    TaskJsonCodec? jsonCodec,
     String Function()? categoryIdGenerator,
     String Function()? taskIdGenerator,
     DateTime Function()? clock,
   }) : _localDataSource = localDataSource,
        _mapper = mapper ?? TaskMasterMapper(),
+       _jsonCodec = jsonCodec ?? const IsolateTaskJsonCodec(),
        _clock = clock ?? DateTime.now {
     _categoryIdGenerator = categoryIdGenerator ?? () => _generateId('cat');
     _taskIdGenerator = taskIdGenerator ?? () => _generateId('task');
@@ -29,16 +31,24 @@ class TaskRepositoryImpl implements TaskRepository {
 
   final TaskLocalDataSource _localDataSource;
   final TaskMasterMapper _mapper;
+  final TaskJsonCodec _jsonCodec;
   final DateTime Function() _clock;
   late final String Function() _categoryIdGenerator;
   late final String Function() _taskIdGenerator;
+
+  /// Mengurutkan seluruh penulisan file utama sesuai urutan pemanggilan.
+  ///
+  /// Encoding berjalan di isolate dan bisa selesai tidak berurutan. Antrean ini
+  /// memastikan penyimpanan berikutnya baru dimulai setelah penyimpanan
+  /// sebelumnya selesai, sesuai SPEC bagian konkurensi.
+  Future<void> _saveQueue = Future<void>.value();
 
   @override
   Future<TaskMasterData> load({String? password}) async {
     final snapshot = await _localDataSource.read(password: password);
     if (snapshot == null) return TaskMasterData.empty();
 
-    final decoded = _decodeJsonMap(
+    final decoded = await _decodeJsonMap(
       snapshot.content,
       invalidMessage:
           'File Task Master tidak berisi JSON yang valid. '
@@ -62,7 +72,7 @@ class TaskRepositoryImpl implements TaskRepository {
     final migratedData = _mapper.fromJson(decoded);
     final v2Json = _mapper.toJson(migratedData, original: decoded);
     try {
-      await _localDataSource.write(jsonEncode(v2Json));
+      await _writeSerialized(() => _jsonCodec.encode(v2Json));
       return migratedData;
     } catch (error) {
       throw TaskMigrationException(
@@ -75,22 +85,49 @@ class TaskRepositoryImpl implements TaskRepository {
   }
 
   @override
-  Future<void> save(TaskMasterData data) async {
-    final json = _mapper.toJson(data);
-    await _localDataSource.write(jsonEncode(json));
+  Future<void> save(TaskMasterData data) {
+    return _writeSerialized(() async {
+      final json = _mapper.toJson(data);
+      return _jsonCodec.encode(json);
+    });
+  }
+
+  /// Menjalankan pembuatan konten dan penulisan file secara berurutan.
+  Future<void> _writeSerialized(Future<String> Function() buildContent) {
+    return _runSerialized(() async {
+      await _localDataSource.write(await buildContent());
+    });
+  }
+
+  /// Menjalankan operasi yang mengubah file utama sesuai urutan pemanggilan.
+  Future<T> _runSerialized<T>(Future<T> Function() action) {
+    final previous = _saveQueue;
+    final completer = Completer<T>();
+    _saveQueue = completer.future.then<void>((_) {}, onError: (_) {});
+    unawaited(() async {
+      try {
+        await previous;
+      } catch (_) {
+        // Operasi sebelumnya gagal; antrean tetap harus bisa dipakai.
+      }
+      try {
+        completer.complete(await action());
+      } catch (error, stackTrace) {
+        completer.completeError(error, stackTrace);
+      }
+    }());
+    return completer.future;
   }
 
   @override
   Future<String> readRawJson() async {
     final snapshot = await _localDataSource.read();
     if (snapshot == null) {
-      return const JsonEncoder.withIndent(
-        '  ',
-      ).convert(_mapper.toJson(TaskMasterData.empty()));
+      return _jsonCodec.encodePretty(_mapper.toJson(TaskMasterData.empty()));
     }
     try {
-      final decoded = jsonDecode(snapshot.content);
-      return const JsonEncoder.withIndent('  ').convert(decoded);
+      final decoded = await _jsonCodec.decodeMap(snapshot.content);
+      return _jsonCodec.encodePretty(decoded);
     } on FormatException {
       // File korup tetap dapat dibuka di editor Advanced agar pengguna bisa
       // memperbaiki struktur JSON-nya.
@@ -100,7 +137,10 @@ class TaskRepositoryImpl implements TaskRepository {
 
   @override
   Future<TaskMasterData> saveRawJson(String content) async {
-    final map = _decodeJsonMap(content, invalidMessage: 'JSON tidak valid');
+    final map = await _decodeJsonMap(
+      content,
+      invalidMessage: 'JSON tidak valid',
+    );
     _validateSchemaVersion(map);
 
     // Validasi dan normalisasi di memori sebelum menyentuh file. Dengan begitu
@@ -108,9 +148,7 @@ class TaskRepositoryImpl implements TaskRepository {
     // Master tidak pernah menimpa file asli.
     final data = _mapper.fromJson(map);
     final normalized = _mapper.toJson(data, original: map);
-    await _localDataSource.write(
-      const JsonEncoder.withIndent('  ').convert(normalized),
-    );
+    await _writeSerialized(() => _jsonCodec.encodePretty(normalized));
     return data;
   }
 
@@ -118,9 +156,7 @@ class TaskRepositoryImpl implements TaskRepository {
   Future<String> exportJson() async {
     final snapshot = await _localDataSource.read();
     if (snapshot == null) {
-      return const JsonEncoder.withIndent(
-        '  ',
-      ).convert(_mapper.toJson(TaskMasterData.empty()));
+      return _jsonCodec.encodePretty(_mapper.toJson(TaskMasterData.empty()));
     }
     // Konten mentah dipertahankan agar ekspor mengikuti status enkripsi file.
     return snapshot.rawContent;
@@ -138,7 +174,7 @@ class TaskRepositoryImpl implements TaskRepository {
     // Backup dibuat sebelum file utama disentuh. Bila backup gagal, import
     // dibatalkan sehingga data lama tetap utuh.
     await _localDataSource.backupCurrentFile();
-    await _localDataSource.write(prepared.content);
+    await _writeSerialized(() async => prepared.content);
     return prepared.data;
   }
 
@@ -146,7 +182,7 @@ class TaskRepositoryImpl implements TaskRepository {
     String rawContent,
   ) async {
     final content = await _localDataSource.decodeExternalContent(rawContent);
-    final map = _decodeJsonMap(
+    final map = await _decodeJsonMap(
       content,
       invalidMessage:
           'File yang diimpor bukan JSON Task Master yang valid. '
@@ -159,16 +195,12 @@ class TaskRepositoryImpl implements TaskRepository {
     return (data: data, content: content);
   }
 
-  Map<String, dynamic> _decodeJsonMap(
+  Future<Map<String, dynamic>> _decodeJsonMap(
     String content, {
     required String invalidMessage,
-  }) {
+  }) async {
     try {
-      final parsed = jsonDecode(content);
-      if (parsed is! Map) {
-        throw const FormatException('Akar JSON bukan objek.');
-      }
-      return parsed.map((key, value) => MapEntry(key.toString(), value));
+      return await _jsonCodec.decodeMap(content);
     } catch (error) {
       throw TaskDataCorruptedException('$invalidMessage: $error', cause: error);
     }
@@ -196,7 +228,7 @@ class TaskRepositoryImpl implements TaskRepository {
 
   @override
   Future<TaskMasterData> restoreBackup(TaskBackup backup) async {
-    await _localDataSource.restoreBackup(backup.path);
+    await _runSerialized(() => _localDataSource.restoreBackup(backup.path));
     return load();
   }
 

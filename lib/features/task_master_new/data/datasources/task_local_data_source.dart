@@ -3,9 +3,9 @@ import 'dart:io';
 
 import 'package:rutinitasku/core/services/storage_service.dart';
 import 'package:rutinitasku/core/utils/atomic_write_helper.dart';
-import 'package:rutinitasku/core/utils/crypto_helper.dart';
 
 import '../exceptions/task_master_exceptions.dart';
+import '../services/background_codec.dart';
 
 /// Isi file Task Master setelah dekripsi.
 class TaskFileSnapshot {
@@ -127,7 +127,10 @@ class FileTaskLocalDataSource implements TaskLocalDataSource {
     }
 
     try {
-      final content = CryptoHelper.decrypt(rawContent, effectivePassword);
+      final content = await BackgroundCrypto.decrypt(
+        rawContent,
+        effectivePassword,
+      );
       if (password != null && password.isNotEmpty) {
         _sessionPasswordOverride = password;
       }
@@ -157,7 +160,7 @@ class FileTaskLocalDataSource implements TaskLocalDataSource {
     }
 
     try {
-      return CryptoHelper.decrypt(rawContent, password);
+      return await BackgroundCrypto.decrypt(rawContent, password);
     } catch (error) {
       throw TaskDecryptionException(
         'File yang diimpor tidak dapat didekripsi dengan PIN/kata sandi saat '
@@ -169,18 +172,28 @@ class FileTaskLocalDataSource implements TaskLocalDataSource {
 
   @override
   Future<void> write(String content) {
+    return _serialize(() => _writeNow(content));
+  }
+
+  /// Menjalankan operasi tulis satu per satu agar tidak ada dua penulisan
+  /// yang berjalan bersamaan. Kegagalan satu operasi tidak memutus antrean.
+  Future<T> _serialize<T>(Future<T> Function() action) {
     final previous = _writeQueue;
-    final next = () async {
+    final completer = Completer<T>();
+    _writeQueue = completer.future.then<void>((_) {}, onError: (_) {});
+    unawaited(() async {
       try {
         await previous;
       } catch (_) {
-        // Penulisan sebelumnya gagal; antrean harus tetap bisa dipakai.
+        // Operasi sebelumnya gagal; antrean harus tetap bisa dipakai.
       }
-      await _writeNow(content);
-    }();
-
-    _writeQueue = next.catchError((_) {});
-    return next;
+      try {
+        completer.complete(await action());
+      } catch (error, stackTrace) {
+        completer.completeError(error, stackTrace);
+      }
+    }());
+    return completer.future;
   }
 
   Future<void> _writeNow(String content) async {
@@ -196,7 +209,7 @@ class FileTaskLocalDataSource implements TaskLocalDataSource {
           'Perubahan tidak disimpan agar data tidak bocor.',
         );
       }
-      dataToWrite = CryptoHelper.encrypt(content, password);
+      dataToWrite = await BackgroundCrypto.encrypt(content, password);
     }
 
     final success = await AtomicWriteHelper.writeSafe(
@@ -212,7 +225,11 @@ class FileTaskLocalDataSource implements TaskLocalDataSource {
   }
 
   @override
-  Future<TaskBackupInfo> createBackup(TaskFileSnapshot snapshot) async {
+  Future<TaskBackupInfo> createBackup(TaskFileSnapshot snapshot) {
+    return _serialize(() => _createBackupNow(snapshot));
+  }
+
+  Future<TaskBackupInfo> _createBackupNow(TaskFileSnapshot snapshot) async {
     final file = await _resolveFile();
     final backupDir = Directory('${file.parent.path}/backup');
     if (!await backupDir.exists()) {
@@ -273,7 +290,11 @@ class FileTaskLocalDataSource implements TaskLocalDataSource {
   }
 
   @override
-  Future<void> restoreBackup(String backupPath) async {
+  Future<void> restoreBackup(String backupPath) {
+    return _serialize(() => _restoreBackupNow(backupPath));
+  }
+
+  Future<void> _restoreBackupNow(String backupPath) async {
     final backupFile = File(backupPath);
     if (!await backupFile.exists()) {
       throw TaskDataSourceException(

@@ -728,10 +728,15 @@ class TaskMasterNewController extends ChangeNotifier {
       _pendingSave = null;
       return data;
     };
+    // State di layar sengaja tidak diubah. Pengguna tetap melihat perubahan
+    // terakhir dan mendapat banner yang bisa dicoba ulang.
+    final bannerMessage = message.contains('belum tersimpan')
+        ? message
+        : 'Perubahan belum tersimpan. $message';
     _setState(
       _state.copyWith(
         isSaving: false,
-        actionMessage: message,
+        actionMessage: bannerMessage,
         actionRetryable: true,
       ),
     );

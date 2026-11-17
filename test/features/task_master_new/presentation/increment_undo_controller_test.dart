@@ -211,7 +211,11 @@ void main() {
     controller.incrementTask(categoryId: 'cat_1', taskId: 'task_1');
     await controller.flushPendingSave();
 
-    expect(controller.state.actionMessage, 'Penyimpanan penuh.');
+    expect(
+      controller.state.actionMessage,
+      startsWith('Perubahan belum tersimpan.'),
+    );
+    expect(controller.state.actionMessage, contains('Penyimpanan penuh.'));
     expect(controller.state.actionRetryable, isTrue);
     expect(repository.data!.allTasks.first.totalCount, 120);
 

@@ -199,7 +199,7 @@ class TaskMasterMapper {
     final history = <String, DailyProgress>{};
     for (final entry in raw.entries) {
       final dateKey = entry.key.toString();
-      if (!_dateKeyPattern.hasMatch(dateKey)) continue;
+      if (!_isDateKey(dateKey)) continue;
 
       final value = entry.value;
       final int count;
@@ -362,14 +362,28 @@ class TaskMasterMapper {
     return candidate;
   }
 
-  static final RegExp _dateKeyPattern = RegExp(r'^\d{4}-\d{2}-\d{2}$');
+  /// Pemeriksaan cepat `YYYY-MM-DD` tanpa RegExp, karena dipanggil untuk
+  /// setiap entri riwayat dan bisa mencapai puluhan ribu kali pada data besar.
+  static bool _isDateKey(String value) {
+    if (value.length != 10) return false;
+    for (var index = 0; index < value.length; index++) {
+      if (index == 4 || index == 7) {
+        if (value.codeUnitAt(index) != 0x2D) return false;
+        continue;
+      }
+      final code = value.codeUnitAt(index);
+      if (code < 0x30 || code > 0x39) return false;
+    }
+    return true;
+  }
 
   String? _dateKeyFromValue(Object? raw) {
     if (raw is! String) return null;
     final trimmed = raw.trim();
     if (trimmed.isEmpty) return null;
-    final match = RegExp(r'^(\d{4}-\d{2}-\d{2})').firstMatch(trimmed);
-    if (match != null) return match.group(1);
+    if (trimmed.length >= 10 && _isDateKey(trimmed.substring(0, 10))) {
+      return trimmed.substring(0, 10);
+    }
     final parsed = _parseDateTime(trimmed);
     return parsed == null ? null : DailyProgress.dateKey(parsed);
   }
