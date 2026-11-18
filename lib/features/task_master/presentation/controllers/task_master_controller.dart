@@ -316,11 +316,9 @@ class TaskMasterController {
       (cat) => cat.name == oldCategory.name,
     );
     if (idx != -1) {
-      allCategoriesRaw[idx] = TaskCategory(
+      allCategoriesRaw[idx] = allCategoriesRaw[idx].copyWith(
         name: newName,
         icon: newIcon,
-        isHidden: oldCategory.isHidden,
-        tasks: oldCategory.tasks,
       );
       await saveAllCategoriesToFile();
     }

@@ -2,17 +2,49 @@
 
 import 'dart:math';
 
+const _knownCategoryKeys = {'name', 'icon', 'isHidden', 'tasks'};
+const _knownTaskKeys = {
+  'id',
+  'name',
+  'count',
+  'date',
+  'checked',
+  'countToday',
+  'lastUpdated',
+  'targetCountToday',
+  'type',
+  'targetCount',
+  'isActive',
+};
+
+/// Menyalin key JSON di luar [knownKeys] apa adanya agar tidak hilang saat
+/// modul lama menyimpan ulang file.
+Map<String, dynamic> _unknownFieldsOf(
+  Map<String, dynamic> json,
+  Set<String> knownKeys,
+) {
+  return {
+    for (final entry in json.entries)
+      if (!knownKeys.contains(entry.key)) entry.key: entry.value,
+  };
+}
+
 class TaskCategory {
   final String name;
   final String icon;
   bool isHidden;
   final List<TaskItem> tasks;
 
+  /// Key JSON yang tidak dikenali model ini, disimpan apa adanya agar tidak
+  /// hilang saat modul lama menyimpan ulang file.
+  final Map<String, dynamic> unknownFields;
+
   TaskCategory({
     required this.name,
     required this.icon,
     required this.isHidden,
     required this.tasks,
+    this.unknownFields = const {},
   });
 
   factory TaskCategory.fromJson(Map<String, dynamic> json) {
@@ -24,16 +56,28 @@ class TaskCategory {
       icon: json['icon'] ?? '📌',
       isHidden: json['isHidden'] ?? false,
       tasks: taskList,
+      unknownFields: _unknownFieldsOf(json, _knownCategoryKeys),
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
+      ...unknownFields,
       'name': name,
       'icon': icon,
       'isHidden': isHidden,
       'tasks': tasks.map((e) => e.toJson()).toList(),
     };
+  }
+
+  TaskCategory copyWith({String? name, String? icon}) {
+    return TaskCategory(
+      name: name ?? this.name,
+      icon: icon ?? this.icon,
+      isHidden: isHidden,
+      tasks: tasks,
+      unknownFields: unknownFields,
+    );
   }
 }
 
@@ -50,6 +94,10 @@ class TaskItem {
   int targetCount;
   bool isActive;
 
+  /// Key JSON yang tidak dikenali model ini, disimpan apa adanya agar tidak
+  /// hilang saat modul lama menyimpan ulang file.
+  final Map<String, dynamic> unknownFields;
+
   TaskItem({
     required this.id,
     required this.name,
@@ -62,6 +110,7 @@ class TaskItem {
     required this.type,
     required this.targetCount,
     this.isActive = true,
+    this.unknownFields = const {},
   });
 
   factory TaskItem.fromJson(Map<String, dynamic> json) {
@@ -77,11 +126,13 @@ class TaskItem {
       type: json['type'] ?? 0,
       targetCount: json['targetCount'] ?? 0,
       isActive: json['isActive'] ?? true,
+      unknownFields: _unknownFieldsOf(json, _knownTaskKeys),
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
+      ...unknownFields,
       'id': id,
       'name': name,
       'count': count,
