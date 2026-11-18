@@ -4,7 +4,9 @@
 
 **Blocked by:** 15 — Parity QA dan switch navigasi
 
-**Status:** ready-for-agent
+**Status:** deferred
+
+> **Ditunda pada 18 November 2026.** Modul lama kembali menjadi fallback aktif karena Task Master New dipindah ke Fitur Eksperimental (default mati). Lihat `docs/tasks_master/today-visibility-experimental/PRD.md`. Tiket ini baru relevan setelah modul baru stabil dan dijadikan default kembali.
 
 - [ ] Tidak ada import atau referensi ke modul Task Master lama.
 - [ ] Semua navigasi Task Master memakai modul baru.
