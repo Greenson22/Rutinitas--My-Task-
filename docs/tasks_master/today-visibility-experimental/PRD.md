@@ -264,13 +264,13 @@ Isi: “Anda pernah memakai Task Master New. Aktifkan kembali?” Aksi: **Aktifk
 
 ### 8.3 Urutan implementasi
 
-1. `TodayVisibility` + mapper + test. Data aman lebih dulu.
-2. Legacy passthrough + test round-trip.
-3. Filter Hari Ini + UI form/aksi + test widget.
-4. Rollout runtime + entry + guard tulis legacy.
-5. Settings switch + dialog promo.
-6. Hapus jalur Settings dari Advanced.
-7. Perbarui `ROLLBACK.md` dan `PARITY_QA.md`, lalu QA manual.
+Mengikuti nomor tiket, yang sekaligus menjadi urutan dependensi:
+
+1. **Tiket 17** — Passthrough field tak dikenal di model legacy. Prefactor; melindungi `history` dan field baru sebelum penulis berganti.
+2. **Tiket 18** — `TodayVisibility` + mapper + filter Hari Ini + form/menu/aksi massal + test matriks dan widget.
+3. **Tiket 19** — Rollout runtime, guard satu penulis, item Settings, update `ROLLBACK.md` dan `PARITY_QA.md`.
+4. **Tiket 20** — Dialog tawaran sekali-jalan.
+5. **Tiket 21** — Hapus jalur Settings dari Advanced. Independen, boleh dikerjakan kapan saja.
 
 ### 8.4 Dampak ke tiket lama
 
@@ -348,8 +348,11 @@ Tidak ada yang memblokir. Dua detail diputuskan saat implementasi:
 
 ## 13. Dokumen Terkait
 
+- `SPEC.md` — spesifikasi implementasi dan pengujian (seam uji, keputusan teknis, out of scope).
 - `ADR-0001-tri-state-today-visibility.md` — alasan tri-state alih-alih boolean.
-- `tickets/17-visibilitas-hari-ini.md`
-- `tickets/18-saklar-eksperimental-task-master-new.md`
-- `tickets/19-konsolidasi-pengaturan-advanced.md`
-- `docs/tasks_master/ROLLBACK.md` wajib diperbarui pada tiket 18.
+- `tickets/17-passthrough-field-legacy.md` — prefactor passthrough field tak dikenal.
+- `tickets/18-visibilitas-hari-ini.md`
+- `tickets/19-saklar-eksperimental-task-master-new.md`
+- `tickets/20-promo-sekali-jalan-task-master-new.md`
+- `tickets/21-konsolidasi-pengaturan-advanced.md`
+- `docs/tasks_master/ROLLBACK.md` wajib diperbarui pada tiket 19.

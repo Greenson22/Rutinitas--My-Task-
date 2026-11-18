@@ -2,7 +2,7 @@
 
 **What to build:** Task Master New mencapai parity dengan fitur lama, lulus QA manual di Android dan Linux desktop, lalu navigasi aplikasi dialihkan ke modul baru. Versi lama tetap tersedia sebagai fallback dan tidak menulis data setelah switch.
 
-**Digantikan sebagian:** Saklar navigasi compile-time dari tiket ini diganti saklar runtime eksperimental pada tiket 18 (`docs/tasks_master/today-visibility-experimental/PRD.md`). Parity dan QA tetap berlaku.
+**Digantikan sebagian:** Saklar navigasi compile-time dari tiket ini diganti saklar runtime eksperimental pada tiket 19 (`docs/tasks_master/today-visibility-experimental/PRD.md`). Parity dan QA tetap berlaku.
 
 **Blocked by:** 03 — Kelola kategori dengan identitas stabil; 04 — Kelola tugas, jenis tugas, dan target; 05 — Increment satu klik dan undo lokal; 06 — Integrasi Jurnal saat increment dan undo; 07 — Riwayat harian dan streak; 08 — Dashboard “Hari Ini” dan ringkasan; 09 — Pencarian dan filter; 10 — Reorder, pindah tugas, dan aksi massal; 11 — Layout adaptif desktop/mobile dan aksesibilitas; 12 — Recovery, editor JSON advanced, dan pengaturan di modul baru; 13 — Kompatibilitas Data Center dan migrasi saat import; 14 — Hardening performa data besar dan kegagalan simpan
 
