@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart'; // DITAMBAHKAN untuk mendeteksi kIsWeb
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart'; // 1. Tambahkan import AdMob
-import 'features/task_master/presentation/screens/task_master_screen.dart';
+import 'core/presentation/widgets/task_master_entry.dart';
 import 'features/task_master/presentation/widgets/password_gate.dart';
 
 void main() async {
@@ -50,7 +50,7 @@ class TaskMasterApp extends StatelessWidget {
 
         return secureApp;
       },
-      home: const HomeScreen(),
+      home: const TaskMasterEntry(),
     );
   }
 }

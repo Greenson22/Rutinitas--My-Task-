@@ -2,8 +2,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart'; // IMPORT SHAREDPREFERENCES
-import '../../../features/task_master/presentation/screens/task_master_screen.dart';
-import '../../../features/task_master_new/task_master_new.dart';
 import '../../../features/checklist/presentation/checklist_screen/checklist_screen.dart';
 import '../../../features/notes/presentation/screens/note_screen.dart';
 import '../../../features/jurnal_aktivitas/presentation/screens/jurnal_aktivitas_screen.dart';
@@ -14,6 +12,7 @@ import 'package:rutinitasku/core/presentation/widgets/settings_dialog.dart';
 import '../../../features/random/presentation/screens/random_screen.dart'; // IMPORT SCREEN BARU
 import '../../../features/documents/presentation/screens/document_screen.dart'; // IMPORT SKRIN MYDOCUMENTS BARU
 import '../../services/storage_service.dart';
+import 'task_master_entry.dart';
 
 class DrawerMenu extends StatefulWidget {
   final bool isDailyActive;
@@ -23,7 +22,6 @@ class DrawerMenu extends StatefulWidget {
   final bool isNotesActive;
   final bool isRandomActive; // TAMBAHKAN PROPERTI INI
   final bool isDocumentsActive; // TAMBAHKAN PROPERTI UNTUK DOCUMENTS
-  final bool isTaskMasterNewActive;
 
   const DrawerMenu({
     super.key,
@@ -34,7 +32,6 @@ class DrawerMenu extends StatefulWidget {
     this.isNotesActive = false,
     this.isRandomActive = false, // BERI DEFAULT VALUE FALSE
     this.isDocumentsActive = false, // BERI DEFAULT VALUE FALSE UNTUK DOCUMENTS
-    this.isTaskMasterNewActive = false,
   });
 
   @override
@@ -98,9 +95,7 @@ class _DrawerMenuState extends State<DrawerMenu> {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (context) => widget.isTaskMasterNewActive
-            ? const TaskMasterNewScreen()
-            : widget.isDailyActive
+        builder: (context) => widget.isDailyActive
             ? const DailyScreen()
             : widget.isJurnalActive
             ? const JurnalAktivitasScreen()
@@ -114,7 +109,7 @@ class _DrawerMenuState extends State<DrawerMenu> {
             ? const RandomScreen() // DUKUNG REFRESH DI RANDOM SCREEN
             : widget.isDocumentsActive
             ? const MyDocumentsScreen() // DUKUNG REFRESH DI DOCUMENTS SCREEN
-            : const HomeScreen(),
+            : const TaskMasterEntry(),
       ),
     );
   }
@@ -177,33 +172,15 @@ class _DrawerMenuState extends State<DrawerMenu> {
                 !widget.isPromptActive &&
                 !widget.isNotesActive &&
                 !widget.isRandomActive &&
-                !widget.isDocumentsActive &&
-                !widget
-                    .isTaskMasterNewActive, // PASTIKAN MATI JIKA DOCUMENTS AKTIF
+                !widget.isDocumentsActive, // PASTIKAN MATI JIKA DOCUMENTS AKTIF
             onTap: () {
               Navigator.pop(context);
               Navigator.pushReplacement(
                 context,
-                MaterialPageRoute(builder: (context) => const HomeScreen()),
+                MaterialPageRoute(
+                  builder: (context) => const TaskMasterEntry(),
+                ),
               );
-            },
-          ),
-
-          // 1b. Menu Task Master New (beta, tampilan baca-saja)
-          _buildMenuTile(
-            icon: Icons.auto_awesome_outlined,
-            title: 'Task Master New',
-            isActive: widget.isTaskMasterNewActive,
-            onTap: () {
-              Navigator.pop(context);
-              if (!widget.isTaskMasterNewActive) {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const TaskMasterNewScreen(),
-                  ),
-                );
-              }
             },
           ),
 

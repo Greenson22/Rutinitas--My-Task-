@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:rutinitasku/core/presentation/widgets/base_detail_app_bar.dart';
+import 'package:rutinitasku/core/config/task_master_rollout.dart';
 import 'package:rutinitasku/core/utils/atomic_write_helper.dart';
 import 'package:rutinitasku/core/presentation/widgets/adaptive_banner_ad.dart'; // <--- IMPORT WIDGET ADMOB BARU DARI CORE[cite: 2]
 import '../../../../core/presentation/widgets/drawer_menu.dart';
@@ -61,6 +62,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // --- FITUR BARU: Dialog Editor Raw JSON Langsung categories.json ---
   void _showEditRawJsonDialog() async {
+    if (!taskMasterLegacyWritesEnabled) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Task Master lama hanya baca. Gunakan Task Master New untuk mengedit data.',
+          ),
+        ),
+      );
+      return;
+    }
     final baseDir = _controller.selectedBaseDir;
     File targetFile = await _controller.storageService.getTargetJsonFile(
       baseDir,

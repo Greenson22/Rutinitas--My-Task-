@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:rutinitasku/core/utils/atomic_write_helper.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../../core/config/task_master_rollout.dart';
 import '../../../../core/services/storage_service.dart';
 import '../../../../core/utils/crypto_helper.dart';
 import '../../../jurnal_aktivitas/data/models/time_log_model.dart';
@@ -138,9 +139,23 @@ class TaskMasterController {
     File? jsonFile;
     try {
       selectedBaseDir = await storageService.getBaseDirSetting();
-      jsonFile = await storageService.getTargetJsonFile(selectedBaseDir);
+      jsonFile = await storageService.getTargetJsonFile(
+        selectedBaseDir,
+        createDirectory: taskMasterLegacyWritesEnabled,
+      );
       fullJsonPath = jsonFile.path;
-      String jsonString = await storageService.loadOrInitializeJson(jsonFile);
+
+      String jsonString;
+      if (taskMasterLegacyWritesEnabled) {
+        jsonString = await storageService.loadOrInitializeJson(jsonFile);
+      } else {
+        if (!await jsonFile.exists()) {
+          throw StateError(
+            'File Task Master belum ada. Buka Task Master New untuk membuatnya.',
+          );
+        }
+        jsonString = await jsonFile.readAsString();
+      }
 
       bool isEncrypted = await storageService.isEncryptionEnabled();
       String? password = await storageService.getEncryptionPassword();
@@ -197,6 +212,12 @@ class TaskMasterController {
   }
 
   Future<void> forceResetNewFile(File jsonFile) async {
+    if (!taskMasterLegacyWritesEnabled) {
+      debugPrint(
+        'Task Master lama dalam mode baca-saja; buat file baru dilewati.',
+      );
+      return;
+    }
     isLoading = true;
     isFileCorrupted = false;
     onUpdate();
@@ -317,6 +338,18 @@ class TaskMasterController {
 
   // --- HAK CIPTA OPTIMISASI DI SINI ---
   Future<bool> incrementTaskCount(TaskItem task, BuildContext context) async {
+    if (!taskMasterLegacyWritesEnabled) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Task Master lama hanya baca. Gunakan Task Master New untuk mencatat progres.',
+            ),
+          ),
+        );
+      }
+      return false;
+    }
     // 1. UPDATE INSTAN KE MEMORI & REAL-TIME REFRESH UI (Tanpa Lag)
     task.count += 1;
     task.countToday += 1;
@@ -336,6 +369,12 @@ class TaskMasterController {
   }
 
   Future<bool> _addTimeToJurnal(String myTaskId, BuildContext context) async {
+    if (!taskMasterLegacyWritesEnabled) {
+      debugPrint(
+        'Task Master lama dalam mode baca-saja; penulisan Jurnal dilewati.',
+      );
+      return false;
+    }
     try {
       int minutesToAdd = 30; // Nilai default fallback
 
@@ -502,6 +541,12 @@ class TaskMasterController {
   }
 
   Future<void> saveAllCategoriesToFile({bool shouldRefresh = true}) async {
+    if (!taskMasterLegacyWritesEnabled) {
+      debugPrint(
+        'Task Master lama dalam mode baca-saja; penyimpanan kategori dilewati.',
+      );
+      return;
+    }
     final Map<String, dynamic> updatedMap = {
       'categories': allCategoriesRaw.map((cat) => cat.toJson()).toList(),
     };

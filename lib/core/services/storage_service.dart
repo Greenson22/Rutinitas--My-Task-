@@ -172,9 +172,14 @@ class StorageService {
   // === TASK MASTER STORAGE (Mendukung Dekripsi Otomatis) ===
   // =========================================================================
 
-  Future<File> getTargetJsonFile(String baseDirSetting) async {
+  Future<File> getTargetJsonFile(
+    String baseDirSetting, {
+    bool createDirectory = true,
+  }) async {
     final Directory myTaskDir = Directory('$baseDirSetting/mytask');
-    if (!await myTaskDir.exists()) await myTaskDir.create(recursive: true);
+    if (createDirectory && !await myTaskDir.exists()) {
+      await myTaskDir.create(recursive: true);
+    }
     return File('${myTaskDir.path}/my_tasks.json');
   }
 

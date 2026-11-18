@@ -136,7 +136,7 @@ class _TaskMasterNewScreenState extends State<TaskMasterNewScreen> {
                 title: const Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Task Master New', style: TextStyle(fontSize: 18)),
+                    Text('Task Master', style: TextStyle(fontSize: 18)),
                     Text(
                       'Dashboard hari ini',
                       style: TextStyle(fontSize: 11, color: Colors.white70),
@@ -176,7 +176,7 @@ class _TaskMasterNewScreenState extends State<TaskMasterNewScreen> {
                   ),
                 ],
               ),
-              drawer: const DrawerMenu(isTaskMasterNewActive: true),
+              drawer: const DrawerMenu(),
               floatingActionButton: state.data == null || isDesktop
                   ? null
                   : FloatingActionButton.extended(

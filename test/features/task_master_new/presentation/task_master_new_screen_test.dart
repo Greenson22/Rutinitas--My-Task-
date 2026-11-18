@@ -79,7 +79,13 @@ void main() {
     repository.loadCompleter!.complete(sampleData());
     await tester.pumpAndSettle();
 
-    expect(find.text('Task Master New'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(AppBar),
+        matching: find.text('Task Master'),
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Olahraga'), findsOneWidget);
     expect(find.text('Push up'), findsOneWidget);
     expect(find.text('Buku'), findsOneWidget);
