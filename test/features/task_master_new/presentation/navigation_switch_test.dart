@@ -396,4 +396,212 @@ void main() {
       expect(await target.readAsString(), contains('categories'));
     });
   });
+
+  group('promo sekali-jalan Task Master New', () {
+    setUp(() {
+      resetTaskMasterRolloutCacheForTesting();
+    });
+
+    testWidgets('dialog promo muncul bila saklar mati, file v2 ada, dan promo belum pernah tampil', (tester) async {
+      SharedPreferences.setMockInitialValues({
+        taskMasterUseNewModulePrefKey: false,
+        seenTaskMasterNewPromoPrefKey: false,
+      });
+      resetTaskMasterRolloutCacheForTesting();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: TaskMasterEntry(
+            repository: FakeTaskRepository(data: TaskMasterData.empty()),
+            journalGateway: FakeJournalGateway(),
+            clock: () => now,
+            isSchemaV2Checker: () async => true,
+            legacyBuilder: (context) => const SizedBox(key: Key('legacy_content')),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Aktifkan Task Master New?'), findsOneWidget);
+      expect(find.text('Aktifkan Sekarang'), findsOneWidget);
+      expect(find.text('Nanti'), findsOneWidget);
+    });
+
+    testWidgets('dialog promo TIDAK muncul bila saklar sudah hidup', (tester) async {
+      SharedPreferences.setMockInitialValues({
+        taskMasterUseNewModulePrefKey: true,
+        seenTaskMasterNewPromoPrefKey: false,
+      });
+      resetTaskMasterRolloutCacheForTesting();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: TaskMasterEntry(
+            repository: FakeTaskRepository(data: TaskMasterData.empty()),
+            journalGateway: FakeJournalGateway(),
+            clock: () => now,
+            isSchemaV2Checker: () async => true,
+            legacyBuilder: (context) => const SizedBox(key: Key('legacy_content')),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Aktifkan Task Master New?'), findsNothing);
+    });
+
+    testWidgets('dialog promo TIDAK muncul untuk pengguna baru (file v2 belum ada)', (tester) async {
+      SharedPreferences.setMockInitialValues({
+        taskMasterUseNewModulePrefKey: false,
+        seenTaskMasterNewPromoPrefKey: false,
+      });
+      resetTaskMasterRolloutCacheForTesting();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: TaskMasterEntry(
+            repository: FakeTaskRepository(data: TaskMasterData.empty()),
+            journalGateway: FakeJournalGateway(),
+            clock: () => now,
+            isSchemaV2Checker: () async => false,
+            legacyBuilder: (context) => const SizedBox(key: Key('legacy_content')),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Aktifkan Task Master New?'), findsNothing);
+    });
+
+    testWidgets('dialog promo TIDAK muncul bila seen_task_master_new_promo sudah true', (tester) async {
+      SharedPreferences.setMockInitialValues({
+        taskMasterUseNewModulePrefKey: false,
+        seenTaskMasterNewPromoPrefKey: true,
+      });
+      resetTaskMasterRolloutCacheForTesting();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: TaskMasterEntry(
+            repository: FakeTaskRepository(data: TaskMasterData.empty()),
+            journalGateway: FakeJournalGateway(),
+            clock: () => now,
+            isSchemaV2Checker: () async => true,
+            legacyBuilder: (context) => const SizedBox(key: Key('legacy_content')),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Aktifkan Task Master New?'), findsNothing);
+    });
+
+    testWidgets('memilih Nanti menyimpan seen_promo=true dan tidak mengubah saklar', (tester) async {
+      SharedPreferences.setMockInitialValues({
+        taskMasterUseNewModulePrefKey: false,
+        seenTaskMasterNewPromoPrefKey: false,
+      });
+      resetTaskMasterRolloutCacheForTesting();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: TaskMasterEntry(
+            repository: FakeTaskRepository(data: TaskMasterData.empty()),
+            journalGateway: FakeJournalGateway(),
+            clock: () => now,
+            isSchemaV2Checker: () async => true,
+            legacyBuilder: (context) => const SizedBox(key: Key('legacy_content')),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Aktifkan Task Master New?'), findsOneWidget);
+      await tester.tap(find.text('Nanti'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Aktifkan Task Master New?'), findsNothing);
+      expect(await getSeenTaskMasterNewPromo(useCache: false), isTrue);
+      expect(await getTaskMasterUseNewModule(useCache: false), isFalse);
+    });
+
+    testWidgets('memilih Aktifkan Sekarang menyalakan saklar, menyimpan seen_promo=true, dan menampilkan instruksi restart', (tester) async {
+      SharedPreferences.setMockInitialValues({
+        taskMasterUseNewModulePrefKey: false,
+        seenTaskMasterNewPromoPrefKey: false,
+      });
+      resetTaskMasterRolloutCacheForTesting();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: TaskMasterEntry(
+              repository: FakeTaskRepository(data: TaskMasterData.empty()),
+              journalGateway: FakeJournalGateway(),
+              clock: () => now,
+              isSchemaV2Checker: () async => true,
+              legacyBuilder: (context) => const SizedBox(key: Key('legacy_content')),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Aktifkan Task Master New?'), findsOneWidget);
+      await tester.tap(find.text('Aktifkan Sekarang'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Aktifkan Task Master New?'), findsNothing);
+      expect(await getSeenTaskMasterNewPromo(useCache: false), isTrue);
+      expect(await getTaskMasterUseNewModule(useCache: false), isTrue);
+      expect(
+        find.textContaining('Silakan mulai ulang aplikasi untuk menerapkan perubahan'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('preferensi tawaran bertahan setelah restart (tidak muncul lagi saat dibuka kembali)', (tester) async {
+      SharedPreferences.setMockInitialValues({
+        taskMasterUseNewModulePrefKey: false,
+        seenTaskMasterNewPromoPrefKey: false,
+      });
+      resetTaskMasterRolloutCacheForTesting();
+
+      // Buka pertama kali dan pilih Nanti
+      await tester.pumpWidget(
+        MaterialApp(
+          home: TaskMasterEntry(
+            repository: FakeTaskRepository(data: TaskMasterData.empty()),
+            journalGateway: FakeJournalGateway(),
+            clock: () => now,
+            isSchemaV2Checker: () async => true,
+            legacyBuilder: (context) => const SizedBox(key: Key('legacy_content')),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Aktifkan Task Master New?'), findsOneWidget);
+      await tester.tap(find.text('Nanti'));
+      await tester.pumpAndSettle();
+
+      // Simulasi restart / navigasi ulang dengan mereset in-memory cache dan me-rebuild widget
+      resetTaskMasterRolloutCacheForTesting();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: TaskMasterEntry(
+            repository: FakeTaskRepository(data: TaskMasterData.empty()),
+            journalGateway: FakeJournalGateway(),
+            clock: () => now,
+            isSchemaV2Checker: () async => true,
+            legacyBuilder: (context) => const SizedBox(key: Key('legacy_content')),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Dialog promo tidak boleh muncul lagi
+      expect(find.text('Aktifkan Task Master New?'), findsNothing);
+    });
+  });
 }
