@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../domain/entities/category.dart' as domain;
 import '../../domain/entities/task.dart';
 import '../../domain/entities/task_kind.dart';
+import '../../domain/entities/today_visibility.dart';
 import '../controllers/task_master_controller.dart';
 import '../controllers/task_master_state.dart';
 import '../increment_flow.dart';
@@ -295,6 +296,26 @@ class CategoryDetailScreenState extends State<CategoryDetailScreen> {
                     : () => _applyBulkActive(isActive: false),
                 icon: const Icon(Icons.pause_circle_outline_rounded),
               ),
+              PopupMenuButton<TodayVisibility>(
+                key: const Key('bulkVisibilityButton'),
+                tooltip: 'Visibilitas Hari Ini',
+                onSelected: _bulkActionRunning ? null : _applyBulkVisibility,
+                itemBuilder: (context) => const [
+                  PopupMenuItem(
+                    value: TodayVisibility.auto,
+                    child: Text('Otomatis'),
+                  ),
+                  PopupMenuItem(
+                    value: TodayVisibility.always,
+                    child: Text('Selalu'),
+                  ),
+                  PopupMenuItem(
+                    value: TodayVisibility.never,
+                    child: Text('Sembunyikan'),
+                  ),
+                ],
+                icon: const Icon(Icons.visibility_outlined),
+              ),
               IconButton(
                 key: const Key('bulkDeleteButton'),
                 tooltip: 'Hapus tugas terpilih',
@@ -377,6 +398,13 @@ class CategoryDetailScreenState extends State<CategoryDetailScreen> {
             onShowHistory: _selectionMode || _reorderMode
                 ? null
                 : () => _showTaskHistory(context, task),
+            onChangeVisibility: _selectionMode || _reorderMode
+                ? null
+                : (visibility) => controller.setTaskVisibility(
+                      categoryId: categoryId,
+                      taskId: task.id,
+                      todayVisibility: visibility,
+                    ),
             onAction: _selectionMode || _reorderMode
                 ? null
                 : (action) => _handleTaskAction(context, task, action),
@@ -437,6 +465,37 @@ class CategoryDetailScreenState extends State<CategoryDetailScreen> {
         SnackBar(
           content: Text(
             '${ids.length} tugas ${isActive ? 'diaktifkan' : 'dinonaktifkan'}.',
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _applyBulkVisibility(TodayVisibility visibility) async {
+    if (_bulkActionRunning) return;
+    final ids = [..._selectedTaskIds];
+    if (ids.isEmpty) return;
+    setState(() => _bulkActionRunning = true);
+    final succeeded = await controller.setTasksVisibility(
+      categoryId: categoryId,
+      taskIds: ids,
+      todayVisibility: visibility,
+    );
+    if (!mounted) return;
+    setState(() {
+      _bulkActionRunning = false;
+      if (succeeded) _selectedTaskIds.clear();
+    });
+    if (succeeded) {
+      final label = switch (visibility) {
+        TodayVisibility.auto => 'Otomatis',
+        TodayVisibility.always => 'Selalu',
+        TodayVisibility.never => 'Sembunyikan',
+      };
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Visibilitas ${ids.length} tugas diubah ke $label.',
           ),
         ),
       );

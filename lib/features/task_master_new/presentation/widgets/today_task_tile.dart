@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../domain/entities/task.dart';
 import '../../domain/entities/task_kind.dart';
+import '../../domain/entities/today_visibility.dart';
 import '../../domain/operations/dashboard_summary.dart';
 import '../../domain/operations/streak_calculator.dart';
 import 'task_kind_label.dart';
@@ -17,6 +18,7 @@ class TodayTaskTile extends StatelessWidget {
     required this.todayKey,
     required this.onIncrement,
     this.onShowHistory,
+    this.onChangeVisibility,
     this.isJournalLinked = false,
   });
 
@@ -24,6 +26,7 @@ class TodayTaskTile extends StatelessWidget {
   final String todayKey;
   final VoidCallback onIncrement;
   final VoidCallback? onShowHistory;
+  final void Function(TodayVisibility visibility)? onChangeVisibility;
   final bool isJournalLinked;
 
   Task get task => entry.task;
@@ -155,6 +158,57 @@ class TodayTaskTile extends StatelessWidget {
               ),
             ),
           ),
+          if (onChangeVisibility != null)
+            PopupMenuButton<TodayVisibility>(
+              key: Key('todayTaskMenu_${task.id}'),
+              tooltip: 'Tampil di Hari Ini',
+              onSelected: onChangeVisibility,
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  key: Key('todayVisibilityOption_auto_${task.id}'),
+                  value: TodayVisibility.auto,
+                  child: Row(
+                    children: [
+                      if (task.todayVisibility == TodayVisibility.auto)
+                        const Icon(Icons.check, size: 18, color: Colors.indigo)
+                      else
+                        const SizedBox(width: 18),
+                      const SizedBox(width: 8),
+                      const Text('Otomatis'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  key: Key('todayVisibilityOption_always_${task.id}'),
+                  value: TodayVisibility.always,
+                  child: Row(
+                    children: [
+                      if (task.todayVisibility == TodayVisibility.always)
+                        const Icon(Icons.check, size: 18, color: Colors.indigo)
+                      else
+                        const SizedBox(width: 18),
+                      const SizedBox(width: 8),
+                      const Text('Selalu'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  key: Key('todayVisibilityOption_never_${task.id}'),
+                  value: TodayVisibility.never,
+                  child: Row(
+                    children: [
+                      if (task.todayVisibility == TodayVisibility.never)
+                        const Icon(Icons.check, size: 18, color: Colors.indigo)
+                      else
+                        const SizedBox(width: 18),
+                      const SizedBox(width: 8),
+                      const Text('Sembunyikan'),
+                    ],
+                  ),
+                ),
+              ],
+              icon: const Icon(Icons.more_vert, size: 20, color: Colors.blueGrey),
+            ),
         ],
       ),
     );

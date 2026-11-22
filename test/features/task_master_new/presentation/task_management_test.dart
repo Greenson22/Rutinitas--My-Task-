@@ -245,7 +245,13 @@ void main() {
         find.byKey(const Key('taskTargetTotalField')),
         '500',
       );
-      await tester.tap(find.byKey(const Key('taskActiveSwitch')));
+      final switchFinder = find.byKey(const Key('taskActiveSwitch'));
+      await tester.scrollUntilVisible(
+        switchFinder,
+        100,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.tap(switchFinder);
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('taskSaveButton')));
       await tester.pumpAndSettle();

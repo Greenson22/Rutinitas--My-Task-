@@ -138,8 +138,10 @@ class EmptyTodayTasksView extends StatelessWidget {
           ),
           const SizedBox(height: 5),
           Text(
-            'Tugas dengan target harian atau aktivitas hari ini akan muncul '
-            'di sini. Tambahkan target pada tugas agar mudah dipantau.',
+            'Tugas dengan pengaturan "Selalu", atau "Otomatis" yang memiliki '
+            'target harian, target total, atau aktivitas hari ini akan muncul '
+            'di sini. Anda dapat mengubah pengaturan Tampil di Hari Ini lewat '
+            'form atau menu baris tugas.',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 12,

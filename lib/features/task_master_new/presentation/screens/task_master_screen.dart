@@ -336,6 +336,13 @@ class _TaskMasterNewScreenState extends State<TaskMasterNewScreen> {
                 isJournalLinked: _controller.isTaskLinkedToJournal(
                   todayTasks[i].task.id,
                 ),
+                onChangeVisibility: (visibility) {
+                  _controller.setTaskVisibility(
+                    categoryId: todayTasks[i].category.id,
+                    taskId: todayTasks[i].task.id,
+                    todayVisibility: visibility,
+                  );
+                },
                 onIncrement: () => incrementTaskWithFeedback(
                   context,
                   _controller,

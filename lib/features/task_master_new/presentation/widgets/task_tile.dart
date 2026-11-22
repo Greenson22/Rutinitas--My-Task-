@@ -226,10 +226,16 @@ class TaskTile extends StatelessWidget {
                         icon: const Icon(Icons.keyboard_arrow_down_rounded),
                       ),
                     if (onAction != null)
-                      PopupMenuButton<TaskAction>(
+                      PopupMenuButton<dynamic>(
                         key: Key('taskMenu_${task.id}'),
                         tooltip: 'Aksi tugas ${task.name}',
-                        onSelected: onAction,
+                        onSelected: (value) {
+                          if (value is TaskAction) {
+                            onAction!(value);
+                          } else if (value is TodayVisibility) {
+                            onChangeVisibility?.call(value);
+                          }
+                        },
                         itemBuilder: (context) => [
                           const PopupMenuItem(
                             value: TaskAction.edit,
@@ -240,6 +246,68 @@ class TaskTile extends StatelessWidget {
                               title: Text('Ubah'),
                             ),
                           ),
+                          if (onChangeVisibility != null)
+                            PopupMenuItem<dynamic>(
+                              enabled: false,
+                              child: PopupMenuButton<TodayVisibility>(
+                                tooltip: 'Pilih visibilitas',
+                                onSelected: (visibility) {
+                                  Navigator.of(context).pop();
+                                  onChangeVisibility?.call(visibility);
+                                },
+                                itemBuilder: (context) => [
+                                  PopupMenuItem(
+                                    key: Key('visibilityOption_auto_${task.id}'),
+                                    value: TodayVisibility.auto,
+                                    child: Row(
+                                      children: [
+                                        if (task.todayVisibility == TodayVisibility.auto)
+                                          const Icon(Icons.check, size: 18, color: Colors.indigo)
+                                        else
+                                          const SizedBox(width: 18),
+                                        const SizedBox(width: 8),
+                                        const Text('Otomatis'),
+                                      ],
+                                    ),
+                                  ),
+                                  PopupMenuItem(
+                                    key: Key('visibilityOption_always_${task.id}'),
+                                    value: TodayVisibility.always,
+                                    child: Row(
+                                      children: [
+                                        if (task.todayVisibility == TodayVisibility.always)
+                                          const Icon(Icons.check, size: 18, color: Colors.indigo)
+                                        else
+                                          const SizedBox(width: 18),
+                                        const SizedBox(width: 8),
+                                        const Text('Selalu'),
+                                      ],
+                                    ),
+                                  ),
+                                  PopupMenuItem(
+                                    key: Key('visibilityOption_never_${task.id}'),
+                                    value: TodayVisibility.never,
+                                    child: Row(
+                                      children: [
+                                        if (task.todayVisibility == TodayVisibility.never)
+                                          const Icon(Icons.check, size: 18, color: Colors.indigo)
+                                        else
+                                          const SizedBox(width: 18),
+                                        const SizedBox(width: 8),
+                                        const Text('Sembunyikan'),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                                child: ListTile(
+                                  dense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: const Icon(Icons.visibility_outlined),
+                                  title: const Text('Tampil di Hari Ini'),
+                                  trailing: const Icon(Icons.arrow_right, size: 20),
+                                ),
+                              ),
+                            ),
                           PopupMenuItem(
                             value: TaskAction.toggleActive,
                             child: ListTile(
