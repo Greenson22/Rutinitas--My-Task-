@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../domain/entities/task.dart';
 import '../../domain/entities/task_kind.dart';
+import '../../domain/entities/today_visibility.dart';
 import '../../domain/operations/task_operations.dart';
 import 'task_kind_label.dart';
 
@@ -25,6 +26,7 @@ class TaskFormDialog extends StatefulWidget {
     required int targetDaily,
     required int targetTotal,
     required bool isActive,
+    required TodayVisibility todayVisibility,
   })
   onSave;
 
@@ -39,6 +41,7 @@ class _TaskFormDialogState extends State<TaskFormDialog> {
   late final TextEditingController _targetTotalController;
   late TaskKind _kind;
   late bool _isActive;
+  late TodayVisibility _todayVisibility;
   bool _submitting = false;
   String? _submitError;
 
@@ -50,6 +53,7 @@ class _TaskFormDialogState extends State<TaskFormDialog> {
     final task = widget.task;
     _kind = task?.kind ?? TaskKind.habit;
     _isActive = task?.isActive ?? true;
+    _todayVisibility = task?.todayVisibility ?? TodayVisibility.auto;
     _nameController = TextEditingController(text: task?.name ?? '');
     _targetDailyController = TextEditingController(
       text: '${task?.targetDaily ?? 0}',
@@ -134,6 +138,34 @@ class _TaskFormDialogState extends State<TaskFormDialog> {
                 ),
               ],
               const SizedBox(height: 4),
+              DropdownButtonFormField<TodayVisibility>(
+                key: const Key('taskTodayVisibilityField'),
+                initialValue: _todayVisibility,
+                decoration: InputDecoration(
+                  labelText: 'Tampil di Hari Ini',
+                  helperText: _todayVisibilityHelperText(_todayVisibility),
+                  helperMaxLines: 2,
+                ),
+                items: const [
+                  DropdownMenuItem(
+                    value: TodayVisibility.auto,
+                    child: Text('Otomatis'),
+                  ),
+                  DropdownMenuItem(
+                    value: TodayVisibility.always,
+                    child: Text('Selalu'),
+                  ),
+                  DropdownMenuItem(
+                    value: TodayVisibility.never,
+                    child: Text('Sembunyikan'),
+                  ),
+                ],
+                onChanged: (value) {
+                  if (value == null) return;
+                  setState(() => _todayVisibility = value);
+                },
+              ),
+              const SizedBox(height: 8),
               SwitchListTile(
                 key: const Key('taskActiveSwitch'),
                 contentPadding: EdgeInsets.zero,
@@ -226,6 +258,7 @@ class _TaskFormDialogState extends State<TaskFormDialog> {
       targetDaily: _parsedDaily,
       targetTotal: _parsedTotal,
       isActive: _isActive,
+      todayVisibility: _todayVisibility,
     );
 
     if (!mounted) return;
@@ -238,6 +271,17 @@ class _TaskFormDialogState extends State<TaskFormDialog> {
             widget.failureMessage?.call() ??
             'Perubahan belum tersimpan. Silakan coba lagi.';
       });
+    }
+  }
+
+  String _todayVisibilityHelperText(TodayVisibility visibility) {
+    switch (visibility) {
+      case TodayVisibility.auto:
+        return 'Tampil bila punya target harian, target total, atau ada aktivitas hari ini';
+      case TodayVisibility.always:
+        return 'Selalu tampil di daftar Hari Ini';
+      case TodayVisibility.never:
+        return 'Jangan pernah tampil di daftar Hari Ini';
     }
   }
 }

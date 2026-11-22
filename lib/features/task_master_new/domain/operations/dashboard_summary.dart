@@ -2,6 +2,7 @@ import '../entities/category.dart';
 import '../entities/task.dart';
 import '../entities/task_kind.dart';
 import '../entities/task_master_data.dart';
+import '../entities/today_visibility.dart';
 
 /// Satu tugas yang relevan untuk daftar "Hari Ini" pada dashboard.
 class TodayTaskEntry {
@@ -41,9 +42,14 @@ bool isTaskTargetMetToday(Task task, String todayKey) {
   return task.isProgressComplete;
 }
 
-/// Mengumpulkan tugas aktif yang punya target harian atau aktivitas hari ini.
+/// Mengumpulkan tugas aktif yang tampil di daftar "Hari Ini" sesuai aturan visibilitas.
 ///
-/// Kategori tersembunyi tetap dikecualikan kecuali [includeHidden] aktif.
+/// Aturan:
+/// - Tugas nonaktif selalu dikecualikan.
+/// - Kategori tersembunyi tetap dikecualikan kecuali [includeHidden] aktif.
+/// - `never` selalu dikecualikan.
+/// - `always` selalu disertakan.
+/// - `auto` memakai aturan lama (target harian > 0, progress dengan target total > 0, atau countToday > 0).
 /// Urutan mengikuti `sortOrder` kategori lalu tugas agar stabil antar-build.
 List<TodayTaskEntry> collectTodayTasks(
   TaskMasterData data,
@@ -59,7 +65,13 @@ List<TodayTaskEntry> collectTodayTasks(
       ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
     for (final task in tasks) {
       if (!task.isActive) continue;
-      if (taskHasTargetToday(task) || task.countOn(todayKey) > 0) {
+      final shouldShow = switch (task.todayVisibility) {
+        TodayVisibility.never => false,
+        TodayVisibility.always => true,
+        TodayVisibility.auto =>
+          taskHasTargetToday(task) || task.countOn(todayKey) > 0,
+      };
+      if (shouldShow) {
         entries.add(TodayTaskEntry(category: category, task: task));
       }
     }

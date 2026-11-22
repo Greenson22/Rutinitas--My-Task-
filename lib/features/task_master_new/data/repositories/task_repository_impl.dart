@@ -3,6 +3,7 @@ import 'dart:math';
 import '../../domain/entities/task_backup.dart';
 import '../../domain/entities/task_kind.dart';
 import '../../domain/entities/task_master_data.dart';
+import '../../domain/entities/today_visibility.dart';
 import '../../domain/operations/category_operations.dart';
 import '../../domain/operations/task_operations.dart';
 import '../../domain/repositories/task_repository.dart';
@@ -308,6 +309,7 @@ class TaskRepositoryImpl implements TaskRepository {
     required int targetDaily,
     required int targetTotal,
     required bool isActive,
+    TodayVisibility todayVisibility = TodayVisibility.auto,
   }) {
     return _mutateData(
       (data) => addTaskTo(
@@ -319,6 +321,7 @@ class TaskRepositoryImpl implements TaskRepository {
         targetDaily: targetDaily,
         targetTotal: targetTotal,
         isActive: isActive,
+        todayVisibility: todayVisibility,
         now: _clock(),
       ),
     );
@@ -333,6 +336,7 @@ class TaskRepositoryImpl implements TaskRepository {
     required int targetDaily,
     required int targetTotal,
     required bool isActive,
+    TodayVisibility? todayVisibility,
   }) {
     return _mutateData(
       (data) => updateTaskIn(
@@ -344,6 +348,41 @@ class TaskRepositoryImpl implements TaskRepository {
         targetDaily: targetDaily,
         targetTotal: targetTotal,
         isActive: isActive,
+        todayVisibility: todayVisibility,
+        now: _clock(),
+      ),
+    );
+  }
+
+  @override
+  Future<TaskMasterData> setTaskVisibility({
+    required String categoryId,
+    required String taskId,
+    required TodayVisibility todayVisibility,
+  }) {
+    return _mutateData(
+      (data) => setTaskVisibilityIn(
+        data,
+        categoryId: categoryId,
+        taskId: taskId,
+        todayVisibility: todayVisibility,
+        now: _clock(),
+      ),
+    );
+  }
+
+  @override
+  Future<TaskMasterData> setTasksVisibility({
+    required String categoryId,
+    required Iterable<String> taskIds,
+    required TodayVisibility todayVisibility,
+  }) {
+    return _mutateData(
+      (data) => setTasksVisibilityIn(
+        data,
+        categoryId: categoryId,
+        taskIds: taskIds,
+        todayVisibility: todayVisibility,
         now: _clock(),
       ),
     );

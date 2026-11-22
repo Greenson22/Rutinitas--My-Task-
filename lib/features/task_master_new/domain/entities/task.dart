@@ -1,5 +1,6 @@
 import 'daily_progress.dart';
 import 'task_kind.dart';
+import 'today_visibility.dart';
 
 /// Tugas yang dilacak oleh Task Master.
 class Task {
@@ -15,6 +16,7 @@ class Task {
     required this.totalCount,
     required this.createdAt,
     required this.updatedAt,
+    this.todayVisibility = TodayVisibility.auto,
     Map<String, DailyProgress> history = const {},
   }) : history = Map.unmodifiable(history);
 
@@ -24,6 +26,9 @@ class Task {
   final TaskKind kind;
   final bool isActive;
   final int sortOrder;
+
+  /// Pengaturan apakah tugas tampil di daftar Hari Ini.
+  final TodayVisibility todayVisibility;
 
   /// Target harian; `0` berarti tidak ada target.
   final int targetDaily;
@@ -89,6 +94,7 @@ class Task {
     int? totalCount,
     DateTime? createdAt,
     DateTime? updatedAt,
+    TodayVisibility? todayVisibility,
     Map<String, DailyProgress>? history,
   }) {
     return Task(
@@ -103,7 +109,44 @@ class Task {
       totalCount: totalCount ?? this.totalCount,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      todayVisibility: todayVisibility ?? this.todayVisibility,
       history: history ?? this.history,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is Task &&
+        other.id == id &&
+        other.categoryId == categoryId &&
+        other.name == name &&
+        other.kind == kind &&
+        other.isActive == isActive &&
+        other.sortOrder == sortOrder &&
+        other.targetDaily == targetDaily &&
+        other.targetTotal == targetTotal &&
+        other.totalCount == totalCount &&
+        other.createdAt == createdAt &&
+        other.updatedAt == updatedAt &&
+        other.todayVisibility == todayVisibility;
+  }
+
+  @override
+  int get hashCode {
+    return Object.hash(
+      id,
+      categoryId,
+      name,
+      kind,
+      isActive,
+      sortOrder,
+      targetDaily,
+      targetTotal,
+      totalCount,
+      createdAt,
+      updatedAt,
+      todayVisibility,
     );
   }
 }

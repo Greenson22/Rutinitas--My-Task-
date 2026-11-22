@@ -9,6 +9,7 @@ import '../../domain/entities/task.dart';
 import '../../domain/entities/task_backup.dart';
 import '../../domain/entities/task_kind.dart';
 import '../../domain/entities/task_master_data.dart';
+import '../../domain/entities/today_visibility.dart';
 import '../../domain/operations/category_operations.dart' as ops;
 import '../../domain/operations/task_operations.dart' as task_ops;
 import '../../domain/operations/task_search.dart';
@@ -382,6 +383,7 @@ class TaskMasterNewController extends ChangeNotifier {
     required int targetDaily,
     required int targetTotal,
     required bool isActive,
+    TodayVisibility todayVisibility = TodayVisibility.auto,
   }) async {
     return _runDataAction(
       () => _repository.addTask(
@@ -391,6 +393,7 @@ class TaskMasterNewController extends ChangeNotifier {
         targetDaily: targetDaily,
         targetTotal: targetTotal,
         isActive: isActive,
+        todayVisibility: todayVisibility,
       ),
     );
   }
@@ -403,6 +406,7 @@ class TaskMasterNewController extends ChangeNotifier {
     required int targetDaily,
     required int targetTotal,
     required bool isActive,
+    TodayVisibility? todayVisibility,
   }) async {
     return _runDataAction(
       () => _repository.updateTask(
@@ -413,6 +417,35 @@ class TaskMasterNewController extends ChangeNotifier {
         targetDaily: targetDaily,
         targetTotal: targetTotal,
         isActive: isActive,
+        todayVisibility: todayVisibility,
+      ),
+    );
+  }
+
+  Future<bool> setTaskVisibility({
+    required String categoryId,
+    required String taskId,
+    required TodayVisibility todayVisibility,
+  }) async {
+    return _runDataAction(
+      () => _repository.setTaskVisibility(
+        categoryId: categoryId,
+        taskId: taskId,
+        todayVisibility: todayVisibility,
+      ),
+    );
+  }
+
+  Future<bool> setTasksVisibility({
+    required String categoryId,
+    required Iterable<String> taskIds,
+    required TodayVisibility todayVisibility,
+  }) async {
+    return _runDataAction(
+      () => _repository.setTasksVisibility(
+        categoryId: categoryId,
+        taskIds: taskIds,
+        todayVisibility: todayVisibility,
       ),
     );
   }

@@ -8,6 +8,7 @@ import '../../domain/entities/daily_progress.dart';
 import '../../domain/entities/task.dart';
 import '../../domain/entities/task_kind.dart';
 import '../../domain/entities/task_master_data.dart';
+import '../../domain/entities/today_visibility.dart';
 import '../../domain/operations/streak_calculator.dart';
 import '../exceptions/task_master_exceptions.dart';
 
@@ -158,6 +159,8 @@ class TaskMasterMapper {
       fallbackUpdatedAt: updatedAt,
     );
 
+    final todayVisibility = _parseTodayVisibility(json);
+
     if (isLegacy) {
       final legacyCountToday = _asInt(json['countToday']);
       if (legacyCountToday > 0) {
@@ -186,6 +189,7 @@ class TaskMasterMapper {
       totalCount: _asInt(json['count'] ?? json['totalCount']),
       createdAt: createdAt,
       updatedAt: updatedAt,
+      todayVisibility: todayVisibility,
       history: history,
     );
   }
@@ -283,13 +287,14 @@ class TaskMasterMapper {
       today: DateTime.parse('${todayKey}T00:00:00'),
     );
 
-    return {
+    final jsonMap = <String, dynamic>{
       'id': task.id,
       'name': task.name,
       'kind': task.kind.jsonValue,
       'type': task.kind == TaskKind.progress ? 1 : 0,
       'isActive': task.isActive,
       'sortOrder': task.sortOrder,
+      'todayVisibility': task.todayVisibility.jsonValue,
       'count': task.totalCount,
       'countToday': countToday,
       'targetCountToday': task.targetDaily,
@@ -307,6 +312,14 @@ class TaskMasterMapper {
           },
       },
     };
+
+    if (task.todayVisibility == TodayVisibility.always) {
+      jsonMap['showInToday'] = true;
+    } else if (task.todayVisibility == TodayVisibility.never) {
+      jsonMap['showInToday'] = false;
+    }
+
+    return jsonMap;
   }
 
   Map<String, dynamic>? _findOriginalCategory(
@@ -438,6 +451,17 @@ class TaskMasterMapper {
       if (normalized == 'false' || normalized == '0') return false;
     }
     return fallback;
+  }
+
+  TodayVisibility _parseTodayVisibility(Map<String, dynamic> json) {
+    if (json.containsKey('todayVisibility') && json['todayVisibility'] != null) {
+      return TodayVisibility.parse(json['todayVisibility']);
+    }
+    if (json.containsKey('showInToday') && json['showInToday'] != null) {
+      final show = _asBool(json['showInToday']);
+      return show ? TodayVisibility.always : TodayVisibility.never;
+    }
+    return TodayVisibility.auto;
   }
 
   static String _generateTaskId() {

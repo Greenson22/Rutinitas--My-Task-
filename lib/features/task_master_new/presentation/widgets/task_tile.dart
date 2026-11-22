@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../domain/entities/task.dart';
 import '../../domain/entities/task_kind.dart';
+import '../../domain/entities/today_visibility.dart';
 import '../../domain/operations/streak_calculator.dart';
 import 'task_kind_label.dart';
 
@@ -28,6 +29,7 @@ class TaskTile extends StatelessWidget {
     this.onMoveUp,
     this.onMoveDown,
     this.onMoveToCategory,
+    this.onChangeVisibility,
     this.showActiveStatus = true,
     this.isJournalLinked = false,
   });
@@ -59,6 +61,9 @@ class TaskTile extends StatelessWidget {
 
   /// Membuka pilihan kategori tujuan saat tugas dipindahkan.
   final VoidCallback? onMoveToCategory;
+
+  /// Mengubah visibilitas tugas di daftar Hari Ini.
+  final void Function(TodayVisibility visibility)? onChangeVisibility;
 
   /// Menampilkan badge "Aktif" juga, bukan hanya "Nonaktif".
   final bool showActiveStatus;

@@ -1,6 +1,7 @@
 import '../entities/task_backup.dart';
 import '../entities/task_kind.dart';
 import '../entities/task_master_data.dart';
+import '../entities/today_visibility.dart';
 
 /// Seam utama antara presentasi dan penyimpanan Task Master.
 ///
@@ -90,6 +91,7 @@ abstract interface class TaskRepository {
     required int targetDaily,
     required int targetTotal,
     required bool isActive,
+    TodayVisibility todayVisibility = TodayVisibility.auto,
   });
 
   /// Mengubah field tugas tanpa mengubah `id`, riwayat, atau hitungan total.
@@ -101,6 +103,21 @@ abstract interface class TaskRepository {
     required int targetDaily,
     required int targetTotal,
     required bool isActive,
+    TodayVisibility? todayVisibility,
+  });
+
+  /// Mengubah pengaturan Tampil di Hari Ini untuk satu tugas.
+  Future<TaskMasterData> setTaskVisibility({
+    required String categoryId,
+    required String taskId,
+    required TodayVisibility todayVisibility,
+  });
+
+  /// Mengubah pengaturan Tampil di Hari Ini untuk beberapa tugas sekaligus.
+  Future<TaskMasterData> setTasksVisibility({
+    required String categoryId,
+    required Iterable<String> taskIds,
+    required TodayVisibility todayVisibility,
   });
 
   /// Mengaktifkan atau menonaktifkan tugas tanpa menghapus riwayatnya.

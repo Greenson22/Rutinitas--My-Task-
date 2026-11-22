@@ -4,6 +4,7 @@ import 'package:rutinitasku/features/task_master_new/data/exceptions/task_master
 import 'package:rutinitasku/features/task_master_new/domain/entities/task_backup.dart';
 import 'package:rutinitasku/features/task_master_new/domain/entities/task_kind.dart';
 import 'package:rutinitasku/features/task_master_new/domain/entities/task_master_data.dart';
+import 'package:rutinitasku/features/task_master_new/domain/entities/today_visibility.dart';
 import 'package:rutinitasku/features/task_master_new/domain/operations/category_operations.dart';
 import 'package:rutinitasku/features/task_master_new/domain/operations/task_operations.dart';
 import 'package:rutinitasku/features/task_master_new/domain/repositories/task_repository.dart';
@@ -200,6 +201,7 @@ class FakeTaskRepository implements TaskRepository {
     required int targetDaily,
     required int targetTotal,
     required bool isActive,
+    TodayVisibility todayVisibility = TodayVisibility.auto,
   }) {
     return _mutateTasks(
       (data) => addTaskTo(
@@ -211,6 +213,7 @@ class FakeTaskRepository implements TaskRepository {
         targetDaily: targetDaily,
         targetTotal: targetTotal,
         isActive: isActive,
+        todayVisibility: todayVisibility,
         now: now,
       ),
     );
@@ -225,6 +228,7 @@ class FakeTaskRepository implements TaskRepository {
     required int targetDaily,
     required int targetTotal,
     required bool isActive,
+    TodayVisibility? todayVisibility,
   }) {
     return _mutateTasks(
       (data) => updateTaskIn(
@@ -236,6 +240,41 @@ class FakeTaskRepository implements TaskRepository {
         targetDaily: targetDaily,
         targetTotal: targetTotal,
         isActive: isActive,
+        todayVisibility: todayVisibility,
+        now: now,
+      ),
+    );
+  }
+
+  @override
+  Future<TaskMasterData> setTaskVisibility({
+    required String categoryId,
+    required String taskId,
+    required TodayVisibility todayVisibility,
+  }) {
+    return _mutateTasks(
+      (data) => setTaskVisibilityIn(
+        data,
+        categoryId: categoryId,
+        taskId: taskId,
+        todayVisibility: todayVisibility,
+        now: now,
+      ),
+    );
+  }
+
+  @override
+  Future<TaskMasterData> setTasksVisibility({
+    required String categoryId,
+    required Iterable<String> taskIds,
+    required TodayVisibility todayVisibility,
+  }) {
+    return _mutateTasks(
+      (data) => setTasksVisibilityIn(
+        data,
+        categoryId: categoryId,
+        taskIds: taskIds,
+        todayVisibility: todayVisibility,
         now: now,
       ),
     );

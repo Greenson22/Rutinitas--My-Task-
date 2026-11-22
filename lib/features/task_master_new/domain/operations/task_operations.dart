@@ -2,6 +2,7 @@ import '../entities/daily_progress.dart';
 import '../entities/task.dart';
 import '../entities/task_kind.dart';
 import '../entities/task_master_data.dart';
+import '../entities/today_visibility.dart';
 
 /// Batas panjang nama tugas sesuai spesifikasi.
 const int maxTaskNameLength = 120;
@@ -75,6 +76,7 @@ TaskMasterData addTaskTo(
   required int targetDaily,
   required int targetTotal,
   required bool isActive,
+  TodayVisibility todayVisibility = TodayVisibility.auto,
   required DateTime now,
 }) {
   final error = validateTaskName(name);
@@ -108,6 +110,7 @@ TaskMasterData addTaskTo(
     totalCount: 0,
     createdAt: now,
     updatedAt: now,
+    todayVisibility: todayVisibility,
   );
 
   final categories = [...data.categories];
@@ -128,6 +131,7 @@ TaskMasterData updateTaskIn(
   required int targetDaily,
   required int targetTotal,
   required bool isActive,
+  TodayVisibility? todayVisibility,
   required DateTime now,
 }) {
   final error = validateTaskName(name);
@@ -150,9 +154,61 @@ TaskMasterData updateTaskIn(
       targetDaily: targetDaily,
       targetTotal: targetTotal,
       isActive: isActive,
+      todayVisibility: todayVisibility ?? task.todayVisibility,
       updatedAt: now,
     ),
   );
+}
+
+/// Mengubah pengaturan Tampil di Hari Ini untuk satu tugas.
+TaskMasterData setTaskVisibilityIn(
+  TaskMasterData data, {
+  required String categoryId,
+  required String taskId,
+  required TodayVisibility todayVisibility,
+  required DateTime now,
+}) {
+  return _replaceTask(
+    data,
+    categoryId: categoryId,
+    taskId: taskId,
+    update: (task) => task.copyWith(
+      todayVisibility: todayVisibility,
+      updatedAt: now,
+    ),
+  );
+}
+
+/// Mengubah pengaturan Tampil di Hari Ini untuk beberapa tugas sekaligus tanpa
+/// menyentuh status aktif.
+TaskMasterData setTasksVisibilityIn(
+  TaskMasterData data, {
+  required String categoryId,
+  required Iterable<String> taskIds,
+  required TodayVisibility todayVisibility,
+  required DateTime now,
+}) {
+  final selected = taskIds.toSet();
+  final categoryIndex = _categoryIndex(data, categoryId);
+  final category = data.categories[categoryIndex];
+  var changed = false;
+
+  final tasks = <Task>[];
+  for (final task in category.tasks) {
+    if (selected.contains(task.id)) {
+      changed = true;
+      tasks.add(task.copyWith(todayVisibility: todayVisibility, updatedAt: now));
+    } else {
+      tasks.add(task);
+    }
+  }
+  if (!changed) {
+    throw TaskValidationException('Tidak ada tugas yang dipilih');
+  }
+
+  final categories = [...data.categories];
+  categories[categoryIndex] = category.copyWith(tasks: tasks);
+  return data.copyWith(categories: categories);
 }
 
 /// Mengaktifkan atau menonaktifkan tugas tanpa menghapus riwayatnya.
