@@ -1,7 +1,7 @@
 # Parity dan QA Task Master New
 
 Dokumen ini menjadi checklist parity fitur Task Master lama dengan modul
-`task_master_new` sebelum dan sesudah switch navigasi (tiket 15).
+`task_master_new` sebelum dan sesudah switch navigasi (tiket 15 dan tiket 19).
 
 ## Matriks parity
 
@@ -20,12 +20,13 @@ Dokumen ini menjadi checklist parity fitur Task Master lama dengan modul
 | Filter aktif/nonaktif/target hari ini | Ada | `search_filter_test.dart` |
 | Pindah tugas antar kategori | Ada, `id` dipertahankan | `reorder_bulk_actions_test.dart` |
 | Aksi massal aktif/nonaktif/hapus | Ada, long press + konfirmasi hapus | `reorder_bulk_actions_test.dart` |
+| Visibilitas Hari Ini (tri-state) | Ada (Otomatis, Selalu, Sembunyikan) | `today_visibility_matrix_test.dart`, `today_visibility_widget_test.dart` |
 | Riwayat harian dan streak | Ada, sparse maksimal 365 hari | `task_history_test.dart`, `streak_calculator_test.dart` |
 | Dashboard ringkasan hari ini | Ada, empat kartu + daftar Hari Ini | `dashboard_test.dart` |
 | Layout desktop dua panel dan mobile push | Ada | `adaptive_layout_test.dart` |
 | Keyboard desktop (`Ctrl+F`, `Ctrl+N`, `Esc`) | Ada | `adaptive_layout_test.dart` |
 | Enkripsi dan file korup | Baca/tulis terenkripsi, PIN, restore backup, buat baru | `recovery_test.dart`, `task_local_data_source_contract_test.dart` |
-| Editor JSON dan pengaturan folder | Ada di area Advanced | `recovery_test.dart` |
+| Editor JSON dan recovery | Ada di area Advanced | `recovery_test.dart` |
 | Data Center export/import | Ada, round-trip setara | `task_repository_contract_test.dart` |
 | Kompatibilitas Checklist dan Jurnal | File yang sama, field legacy dipertahankan | `task_master_mapper_test.dart`, build penuh |
 
@@ -35,9 +36,6 @@ Status environment implementasi: smoke test dijalankan pada perangkat fisik
 RMX3951 (Android 16) dalam mode portrait dan landscape. Aplikasi terbuka ke
 Task Master New, data lama tampil, drawer hanya punya satu menu Task Master,
 dan Checklist membaca data yang sama. Tidak ada exception Flutter di logcat.
-Skenario data baru dan enkripsi belum dijalankan pada perangkat agar data uji
-yang ada tidak diubah, sehingga matriks di bawah tetap perlu diulang lengkap
-sebelum rilis.
 
 | Skenario | Langkah | Hasil yang diharapkan |
 |---|---|---|
@@ -48,6 +46,7 @@ sebelum rilis.
 | Jurnal | Increment tugas tertaut dan tidak tertaut | Durasi bertambah sesuai template atau fallback 30 menit |
 | Checklist | Buka Checklist setelah migrasi | Kategori dan tugas terbaca |
 | Data Center | Ekspor lalu impor kembali | Data setara setelah round-trip |
+| Ganti modul lewat Settings | Buka Settings → Fitur Eksperimental → ubah saklar Task Master New, konfirmasi dialog, restart | Modul berganti sesuai saklar, notifikasi restart tampil, status satu penulis terjaga |
 
 ## QA manual Linux desktop
 
@@ -58,10 +57,13 @@ sebelum rilis.
 | Mouse | Klik kategori di sidebar, increment dari dashboard | Panel kanan berubah, hitungan langsung terlihat |
 | Data besar | Muat 1.000 tugas | Tetap responsif, pencarian cepat |
 | Enkripsi | Buka file terenkripsi dengan PIN | Data tampil dan dapat ditulis kembali |
+| Ganti modul & restart | Buka Settings dialog, ubah saklar Task Master New, konfirmasi, tutup dan jalankan ulang | Modul berganti ke legacy / new secara bersih tanpa data hilang |
 
-## Catatan switch
+## Catatan switch dan aturan satu penulis
 
-Sebelum switch, aplikasi menampilkan dua menu Task Master. Setelah switch hanya
-ada satu menu **Task Master** yang membuka `task_master_new` melalui
-`TaskMasterEntry`. Modul lama tetap ada di disk sebagai fallback, tetapi semua
-jalur tulisnya diblokir oleh `taskMasterLegacyWritesEnabled = false`.
+Aplikasi menyediakan satu pintu menu **Task Master** di DrawerMenu melalui `TaskMasterEntry`.
+Pemilihan modul dikontrol oleh saklar runtime di Settings → Fitur Eksperimental (`task_master_use_new_module`):
+
+- **Default (saklar mati)**: Aplikasi fresh install membuka modul lama `features/task_master` sebagai penulis aktif.
+- **Saklar hidup**: Membuka modul baru `features/task_master_new` sebagai satu-satunya penulis. Semua jalur tulis modul lama (penyimpanan kategori, increment, integrasi Jurnal, reset file, editor raw JSON) diblokir secara ketat di lapisan logika (`isTaskMasterLegacyWritesEnabled`).
+- Model modul lama mempertahankan semua field skema v2 melalui *passthrough*, sehingga pergantian modul bolak-balik aman dari risiko kehilangan riwayat atau visibilitas Hari Ini.

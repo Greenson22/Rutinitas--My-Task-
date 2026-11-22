@@ -62,7 +62,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // --- FITUR BARU: Dialog Editor Raw JSON Langsung categories.json ---
   void _showEditRawJsonDialog() async {
-    if (!taskMasterLegacyWritesEnabled) {
+    final legacyWritesEnabled = await isTaskMasterLegacyWritesEnabled();
+    if (!legacyWritesEnabled) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(

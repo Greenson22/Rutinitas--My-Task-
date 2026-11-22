@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:rutinitasku/core/config/task_master_rollout.dart';
 import 'package:rutinitasku/core/services/storage_service.dart';
 
 class SettingsDialog extends StatefulWidget {
@@ -27,6 +28,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
   bool _isEncryptionEnabled = false;
   bool _rememberPassword = false;
   bool _enableRandomGenerator = false; // Flag untuk status Random Generator
+  bool _useNewTaskMaster = false; // Flag untuk Task Master New
 
   final StorageService _storageService = StorageService();
 
@@ -39,12 +41,14 @@ class _SettingsDialogState extends State<SettingsDialog> {
 
   Future<void> _loadEncryptionSettings() async {
     final prefs = await SharedPreferences.getInstance();
+    final useNewModule = await getTaskMasterUseNewModule(useCache: false);
     setState(() {
       _isEncryptionEnabled = prefs.getBool('is_encrypted') ?? false;
       _rememberPassword = prefs.getBool('remember_password') ?? false;
       // Membaca status fitur eksperimental, defaultnya false
       _enableRandomGenerator =
           prefs.getBool('enable_random_generator') ?? false;
+      _useNewTaskMaster = useNewModule;
     });
   }
 
@@ -306,6 +310,121 @@ class _SettingsDialogState extends State<SettingsDialog> {
     await prefs.setBool('enable_random_generator', value);
   }
 
+  Future<void> _handleTaskMasterNewToggle(bool value) async {
+    if (value) {
+      // Dialog konfirmasi untuk mengaktifkan
+      final bool? confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.science_outlined, color: Colors.deepPurple),
+              SizedBox(width: 8),
+              Text('Aktifkan Task Master New?'),
+            ],
+          ),
+          content: const Text(
+            'Task Master New adalah penulisan ulang modul pelacak kebiasaan yang sedang diuji.\n\n'
+            'Fitur ini mencakup dashboard Hari Ini, riwayat sparse, streak harian, '
+            'increment satu klik dengan undo, dan performa tinggi.\n\n'
+            'Catatan: Fitur ini berstatus eksperimental. Perubahan modul akan berlaku '
+            'setelah aplikasi dimulai ulang.',
+            style: TextStyle(fontSize: 13),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.deepPurple,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Aktifkan'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirm == true) {
+        setState(() {
+          _useNewTaskMaster = true;
+        });
+        await setTaskMasterUseNewModule(true);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Task Master New akan aktif setelah aplikasi dimulai ulang.',
+            ),
+            backgroundColor: Colors.deepPurple,
+          ),
+        );
+      }
+    } else {
+      // Dialog konfirmasi untuk menonaktifkan
+      final bool? confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.orange),
+              SizedBox(width: 8),
+              Text('Kembali ke Modul Lama?'),
+            ],
+          ),
+          content: const Text(
+            'Perhatian sebelum menonaktifkan Task Master New:\n\n'
+            '• Riwayat baru tersimpan dalam file v2; modul lama dapat membacanya '
+            'tetapi tidak menampilkannya.\n'
+            '• Detail tertentu (seperti riwayat hari ini) bisa tidak sinkron bila '
+            'data diubah dari modul lama.\n\n'
+            'Perubahan modul akan berlaku setelah aplikasi dimulai ulang.',
+            style: TextStyle(fontSize: 13),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange[800],
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Nonaktifkan'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirm == true) {
+        setState(() {
+          _useNewTaskMaster = false;
+        });
+        await setTaskMasterUseNewModule(false);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Modul lama akan aktif setelah aplikasi dimulai ulang.',
+            ),
+            backgroundColor: Colors.blueGrey,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
@@ -453,6 +572,23 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 value: _enableRandomGenerator,
                 activeThumbColor: Colors.deepPurple,
                 onChanged: _handleRandomGeneratorToggle,
+              ),
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text(
+                'Task Master New',
+                style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+              ),
+              subtitle: const Text(
+                'Gunakan modul Task Master baru yang sedang diuji. '
+                'Perubahan berlaku setelah aplikasi dimulai ulang.',
+                style: TextStyle(fontSize: 11, color: Colors.black54),
+              ),
+              trailing: Switch(
+                value: _useNewTaskMaster,
+                activeThumbColor: Colors.deepPurple,
+                onChanged: _handleTaskMasterNewToggle,
               ),
             ),
           ],

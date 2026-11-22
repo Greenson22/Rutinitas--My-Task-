@@ -138,15 +138,16 @@ class TaskMasterController {
 
     File? jsonFile;
     try {
+      final legacyWritesEnabled = await isTaskMasterLegacyWritesEnabled();
       selectedBaseDir = await storageService.getBaseDirSetting();
       jsonFile = await storageService.getTargetJsonFile(
         selectedBaseDir,
-        createDirectory: taskMasterLegacyWritesEnabled,
+        createDirectory: legacyWritesEnabled,
       );
       fullJsonPath = jsonFile.path;
 
       String jsonString;
-      if (taskMasterLegacyWritesEnabled) {
+      if (legacyWritesEnabled) {
         jsonString = await storageService.loadOrInitializeJson(jsonFile);
       } else {
         if (!await jsonFile.exists()) {
@@ -212,7 +213,8 @@ class TaskMasterController {
   }
 
   Future<void> forceResetNewFile(File jsonFile) async {
-    if (!taskMasterLegacyWritesEnabled) {
+    final legacyWritesEnabled = await isTaskMasterLegacyWritesEnabled();
+    if (!legacyWritesEnabled) {
       debugPrint(
         'Task Master lama dalam mode baca-saja; buat file baru dilewati.',
       );
@@ -336,7 +338,8 @@ class TaskMasterController {
 
   // --- HAK CIPTA OPTIMISASI DI SINI ---
   Future<bool> incrementTaskCount(TaskItem task, BuildContext context) async {
-    if (!taskMasterLegacyWritesEnabled) {
+    final legacyWritesEnabled = await isTaskMasterLegacyWritesEnabled();
+    if (!legacyWritesEnabled) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -367,7 +370,8 @@ class TaskMasterController {
   }
 
   Future<bool> _addTimeToJurnal(String myTaskId, BuildContext context) async {
-    if (!taskMasterLegacyWritesEnabled) {
+    final legacyWritesEnabled = await isTaskMasterLegacyWritesEnabled();
+    if (!legacyWritesEnabled) {
       debugPrint(
         'Task Master lama dalam mode baca-saja; penulisan Jurnal dilewati.',
       );
@@ -539,7 +543,8 @@ class TaskMasterController {
   }
 
   Future<void> saveAllCategoriesToFile({bool shouldRefresh = true}) async {
-    if (!taskMasterLegacyWritesEnabled) {
+    final legacyWritesEnabled = await isTaskMasterLegacyWritesEnabled();
+    if (!legacyWritesEnabled) {
       debugPrint(
         'Task Master lama dalam mode baca-saja; penyimpanan kategori dilewati.',
       );

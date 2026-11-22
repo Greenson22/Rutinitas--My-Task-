@@ -1,8 +1,15 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rutinitasku/features/task_master/data/models/task_model.dart';
 import 'package:rutinitasku/features/task_master/presentation/controllers/task_master_controller.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
+
   group('edit kategori modul lama', () {
     test('mengganti nama dan ikon tidak menghapus key tak dikenal', () async {
       final controller = TaskMasterController(onUpdate: () {});

@@ -1,78 +1,60 @@
 # Rollback Task Master ke modul lama
 
-Dokumen ini dipakai bila Task Master New perlu dinonaktifkan setelah switch
-navigasi (tiket 15). Modul lama tetap ada di `lib/features/task_master/` dan
-hanya berfungsi sebagai fallback baca-saja selama saklar baru aktif.
+Dokumen ini dipakai bila Task Master New perlu dinonaktifkan. Sejak implementasi
+tiket 19 (Saklar Eksperimental Task Master New), modul tidak lagi dipilih lewat
+konstanta build, melainkan lewat saklar runtime di antarmuka Settings aplikasi
+tanpa perlu build ulang.
 
-## Ringkasan saklar
+Modul lama tetap ada di `lib/features/task_master/` dan berfungsi sebagai fallback
+aman dengan aturan satu penulis.
 
-Semua keputusan rollout ada di `lib/core/config/task_master_rollout.dart`:
+## Ringkasan saklar runtime
 
-```dart
-const bool taskMasterUseNewModule = true;
-const bool taskMasterLegacyWritesEnabled = !taskMasterUseNewModule;
-```
+Konfigurasi rollout dikelola terpusat di `lib/core/config/task_master_rollout.dart`:
 
-- `taskMasterUseNewModule` menentukan layar yang dibuka oleh `main.dart` dan
-  `DrawerMenu` melalui `TaskMasterEntry`.
-- `taskMasterLegacyWritesEnabled` diturunkan dari saklar pertama. Saat
-  `false`, penyimpanan kategori, reset file, penulisan Jurnal, dan editor JSON
-  mentah modul lama diblokir.
+- Preferensi disimpan di SharedPreferences dengan kunci `task_master_use_new_module` (default `false`).
+- Status penulis diturunkan dari preferensi tersebut:
+  - **Saat saklar mati (`false`)**: Modul lama (`features/task_master`) menjadi penulis aktif; modul baru dilarang menulis file data.
+  - **Saat saklar hidup (`true`)**: Modul baru (`features/task_master_new`) menjadi satu-satunya penulis; seluruh jalur tulis modul lama (penyimpanan kategori, increment, integrasi Jurnal, reset file, editor raw JSON) diblokir pada lapisan logika.
+- Status penulis dievaluasi secara dinamis saat operasi berlangsung, bukan dari salinan statis.
 
-## Prosedur rollback aplikasi
+## Prosedur rollback lewat Settings (Tanpa Build Ulang)
 
-1. Hentikan aplikasi.
-2. Ubah satu konstanta:
-
-   ```dart
-   const bool taskMasterUseNewModule = false;
-   ```
-
-   `taskMasterLegacyWritesEnabled` otomatis menjadi `true`.
-
-3. Jalankan `flutter pub get`, lalu build ulang aplikasi.
-4. Buka Task Master. Modul lama sekarang menjadi layar utama dan kembali boleh
-   menulis.
-5. Pastikan hanya satu versi yang berjalan. Jangan membuka Task Master New dan
-   modul lama secara bersamaan pada perangkat yang sama.
-6. Setelah yakin, jalankan `flutter analyze` dan `flutter test` untuk memastikan
-   tidak ada perubahan tak terduga.
+1. Buka aplikasi Rutinitasku.
+2. Buka menu samping (Drawer / Sidebar), lalu pilih **Pengaturan Folder Data** (Settings).
+3. Gulir ke section **Fitur Eksperimental**.
+4. Matikan switch **Task Master New**.
+5. Dialog konfirmasi akan muncul menjelaskan:
+   - Riwayat baru tersimpan dalam file v2; modul lama dapat membacanya tetapi tidak menampilkannya.
+   - Detail tertentu (seperti riwayat hari ini) bisa tidak sinkron bila data diubah dari modul lama.
+6. Tekan tombol **Nonaktifkan**.
+7. Preferensi tersimpan seketika di SharedPreferences. Muncul pemberitahuan bahwa perubahan akan berlaku setelah restart.
+8. Tutup dan mulai ulang (restart) aplikasi.
+9. Buka Task Master dari menu navigasi. Modul lama (`HomeScreen`) kini menjadi tampilan utama dan boleh menulis kembali.
 
 ## Pemulihan data
 
-File data tetap `my_tasks.json` di folder basis yang dipilih pengguna, sehingga
-rollback navigasi tidak memindahkan data.
+File data tetap `my_tasks.json` di direktori `mytask/` pada folder basis pengguna, sehingga rollback navigasi tidak memindahkan file data.
 
-1. Buka Task Master lalu area **Advanced** (versi baru) atau menu Task Master
-   lama untuk melihat lokasi file.
-2. Backup migrasi disimpan di area data Task Master dengan timestamp. Pilih
-   backup dari sebelum migrasi bila data hasil migrasi bermasalah.
-3. Di Task Master New, gunakan **Pulihkan backup** pada layar error atau dari
-   Data Center. Di modul lama, pulihkan file backup secara manual ke
-   `my_tasks.json` hanya saat aplikasi tertutup.
-4. Setelah memulihkan, buka Task Master dan periksa kategori, tugas, riwayat,
-   serta durasi Jurnal hari ini.
-5. Jangan mengedit `my_tasks.json` saat aplikasi berjalan. Gunakan editor JSON
-   Advanced yang memakai validasi dan atomic write.
+1. Model modul lama telah dilengkapi kemampuan *passthrough* field tak dikenal (tiket 17), sehingga field skema v2 (`history`, `kind`, `sortOrder`, `todayVisibility`) tetap terjaga dan tidak hilang saat pengguna mengedit data lewat modul lama.
+2. File terenkripsi tetap dapat dibuka dan ditulis dengan PIN sesi yang aktif di kedua modul.
+3. Backup migrasi otomatis tersimpan di folder data Task Master dengan timestamp. Bila diperlukan pemulihan manual, salin file backup ke `my_tasks.json` saat aplikasi tidak sedang aktif menulis.
 
 ## Verifikasi setelah rollback
 
-- Task Master membuka layar lama tanpa error.
-- Tambah/ubah kategori dan increment tugas bertahan setelah aplikasi dibuka
-  ulang.
-- Data Center masih dapat mengekspor dan mengimpor `my_tasks.json`.
-- Jurnal dan Checklist masih membaca kategori/tugas yang sama.
-- Bila enkripsi aktif, file tetap dapat dibaca dan ditulis dengan PIN sesi.
+Lakukan checklist verifikasi berikut setelah rollback ke modul lama:
 
-## Kembali ke Task Master New
+- [ ] Task Master membuka antarmuka modul lama (`HomeScreen` dengan CategoryGrid dan dialog kategori).
+- [ ] Menambah atau mengedit kategori berhasil tersimpan ke disk.
+- [ ] Melakukan increment tugas menaikkan hitungan dan tercatat di file.
+- [ ] Jalur penulisan modul baru tidak lagi aktif.
+- [ ] Bila enkripsi aktif, data tetap terbaca dan tersimpan dalam kondisi terenkripsi.
+- [ ] Jurnal dan Checklist tetap sinkron membaca data yang sama.
+- [ ] Data Center tetap dapat mengekspor dan mengimpor file `my_tasks.json`.
 
-Ulangi langkah 1–4 dengan nilai:
+## Mengaktifkan kembali Task Master New
 
-```dart
-const bool taskMasterUseNewModule = true;
-```
-
-`taskMasterLegacyWritesEnabled` otomatis kembali `false`.
-
-Migrasi bersifat idempoten, sehingga membuka file yang sudah v2 tidak
-menggandakan data.
+1. Buka Settings → **Fitur Eksperimental**.
+2. Hidupkan switch **Task Master New**.
+3. Konfirmasi dialog informasi fitur eksperimental.
+4. Restart aplikasi. Modul baru kembali menjadi tampilan utama dan satu-satunya penulis aktif.
