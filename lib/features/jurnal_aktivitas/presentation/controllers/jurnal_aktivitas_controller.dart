@@ -555,20 +555,37 @@ class JurnalAktivitasController {
   void addActivityDuration(TimeLogTask task, int minutes) {
     final String todayStr = getTodayDateString();
     int todayIdx = logs.indexWhere((entry) => entry.tanggal == todayStr);
-    if (todayIdx != -1) {
-      int taskIdx = logs[todayIdx].tasks.indexWhere((t) => t.id == task.id);
-      if (taskIdx != -1) {
-        logs[todayIdx].tasks[taskIdx].durasiMenit += minutes;
-        return;
-      }
+    if (todayIdx == -1) {
+      final newTodayEntry = TimeLogEntry(
+        tanggal: todayStr,
+        tasks: [
+          TimeLogTask(
+            id: task.id,
+            nama: task.nama,
+            durasiMenit: 0,
+            kategori: task.kategori,
+            linkedTaskIds: List.from(task.linkedTaskIds),
+          ),
+        ],
+      );
+      logs.add(newTodayEntry);
+      todayIdx = logs.length - 1;
     }
-    for (var logEntry in logs.reversed) {
-      int idx = logEntry.tasks.indexWhere((t) => t.id == task.id);
-      if (idx != -1) {
-        logEntry.tasks[idx].durasiMenit += minutes;
-        break;
-      }
+
+    int taskIdx = logs[todayIdx].tasks.indexWhere((t) => t.id == task.id);
+    if (taskIdx == -1) {
+      final newTask = TimeLogTask(
+        id: task.id,
+        nama: task.nama,
+        durasiMenit: 0,
+        kategori: task.kategori,
+        linkedTaskIds: List.from(task.linkedTaskIds),
+      );
+      logs[todayIdx].tasks.add(newTask);
+      taskIdx = logs[todayIdx].tasks.length - 1;
     }
+
+    logs[todayIdx].tasks[taskIdx].durasiMenit += minutes;
   }
 
   void addNewActivity(String activityName) {
