@@ -20,6 +20,10 @@ class TodayTaskTile extends StatelessWidget {
     this.onShowHistory,
     this.onChangeVisibility,
     this.isJournalLinked = false,
+    this.isReorderMode = false,
+    this.dragHandle,
+    this.onMoveUp,
+    this.onMoveDown,
   });
 
   final TodayTaskEntry entry;
@@ -28,6 +32,10 @@ class TodayTaskTile extends StatelessWidget {
   final VoidCallback? onShowHistory;
   final void Function(TodayVisibility visibility)? onChangeVisibility;
   final bool isJournalLinked;
+  final bool isReorderMode;
+  final Widget? dragHandle;
+  final VoidCallback? onMoveUp;
+  final VoidCallback? onMoveDown;
 
   Task get task => entry.task;
 
@@ -43,6 +51,10 @@ class TodayTaskTile extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (dragHandle != null) ...[
+            dragHandle!,
+            const SizedBox(width: 4),
+          ],
           Padding(
             padding: const EdgeInsets.only(top: 2),
             child: _kindIcon(task.kind),
@@ -124,91 +136,108 @@ class TodayTaskTile extends StatelessWidget {
               ],
             ),
           ),
-          if (onShowHistory != null)
+          if (isReorderMode) ...[
+            IconButton(
+              key: Key('moveTodayTaskUp_${task.id}'),
+              tooltip: 'Naikkan ${task.name}',
+              visualDensity: VisualDensity.compact,
+              onPressed: onMoveUp,
+              icon: const Icon(Icons.keyboard_arrow_up_rounded),
+            ),
+            IconButton(
+              key: Key('moveTodayTaskDown_${task.id}'),
+              tooltip: 'Turunkan ${task.name}',
+              visualDensity: VisualDensity.compact,
+              onPressed: onMoveDown,
+              icon: const Icon(Icons.keyboard_arrow_down_rounded),
+            ),
+          ] else ...[
+            if (onShowHistory != null)
+              Padding(
+                padding: const EdgeInsets.only(left: 2),
+                child: Semantics(
+                  label: 'Riwayat ${task.name}',
+                  child: IconButton(
+                    key: Key('taskHistory_${task.id}'),
+                    tooltip: 'Riwayat ${task.name}',
+                    onPressed: onShowHistory,
+                    style: IconButton.styleFrom(
+                      foregroundColor: Colors.blueGrey,
+                      minimumSize: const Size(48, 48),
+                      tapTargetSize: MaterialTapTargetSize.padded,
+                    ),
+                    icon: const Icon(Icons.history_rounded, size: 20),
+                  ),
+                ),
+              ),
             Padding(
               padding: const EdgeInsets.only(left: 2),
               child: Semantics(
-                label: 'Riwayat ${task.name}',
+                label: 'Tambah hitungan ${task.name}',
                 child: IconButton(
-                  key: Key('taskHistory_${task.id}'),
-                  tooltip: 'Riwayat ${task.name}',
-                  onPressed: onShowHistory,
+                  key: Key('dashboardIncrement_${task.id}'),
+                  tooltip: 'Tambah hitungan ${task.name}',
+                  onPressed: onIncrement,
                   style: IconButton.styleFrom(
-                    foregroundColor: Colors.blueGrey,
-                    minimumSize: const Size(48, 48),
-                    tapTargetSize: MaterialTapTargetSize.padded,
+                    backgroundColor: Colors.teal.withValues(alpha: 0.12),
+                    foregroundColor: Colors.teal,
                   ),
-                  icon: const Icon(Icons.history_rounded, size: 20),
+                  icon: const Icon(Icons.add_rounded),
                 ),
               ),
             ),
-          Padding(
-            padding: const EdgeInsets.only(left: 2),
-            child: Semantics(
-              label: 'Tambah hitungan ${task.name}',
-              child: IconButton(
-                key: Key('dashboardIncrement_${task.id}'),
-                tooltip: 'Tambah hitungan ${task.name}',
-                onPressed: onIncrement,
-                style: IconButton.styleFrom(
-                  backgroundColor: Colors.teal.withValues(alpha: 0.12),
-                  foregroundColor: Colors.teal,
-                ),
-                icon: const Icon(Icons.add_rounded),
+            if (onChangeVisibility != null)
+              PopupMenuButton<TodayVisibility>(
+                key: Key('todayTaskMenu_${task.id}'),
+                tooltip: 'Tampil di Hari Ini',
+                onSelected: onChangeVisibility,
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    key: Key('todayVisibilityOption_auto_${task.id}'),
+                    value: TodayVisibility.auto,
+                    child: Row(
+                      children: [
+                        if (task.todayVisibility == TodayVisibility.auto)
+                          const Icon(Icons.check, size: 18, color: Colors.indigo)
+                        else
+                          const SizedBox(width: 18),
+                        const SizedBox(width: 8),
+                        const Text('Otomatis'),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    key: Key('todayVisibilityOption_always_${task.id}'),
+                    value: TodayVisibility.always,
+                    child: Row(
+                      children: [
+                        if (task.todayVisibility == TodayVisibility.always)
+                          const Icon(Icons.check, size: 18, color: Colors.indigo)
+                        else
+                          const SizedBox(width: 18),
+                        const SizedBox(width: 8),
+                        const Text('Selalu'),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    key: Key('todayVisibilityOption_never_${task.id}'),
+                    value: TodayVisibility.never,
+                    child: Row(
+                      children: [
+                        if (task.todayVisibility == TodayVisibility.never)
+                          const Icon(Icons.check, size: 18, color: Colors.indigo)
+                        else
+                          const SizedBox(width: 18),
+                        const SizedBox(width: 8),
+                        const Text('Sembunyikan'),
+                      ],
+                    ),
+                  ),
+                ],
+                icon: const Icon(Icons.more_vert, size: 20, color: Colors.blueGrey),
               ),
-            ),
-          ),
-          if (onChangeVisibility != null)
-            PopupMenuButton<TodayVisibility>(
-              key: Key('todayTaskMenu_${task.id}'),
-              tooltip: 'Tampil di Hari Ini',
-              onSelected: onChangeVisibility,
-              itemBuilder: (context) => [
-                PopupMenuItem(
-                  key: Key('todayVisibilityOption_auto_${task.id}'),
-                  value: TodayVisibility.auto,
-                  child: Row(
-                    children: [
-                      if (task.todayVisibility == TodayVisibility.auto)
-                        const Icon(Icons.check, size: 18, color: Colors.indigo)
-                      else
-                        const SizedBox(width: 18),
-                      const SizedBox(width: 8),
-                      const Text('Otomatis'),
-                    ],
-                  ),
-                ),
-                PopupMenuItem(
-                  key: Key('todayVisibilityOption_always_${task.id}'),
-                  value: TodayVisibility.always,
-                  child: Row(
-                    children: [
-                      if (task.todayVisibility == TodayVisibility.always)
-                        const Icon(Icons.check, size: 18, color: Colors.indigo)
-                      else
-                        const SizedBox(width: 18),
-                      const SizedBox(width: 8),
-                      const Text('Selalu'),
-                    ],
-                  ),
-                ),
-                PopupMenuItem(
-                  key: Key('todayVisibilityOption_never_${task.id}'),
-                  value: TodayVisibility.never,
-                  child: Row(
-                    children: [
-                      if (task.todayVisibility == TodayVisibility.never)
-                        const Icon(Icons.check, size: 18, color: Colors.indigo)
-                      else
-                        const SizedBox(width: 18),
-                      const SizedBox(width: 8),
-                      const Text('Sembunyikan'),
-                    ],
-                  ),
-                ),
-              ],
-              icon: const Icon(Icons.more_vert, size: 20, color: Colors.blueGrey),
-            ),
+          ],
         ],
       ),
     );

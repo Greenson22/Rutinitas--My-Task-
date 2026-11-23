@@ -14,6 +14,7 @@ import '../controllers/task_master_controller.dart';
 import '../controllers/task_master_state.dart';
 import '../increment_flow.dart';
 import '../layout/task_master_layout.dart';
+import '../models/today_task_sort_mode.dart';
 import '../widgets/action_message_banner.dart';
 import '../widgets/category_card.dart' show CategoryAction;
 import '../widgets/category_delete_dialog.dart';
@@ -61,6 +62,11 @@ class _TaskMasterNewScreenState extends State<TaskMasterNewScreen> {
 
   /// Kategori yang sedang ditampilkan pada panel kanan desktop.
   String? _selectedCategoryId;
+
+  /// Pengurutan tugas di Hari Ini.
+  TodayTaskSortMode _todaySortMode = TodayTaskSortMode.defaultOrder;
+  bool _todayReorderMode = false;
+  List<String> _todayCustomOrder = const [];
 
   final FocusNode _searchFocusNode = FocusNode(debugLabel: 'taskSearch');
   final GlobalKey<CategoryDetailScreenState> _desktopDetailKey =
@@ -162,11 +168,6 @@ class _TaskMasterNewScreenState extends State<TaskMasterNewScreen> {
                     tooltip: 'Advanced',
                     onPressed: _openAdvanced,
                     icon: const Icon(Icons.science_outlined),
-                  ),
-                  IconButton(
-                    tooltip: 'Muat ulang data',
-                    onPressed: _controller.load,
-                    icon: const Icon(Icons.refresh),
                   ),
                 ],
               ),
@@ -275,9 +276,33 @@ class _TaskMasterNewScreenState extends State<TaskMasterNewScreen> {
                     journalMinutesToday: _controller.journalTodayMinutes,
                   ),
                   const SizedBox(height: 20),
-                  _SectionHeader(
-                    title: 'Hari Ini',
-                    trailing: '${todayTasks.length} tugas',
+                  _TodaySectionHeader(
+                    taskCount: todayTasks.length,
+                    sortMode: _todaySortMode,
+                    isReorderMode: _todayReorderMode,
+                    onSortModeChanged: (mode) {
+                      setState(() {
+                        _todaySortMode = mode;
+                        if (mode != TodayTaskSortMode.custom) {
+                          _todayReorderMode = false;
+                        }
+                      });
+                    },
+                    onToggleReorderMode: () {
+                      setState(() {
+                        _todayReorderMode = !_todayReorderMode;
+                        if (_todayReorderMode) {
+                          _todaySortMode = TodayTaskSortMode.custom;
+                          final sorted = sortTodayTasks(
+                            todayTasks,
+                            mode: _todaySortMode,
+                            todayKey: todayKey,
+                            customOrder: _todayCustomOrder,
+                          );
+                          _todayCustomOrder = sorted.map((e) => e.task.id).toList();
+                        }
+                      });
+                    },
                   ),
                   const SizedBox(height: 8),
                   if (todayTasks.isEmpty)
@@ -314,41 +339,111 @@ class _TaskMasterNewScreenState extends State<TaskMasterNewScreen> {
     );
   }
 
-  Widget _buildTodayCard(List<TodayTaskEntry> todayTasks, String todayKey) {
+  Widget _buildTodayCard(List<TodayTaskEntry> rawTodayTasks, String todayKey) {
+    final todayTasks = sortTodayTasks(
+      rawTodayTasks,
+      mode: _todaySortMode,
+      todayKey: todayKey,
+      customOrder: _todayCustomOrder,
+    );
+
     return Card(
       elevation: 1.5,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
-        child: Column(
-          children: [
-            for (var i = 0; i < todayTasks.length; i++) ...[
-              if (i > 0) const Divider(height: 1),
-              TodayTaskTile(
-                entry: todayTasks[i],
-                todayKey: todayKey,
-                isJournalLinked: _controller.isTaskLinkedToJournal(
-                  todayTasks[i].task.id,
-                ),
-                onChangeVisibility: (visibility) {
-                  _controller.setTaskVisibility(
-                    categoryId: todayTasks[i].category.id,
-                    taskId: todayTasks[i].task.id,
-                    todayVisibility: visibility,
+        child: _todayReorderMode
+            ? ReorderableListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                buildDefaultDragHandles: false,
+                itemCount: todayTasks.length,
+                onReorder: (oldIndex, newIndex) {
+                  final target = newIndex > oldIndex ? newIndex - 1 : newIndex;
+                  if (target == oldIndex) return;
+                  _reorderTodayTask(todayTasks, oldIndex, target);
+                },
+                itemBuilder: (context, i) {
+                  final item = todayTasks[i];
+                  return Column(
+                    key: Key('todayReorderTaskItem_${item.task.id}'),
+                    children: [
+                      if (i > 0) const Divider(height: 1),
+                      TodayTaskTile(
+                        entry: item,
+                        todayKey: todayKey,
+                        isJournalLinked: _controller.isTaskLinkedToJournal(
+                          item.task.id,
+                        ),
+                        isReorderMode: true,
+                        dragHandle: ReorderableDragStartListener(
+                          index: i,
+                          child: Semantics(
+                            label: 'Pegang untuk mengubah urutan ${item.task.name}',
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                              child: Icon(
+                                Icons.drag_indicator_rounded,
+                                color: Colors.blueGrey,
+                              ),
+                            ),
+                          ),
+                        ),
+                        onMoveUp: i > 0
+                            ? () => _reorderTodayTask(todayTasks, i, i - 1)
+                            : null,
+                        onMoveDown: i < todayTasks.length - 1
+                            ? () => _reorderTodayTask(todayTasks, i, i + 1)
+                            : null,
+                        onIncrement: () {},
+                      ),
+                    ],
                   );
                 },
-                onIncrement: () => incrementTaskWithFeedback(
-                  context,
-                  _controller,
-                  todayTasks[i].task,
-                ),
-                onShowHistory: () => _showTaskHistory(todayTasks[i].task),
+              )
+            : Column(
+                children: [
+                  for (var i = 0; i < todayTasks.length; i++) ...[
+                    if (i > 0) const Divider(height: 1),
+                    TodayTaskTile(
+                      entry: todayTasks[i],
+                      todayKey: todayKey,
+                      isJournalLinked: _controller.isTaskLinkedToJournal(
+                        todayTasks[i].task.id,
+                      ),
+                      onChangeVisibility: (visibility) {
+                        _controller.setTaskVisibility(
+                          categoryId: todayTasks[i].category.id,
+                          taskId: todayTasks[i].task.id,
+                          todayVisibility: visibility,
+                        );
+                      },
+                      onIncrement: () => incrementTaskWithFeedback(
+                        context,
+                        _controller,
+                        todayTasks[i].task,
+                      ),
+                      onShowHistory: () => _showTaskHistory(todayTasks[i].task),
+                    ),
+                  ],
+                ],
               ),
-            ],
-          ],
-        ),
       ),
     );
+  }
+
+  void _reorderTodayTask(
+    List<TodayTaskEntry> currentList,
+    int oldIndex,
+    int newIndex,
+  ) {
+    final list = List<TodayTaskEntry>.from(currentList);
+    final moved = list.removeAt(oldIndex);
+    list.insert(newIndex, moved);
+    setState(() {
+      _todaySortMode = TodayTaskSortMode.custom;
+      _todayCustomOrder = list.map((e) => e.task.id).toList();
+    });
   }
 
   /// Layout desktop: daftar kategori di kiri dan dashboard/detail di kanan.
@@ -561,9 +656,33 @@ class _TaskMasterNewScreenState extends State<TaskMasterNewScreen> {
               journalMinutesToday: _controller.journalTodayMinutes,
             ),
             const SizedBox(height: 20),
-            _SectionHeader(
-              title: 'Hari Ini',
-              trailing: '${todayTasks.length} tugas',
+            _TodaySectionHeader(
+              taskCount: todayTasks.length,
+              sortMode: _todaySortMode,
+              isReorderMode: _todayReorderMode,
+              onSortModeChanged: (mode) {
+                setState(() {
+                  _todaySortMode = mode;
+                  if (mode != TodayTaskSortMode.custom) {
+                    _todayReorderMode = false;
+                  }
+                });
+              },
+              onToggleReorderMode: () {
+                setState(() {
+                  _todayReorderMode = !_todayReorderMode;
+                  if (_todayReorderMode) {
+                    _todaySortMode = TodayTaskSortMode.custom;
+                    final sorted = sortTodayTasks(
+                      todayTasks,
+                      mode: _todaySortMode,
+                      todayKey: todayKey,
+                      customOrder: _todayCustomOrder,
+                    );
+                    _todayCustomOrder = sorted.map((e) => e.task.id).toList();
+                  }
+                });
+              },
             ),
             const SizedBox(height: 8),
             if (todayTasks.isEmpty)
@@ -939,6 +1058,156 @@ class _TaskMasterNewScreenState extends State<TaskMasterNewScreen> {
     if (succeeded && mounted && _selectedCategoryId == category.id) {
       setState(() => _selectedCategoryId = null);
     }
+  }
+}
+
+class _TodaySectionHeader extends StatelessWidget {
+  const _TodaySectionHeader({
+    required this.taskCount,
+    required this.sortMode,
+    required this.isReorderMode,
+    required this.onSortModeChanged,
+    required this.onToggleReorderMode,
+  });
+
+  final int taskCount;
+  final TodayTaskSortMode sortMode;
+  final bool isReorderMode;
+  final ValueChanged<TodayTaskSortMode> onSortModeChanged;
+  final VoidCallback onToggleReorderMode;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            'Hari Ini',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: Colors.blueGrey[800],
+              letterSpacing: 0.2,
+            ),
+          ),
+        ),
+        if (taskCount > 0) ...[
+          IconButton(
+            key: const Key('todayReorderButton'),
+            tooltip: isReorderMode ? 'Selesai atur urutan' : 'Atur urutan manual',
+            visualDensity: VisualDensity.compact,
+            onPressed: onToggleReorderMode,
+            icon: Icon(
+              isReorderMode ? Icons.check_rounded : Icons.swap_vert_rounded,
+              size: 20,
+              color: isReorderMode ? Colors.indigo : Colors.blueGrey,
+            ),
+          ),
+          PopupMenuButton<TodayTaskSortMode>(
+            key: const Key('todaySortMenuButton'),
+            tooltip: 'Urutkan tugas Hari Ini',
+            icon: const Icon(Icons.sort_rounded, size: 20, color: Colors.blueGrey),
+            onSelected: onSortModeChanged,
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: TodayTaskSortMode.defaultOrder,
+                child: Row(
+                  children: [
+                    if (sortMode == TodayTaskSortMode.defaultOrder)
+                      const Icon(Icons.check, size: 18, color: Colors.indigo)
+                    else
+                      const SizedBox(width: 18),
+                    const SizedBox(width: 8),
+                    const Expanded(child: Text('Urutan bawaan (Kategori)')),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: TodayTaskSortMode.incompleteFirst,
+                child: Row(
+                  children: [
+                    if (sortMode == TodayTaskSortMode.incompleteFirst)
+                      const Icon(Icons.check, size: 18, color: Colors.indigo)
+                    else
+                      const SizedBox(width: 18),
+                    const SizedBox(width: 8),
+                    const Expanded(child: Text('Belum tercapai di atas')),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: TodayTaskSortMode.completedFirst,
+                child: Row(
+                  children: [
+                    if (sortMode == TodayTaskSortMode.completedFirst)
+                      const Icon(Icons.check, size: 18, color: Colors.indigo)
+                    else
+                      const SizedBox(width: 18),
+                    const SizedBox(width: 8),
+                    const Expanded(child: Text('Target tercapai di atas')),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: TodayTaskSortMode.nameAsc,
+                child: Row(
+                  children: [
+                    if (sortMode == TodayTaskSortMode.nameAsc)
+                      const Icon(Icons.check, size: 18, color: Colors.indigo)
+                    else
+                      const SizedBox(width: 18),
+                    const SizedBox(width: 8),
+                    const Expanded(child: Text('Nama tugas (A-Z)')),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: TodayTaskSortMode.nameDesc,
+                child: Row(
+                  children: [
+                    if (sortMode == TodayTaskSortMode.nameDesc)
+                      const Icon(Icons.check, size: 18, color: Colors.indigo)
+                    else
+                      const SizedBox(width: 18),
+                    const SizedBox(width: 8),
+                    const Expanded(child: Text('Nama tugas (Z-A)')),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: TodayTaskSortMode.categoryAsc,
+                child: Row(
+                  children: [
+                    if (sortMode == TodayTaskSortMode.categoryAsc)
+                      const Icon(Icons.check, size: 18, color: Colors.indigo)
+                    else
+                      const SizedBox(width: 18),
+                    const SizedBox(width: 8),
+                    const Expanded(child: Text('Nama kategori (A-Z)')),
+                  ],
+                ),
+              ),
+              if (sortMode == TodayTaskSortMode.custom)
+                const PopupMenuItem(
+                  value: TodayTaskSortMode.custom,
+                  child: Row(
+                    children: [
+                      Icon(Icons.check, size: 18, color: Colors.indigo),
+                      SizedBox(width: 8),
+                      Expanded(child: Text('Urutan manual (Kustom)')),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(width: 4),
+        ],
+        Text(
+          '$taskCount tugas',
+          style: TextStyle(fontSize: 11, color: Colors.blueGrey[600]),
+        ),
+      ],
+    );
   }
 }
 
