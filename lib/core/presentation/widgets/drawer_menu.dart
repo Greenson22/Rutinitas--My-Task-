@@ -22,6 +22,7 @@ class DrawerMenu extends StatefulWidget {
   final bool isNotesActive;
   final bool isRandomActive; // TAMBAHKAN PROPERTI INI
   final bool isDocumentsActive; // TAMBAHKAN PROPERTI UNTUK DOCUMENTS
+  final bool isAdShowcaseActive;
 
   const DrawerMenu({
     super.key,
@@ -32,6 +33,7 @@ class DrawerMenu extends StatefulWidget {
     this.isNotesActive = false,
     this.isRandomActive = false, // BERI DEFAULT VALUE FALSE
     this.isDocumentsActive = false, // BERI DEFAULT VALUE FALSE UNTUK DOCUMENTS
+    this.isAdShowcaseActive = false,
   });
 
   @override
