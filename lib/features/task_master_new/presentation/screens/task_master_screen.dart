@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/presentation/widgets/adaptive_banner_ad.dart';
 import '../../../../core/presentation/widgets/drawer_menu.dart';
 import '../../data/repositories/journal_gateway_factory.dart';
 import '../../data/repositories/task_repository_factory.dart';
@@ -184,6 +185,8 @@ class _TaskMasterNewScreenState extends State<TaskMasterNewScreen> {
                       icon: const Icon(Icons.add),
                       label: const Text('Kategori'),
                     ),
+              bottomNavigationBar:
+                  const AdaptiveBannerAd(adKey: 'task_master_banner'),
               body: _buildBody(state, layout),
             ),
           ),
