@@ -27,6 +27,10 @@ class DailySubject {
   // Menyimpan konfigurasi default apakah anak list langsung terbuka atau tertutup
   bool defaultExpanded;
 
+  // Mode DailyTracker
+  bool isDailyTrackerEnabled;
+  Map<String, List<DailyLogEntry>> dailyLogs;
+
   // Palet warna standar yang estetis untuk memudahkan pengguna memilih warna kustom
   static const List<Map<String, dynamic>> customPalletColor = [
     {'nama': 'Teal', 'bg': 4281166415, 'text': 4294967295},
@@ -77,13 +81,27 @@ class DailySubject {
     this.endDate,
     this.isMarkdownEnabled = false,
     this.defaultExpanded = false,
-  });
+    this.isDailyTrackerEnabled = false,
+    Map<String, List<DailyLogEntry>>? dailyLogs,
+  }) : dailyLogs = dailyLogs ?? {};
 
   factory DailySubject.fromJson(Map<String, dynamic> json) {
     var subMatList = json['sub_materi'] as List? ?? [];
     List<SubSubjectItem> parsedList = subMatList
         .map((i) => SubSubjectItem.fromJson(i))
         .toList();
+
+    Map<String, List<DailyLogEntry>> parsedDailyLogs = {};
+    if (json['dailyLogs'] != null && json['dailyLogs'] is Map) {
+      final rawLogs = json['dailyLogs'] as Map;
+      rawLogs.forEach((key, value) {
+        if (value is List) {
+          parsedDailyLogs[key.toString()] = value
+              .map((e) => DailyLogEntry.fromJson(Map<String, dynamic>.from(e as Map)))
+              .toList();
+        }
+      });
+    }
 
     return DailySubject(
       subjectName: json['nama_materi'] ?? '',
@@ -110,6 +128,8 @@ class DailySubject {
       endDate: json['endDate'],
       isMarkdownEnabled: json['isMarkdownEnabled'] ?? false,
       defaultExpanded: json['defaultExpanded'] ?? false,
+      isDailyTrackerEnabled: json['isDailyTrackerEnabled'] ?? false,
+      dailyLogs: parsedDailyLogs,
     );
   }
 
@@ -137,6 +157,10 @@ class DailySubject {
       'endDate': endDate,
       'isMarkdownEnabled': isMarkdownEnabled,
       'defaultExpanded': defaultExpanded,
+      'isDailyTrackerEnabled': isDailyTrackerEnabled,
+      'dailyLogs': dailyLogs.map(
+        (key, list) => MapEntry(key, list.map((e) => e.toJson()).toList()),
+      ),
     };
   }
 
@@ -350,6 +374,64 @@ class SubSubjectItem {
     } else {
       progress = 'belum';
     }
+  }
+}
+
+class DailyLogEntry {
+  final String itemName;
+  final String progress;
+  final String itemType;
+  final int currentValue;
+  final int targetValue;
+  final List<DailyLogEntry> children;
+
+  const DailyLogEntry({
+    required this.itemName,
+    required this.progress,
+    required this.itemType,
+    required this.currentValue,
+    required this.targetValue,
+    this.children = const [],
+  });
+
+  factory DailyLogEntry.fromSubSubjectItem(SubSubjectItem item) {
+    return DailyLogEntry(
+      itemName: item.subjectName,
+      progress: item.progress,
+      itemType: item.itemType,
+      currentValue: item.currentValue,
+      targetValue: item.targetValue,
+      children: item.subMateri
+          .map((child) => DailyLogEntry.fromSubSubjectItem(child))
+          .toList(),
+    );
+  }
+
+  factory DailyLogEntry.fromJson(Map<String, dynamic> json) {
+    var rawChildren = json['children'] as List? ?? [];
+    List<DailyLogEntry> parsedChildren = rawChildren
+        .map((e) => DailyLogEntry.fromJson(Map<String, dynamic>.from(e as Map)))
+        .toList();
+
+    return DailyLogEntry(
+      itemName: json['itemName'] ?? '',
+      progress: json['progress'] ?? 'belum',
+      itemType: json['itemType'] ?? 'normal',
+      currentValue: json['currentValue'] ?? 0,
+      targetValue: json['targetValue'] ?? 0,
+      children: parsedChildren,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'itemName': itemName,
+      'progress': progress,
+      'itemType': itemType,
+      'currentValue': currentValue,
+      'targetValue': targetValue,
+      'children': children.map((e) => e.toJson()).toList(),
+    };
   }
 }
 

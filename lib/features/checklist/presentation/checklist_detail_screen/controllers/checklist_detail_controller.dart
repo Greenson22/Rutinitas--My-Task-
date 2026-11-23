@@ -593,4 +593,72 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
 
     saveGroupData();
   }
+
+  // =========================================================================
+  // OPERASI INTI DAILY TRACKER
+  // =========================================================================
+
+  /// Menyimpan snapshot status seluruh item checklist hari ini secara rekursif.
+  /// Jika sudah ada entri di hari yang sama, data akan di-overwrite.
+  Future<void> saveTodayLog(DailySubject subject) async {
+    final now = DateTime.now();
+    final String todayKey =
+        '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+
+    final List<DailyLogEntry> entries = subject.subMateri
+        .map((item) => DailyLogEntry.fromSubSubjectItem(item))
+        .toList();
+
+    subject.dailyLogs[todayKey] = entries;
+    await saveGroupData();
+  }
+
+  /// Menampilkan dialog konfirmasi dan mereset status semua item checklist
+  /// ke 'belum' dan currentValue ke 0 secara rekursif tanpa mengubah dailyLogs.
+  Future<bool> resetForNewDay(DailySubject subject) async {
+    final bool confirm =
+        await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Reset Hari Baru?'),
+            content: Text(
+              'Apakah Anda yakin ingin mereset seluruh item pada "${subject.subjectName}" untuk memulai hari baru? Status centang akan dikosongkan, namun riwayat DailyTracker yang sudah tersimpan tetap aman.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Batal'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+                child: const Text(
+                  'Ya, Reset',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (!confirm) return false;
+
+    void resetRecursive(List<SubSubjectItem> items) {
+      for (var item in items) {
+        item.progress = 'belum';
+        item.currentValue = 0;
+        if (item.subMateri.isNotEmpty) {
+          resetRecursive(item.subMateri);
+        }
+      }
+    }
+
+    setState(() {
+      resetRecursive(subject.subMateri);
+    });
+
+    await saveGroupData();
+    return true;
+  }
 }
