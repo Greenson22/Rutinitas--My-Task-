@@ -11,7 +11,16 @@ import '../../../task_master/data/models/task_model.dart';
 import '../../data/models/time_log_model.dart';
 
 class JurnalAktivitasController {
-  final StorageService _storageService = StorageService();
+  final StorageService _storageService;
+  final DateTime Function() _clock;
+
+  JurnalAktivitasController({
+    StorageService? storageService,
+    DateTime Function()? clock,
+  })  : _storageService = storageService ?? StorageService(),
+        _clock = clock ?? DateTime.now {
+    currentActiveMonth = _clock();
+  }
 
   // State yang diekspos ke UI (Menyimpan log bulan aktif & template tugas hari ini)
   List<TimeLogEntry> logs = [];
@@ -19,7 +28,7 @@ class JurnalAktivitasController {
   String baseDir = '';
 
   // Referensi waktu saat ini untuk sistem partisi file bulanan
-  DateTime currentActiveMonth = DateTime.now();
+  late DateTime currentActiveMonth;
 
   bool isLoading = true;
   bool isEditMode = false;
@@ -28,7 +37,7 @@ class JurnalAktivitasController {
   int defaultIncrementMinutes = 30;
 
   String getTodayDateString() {
-    final now = DateTime.now();
+    final now = _clock();
     return "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
   }
 
@@ -53,6 +62,7 @@ class JurnalAktivitasController {
   Future<void> loadData({required VoidCallback onNotify}) async {
     isLoading = true;
     isJurnalFileCorrupted = false;
+    currentActiveMonth = _clock();
     onNotify();
 
     File? jsonFile;
@@ -144,7 +154,7 @@ class JurnalAktivitasController {
       }
 
       // 4. Gabungkan (Merge) Kerangka Template dengan Riwayat Hari Ini
-      final DateTime now = DateTime.now();
+      final DateTime now = _clock();
       if (currentActiveMonth.year == now.year &&
           currentActiveMonth.month == now.month) {
         final String todayStr = getTodayDateString();
