@@ -661,4 +661,23 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
     await saveGroupData();
     return true;
   }
+
+  /// Menghapus seluruh riwayat dailyLogs pada DailySubject.
+  Future<void> deleteDailyLog(DailySubject subject) async {
+    setState(() {
+      subject.dailyLogs.clear();
+    });
+    await saveGroupData();
+  }
+
+  /// Menghapus entri dailyLogs yang memiliki key diawali dengan yearMonth (format yyyy-MM).
+  Future<void> deleteDailyLogsByMonth(
+    DailySubject subject,
+    String yearMonth,
+  ) async {
+    setState(() {
+      subject.dailyLogs.removeWhere((key, _) => key.startsWith(yearMonth));
+    });
+    await saveGroupData();
+  }
 }
