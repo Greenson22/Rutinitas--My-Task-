@@ -411,6 +411,7 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
     return Scaffold(
       body: GroupedSectionLayout<DocumentGroup>(
         title: 'My Documents',
+        forceShowMenu: true,
         drawer: const DrawerMenu(isDocumentsActive: true),
         isLoading: _controller.isLoading,
         isEmpty: _controller.allGroupRaw.isEmpty && allKeys.isEmpty,
