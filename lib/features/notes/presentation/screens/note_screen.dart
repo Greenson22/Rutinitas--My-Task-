@@ -1087,6 +1087,7 @@ class _NotesScreenState extends State<NotesScreen> {
     return Scaffold(
       body: GroupedSectionLayout<NoteGroup>(
         title: 'Note Groups',
+        forceShowMenu: true,
         drawer: const DrawerMenu(isNotesActive: true),
         isLoading: _isLoading,
         isEmpty: allRenderedKeys.isEmpty,
