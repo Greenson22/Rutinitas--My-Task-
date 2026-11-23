@@ -11,6 +11,7 @@ import '../../../features/about/presentation/pages/about_page.dart';
 import 'package:rutinitasku/core/presentation/widgets/settings_dialog.dart';
 import '../../../features/random/presentation/screens/random_screen.dart'; // IMPORT SCREEN BARU
 import '../../../features/documents/presentation/screens/document_screen.dart'; // IMPORT SKRIN MYDOCUMENTS BARU
+import '../../../features/ad_banner_showcase/presentation/screens/ad_banner_showcase_screen.dart';
 import '../../services/storage_service.dart';
 import 'task_master_entry.dart';
 
@@ -44,12 +45,14 @@ class _DrawerMenuState extends State<DrawerMenu> {
   final StorageService _storageService = StorageService();
   String _selectedBaseDir = 'Documents';
   bool _showRandomGeneratorMenu = false; // State visibilitas Random Generator
+  bool _showAdBannerShowcaseMenu = false; // State visibilitas Ad Banner Showcase
 
   @override
   void initState() {
     super.initState();
     _loadBaseDir();
     _checkRandomMenuVisibility(); // Jalankan pengecekan visibilitas menu
+    _checkAdShowcaseMenuVisibility();
   }
 
   Future<void> _loadBaseDir() async {
@@ -64,6 +67,16 @@ class _DrawerMenuState extends State<DrawerMenu> {
     if (mounted) {
       setState(() {
         _showRandomGeneratorMenu = isAllowed;
+      });
+    }
+  }
+
+  Future<void> _checkAdShowcaseMenuVisibility() async {
+    final prefs = await SharedPreferences.getInstance();
+    final isAllowed = prefs.getBool('enable_ad_banner_showcase') ?? false;
+    if (mounted) {
+      setState(() {
+        _showAdBannerShowcaseMenu = isAllowed;
       });
     }
   }
@@ -89,6 +102,7 @@ class _DrawerMenuState extends State<DrawerMenu> {
     ).then((_) {
       // Refresh visibilitas menu setelah dialog pengaturan ditutup
       _checkRandomMenuVisibility();
+      _checkAdShowcaseMenuVisibility();
     });
   }
 
@@ -111,6 +125,8 @@ class _DrawerMenuState extends State<DrawerMenu> {
             ? const RandomScreen() // DUKUNG REFRESH DI RANDOM SCREEN
             : widget.isDocumentsActive
             ? const MyDocumentsScreen() // DUKUNG REFRESH DI DOCUMENTS SCREEN
+            : widget.isAdShowcaseActive
+            ? const AdBannerShowcaseScreen()
             : const TaskMasterEntry(),
       ),
     );
@@ -174,7 +190,8 @@ class _DrawerMenuState extends State<DrawerMenu> {
                 !widget.isPromptActive &&
                 !widget.isNotesActive &&
                 !widget.isRandomActive &&
-                !widget.isDocumentsActive, // PASTIKAN MATI JIKA DOCUMENTS AKTIF
+                !widget.isDocumentsActive &&
+                !widget.isAdShowcaseActive,
             onTap: () {
               Navigator.pop(context);
               Navigator.pushReplacement(
@@ -283,6 +300,25 @@ class _DrawerMenuState extends State<DrawerMenu> {
                     context,
                     MaterialPageRoute(
                       builder: (context) => const RandomScreen(),
+                    ),
+                  );
+                }
+              },
+            ),
+
+          // Menu Ad Banner Showcase (Dikondisikan berdasarkan pengaturan Fitur Eksperimental)
+          if (_showAdBannerShowcaseMenu)
+            _buildMenuTile(
+              icon: Icons.view_carousel_outlined,
+              title: 'Ad Banner Showcase',
+              isActive: widget.isAdShowcaseActive,
+              onTap: () {
+                Navigator.pop(context);
+                if (!widget.isAdShowcaseActive) {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const AdBannerShowcaseScreen(),
                     ),
                   );
                 }

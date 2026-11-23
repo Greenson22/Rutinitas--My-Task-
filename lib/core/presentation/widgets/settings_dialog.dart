@@ -28,6 +28,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
   bool _isEncryptionEnabled = false;
   bool _rememberPassword = false;
   bool _enableRandomGenerator = false; // Flag untuk status Random Generator
+  bool _enableAdBannerShowcase = false; // Flag untuk status Ad Banner Showcase
   bool _useNewTaskMaster = false; // Flag untuk Task Master New
 
   final StorageService _storageService = StorageService();
@@ -48,6 +49,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
       // Membaca status fitur eksperimental, defaultnya false
       _enableRandomGenerator =
           prefs.getBool('enable_random_generator') ?? false;
+      _enableAdBannerShowcase =
+          prefs.getBool('enable_ad_banner_showcase') ?? false;
       _useNewTaskMaster = useNewModule;
     });
   }
@@ -308,6 +311,14 @@ class _SettingsDialogState extends State<SettingsDialog> {
       _enableRandomGenerator = value;
     });
     await prefs.setBool('enable_random_generator', value);
+  }
+
+  Future<void> _handleAdBannerShowcaseToggle(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _enableAdBannerShowcase = value;
+    });
+    await prefs.setBool('enable_ad_banner_showcase', value);
   }
 
   Future<void> _handleTaskMasterNewToggle(bool value) async {
@@ -572,6 +583,22 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 value: _enableRandomGenerator,
                 activeThumbColor: Colors.deepPurple,
                 onChanged: _handleRandomGeneratorToggle,
+              ),
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text(
+                'Ad Banner Showcase',
+                style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+              ),
+              subtitle: const Text(
+                'Tampilkan semua slot banner iklan sekaligus dalam satu layar.',
+                style: TextStyle(fontSize: 11, color: Colors.black54),
+              ),
+              trailing: Switch(
+                value: _enableAdBannerShowcase,
+                activeThumbColor: Colors.deepPurple,
+                onChanged: _handleAdBannerShowcaseToggle,
               ),
             ),
             ListTile(
