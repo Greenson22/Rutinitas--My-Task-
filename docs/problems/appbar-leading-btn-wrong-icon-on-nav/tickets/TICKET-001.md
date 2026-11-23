@@ -6,7 +6,7 @@
 | **Bug Ref** | BUG-001 |
 | **Type** | Bug Fix — Core Widget |
 | **Priority** | 🔴 P0 — Blocker |
-| **Status** | `TODO` |
+| **Status** | `DONE` |
 | **Estimasi** | 30 menit |
 | **Depends On** | — (tidak ada prasyarat) |
 | **Diblokir Oleh** | TICKET-002, TICKET-003, TICKET-004, TICKET-005 |
@@ -28,11 +28,11 @@ Saat ini `GroupedSectionLayout` **tidak meneruskan** nilai `forceShowMenu` ke `B
 
 ## Acceptance Criteria
 
-- [ ] `GroupedSectionLayout` memiliki field dan parameter `forceShowMenu` bertipe `bool`
-- [ ] Default value `forceShowMenu = true` (aman karena semua caller saat ini adalah root-screen)
-- [ ] Nilai `forceShowMenu` diteruskan ke `BaseDetailAppBar` di method `build()`
-- [ ] Widget dapat di-compile tanpa error
-- [ ] `flutter analyze` tidak mengeluarkan warning/error baru
+- [x] `GroupedSectionLayout` memiliki field dan parameter `forceShowMenu` bertipe `bool`
+- [x] Default value `forceShowMenu = true` (aman karena semua caller saat ini adalah root-screen)
+- [x] Nilai `forceShowMenu` diteruskan ke `BaseDetailAppBar` di method `build()`
+- [x] Widget dapat di-compile tanpa error
+- [x] `flutter analyze` tidak mengeluarkan warning/error baru
 
 ---
 
@@ -135,3 +135,21 @@ Expected output: `No issues found!` (atau hanya info yang sudah ada sebelumnya)
 
 > [!NOTE]
 > `base_detail_app_bar.dart` **tidak perlu diubah** — logika `forceShowMenu` di sana sudah benar. Hanya `grouped_section_layout.dart` yang perlu dimodifikasi di tiket ini.
+
+---
+
+## Log Eksekusi & Catatan
+
+- **Waktu Mulai**: 2026-11-23 12:34:38 +08:00
+- **Waktu Selesai**: 2026-11-23 12:41:30 +08:00
+- **Durasi**: ~7 menit
+- **Perubahan yang Dilakukan**:
+  - Menambahkan properti `final bool forceShowMenu;` pada `GroupedSectionLayout` di [grouped_section_layout.dart](file:///home/lemon-manis-22/Projects/Flutter/rutinitasku/lib/core/presentation/widgets/grouped_section_layout.dart).
+  - Menambahkan parameter `this.forceShowMenu = true` ke constructor `GroupedSectionLayout`.
+  - Meneruskan `forceShowMenu: widget.forceShowMenu` ke `BaseDetailAppBar` di dalam `_GroupedSectionLayoutState.build()`.
+  - Menambahkan unit/widget test di [grouped_section_layout_test.dart](file:///home/lemon-manis-22/Projects/Flutter/rutinitasku/test/core/presentation/widgets/grouped_section_layout_test.dart) untuk memverifikasi default `forceShowMenu == true` dan saat di-override `forceShowMenu == false`.
+- **Hasil Verifikasi**:
+  - `flutter analyze lib/core/presentation/widgets/grouped_section_layout.dart`: Tidak ada warning/error baru.
+  - `flutter test test/core/presentation/widgets/grouped_section_layout_test.dart`: 2/2 tests passed.
+  - `flutter test` (Full test suite): 315 tests passed.
+  - Code Review (Standards & Spec): Lulus tanpa temuan.

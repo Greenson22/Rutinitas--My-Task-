@@ -22,6 +22,7 @@ class GroupedSectionLayout<T> extends StatefulWidget {
   final Widget? additionalAction;
   final Widget?
   appBarTrailingAction; // <-- PROPERTI BARU: Penampung aksi ikon status enkripsi global
+  final bool forceShowMenu;
   final List<String> sectionKeys;
   final Map<String, List<T>> groupedItems;
   final Widget Function(
@@ -61,6 +62,7 @@ class GroupedSectionLayout<T> extends StatefulWidget {
     this.onAddPressed,
     this.additionalAction,
     this.appBarTrailingAction, // <-- MENDAFTARKAN KE KONSTRUKTOR LAYOUT
+    this.forceShowMenu = true,
     required this.sectionKeys,
     required this.groupedItems,
     required this.sectionHeaderBuilder,
@@ -94,6 +96,7 @@ class _GroupedSectionLayoutState<T> extends State<GroupedSectionLayout<T>> {
       backgroundColor: Colors.grey[200],
       appBar: BaseDetailAppBar(
         pageTitle: widget.title,
+        forceShowMenu: widget.forceShowMenu,
         isSelectMode: widget.isSelectMode,
         selectedItemsCount: widget.selectedItemsCount,
         isSearchMode: _internalSearchMode,
