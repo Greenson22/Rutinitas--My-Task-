@@ -777,6 +777,7 @@ class _DailyScreenState extends State<DailyScreen> {
     return Scaffold(
       body: GroupedSectionLayout<ChecklistGroup>(
         title: 'Checklist Groups',
+        forceShowMenu: true,
         drawer: const DrawerMenu(isDailyActive: true),
         isLoading: _controller.isLoading,
         isEmpty: _controller.allGroupRaw.isEmpty && allKeys.isEmpty,

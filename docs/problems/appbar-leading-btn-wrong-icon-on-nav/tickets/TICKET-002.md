@@ -6,7 +6,7 @@
 | **Bug Ref** | BUG-001 |
 | **Type** | Bug Fix — Screen Level |
 | **Priority** | 🟠 P1 — High |
-| **Status** | `TODO` |
+| **Status** | `DONE` |
 | **Estimasi** | 15 menit |
 | **Depends On** | ✅ TICKET-001 harus selesai terlebih dahulu |
 | **File Target** | `lib/features/checklist/presentation/checklist_screen/checklist_screen.dart` |
@@ -25,10 +25,10 @@
 
 ## Acceptance Criteria
 
-- [ ] `GroupedSectionLayout` di `DailyScreen` menerima `forceShowMenu: true`
-- [ ] Setelah navigasi dari Drawer ke My Checklist, AppBar menampilkan ikon ☰ (menu)
-- [ ] Menekan ☰ membuka Drawer dengan benar
-- [ ] Navigasi ke detail checklist (tap group) masih berfungsi normal dengan ikon ←
+- [x] `GroupedSectionLayout` di `DailyScreen` menerima `forceShowMenu: true`
+- [x] Setelah navigasi dari Drawer ke My Checklist, AppBar menampilkan ikon ☰ (menu)
+- [x] Menekan ☰ membuka Drawer dengan benar
+- [x] Navigasi ke detail checklist (tap group) masih berfungsi normal dengan ikon ←
 
 ---
 
@@ -76,3 +76,18 @@ body: GroupedSectionLayout<ChecklistGroup>(
 ```bash
 flutter analyze lib/features/checklist/presentation/checklist_screen/checklist_screen.dart
 ```
+
+---
+
+## Log Eksekusi & Catatan
+
+- **Waktu Mulai**: 2026-11-23 12:47:18 +08:00
+- **Waktu Selesai**: 2026-11-23 12:53:30 +08:00
+- **Durasi**: ~6 menit
+- **Perubahan yang Dilakukan**:
+  - Menambahkan `forceShowMenu: true` pada `GroupedSectionLayout<ChecklistGroup>` di [checklist_screen.dart](file:///home/lemon-manis-22/Projects/Flutter/rutinitasku/lib/features/checklist/presentation/checklist_screen/checklist_screen.dart#L780).
+- **Hasil Verifikasi**:
+  - `flutter analyze lib/features/checklist/presentation/checklist_screen/checklist_screen.dart`: Tidak ada warning atau error baru.
+  - `flutter test`: 315 tests passed tanpa kegagalan/regresi.
+  - Code Review (Standards & Spec): Lulus dan disetujui (Status: APPROVED).
+
