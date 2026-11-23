@@ -145,7 +145,8 @@ void main() {
     await tester.tap(find.byKey(const Key('advancedButton')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('taskMasterAdvancedSheet')), findsOneWidget);
-    expect(find.byKey(const Key('openSettingsTile')), findsOneWidget);
+    expect(find.byKey(const Key('openRawJsonEditorTile')), findsOneWidget);
+    expect(find.byKey(const Key('openSettingsTile')), findsNothing);
 
     await tester.tap(find.byKey(const Key('openRawJsonEditorTile')));
     await tester.pumpAndSettle();
@@ -193,4 +194,29 @@ void main() {
     expect(find.text('Akar JSON harus berupa objek.'), findsOneWidget);
     expect(repository.rawSaveCount, 0);
   });
+
+  testWidgets(
+    'sheet Advanced hanya memiliki satu tile (Editor JSON mentah) dan tidak ada jalur Settings di Task Master New',
+    (tester) async {
+      final repository = FakeTaskRepository(data: sampleData());
+
+      await tester.pumpWidget(app(repository));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('advancedButton')));
+      await tester.pumpAndSettle();
+
+      final sheet = find.byKey(const Key('taskMasterAdvancedSheet'));
+      expect(sheet, findsOneWidget);
+
+      final listTiles = find.descendant(
+        of: sheet,
+        matching: find.byType(ListTile),
+      );
+      expect(listTiles, findsOneWidget);
+      expect(find.byKey(const Key('openRawJsonEditorTile')), findsOneWidget);
+      expect(find.byKey(const Key('openSettingsTile')), findsNothing);
+      expect(find.text('Pengaturan folder & enkripsi'), findsNothing);
+    },
+  );
 }

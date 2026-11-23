@@ -9,11 +9,9 @@ class TaskMasterAdvancedSheet extends StatelessWidget {
   const TaskMasterAdvancedSheet({
     super.key,
     required this.onOpenRawJsonEditor,
-    required this.onOpenSettings,
   });
 
   final VoidCallback onOpenRawJsonEditor;
-  final VoidCallback onOpenSettings;
 
   @override
   Widget build(BuildContext context) {
@@ -49,18 +47,6 @@ class TaskMasterAdvancedSheet extends StatelessWidget {
                 'tetap aktif.',
               ),
               onTap: onOpenRawJsonEditor,
-            ),
-            ListTile(
-              key: const Key('openSettingsTile'),
-              leading: const Icon(
-                Icons.settings_outlined,
-                color: Colors.blueGrey,
-              ),
-              title: const Text('Pengaturan folder & enkripsi'),
-              subtitle: const Text(
-                'Ubah folder data atau aktifkan enkripsi dari layar ini.',
-              ),
-              onTap: onOpenSettings,
             ),
           ],
         ),

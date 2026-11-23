@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/presentation/widgets/drawer_menu.dart';
-import '../../../../core/presentation/widgets/settings_dialog.dart';
-import '../../../../core/services/storage_service.dart';
 import '../../data/repositories/journal_gateway_factory.dart';
 import '../../data/repositories/task_repository_factory.dart';
 import '../../domain/entities/category.dart';
@@ -41,16 +39,12 @@ class TaskMasterNewScreen extends StatefulWidget {
     this.repository,
     this.journalGateway,
     this.clock,
-    this.storageService,
   });
 
   /// Dapat diinjeksi pada widget test.
   final TaskRepository? repository;
   final JournalGateway? journalGateway;
   final DateTime Function()? clock;
-
-  /// Dipakai untuk membuka pengaturan folder/enkripsi dari modul baru.
-  final StorageService? storageService;
 
   @override
   State<TaskMasterNewScreen> createState() => _TaskMasterNewScreenState();
@@ -751,16 +745,12 @@ class _TaskMasterNewScreenState extends State<TaskMasterNewScreen> {
       builder: (sheetContext) => TaskMasterAdvancedSheet(
         onOpenRawJsonEditor: () =>
             Navigator.of(sheetContext).pop(_AdvancedAction.rawJson),
-        onOpenSettings: () =>
-            Navigator.of(sheetContext).pop(_AdvancedAction.settings),
       ),
     );
     if (!mounted) return;
     switch (action) {
       case _AdvancedAction.rawJson:
         await _openRawJsonEditor();
-      case _AdvancedAction.settings:
-        await _openSettings();
       case null:
         break;
     }
@@ -779,36 +769,6 @@ class _TaskMasterNewScreenState extends State<TaskMasterNewScreen> {
       const SnackBar(
         content: Text('JSON berhasil disimpan dengan atomic write.'),
         backgroundColor: Colors.teal,
-      ),
-    );
-  }
-
-  Future<void> _openSettings() async {
-    final storage = widget.storageService ?? StorageService();
-    final String currentBaseDir;
-    try {
-      currentBaseDir = await storage.getBaseDirSetting();
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Pengaturan folder tidak dapat dibuka.'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-      return;
-    }
-    if (!mounted) return;
-
-    await showDialog<void>(
-      context: context,
-      builder: (_) => SettingsDialog(
-        currentBaseDir: currentBaseDir,
-        onSave: (newDir) async {
-          await storage.saveBaseDirSetting(newDir);
-          await _controller.load();
-        },
-        onEncryptionToggled: _controller.load,
       ),
     );
   }
@@ -1013,7 +973,7 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-enum _AdvancedAction { rawJson, settings }
+enum _AdvancedAction { rawJson }
 
 class _CategorySectionHeader extends StatelessWidget {
   const _CategorySectionHeader({

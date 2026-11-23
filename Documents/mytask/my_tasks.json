@@ -1,0 +1,28 @@
+{
+  "categories": [
+    {
+      "unknownCategoryField": "dipertahankan",
+      "name": "Kebugaran",
+      "icon": "💪",
+      "isHidden": false,
+      "tasks": [
+        {
+          "history": {
+            "2026-11-18": 3
+          },
+          "id": "t1",
+          "name": "Push up",
+          "count": 0,
+          "date": null,
+          "checked": false,
+          "countToday": 0,
+          "lastUpdated": "",
+          "targetCountToday": 0,
+          "type": 0,
+          "targetCount": 0,
+          "isActive": true
+        }
+      ]
+    }
+  ]
+}
