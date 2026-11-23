@@ -707,6 +707,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
     return Scaffold(
       body: GroupedSectionLayout<DailySubject>(
         title: '${currentGroup.icon} ${currentGroup.groupName}',
+        forceShowMenu: false,
         isLoading: false,
 
         // Jika seksi visual di layout kosong DAN data raw kosong, baru tampilkan empty placeholder[cite: 5]

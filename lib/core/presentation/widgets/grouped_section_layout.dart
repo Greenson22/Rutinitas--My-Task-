@@ -62,7 +62,7 @@ class GroupedSectionLayout<T> extends StatefulWidget {
     this.onAddPressed,
     this.additionalAction,
     this.appBarTrailingAction, // <-- MENDAFTARKAN KE KONSTRUKTOR LAYOUT
-    this.forceShowMenu = true,
+    this.forceShowMenu = false,
     required this.sectionKeys,
     required this.groupedItems,
     required this.sectionHeaderBuilder,
