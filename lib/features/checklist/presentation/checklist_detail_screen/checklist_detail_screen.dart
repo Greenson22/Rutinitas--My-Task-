@@ -844,14 +844,59 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Text(
-                subject.subjectName,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: subject.isHidden ? Colors.grey : Colors.black87,
-                ),
-                textAlign: TextAlign.center,
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Flexible(
+                    child: Text(
+                      subject.subjectName,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: subject.isHidden ? Colors.grey : Colors.black87,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  if (subject.isDailyTrackerEnabled) ...[
+                    const SizedBox(width: 4),
+                    Container(
+                      key: const Key('daily_tracker_badge'),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 1.5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.teal.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          color: Colors.teal.withValues(alpha: 0.5),
+                          width: 0.8,
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.calendar_today_rounded,
+                            size: 10,
+                            color: Colors.teal,
+                          ),
+                          SizedBox(width: 3),
+                          Text(
+                            'Daily',
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.teal,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
               ),
               if (subject.isDateActive && subject.date != null) ...[
                 const SizedBox(height: 2),
@@ -1114,6 +1159,31 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
               ],
               const PopupMenuDivider(),
               PopupMenuItem<String>(
+                value: 'TOGGLE_DAILY_TRACKER',
+                child: Row(
+                  children: [
+                    Icon(
+                      subject.isDailyTrackerEnabled
+                          ? Icons.event_busy_rounded
+                          : Icons.event_available_rounded,
+                      size: 18,
+                      color: Colors.teal,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        subject.isDailyTrackerEnabled
+                            ? 'Nonaktifkan DailyTracker'
+                            : 'Aktifkan DailyTracker',
+                        style: const TextStyle(fontSize: 13),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              PopupMenuItem<String>(
                 value: 'TOGGLE_VISIBILITY',
                 child: Row(
                   children: [
@@ -1181,6 +1251,12 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
 
               if (value == 'DELETE_ACTION') {
                 deleteItemFromSection(originalSection.items, subject);
+              } else if (value == 'TOGGLE_DAILY_TRACKER') {
+                setState(() {
+                  subject.isDailyTrackerEnabled =
+                      !subject.isDailyTrackerEnabled;
+                });
+                saveGroupData();
               } else if (value == 'EDIT_RAW_JSON') {
                 _showEditJsonDialog(
                   subject,
