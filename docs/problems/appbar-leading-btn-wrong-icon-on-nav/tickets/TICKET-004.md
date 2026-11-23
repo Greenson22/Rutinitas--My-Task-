@@ -6,7 +6,7 @@
 | **Bug Ref** | BUG-001 |
 | **Type** | Bug Fix — Screen Level |
 | **Priority** | 🟠 P1 — High |
-| **Status** | `TODO` |
+| **Status** | `DONE` |
 | **Estimasi** | 15 menit |
 | **Depends On** | ✅ TICKET-001 harus selesai terlebih dahulu |
 | **File Target** | `lib/features/prompt/presentation/screens/prompt_screen.dart` |
@@ -25,10 +25,10 @@
 
 ## Acceptance Criteria
 
-- [ ] `GroupedSectionLayout` di `PromptScreen` menerima `forceShowMenu: true`
-- [ ] Setelah navigasi dari Drawer ke My Prompt, AppBar menampilkan ikon ☰ (menu)
-- [ ] Menekan ☰ membuka Drawer dengan benar
-- [ ] Navigasi ke Prompt Detail (tap prompt group) masih berfungsi normal dengan ikon ←
+- [x] `GroupedSectionLayout` di `PromptScreen` menerima `forceShowMenu: true`
+- [x] Setelah navigasi dari Drawer ke My Prompt, AppBar menampilkan ikon ☰ (menu)
+- [x] Menekan ☰ membuka Drawer dengan benar
+- [x] Navigasi ke Prompt Detail (tap prompt group) masih berfungsi normal dengan ikon ←
 
 ---
 
@@ -76,3 +76,17 @@ body: GroupedSectionLayout<PromptGroup>(
 ```bash
 flutter analyze lib/features/prompt/presentation/screens/prompt_screen.dart
 ```
+
+---
+
+## Log Eksekusi & Catatan
+
+- **Waktu Mulai**: 2026-11-23 13:01:30 +08:00
+- **Waktu Selesai**: 2026-11-23 13:03:00 +08:00
+- **Durasi**: ~1.5 menit
+- **Perubahan yang Dilakukan**:
+  - Menambahkan `forceShowMenu: true` pada `GroupedSectionLayout<PromptGroup>` di [prompt_screen.dart](file:///home/lemon-manis-22/Projects/Flutter/rutinitasku/lib/features/prompt/presentation/screens/prompt_screen.dart#L808).
+- **Hasil Verifikasi**:
+  - `flutter analyze lib/features/prompt/presentation/screens/prompt_screen.dart`: Tidak ada warning atau error baru.
+  - `flutter test`: 315 tests passed tanpa kegagalan (100% test suite lulus).
+  - Code Review (Standards & Spec): Lulus dan sesuai spesifikasi.

@@ -806,6 +806,7 @@ class _PromptScreenState extends State<PromptScreen> {
         return Scaffold(
           body: GroupedSectionLayout<PromptGroup>(
             title: 'Prompt Groups',
+            forceShowMenu: true,
             drawer: const DrawerMenu(isPromptActive: true),
             floatingActionButton: null,
             isLoading: _controller.isLoading,
