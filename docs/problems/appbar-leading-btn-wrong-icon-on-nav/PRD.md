@@ -2,7 +2,7 @@
 
 **Nomor Masalah:** BUG-001  
 **Tanggal Dibuat:** 2026-11-23  
-**Status:** `OPEN`  
+**Status:** `RESOLVED`  
 **Prioritas:** `HIGH` — Menyebabkan layar hitam (black screen) & UX rusak  
 **Reporter:** User  
 **Feature Area:** Navigation / AppBar / Drawer Menu  
