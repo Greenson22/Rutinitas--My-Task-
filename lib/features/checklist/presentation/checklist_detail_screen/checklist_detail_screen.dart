@@ -1175,9 +1175,14 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                           MaterialPageRoute(
                             builder: (context) => DailyTrackerHistoryScreen(
                               subject: subject,
+                              onDeleteAll: () => deleteDailyLog(subject),
+                              onDeleteByMonth: (month) =>
+                                  deleteDailyLogsByMonth(subject, month),
                             ),
                           ),
-                        );
+                        ).then((_) {
+                          if (mounted) setState(() {});
+                        });
                       },
                       child: const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
