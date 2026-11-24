@@ -31,6 +31,10 @@ class _SettingsDialogState extends State<SettingsDialog> {
   bool _enableAdBannerShowcase = false; // Flag untuk status Ad Banner Showcase
   bool _useNewTaskMaster = false; // Flag untuk Task Master New
 
+  // Settings Tampilan Checklist
+  bool _sectionDefaultCollapsed = false;
+  bool _sectionRememberCollapseState = true;
+
   final StorageService _storageService = StorageService();
 
   @override
@@ -52,6 +56,12 @@ class _SettingsDialogState extends State<SettingsDialog> {
       _enableAdBannerShowcase =
           prefs.getBool('enable_ad_banner_showcase') ?? false;
       _useNewTaskMaster = useNewModule;
+
+      // Settings Tampilan Checklist
+      _sectionDefaultCollapsed =
+          prefs.getBool('section_default_collapsed') ?? false;
+      _sectionRememberCollapseState =
+          prefs.getBool('section_remember_collapse_state') ?? true;
     });
   }
 
@@ -436,6 +446,22 @@ class _SettingsDialogState extends State<SettingsDialog> {
     }
   }
 
+  Future<void> _handleSectionDefaultCollapsedToggle(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('section_default_collapsed', value);
+    setState(() {
+      _sectionDefaultCollapsed = value;
+    });
+  }
+
+  Future<void> _handleSectionRememberCollapseStateToggle(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('section_remember_collapse_state', value);
+    setState(() {
+      _sectionRememberCollapseState = value;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
@@ -544,6 +570,61 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 onChanged: _isEncryptionEnabled
                     ? _handleRememberPasswordToggle
                     : null,
+              ),
+            ),
+            const Divider(),
+            const SizedBox(height: 10),
+
+            // ==================== TAMPILAN CHECKLIST ====================
+            Row(
+              children: [
+                Icon(
+                  Icons.checklist_rounded,
+                  color: Colors.teal[700],
+                  size: 18,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Tampilan Checklist',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.teal[900],
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text(
+                'Tutup seksi secara default',
+                style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+              ),
+              subtitle: const Text(
+                'Seksi dimulai dalam kondisi terlipat saat halaman detail checklist dibuka.',
+                style: TextStyle(fontSize: 11, color: Colors.black54),
+              ),
+              trailing: Switch(
+                value: _sectionDefaultCollapsed,
+                activeThumbColor: Colors.teal,
+                onChanged: _handleSectionDefaultCollapsedToggle,
+              ),
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text(
+                'Ingat status lipatan seksi',
+                style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+              ),
+              subtitle: const Text(
+                'Simpan status terbuka/terlipat masing-masing seksi antar sesi.',
+                style: TextStyle(fontSize: 11, color: Colors.black54),
+              ),
+              trailing: Switch(
+                value: _sectionRememberCollapseState,
+                activeThumbColor: Colors.teal,
+                onChanged: _handleSectionRememberCollapseStateToggle,
               ),
             ),
             const Divider(),

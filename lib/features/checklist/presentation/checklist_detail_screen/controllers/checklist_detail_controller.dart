@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:rutinitasku/core/utils/atomic_write_helper.dart';
 import '../../../../../core/services/storage_service.dart';
 import '../../../../../core/utils/crypto_helper.dart'; // <--- IMPORT BARU UNTUK ENKRIPSI
@@ -19,10 +20,58 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
   String searchQuery = '';
   static const String defaultSectionName = "Seksi Utama";
 
+  // State Collapse Per-Seksi
+  bool sectionDefaultCollapsed = false;
+  bool sectionRememberCollapseState = true;
+  final Map<String, bool> sessionCollapsedSections = {};
+
   @override
   void initState() {
     super.initState();
     currentGroup = widget.group;
+    _loadCollapseSettings();
+  }
+
+  Future<void> _loadCollapseSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    final defaultCollapsed = prefs.getBool('section_default_collapsed') ?? false;
+    final rememberState = prefs.getBool('section_remember_collapse_state') ?? true;
+
+    setState(() {
+      sectionDefaultCollapsed = defaultCollapsed;
+      sectionRememberCollapseState = rememberState;
+
+      for (var section in currentGroup.allList) {
+        if (rememberState) {
+          sessionCollapsedSections[section.sectionName] = section.isCollapsed;
+        } else {
+          sessionCollapsedSections[section.sectionName] = defaultCollapsed;
+        }
+      }
+    });
+  }
+
+  bool isSectionCollapsed(String sectionName) {
+    if (sessionCollapsedSections.containsKey(sectionName)) {
+      return sessionCollapsedSections[sectionName]!;
+    }
+    return sectionDefaultCollapsed;
+  }
+
+  Future<void> toggleSectionCollapsed(ChecklistSection section) async {
+    final currentCollapsed = isSectionCollapsed(section.sectionName);
+    final newCollapsed = !currentCollapsed;
+
+    setState(() {
+      sessionCollapsedSections[section.sectionName] = newCollapsed;
+      if (sectionRememberCollapseState) {
+        section.isCollapsed = newCollapsed;
+      }
+    });
+
+    if (sectionRememberCollapseState) {
+      await saveGroupData();
+    }
   }
 
   void updateSearchQuery(String query) {

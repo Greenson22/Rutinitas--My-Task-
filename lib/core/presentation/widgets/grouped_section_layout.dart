@@ -42,6 +42,8 @@ class GroupedSectionLayout<T> extends StatefulWidget {
   gridItemBuilder;
   final double childAspectRatio;
 
+  final bool Function(String sectionKey)? isSectionCollapsed;
+
   const GroupedSectionLayout({
     super.key,
     required this.title,
@@ -68,6 +70,7 @@ class GroupedSectionLayout<T> extends StatefulWidget {
     required this.sectionHeaderBuilder,
     required this.gridItemBuilder,
     this.childAspectRatio = 1.15,
+    this.isSectionCollapsed,
   });
 
   @override
@@ -183,6 +186,9 @@ class _GroupedSectionLayoutState<T> extends State<GroupedSectionLayout<T>> {
                         )) {
                       return const SizedBox.shrink();
                     }
+                    final bool isCollapsed =
+                        widget.isSectionCollapsed?.call(sectionName) ?? false;
+
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -192,26 +198,34 @@ class _GroupedSectionLayoutState<T> extends State<GroupedSectionLayout<T>> {
                           sectionName,
                           _internalEditMode,
                         ),
-                        itemsInSection.isEmpty
-                            ? const Padding(
-                                padding: EdgeInsets.only(
-                                  left: 24,
-                                  top: 12,
-                                  bottom: 12,
-                                ),
-                                child: Text(
-                                  'Belum ada item di seksi ini.',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey,
+                        AnimatedCrossFade(
+                          firstChild: const SizedBox.shrink(),
+                          secondChild: itemsInSection.isEmpty
+                              ? const Padding(
+                                  padding: EdgeInsets.only(
+                                    left: 24,
+                                    top: 12,
+                                    bottom: 12,
                                   ),
+                                  child: Text(
+                                    'Belum ada item di seksi ini.',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                )
+                              : _buildResponsiveGrid(
+                                  itemsInSection,
+                                  constraints,
+                                  currentAspectRatio,
                                 ),
-                              )
-                            : _buildResponsiveGrid(
-                                itemsInSection,
-                                constraints,
-                                currentAspectRatio,
-                              ),
+                          crossFadeState: isCollapsed
+                              ? CrossFadeState.showFirst
+                              : CrossFadeState.showSecond,
+                          duration: const Duration(milliseconds: 250),
+                          sizeCurve: Curves.easeInOut,
+                        ),
                       ],
                     );
                   },

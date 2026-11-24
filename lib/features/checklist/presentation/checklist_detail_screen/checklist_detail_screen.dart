@@ -670,6 +670,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
 
         sectionKeys: allKeys,
         groupedItems: allItems,
+        isSectionCollapsed: (key) => isSectionCollapsed(key),
 
         isSelectMode: false,
         selectedItemsCount: 0,
@@ -728,6 +729,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
           }
 
           final section = displayedSections[index];
+          final bool collapsed = isSectionCollapsed(section.sectionName);
 
           return InteractiveSectionHeader(
             sectionName: section.sectionName,
@@ -737,6 +739,8 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
             isFirst: index == 0,
             isLast: index == visibleKeysCount - 1,
             isHidden: section.isHidden,
+            isCollapsed: collapsed,
+            onToggleCollapse: () => toggleSectionCollapsed(section),
             onToggleVisibility: () => toggleSectionHidden(section),
             onToggleEdit: () {
               setState(() {

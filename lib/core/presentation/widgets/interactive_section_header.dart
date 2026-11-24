@@ -17,6 +17,8 @@ class InteractiveSectionHeader extends StatelessWidget {
   final VoidCallback onAddItem;
   final VoidCallback? onToggleVisibility;
   final bool? isHidden;
+  final VoidCallback? onToggleCollapse;
+  final bool? isCollapsed;
 
   const InteractiveSectionHeader({
     super.key,
@@ -34,6 +36,8 @@ class InteractiveSectionHeader extends StatelessWidget {
     required this.onAddItem,
     this.onToggleVisibility,
     this.isHidden,
+    this.onToggleCollapse,
+    this.isCollapsed,
   });
 
   @override
@@ -47,7 +51,7 @@ class InteractiveSectionHeader extends StatelessWidget {
         splashColor: themeColor.withOpacity(0.1),
         highlightColor: themeColor.withOpacity(0.05),
         onLongPress: onToggleEdit,
-        onTap: () {},
+        onTap: onToggleCollapse,
         child: AnimatedPadding(
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeInOut,
@@ -63,6 +67,17 @@ class InteractiveSectionHeader extends StatelessWidget {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      if (onToggleCollapse != null)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 6.0),
+                          child: Icon(
+                            isCollapsed == true
+                                ? Icons.chevron_right
+                                : Icons.expand_more,
+                            size: 20,
+                            color: themeColor,
+                          ),
+                        ),
                       Text(
                         displayedTitle,
                         style: TextStyle(
