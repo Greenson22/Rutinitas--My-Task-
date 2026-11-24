@@ -494,10 +494,7 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                     if (value == 'toggle_view') {
                       setState(() => isNoteViewMode = !isNoteViewMode);
                     } else if (value == 'toggle_md') {
-                      setState(() {
-                        isMarkdownEnabled = !isMarkdownEnabled;
-                        isNoteModified = true;
-                      });
+                      toggleMarkdownEnabled();
                     } else if (value == 'add_page') {
                       addNewNotePage();
                     } else if (value == 'delete_page') {
@@ -541,11 +538,13 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                             size: 18,
                           ),
                           const SizedBox(width: 10),
-                          Text(
-                            isMarkdownEnabled
-                                ? 'Markdown: Aktif'
-                                : 'Markdown: Nonaktif',
-                            style: const TextStyle(fontSize: 13),
+                          Expanded(
+                            child: Text(
+                              isMarkdownEnabled
+                                  ? 'Markdown: Aktif'
+                                  : 'Markdown: Nonaktif',
+                              style: const TextStyle(fontSize: 13),
+                            ),
                           ),
                         ],
                       ),

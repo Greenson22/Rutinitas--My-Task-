@@ -135,6 +135,14 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
     saveManualNote();
   }
 
+  void toggleMarkdownEnabled() {
+    setState(() {
+      isMarkdownEnabled = !isMarkdownEnabled;
+      widget.subject.isMarkdownEnabled = isMarkdownEnabled;
+    });
+    widget.onDataChanged();
+  }
+
   void _syncNoteDataToModel() {
     widget.subject.notePages = notePages;
     widget.subject.currentNotePage = currentNotePage;
