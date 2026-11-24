@@ -387,12 +387,17 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
         }
       }
 
-      if (item.accumulatorItemName != null &&
-          item.accumulatorItemName!.isNotEmpty) {
+      if ((item.accumulatorItemId != null && item.accumulatorItemId!.isNotEmpty) ||
+          (item.accumulatorItemName != null && item.accumulatorItemName!.isNotEmpty)) {
         List<SubSubjectItem> flattened = [];
         getAllItemsFlattened(widget.subject.subMateri, flattened);
         final accumulatorTarget = flattened.firstWhere(
-          (el) => el.subjectName == item.accumulatorItemName,
+          (el) {
+            if (item.accumulatorItemId != null && item.accumulatorItemId!.isNotEmpty) {
+              return el.id == item.accumulatorItemId;
+            }
+            return el.subjectName == item.accumulatorItemName;
+          },
           orElse: () => SubSubjectItem(subjectName: '', progress: 'belum'),
         );
 
@@ -427,7 +432,8 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
       }
 
       if (item.linkedExternalCardName != null &&
-          item.linkedExternalItemName != null) {
+          ((item.linkedExternalItemId != null && item.linkedExternalItemId!.isNotEmpty) ||
+              (item.linkedExternalItemName != null && item.linkedExternalItemName!.isNotEmpty))) {
         final externalCard = widget.allAvailableSubjects.firstWhere(
           (sub) => sub.subjectName == item.linkedExternalCardName,
           orElse: () =>
@@ -438,7 +444,12 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
           List<SubSubjectItem> extFlattened = [];
           getAllItemsFlattened(externalCard.subMateri, extFlattened);
           final extItemTarget = extFlattened.firstWhere(
-            (el) => el.subjectName == item.linkedExternalItemName,
+            (el) {
+              if (item.linkedExternalItemId != null && item.linkedExternalItemId!.isNotEmpty) {
+                return el.id == item.linkedExternalItemId;
+              }
+              return el.subjectName == item.linkedExternalItemName;
+            },
             orElse: () => SubSubjectItem(subjectName: '', progress: 'belum'),
           );
 
@@ -562,9 +573,12 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
   void updateItemNameAndRelationsData({
     required SubSubjectItem item,
     required String newName,
+    required String? linkedSubjectId,
     required String? linkedSubjectName,
+    required String? accumulatorItemId,
     required String? accumulatorItemName,
     required String? linkedExternalCardName,
+    required String? linkedExternalItemId,
     required String? linkedExternalItemName,
     required int parsedCurrent,
     required int parsedTarget,
@@ -573,9 +587,12 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
     saveToHistory();
     setState(() {
       item.subjectName = newName;
+      item.linkedSubjectId = linkedSubjectId;
       item.linkedSubjectName = linkedSubjectName;
+      item.accumulatorItemId = accumulatorItemId;
       item.accumulatorItemName = accumulatorItemName;
       item.linkedExternalCardName = linkedExternalCardName;
+      item.linkedExternalItemId = linkedExternalItemId;
       item.linkedExternalItemName = linkedExternalItemName;
 
       if (item.itemType == 'progress' || item.itemType == 'countdown') {
@@ -850,8 +867,8 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
 
   void validateAndSetLinkedProgress(List<SubSubjectItem> list) {
     for (var item in list) {
-      if (item.linkedSubjectName != null &&
-          item.linkedSubjectName!.isNotEmpty) {
+      if ((item.linkedSubjectId != null && item.linkedSubjectId!.isNotEmpty) ||
+          (item.linkedSubjectName != null && item.linkedSubjectName!.isNotEmpty)) {
         DailySubject targetSubject = DailySubject(
           subjectName: '',
           progress: 'belum',
@@ -861,7 +878,12 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
           for (var group in widget.allAvailableGroups!) {
             for (var section in group.allList) {
               final found = section.items.firstWhere(
-                (sub) => sub.subjectName == item.linkedSubjectName,
+                (sub) {
+                  if (item.linkedSubjectId != null && item.linkedSubjectId!.isNotEmpty) {
+                    if (sub.subjectName == item.linkedSubjectId) return true;
+                  }
+                  return sub.subjectName == item.linkedSubjectName;
+                },
                 orElse: () => DailySubject(
                   subjectName: '',
                   progress: 'belum',
@@ -878,7 +900,12 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
         }
         if (targetSubject.subjectName.isEmpty) {
           targetSubject = widget.allAvailableSubjects.firstWhere(
-            (sub) => sub.subjectName == item.linkedSubjectName,
+            (sub) {
+              if (item.linkedSubjectId != null && item.linkedSubjectId!.isNotEmpty) {
+                if (sub.subjectName == item.linkedSubjectId) return true;
+              }
+              return sub.subjectName == item.linkedSubjectName;
+            },
             orElse: () =>
                 DailySubject(subjectName: '', progress: 'belum', subMateri: []),
           );
@@ -930,7 +957,11 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
           for (var sub in section.items) {
             void updateLinkedItemsRecursive(List<SubSubjectItem> items) {
               for (var item in items) {
-                if (item.linkedSubjectName == widget.subject.subjectName) {
+                final bool isLinked = (item.linkedSubjectId != null &&
+                        item.linkedSubjectId!.isNotEmpty &&
+                        item.linkedSubjectId == widget.subject.subjectName) ||
+                    (item.linkedSubjectName == widget.subject.subjectName);
+                if (isLinked) {
                   if (widget.subject.progress == 'selesai') {
                     if (item.progress != 'selesai') {
                       item.progress = 'selesai';

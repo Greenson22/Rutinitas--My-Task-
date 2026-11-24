@@ -12,9 +12,12 @@ class EditItemRelationsDialog extends StatefulWidget {
   final Function({
     required SubSubjectItem item,
     required String newName,
+    required String? linkedSubjectId,
     required String? linkedSubjectName,
+    required String? accumulatorItemId,
     required String? accumulatorItemName,
     required String? linkedExternalCardName,
+    required String? linkedExternalItemId,
     required String? linkedExternalItemName,
     required int parsedCurrent,
     required int parsedTarget,
@@ -44,13 +47,16 @@ class _EditItemRelationsDialogState extends State<EditItemRelationsDialog> {
 
   ChecklistGroup? _selectedGroupTarget;
   List<DailySubject> _filteredCardTargets = [];
+  String? _localLinkedTargetId;
   String? _localLinkedTarget;
 
   List<SubSubjectItem> _progressOptions = [];
+  String? _localAccumulatorTargetId;
   String? _localAccumulatorTarget;
   DailySubject? _selectedExternalCard;
   List<SubSubjectItem> _externalCardProgressItems = [];
   String? _localExternalCardName;
+  String? _localExternalItemId;
   String? _localExternalItemName;
 
   late final List<ChecklistGroup> _validGroupsList;
@@ -66,9 +72,12 @@ class _EditItemRelationsDialogState extends State<EditItemRelationsDialog> {
       text: widget.item.targetValue.toString(),
     );
 
+    _localLinkedTargetId = widget.item.linkedSubjectId;
     _localLinkedTarget = widget.item.linkedSubjectName;
+    _localAccumulatorTargetId = widget.item.accumulatorItemId;
     _localAccumulatorTarget = widget.item.accumulatorItemName;
     _localExternalCardName = widget.item.linkedExternalCardName;
+    _localExternalItemId = widget.item.linkedExternalItemId;
     _localExternalItemName = widget.item.linkedExternalItemName;
 
     if (_localLinkedTarget != null && _localLinkedTarget!.isNotEmpty) {
@@ -101,9 +110,19 @@ class _EditItemRelationsDialogState extends State<EditItemRelationsDialog> {
         .where(
           (e) =>
               (e.itemType == 'progress' || e.itemType == 'countdown') &&
-              e.subjectName != widget.item.subjectName,
+              e.id != widget.item.id,
         )
         .toList();
+
+    if (_localAccumulatorTargetId != null) {
+      final accItem = _progressOptions.firstWhere(
+        (el) => el.id == _localAccumulatorTargetId,
+        orElse: () => SubSubjectItem(subjectName: '', progress: 'belum'),
+      );
+      if (accItem.subjectName.isNotEmpty) {
+        _localAccumulatorTarget = accItem.subjectName;
+      }
+    }
 
     if (_localExternalCardName != null) {
       _selectedExternalCard = widget.allAvailableSubjects.firstWhere(
@@ -121,6 +140,16 @@ class _EditItemRelationsDialogState extends State<EditItemRelationsDialog> {
               (el) => el.itemType == 'progress' || el.itemType == 'countdown',
             )
             .toList();
+
+        if (_localExternalItemId != null) {
+          final extItem = _externalCardProgressItems.firstWhere(
+            (el) => el.id == _localExternalItemId,
+            orElse: () => SubSubjectItem(subjectName: '', progress: 'belum'),
+          );
+          if (extItem.subjectName.isNotEmpty) {
+            _localExternalItemName = extItem.subjectName;
+          }
+        }
       } else {
         _selectedExternalCard = null;
       }
@@ -264,7 +293,12 @@ class _EditItemRelationsDialogState extends State<EditItemRelationsDialog> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: _localExternalItemName,
+              value: _localExternalItemId ??
+                  (_externalCardProgressItems.any((el) => el.subjectName == _localExternalItemName)
+                      ? _externalCardProgressItems
+                          .firstWhere((el) => el.subjectName == _localExternalItemName)
+                          .id
+                      : null),
               disabledHint: const Text('Pilih Card target terlebih dahulu...'),
               decoration: InputDecoration(
                 labelText: 'Pilih Item Angka Target',
@@ -283,18 +317,34 @@ class _EditItemRelationsDialogState extends State<EditItemRelationsDialog> {
               ),
               items: _selectedExternalCard == null
                   ? null
-                  : _externalCardProgressItems
-                        .map(
-                          (el) => DropdownMenuItem<String>(
-                            value: el.subjectName,
-                            child: Text('Item: ${el.subjectName}'),
-                          ),
-                        )
-                        .toList(),
+                  : [
+                      const DropdownMenuItem<String>(
+                        value: null,
+                        child: Text('Tidak Dikaitkan Ke Item Tertentu'),
+                      ),
+                      ..._externalCardProgressItems.map(
+                        (el) => DropdownMenuItem<String>(
+                          value: el.id,
+                          child: Text('Item: ${el.subjectName}'),
+                        ),
+                      ),
+                    ],
               onChanged: _selectedExternalCard == null
                   ? null
-                  : (String? val) =>
-                        setState(() => _localExternalItemName = val),
+                  : (String? val) {
+                      setState(() {
+                        _localExternalItemId = val;
+                        if (val != null) {
+                          final match = _externalCardProgressItems.firstWhere(
+                            (el) => el.id == val,
+                            orElse: () => SubSubjectItem(subjectName: '', progress: 'belum'),
+                          );
+                          _localExternalItemName = match.subjectName.isNotEmpty ? match.subjectName : null;
+                        } else {
+                          _localExternalItemName = null;
+                        }
+                      });
+                    },
             ),
             const SizedBox(height: 16),
             const Divider(),
@@ -311,7 +361,12 @@ class _EditItemRelationsDialogState extends State<EditItemRelationsDialog> {
             ),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
-              value: _localAccumulatorTarget,
+              value: _localAccumulatorTargetId ??
+                  (_progressOptions.any((opt) => opt.subjectName == _localAccumulatorTarget)
+                      ? _progressOptions
+                          .firstWhere((opt) => opt.subjectName == _localAccumulatorTarget)
+                          .id
+                      : null),
               decoration: const InputDecoration(
                 labelText: 'Kaitkan Akumulasi Nilai Ke:',
                 border: OutlineInputBorder(),
@@ -325,14 +380,23 @@ class _EditItemRelationsDialogState extends State<EditItemRelationsDialog> {
                 ),
                 ..._progressOptions.map(
                   (opt) => DropdownMenuItem<String>(
-                    value: opt.subjectName,
+                    value: opt.id,
                     child: Text('Kumpul ke: ${opt.subjectName}'),
                   ),
                 ),
               ],
               onChanged: (String? val) {
                 setState(() {
-                  _localAccumulatorTarget = val;
+                  _localAccumulatorTargetId = val;
+                  if (val != null) {
+                    final match = _progressOptions.firstWhere(
+                      (opt) => opt.id == val,
+                      orElse: () => SubSubjectItem(subjectName: '', progress: 'belum'),
+                    );
+                    _localAccumulatorTarget = match.subjectName.isNotEmpty ? match.subjectName : null;
+                  } else {
+                    _localAccumulatorTarget = null;
+                  }
                 });
               },
             ),
@@ -363,6 +427,7 @@ class _EditItemRelationsDialogState extends State<EditItemRelationsDialog> {
                 setState(() {
                   _selectedGroupTarget = targetGroup;
                   _filteredCardTargets.clear();
+                  _localLinkedTargetId = null;
                   _localLinkedTarget = null;
                   if (targetGroup != null) {
                     for (var section in targetGroup.allList) {
@@ -407,7 +472,11 @@ class _EditItemRelationsDialogState extends State<EditItemRelationsDialog> {
                         .toList(),
               onChanged: _selectedGroupTarget == null
                   ? null
-                  : (String? val) => setState(() => _localLinkedTarget = val),
+                  : (String? val) => setState(() {
+                        _localLinkedTarget = val;
+                        // Catatan: DailySubject saat ini belum memiliki id, linkedSubjectId disimpan sama dengan val jika di-set
+                        _localLinkedTargetId = val;
+                      }),
             ),
           ],
         ),
@@ -432,13 +501,20 @@ class _EditItemRelationsDialogState extends State<EditItemRelationsDialog> {
               widget.onConfirm(
                 item: widget.item,
                 newName: newName,
+                linkedSubjectId: _selectedGroupTarget == null
+                    ? null
+                    : _localLinkedTargetId,
                 linkedSubjectName: _selectedGroupTarget == null
                     ? null
                     : _localLinkedTarget,
+                accumulatorItemId: _localAccumulatorTargetId,
                 accumulatorItemName: _localAccumulatorTarget,
                 linkedExternalCardName: _selectedExternalCard == null
                     ? null
                     : _localExternalCardName,
+                linkedExternalItemId: _selectedExternalCard == null
+                    ? null
+                    : _localExternalItemId,
                 linkedExternalItemName: _selectedExternalCard == null
                     ? null
                     : _localExternalItemName,
