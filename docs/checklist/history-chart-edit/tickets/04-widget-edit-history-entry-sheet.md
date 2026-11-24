@@ -36,22 +36,29 @@ Row: [TextButton Batal] [ElevatedButton Simpan (teal)]
 
 **Blocked by:** 01
 
-**Status:** todo
+**Status:** done
 
-- [ ] Bottom sheet menampilkan judul tanggal yang diformat ("24 November 2026").
-- [ ] Semua item (level 1 dan child-nya) tampil secara rekursif dengan indent.
-- [ ] Setiap item memiliki `SegmentedButton` / `ChoiceChip` untuk status (Belum / Sementara / Selesai).
-- [ ] Item bertipe `progress` atau `countdown` memiliki `TextField` untuk `currentValue`.
-- [ ] Nilai default setiap field sesuai dengan data snapshot yang diterima.
-- [ ] Tombol "Simpan" memanggil `onSave` dengan data terbaru dan menutup sheet.
-- [ ] Tombol "Batal" menutup sheet tanpa memanggil `onSave`.
-- [ ] Widget test: sheet merender semua item dari snapshot 3-entry.
-- [ ] Widget test: ubah status satu item → tap Simpan → `onSave` dipanggil dengan item yang sudah berubah.
-- [ ] Widget test: tap Batal → `onSave` tidak dipanggil.
-- [ ] Seluruh test suite lama tetap lulus 100%.
+- [x] Bottom sheet menampilkan judul tanggal yang diformat ("24 November 2026").
+- [x] Semua item (level 1 dan child-nya) tampil secara rekursif dengan indent.
+- [x] Setiap item memiliki `SegmentedButton` / `ChoiceChip` untuk status (Belum / Sementara / Selesai).
+- [x] Item bertipe `progress` atau `countdown` memiliki `TextField` untuk `currentValue`.
+- [x] Nilai default setiap field sesuai dengan data snapshot yang diterima.
+- [x] Tombol "Simpan" memanggil `onSave` dengan data terbaru dan menutup sheet.
+- [x] Tombol "Batal" menutup sheet tanpa memanggil `onSave`.
+- [x] Widget test: sheet merender semua item dari snapshot 3-entry.
+- [x] Widget test: ubah status satu item → tap Simpan → `onSave` dipanggil dengan item yang sudah berubah.
+- [x] Widget test: tap Batal → `onSave` tidak dipanggil.
+- [x] Seluruh test suite lama tetap lulus 100%.
 
 ---
 
 ## Catatan implementasi
 
-_Diisi oleh agent setelah implementasi selesai._
+- Dibuat widget `EditHistoryEntrySheet` di `lib/features/checklist/presentation/daily_tracker_history_screen/widgets/edit_history_entry_sheet.dart` yang mengimplementasikan bottom sheet editable berbasis `DraggableScrollableSheet`.
+- Header menampilkan ikon edit, judul tanggal terformat dalam bahasa Indonesia (misalnya `24 November 2026`), dan tombol close `[X]`.
+- Hirarki item dirender secara rekursif dengan indentasi 16dp per tingkat kedalaman.
+- Setiap item memiliki pemilih status berbasis `SegmentedButton` (`belum`, `sementara`, `selesai`) dan input angka `TextField` khusus jika item bertipe `progress` atau `countdown`.
+- Tombol `Simpan` mengumpulkan snapshot terbarui lalu memanggil callback `onSave(updatedEntries)` dan menutup sheet, sedangkan tombol `Batal` atau tombol `[X]` menutup sheet tanpa memicu `onSave`.
+- Dibuat suite widget tests komprehensif di `test/features/checklist/presentation/widgets/edit_history_entry_sheet_test.dart` menguji rendering semua item, perubahan status/nilai, dan penanganan tombol batal/close.
+- Analisis statis bersih dan seluruh pengujian checklist (43 test cases) lulus 100%.
+- Waktu selesai: 2026-11-24T09:20:00+08:00.
