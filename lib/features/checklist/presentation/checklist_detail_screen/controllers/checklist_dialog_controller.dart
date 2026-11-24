@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:rutinitasku/core/utils/atomic_write_helper.dart'; // <--- IMPORT BARU UNTUK ATOMIC WRITE
 import '../../../data/models/daily_model.dart';
+import '../../../utils/checklist_calculation_helper.dart';
 import '../widgets/checklist_dialog.dart';
 import '../../../../../core/services/storage_service.dart';
 
@@ -905,30 +906,8 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
   void updateSubjectOverallProgress() {
     validateAndSetLinkedProgress(widget.subject.subMateri);
 
-    double countTotal(List<SubSubjectItem> list) {
-      double total = 0;
-      for (var i in list) {
-        if (i.isDisabled) continue;
-        total += i.subMateri.isNotEmpty ? countTotal(i.subMateri) : 1.0;
-      }
-      return total;
-    }
-
-    double countFinished(List<SubSubjectItem> list) {
-      double fin = 0;
-      for (var i in list) {
-        if (i.isDisabled) continue;
-        if (i.subMateri.isNotEmpty) {
-          fin += countFinished(i.subMateri);
-        } else if (i.progress == 'selesai') {
-          fin += 1.0;
-        }
-      }
-      return fin;
-    }
-
-    double total = countTotal(widget.subject.subMateri);
-    double selesai = countFinished(widget.subject.subMateri);
+    double total = ChecklistCalculationHelper.countTotalItems(widget.subject.subMateri);
+    double selesai = ChecklistCalculationHelper.countFinishedItems(widget.subject.subMateri);
 
     if (total == 0) {
       widget.subject.progress = 'belum';
@@ -975,8 +954,8 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
 
             if (groupChanged) {
               for (var root in sub.subMateri) root.updateStatusFromChildren();
-              double subTotal = countTotal(sub.subMateri);
-              double subSelesai = countFinished(sub.subMateri);
+              double subTotal = ChecklistCalculationHelper.countTotalItems(sub.subMateri);
+              double subSelesai = ChecklistCalculationHelper.countFinishedItems(sub.subMateri);
 
               if (subTotal == 0) {
                 sub.progress = 'belum';

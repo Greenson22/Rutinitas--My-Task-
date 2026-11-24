@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // TAAMBAHAN: Diperlukan untuk interaksi Clipboard (Salin/Tempel JSON)[cite: 5]
 import 'package:rutinitasku/core/presentation/widgets/base_popup_dialog.dart';
 import '../../data/models/daily_model.dart';
+import '../../utils/checklist_calculation_helper.dart';
 import 'controllers/checklist_detail_controller.dart';
 import '../../../../core/presentation/widgets/grouped_section_layout.dart';
 import '../../../../core/presentation/widgets/interactive_grid_card.dart';
@@ -585,59 +586,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
 
   @override
   Widget build(BuildContext context) {
-    // Fungsi rekursif menggunakan double agar bisa menghitung nilai pecahan koma[cite: 5]
-    double _countTotalItems(List<SubSubjectItem> items) {
-      double count = 0;
-      for (var item in items) {
-        // === PERBAIKAN: Lewati penghitungan jika item DINONAKTIFKAN ===[cite: 5]
-        if (item.isDisabled) continue;
-
-        if (item.subMateri.isNotEmpty) {
-          // Jika memiliki anak (nested list), induk diabaikan dan lanjut menghitung turunannya[cite: 5]
-          count += _countTotalItems(item.subMateri);
-        } else {
-          // Jika daun akhir (bukan nested list), dihitung sebagai 1 item[cite: 5]
-          count += 1.0;
-        }
-      }
-      return count;
-    }
-
-    // Fungsi rekursif menggunakan double untuk menghitung item selesai[cite: 5]
-    double _countFinishedItems(List<SubSubjectItem> items) {
-      double count = 0;
-      for (var item in items) {
-        // === PERBAIKAN: Lewati penghitungan jika item DINONAKTIFKAN ===[cite: 5]
-        if (item.isDisabled) continue;
-
-        if (item.subMateri.isNotEmpty) {
-          // Jika memiliki anak (nested list), telusuri anak-anaknya saja tanpa menghitung induk[cite: 5]
-          count += _countFinishedItems(item.subMateri);
-        } else {
-          // === PERUBAHAN: Hitung kontribusi proporsional jika bertipe progress/countdown ===[cite: 5]
-          if (item.itemType == 'progress' && item.targetValue > 0) {
-            double progressRatio = item.currentValue / item.targetValue;
-            count += progressRatio.clamp(
-              0.0,
-              1.0,
-            ); // Batasi rasio antara 0.0 - 1.0[cite: 5]
-          } else if (item.itemType == 'countdown' && item.targetValue > 0) {
-            // Tipe hitung mundur: Kemajuan dihitung berdasarkan sisa yang sudah berkurang (Target - Saat Ini) / Target[cite: 5]
-            double progressRatio =
-                (item.targetValue - item.currentValue) / item.targetValue;
-            count += progressRatio.clamp(0.0, 1.0);
-          } else {
-            // Hanya hitung item ujung (tanpa anak) yang status progressnya selesai[cite: 5]
-            if (item.progress == 'selesai') {
-              count += 1.0;
-            }
-          }
-        }
-      }
-      return count;
-    }
-
-    // 1. Tangani keadaan awal kosong dengan integrasi UniversalEmptyState terpusat (Tema Teal)[cite: 5]
+    // 1. Tangani keadaan awal kosong dengan integrasi UniversalEmptyState terpusat (Tema Teal)
     if (currentGroup.allList.isEmpty) {
       return Scaffold(
         backgroundColor: Colors.grey[200],
@@ -797,9 +746,9 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
         },
 
         gridItemBuilder: (context, subject, index, sectionItems, isLayoutEditMode) {
-          // Menggunakan hitungan double koma[cite: 5]
-          double totalSub = _countTotalItems(subject.subMateri);
-          double selesaiSub = _countFinishedItems(subject.subMateri);
+          // Menggunakan ChecklistCalculationHelper
+          double totalSub = ChecklistCalculationHelper.countTotalItems(subject.subMateri);
+          double selesaiSub = ChecklistCalculationHelper.countFinishedItems(subject.subMateri);
           bool isAllDone = totalSub > 0 && totalSub == selesaiSub;
 
           String topListText = "Tidak ada list";

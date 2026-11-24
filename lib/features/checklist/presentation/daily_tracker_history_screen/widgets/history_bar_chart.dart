@@ -6,8 +6,8 @@ import '../../../data/models/daily_model.dart';
 class HistoryBarChart extends StatelessWidget {
   final List<String> dateKeys; // sorted ascending, 'yyyy-MM-dd'
   final Map<String, List<DailyLogEntry>> dailyLogs;
-  final int Function(List<DailyLogEntry>) countTotal;
-  final int Function(List<DailyLogEntry>) countFinished;
+  final double Function(List<DailyLogEntry>) countTotal;
+  final double Function(List<DailyLogEntry>) countFinished;
 
   const HistoryBarChart({
     super.key,
@@ -128,8 +128,15 @@ class HistoryBarChart extends StatelessWidget {
                 final percent = rod.toY.round();
                 final formattedDate = _formatTooltipDate(dateKey);
 
+                final String finishedText = finished % 1 == 0
+                    ? finished.toInt().toString()
+                    : finished.toStringAsFixed(1);
+                final String totalText = total % 1 == 0
+                    ? total.toInt().toString()
+                    : total.toStringAsFixed(1);
+
                 return BarTooltipItem(
-                  '$formattedDate\n$percent%\n($finished/$total)',
+                  '$formattedDate\n$percent%\n($finishedText/$totalText)',
                   const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,

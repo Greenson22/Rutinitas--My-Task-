@@ -127,10 +127,10 @@ void main() {
       expect(topDatePos < midDatePos, isTrue);
       expect(midDatePos < bottomDatePos, isTrue);
 
-      // Verifikasi ringkasan
-      expect(find.text('2 / 3 Selesai'), findsOneWidget);
-      expect(find.text('1 / 1 Selesai'), findsOneWidget);
-      expect(find.text('1 / 2 Selesai'), findsOneWidget);
+      // Verifikasi ringkasan (hanya leaf nodes yang dihitung, parent diabaikan)
+      expect(find.text('2 / 2 Selesai'), findsOneWidget); // d24: Child 1, Child 2
+      expect(find.text('1 / 1 Selesai'), findsOneWidget); // d22: Tugas A
+      expect(find.text('1 / 2 Selesai'), findsOneWidget); // d20: Tugas 1, Tugas 2
     });
 
     testWidgets('mengetuk tanggal menampilkan detail snapshot read-only secara rekursif', (tester) async {

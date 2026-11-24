@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../data/models/daily_model.dart';
+import '../../utils/checklist_calculation_helper.dart';
 import 'widgets/edit_history_entry_sheet.dart';
 import 'widgets/history_bar_chart.dart';
 import 'widgets/history_filter_chips.dart';
@@ -29,30 +30,11 @@ class _DailyTrackerHistoryScreenState extends State<DailyTrackerHistoryScreen> {
   HistoryFilterPreset _selectedPreset = HistoryFilterPreset.thisMonth;
   DateTimeRange? _customRange;
 
-  // Menghitung ringkasan item selesai dan total secara rekursif
-  int _countTotal(List<DailyLogEntry> entries) {
-    int count = 0;
-    for (var entry in entries) {
-      count++;
-      if (entry.children.isNotEmpty) {
-        count += _countTotal(entry.children);
-      }
-    }
-    return count;
-  }
+  double _countTotal(List<DailyLogEntry> entries) =>
+      ChecklistCalculationHelper.countTotalFromLog(entries);
 
-  int _countFinished(List<DailyLogEntry> entries) {
-    int count = 0;
-    for (var entry in entries) {
-      if (entry.progress == 'selesai') {
-        count++;
-      }
-      if (entry.children.isNotEmpty) {
-        count += _countFinished(entry.children);
-      }
-    }
-    return count;
-  }
+  double _countFinished(List<DailyLogEntry> entries) =>
+      ChecklistCalculationHelper.countFinishedFromLog(entries);
 
   String _formatDisplayDate(String dateKey) {
     try {
@@ -622,6 +604,13 @@ class _DailyTrackerHistoryScreenState extends State<DailyTrackerHistoryScreen> {
                           final total = _countTotal(entries);
                           final finished = _countFinished(entries);
 
+                          final String finishedText = finished % 1 == 0
+                              ? finished.toInt().toString()
+                              : finished.toStringAsFixed(1);
+                          final String totalText = total % 1 == 0
+                              ? total.toInt().toString()
+                              : total.toStringAsFixed(1);
+
                           return Card(
                             key: Key('history_date_tile_$dateKey'),
                             elevation: 1,
@@ -689,7 +678,7 @@ class _DailyTrackerHistoryScreenState extends State<DailyTrackerHistoryScreen> {
                                         borderRadius: BorderRadius.circular(6),
                                       ),
                                       child: Text(
-                                        '$finished / $total Selesai',
+                                        '$finishedText / $totalText Selesai',
                                         style: TextStyle(
                                           fontSize: 11,
                                           fontWeight: FontWeight.bold,

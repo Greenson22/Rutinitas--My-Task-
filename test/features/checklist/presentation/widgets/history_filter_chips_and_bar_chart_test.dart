@@ -110,9 +110,9 @@ void main() {
   });
 
   group('HistoryBarChart Widget Tests', () {
-    int countTotal(List<DailyLogEntry> entries) => entries.length;
-    int countFinished(List<DailyLogEntry> entries) =>
-        entries.where((e) => e.progress == 'selesai').length;
+    double countTotal(List<DailyLogEntry> entries) => entries.length.toDouble();
+    double countFinished(List<DailyLogEntry> entries) =>
+        entries.where((e) => e.progress == 'selesai').length.toDouble();
 
     testWidgets('merender empty state tanpa error saat dateKeys kosong', (tester) async {
       await tester.pumpWidget(
