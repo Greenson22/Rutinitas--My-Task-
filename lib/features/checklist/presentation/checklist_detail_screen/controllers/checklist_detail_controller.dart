@@ -682,4 +682,27 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
     });
     await saveGroupData();
   }
+
+  /// Memperbarui entri dailyLogs pada tanggal tertentu (dateKey) dengan daftar entri baru.
+  Future<void> editDailyLogEntry(
+    DailySubject subject,
+    String dateKey,
+    List<DailyLogEntry> updatedEntries,
+  ) async {
+    setState(() {
+      subject.dailyLogs[dateKey] = updatedEntries;
+    });
+    await saveGroupData();
+  }
+
+  /// Menghapus entri dailyLogs pada tanggal tertentu (dateKey).
+  Future<void> deleteDailyLogEntry(
+    DailySubject subject,
+    String dateKey,
+  ) async {
+    setState(() {
+      subject.dailyLogs.remove(dateKey);
+    });
+    await saveGroupData();
+  }
 }
