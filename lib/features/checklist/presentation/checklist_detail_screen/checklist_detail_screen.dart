@@ -613,15 +613,19 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
       );
     }
 
-    // 2. Siapkan list seksi awal (Hanya yang memiliki item terlihat / tidak disembunyikan secara default)[cite: 5]
-    final List<String> allKeys = currentGroup.allList
+    // 2. Siapkan list seksi yang ditampilkan berdasarkan pengaturan visibilitas seksi
+    final List<ChecklistSection> displayedSections = _showHiddenItems
+        ? currentGroup.allList
+        : currentGroup.allList.where((s) => !s.isHidden).toList();
+
+    final List<String> allKeys = displayedSections
         .map((s) => s.sectionName)
         .toList();
     final int visibleKeysCount = allKeys.length;
 
     // 3. Bangun Map item yang telah disaring berdasarkan query pencarian (searchQuery) dan visibilitas (isHidden)[cite: 5]
     final Map<String, List<DailySubject>> allItems = {
-      for (var section in currentGroup.allList)
+      for (var section in displayedSections)
         section.sectionName: section.items.where((subject) {
           // Hanya muat seksi yang aktif (tidak disembunyikan) untuk grid utama[cite: 5]
           if (subject.isHidden) return false;
@@ -634,7 +638,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
     // SINKRONISASI LOGIKA: TAMPILKAN SEKSI TERSEMBUNYI DI BAWAH PEMBATAS GARIS (DIVIDER)
     // =========================================================================
     if (_showHiddenItems) {
-      for (var section in currentGroup.allList) {
+      for (var section in displayedSections) {
         final hiddenItemsInSection = section.items.where((subject) {
           if (!subject.isHidden) return false;
           if (searchQuery.isEmpty) return true;
@@ -661,7 +665,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
         isLoading: false,
 
         // Jika seksi visual di layout kosong DAN data raw kosong, baru tampilkan empty placeholder[cite: 5]
-        isEmpty: currentGroup.allList.isEmpty && totalFilteredItems == 0,
+        isEmpty: displayedSections.isEmpty && totalFilteredItems == 0,
         emptyMessage: 'Item tidak ditemukan atau belum ada seksi.',
 
         sectionKeys: allKeys,
@@ -723,7 +727,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
             );
           }
 
-          final section = currentGroup.allList[index];
+          final section = displayedSections[index];
 
           return InteractiveSectionHeader(
             sectionName: section.sectionName,
@@ -732,13 +736,23 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
             isUpperCase: false,
             isFirst: index == 0,
             isLast: index == visibleKeysCount - 1,
+            isHidden: section.isHidden,
+            onToggleVisibility: () => toggleSectionHidden(section),
             onToggleEdit: () {
               setState(() {
                 isSectionEditMode = !isSectionEditMode;
               });
             },
-            onMoveUp: () => moveSectionOrder(index, -1),
-            onMoveDown: () => moveSectionOrder(index, 1),
+            onMoveUp: () {
+              final actualIndex = currentGroup.allList.indexOf(section);
+              if (actualIndex > 0) moveSectionOrder(actualIndex, -1);
+            },
+            onMoveDown: () {
+              final actualIndex = currentGroup.allList.indexOf(section);
+              if (actualIndex >= 0 && actualIndex < currentGroup.allList.length - 1) {
+                moveSectionOrder(actualIndex, 1);
+              }
+            },
             onEditName: () => editSectionName(section),
             onDelete: () => deleteSection(section),
             onAddItem: () => addItemToSection(context, section),

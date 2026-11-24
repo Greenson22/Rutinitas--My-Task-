@@ -15,6 +15,8 @@ class InteractiveSectionHeader extends StatelessWidget {
   final VoidCallback onEditName;
   final VoidCallback onDelete;
   final VoidCallback onAddItem;
+  final VoidCallback? onToggleVisibility;
+  final bool? isHidden;
 
   const InteractiveSectionHeader({
     super.key,
@@ -30,6 +32,8 @@ class InteractiveSectionHeader extends StatelessWidget {
     required this.onEditName,
     required this.onDelete,
     required this.onAddItem,
+    this.onToggleVisibility,
+    this.isHidden,
   });
 
   @override
@@ -56,18 +60,63 @@ class InteractiveSectionHeader extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    displayedTitle,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: themeColor,
-                      letterSpacing: 0.8,
-                    ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        displayedTitle,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: isHidden == true
+                              ? themeColor.withValues(alpha: 0.5)
+                              : themeColor,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                      if (isHidden == true) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.blueGrey.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'Tersembunyi',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.blueGrey,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                  if (isEditMode)
-                    Row(
-                      children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (onToggleVisibility != null)
+                        IconButton(
+                          icon: Icon(
+                            isHidden == true
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                            size: 18,
+                            color: isHidden == true
+                                ? Colors.grey
+                                : themeColor,
+                          ),
+                          tooltip: isHidden == true
+                              ? 'Tampilkan Seksi'
+                              : 'Sembunyikan Seksi',
+                          onPressed: onToggleVisibility,
+                        ),
+                      if (isEditMode) ...[
                         IconButton(
                           icon: const Icon(
                             Icons.arrow_upward,
@@ -105,7 +154,8 @@ class InteractiveSectionHeader extends StatelessWidget {
                           onPressed: onAddItem,
                         ),
                       ],
-                    ),
+                    ],
+                  ),
                 ],
               ),
               const Divider(height: 2, thickness: 1),

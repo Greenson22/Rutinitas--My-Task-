@@ -122,9 +122,10 @@ class _GroupedSectionLayoutState<T> extends State<GroupedSectionLayout<T>> {
         onMoveMassive: widget.onMoveMassive,
         onDeleteMassive: widget.onDeleteMassive,
         // LOGIKA DINAMIS: Menyisipkan ikon status enkripsi jika panel pencarian sedang ditutup
-        additionalAction: _internalSearchMode
-            ? widget.additionalAction
-            : widget.appBarTrailingAction,
+        additionalAction: widget.additionalAction ??
+            (_internalSearchMode
+                ? null
+                : widget.appBarTrailingAction),
         searchBarContent: Row(
           children: [
             Expanded(

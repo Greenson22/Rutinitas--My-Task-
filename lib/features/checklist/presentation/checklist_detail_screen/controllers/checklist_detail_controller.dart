@@ -60,6 +60,27 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
     }
   }
 
+  Future<void> toggleSectionHidden(ChecklistSection section) async {
+    setState(() {
+      section.isHidden = !section.isHidden;
+    });
+
+    await saveGroupData();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            section.isHidden
+                ? 'Seksi "${section.sectionName}" berhasil disembunyikan'
+                : 'Seksi "${section.sectionName}" berhasil ditampilkan kembali',
+          ),
+          backgroundColor: Colors.teal,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
   Future<void> toggleSubjectVisibility(DailySubject subject) async {
     setState(() {
       subject.isHidden = !subject.isHidden;
