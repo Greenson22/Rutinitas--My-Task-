@@ -59,6 +59,8 @@ dependencies:
 
   google_mobile_ads: ^5.0.0
 
+  fl_chart: ^0.69.0 # Bar chart untuk DailyTracker History
+
   open_file: ^3.3.2
   # shelf: ^1.4.1
   # shelf_web_socket: ^1.0.4

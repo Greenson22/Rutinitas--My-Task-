@@ -394,6 +394,24 @@ class DailyLogEntry {
     this.children = const [],
   });
 
+  DailyLogEntry copyWith({
+    String? itemName,
+    String? progress,
+    String? itemType,
+    int? currentValue,
+    int? targetValue,
+    List<DailyLogEntry>? children,
+  }) {
+    return DailyLogEntry(
+      itemName: itemName ?? this.itemName,
+      progress: progress ?? this.progress,
+      itemType: itemType ?? this.itemType,
+      currentValue: currentValue ?? this.currentValue,
+      targetValue: targetValue ?? this.targetValue,
+      children: children ?? this.children,
+    );
+  }
+
   factory DailyLogEntry.fromSubSubjectItem(SubSubjectItem item) {
     return DailyLogEntry(
       itemName: item.subjectName,

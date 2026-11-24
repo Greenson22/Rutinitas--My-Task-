@@ -196,5 +196,70 @@ void main() {
       expect(snapLvl2.progress, 'sementara');
       expect(snapLvl3.currentValue, 1);
     });
+
+    group('DailyLogEntry.copyWith Tests', () {
+      test('copyWith without arguments produces identical field values in a new instance', () {
+        final original = DailyLogEntry(
+          itemName: 'Membaca',
+          progress: 'sementara',
+          itemType: 'progress',
+          currentValue: 10,
+          targetValue: 20,
+          children: [
+            DailyLogEntry(
+              itemName: 'Bab 1',
+              progress: 'selesai',
+              itemType: 'normal',
+              currentValue: 0,
+              targetValue: 0,
+            ),
+          ],
+        );
+
+        final copy = original.copyWith();
+
+        expect(copy.itemName, original.itemName);
+        expect(copy.progress, original.progress);
+        expect(copy.itemType, original.itemType);
+        expect(copy.currentValue, original.currentValue);
+        expect(copy.targetValue, original.targetValue);
+        expect(copy.children, original.children);
+      });
+
+      test('copyWith with one modified field only alters that field', () {
+        final original = DailyLogEntry(
+          itemName: 'Membaca',
+          progress: 'sementara',
+          itemType: 'progress',
+          currentValue: 10,
+          targetValue: 20,
+        );
+
+        final updatedStatus = original.copyWith(progress: 'selesai');
+        expect(updatedStatus.itemName, 'Membaca');
+        expect(updatedStatus.progress, 'selesai');
+        expect(updatedStatus.itemType, 'progress');
+        expect(updatedStatus.currentValue, 10);
+        expect(updatedStatus.targetValue, 20);
+
+        final updatedValue = original.copyWith(currentValue: 15);
+        expect(updatedValue.itemName, 'Membaca');
+        expect(updatedValue.progress, 'sementara');
+        expect(updatedValue.currentValue, 15);
+        expect(updatedValue.targetValue, 20);
+
+        final newChild = DailyLogEntry(
+          itemName: 'Bab 2',
+          progress: 'belum',
+          itemType: 'normal',
+          currentValue: 0,
+          targetValue: 0,
+        );
+        final updatedChildren = original.copyWith(children: [newChild]);
+        expect(updatedChildren.children.length, 1);
+        expect(updatedChildren.children.first.itemName, 'Bab 2');
+        expect(updatedChildren.itemName, 'Membaca');
+      });
+    });
   });
 }
