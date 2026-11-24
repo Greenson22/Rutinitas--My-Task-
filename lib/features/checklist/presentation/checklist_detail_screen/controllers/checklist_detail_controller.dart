@@ -573,13 +573,28 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
   }
 
   void deleteSection(ChecklistSection section) async {
+    // Alur hapus seksi kosong: hapus langsung tanpa dialog konfirmasi
+    if (section.items.isEmpty) {
+      setState(() => currentGroup.allList.remove(section));
+      saveGroupData();
+      return;
+    }
+
+    final int totalItems = section.items.length;
+    final int hiddenItemsCount = section.items.where((i) => i.isHidden).length;
+
+    final String itemInfo = hiddenItemsCount > 0
+        ? '$totalItems item ($hiddenItemsCount tersembunyi)'
+        : '$totalItems item';
+
     final bool confirm =
         await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
+            icon: const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 36),
             title: const Text('Hapus Seksi?'),
             content: Text(
-              'Apakah Anda yakin ingin menghapus seksi "${section.sectionName}" beserta seluruh item di dalamnya?',
+              'Seksi "${section.sectionName}" masih berisi $itemInfo. Apakah Anda yakin ingin menghapus seksi ini beserta seluruh isinya?',
             ),
             actions: [
               TextButton(
@@ -589,7 +604,7 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
               ElevatedButton(
                 onPressed: () => Navigator.pop(context, true),
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                child: const Text('Hapus'),
+                child: const Text('Hapus Semua'),
               ),
             ],
           ),
