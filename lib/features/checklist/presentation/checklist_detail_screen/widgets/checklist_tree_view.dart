@@ -30,6 +30,9 @@ class ChecklistTreeView extends StatelessWidget {
   // Callback untuk sekuens expand/collapse tree
   final Function(SubSubjectItem)? onToggleExpansion;
 
+  // Callback opsional untuk meresolve teks akumulasi eksternal (contoh: "(45/100)")
+  final String? Function(SubSubjectItem)? resolveExternalAccumulationText;
+
   const ChecklistTreeView({
     super.key,
     required this.item,
@@ -51,6 +54,7 @@ class ChecklistTreeView extends StatelessWidget {
     this.onUpdateProgressValue,
     this.onToggleDisable,
     this.onToggleExpansion,
+    this.resolveExternalAccumulationText,
   });
 
   // Fungsi pembantu untuk memformat angka dengan separator titik ribuan Indonesia
@@ -72,7 +76,12 @@ class ChecklistTreeView extends StatelessWidget {
     // Mengecek apakah item ini menyumbang/mengaitkan akumulasi nilainya ke Card Checklist lain
     bool hasExternalCardLink =
         item.linkedExternalCardName != null &&
-        item.linkedExternalItemName != null;
+        (item.linkedExternalItemId != null || item.linkedExternalItemName != null);
+
+    final String? externalAccumulationText =
+        hasExternalCardLink && resolveExternalAccumulationText != null
+            ? resolveExternalAccumulationText!(item)
+            : null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -202,15 +211,32 @@ class ChecklistTreeView extends StatelessWidget {
                                           ),
                                         ),
                                       if (hasExternalCardLink)
-                                        const WidgetSpan(
+                                        WidgetSpan(
                                           alignment:
                                               PlaceholderAlignment.middle,
                                           child: Padding(
-                                            padding: EdgeInsets.only(left: 4.0),
-                                            child: Icon(
-                                              Icons.bolt,
-                                              size: 15,
-                                              color: Colors.amber,
+                                            padding: const EdgeInsets.only(left: 4.0),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                const Icon(
+                                                  Icons.bolt,
+                                                  size: 15,
+                                                  color: Colors.amber,
+                                                ),
+                                                if (externalAccumulationText != null &&
+                                                    externalAccumulationText.isNotEmpty) ...[
+                                                  const SizedBox(width: 2),
+                                                  Text(
+                                                    externalAccumulationText,
+                                                    style: const TextStyle(
+                                                      fontSize: 11,
+                                                      fontWeight: FontWeight.bold,
+                                                      color: Colors.indigo,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ],
                                             ),
                                           ),
                                         ),
@@ -352,12 +378,31 @@ class ChecklistTreeView extends StatelessWidget {
                                                       const EdgeInsets.only(
                                                         left: 4.0,
                                                       ),
-                                                  child: Icon(
-                                                    Icons.bolt,
-                                                    size: 15,
-                                                    color: isChecked
-                                                        ? Colors.grey
-                                                        : Colors.amber[700],
+                                                  child: Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      Icon(
+                                                        Icons.bolt,
+                                                        size: 15,
+                                                        color: isChecked
+                                                            ? Colors.grey
+                                                            : Colors.amber[700],
+                                                      ),
+                                                      if (externalAccumulationText != null &&
+                                                          externalAccumulationText.isNotEmpty) ...[
+                                                        const SizedBox(width: 2),
+                                                        Text(
+                                                          externalAccumulationText,
+                                                          style: TextStyle(
+                                                            fontSize: 11,
+                                                            fontWeight: FontWeight.bold,
+                                                            color: isChecked
+                                                                ? Colors.grey
+                                                                : Colors.indigo.shade700,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ],
                                                   ),
                                                 ),
                                               ),
@@ -629,6 +674,8 @@ class ChecklistTreeView extends StatelessWidget {
                 onUpdateProgressValue: onUpdateProgressValue,
                 onToggleDisable: onToggleDisable,
                 onToggleExpansion: onToggleExpansion,
+                resolveExternalAccumulationText:
+                    resolveExternalAccumulationText,
               );
             }),
           ),

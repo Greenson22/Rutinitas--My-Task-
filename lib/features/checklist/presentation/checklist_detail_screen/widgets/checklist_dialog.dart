@@ -395,6 +395,37 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
   }
   // =========================================================================
 
+  String? _resolveExternalAccumulationText(SubSubjectItem item) {
+    if (item.linkedExternalCardName == null) return null;
+    if (item.linkedExternalItemId == null && item.linkedExternalItemName == null) {
+      return null;
+    }
+
+    final targetSubject = widget.allAvailableSubjects.firstWhere(
+      (sub) => sub.subjectName == item.linkedExternalCardName,
+      orElse: () =>
+          DailySubject(subjectName: '', progress: 'belum', subMateri: []),
+    );
+    if (targetSubject.subjectName.isEmpty) return null;
+
+    final List<SubSubjectItem> flattened = [];
+    getAllItemsFlattened(targetSubject.subMateri, flattened);
+
+    final targetItem = flattened.firstWhere(
+      (el) {
+        if (item.linkedExternalItemId != null &&
+            item.linkedExternalItemId!.isNotEmpty) {
+          return el.id == item.linkedExternalItemId;
+        }
+        return el.subjectName == item.linkedExternalItemName;
+      },
+      orElse: () => SubSubjectItem(subjectName: '', progress: 'belum'),
+    );
+
+    if (targetItem.subjectName.isEmpty) return null;
+    return '(${targetItem.currentValue}/${targetItem.targetValue})';
+  }
+
   @override
   Widget build(BuildContext context) {
     List<SubSubjectItem> allFlattened = [];
@@ -765,6 +796,8 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                                     showUpdateProgressValueDialogView,
                                 onToggleDisable: handleToggleDisableItem,
                                 onToggleExpansion: toggleItemExpansion,
+                                resolveExternalAccumulationText:
+                                    _resolveExternalAccumulationText,
                               );
                             }),
                             if (!hideFinishedItems &&
@@ -848,6 +881,8 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                                         showUpdateProgressValueDialogView,
                                     onToggleDisable: handleToggleDisableItem,
                                     onToggleExpansion: toggleItemExpansion,
+                                    resolveExternalAccumulationText:
+                                        _resolveExternalAccumulationText,
                                   );
                                 },
                               ),
