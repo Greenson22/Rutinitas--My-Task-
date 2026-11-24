@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:rutinitasku/features/checklist/data/models/daily_model.dart';
 import 'package:rutinitasku/features/checklist/presentation/daily_tracker_history_screen/widgets/history_bar_chart.dart';
 import 'package:rutinitasku/features/checklist/presentation/daily_tracker_history_screen/widgets/history_filter_chips.dart';
+import 'package:rutinitasku/features/checklist/utils/item_color_helper.dart';
 
 void main() {
   group('HistoryFilterChips Widget Tests', () {
@@ -228,25 +229,83 @@ void main() {
 
       expect(barGroups.length, equals(5));
 
-      // Bar 0: 100% -> Colors.teal
+      // Bar 0: 100% (1 item selesai) -> 1 segmen dengan warna dari colorFromItemName('Task 1')
       expect(barGroups[0].barRods.first.toY, equals(100.0));
-      expect(barGroups[0].barRods.first.color, equals(Colors.teal));
+      expect(barGroups[0].barRods.first.rodStackItems.length, equals(1));
+      expect(
+        barGroups[0].barRods.first.rodStackItems.first.color,
+        equals(colorFromItemName('Task 1')),
+      );
 
-      // Bar 1: 0% -> Colors.grey.shade300
-      expect(barGroups[1].barRods.first.toY, equals(0.0));
-      expect(barGroups[1].barRods.first.color, equals(Colors.grey.shade300));
+      // Bar 1: 0% -> batang abu-abu tipis (toY: 5, grey.shade200, tanpa stack items)
+      expect(barGroups[1].barRods.first.toY, equals(5.0));
+      expect(barGroups[1].barRods.first.color, equals(Colors.grey.shade200));
+      expect(barGroups[1].barRods.first.rodStackItems, isEmpty);
 
-      // Bar 2: 50% -> Colors.teal.shade300
+      // Bar 2: 50% (1 item selesai) -> toY 50.0, 1 segmen dengan warna konsisten untuk 'Task 1'
       expect(barGroups[2].barRods.first.toY, equals(50.0));
-      expect(barGroups[2].barRods.first.color, equals(Colors.teal.shade300));
+      expect(barGroups[2].barRods.first.rodStackItems.length, equals(1));
+      expect(
+        barGroups[2].barRods.first.rodStackItems.first.color,
+        equals(barGroups[0].barRods.first.rodStackItems.first.color),
+      );
 
-      // Bar 3: 25% -> Colors.amber
+      // Bar 3: 25% (1 item selesai) -> toY 25.0, 1 segmen
       expect(barGroups[3].barRods.first.toY, equals(25.0));
-      expect(barGroups[3].barRods.first.color, equals(Colors.amber));
+      expect(barGroups[3].barRods.first.rodStackItems.length, equals(1));
 
-      // Bar 4: empty (0%) -> Colors.grey.shade300
-      expect(barGroups[4].barRods.first.toY, equals(0.0));
-      expect(barGroups[4].barRods.first.color, equals(Colors.grey.shade300));
+      // Bar 4: empty (0%) -> batang abu-abu tipis (toY: 5, grey.shade200)
+      expect(barGroups[4].barRods.first.toY, equals(5.0));
+      expect(barGroups[4].barRods.first.color, equals(Colors.grey.shade200));
+    });
+
+    testWidgets('jumlah segmen dalam bar sama dengan jumlah item selesai pada hari tersebut', (tester) async {
+      final dateKeys = ['2026-11-01'];
+      final dailyLogs = {
+        '2026-11-01': [
+          const DailyLogEntry(
+            itemName: 'Sholat Subuh',
+            progress: 'selesai',
+            itemType: 'normal',
+            currentValue: 0,
+            targetValue: 0,
+          ),
+          const DailyLogEntry(
+            itemName: 'Olahraga',
+            progress: 'selesai',
+            itemType: 'normal',
+            currentValue: 0,
+            targetValue: 0,
+          ),
+          const DailyLogEntry(
+            itemName: 'Baca Buku',
+            progress: 'belum',
+            itemType: 'normal',
+            currentValue: 0,
+            targetValue: 0,
+          ),
+        ],
+      };
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: HistoryBarChart(
+              dateKeys: dateKeys,
+              dailyLogs: dailyLogs,
+              countTotal: countTotal,
+              countFinished: countFinished,
+            ),
+          ),
+        ),
+      );
+
+      final barChartWidget = tester.widget<BarChart>(find.byType(BarChart));
+      final rod = barChartWidget.data.barGroups.first.barRods.first;
+
+      expect(rod.rodStackItems.length, equals(2));
+      expect(rod.rodStackItems[0].color, equals(colorFromItemName('Sholat Subuh')));
+      expect(rod.rodStackItems[1].color, equals(colorFromItemName('Olahraga')));
     });
   });
 }

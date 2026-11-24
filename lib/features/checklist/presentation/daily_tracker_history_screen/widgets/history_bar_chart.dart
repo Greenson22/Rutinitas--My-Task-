@@ -2,6 +2,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../data/models/daily_model.dart';
+import '../../../utils/item_color_helper.dart';
 
 class HistoryBarChart extends StatelessWidget {
   final List<String> dateKeys; // sorted ascending, 'yyyy-MM-dd'
@@ -16,18 +17,6 @@ class HistoryBarChart extends StatelessWidget {
     required this.countTotal,
     required this.countFinished,
   });
-
-  Color _getBarColor(double percentage) {
-    if (percentage >= 100) {
-      return Colors.teal;
-    } else if (percentage >= 50) {
-      return Colors.teal.shade300;
-    } else if (percentage > 0) {
-      return Colors.amber;
-    } else {
-      return Colors.grey.shade300;
-    }
-  }
 
   String _formatBottomTitle(String dateKey, bool showMonth) {
     try {
@@ -83,15 +72,36 @@ class HistoryBarChart extends StatelessWidget {
       final total = countTotal(entries);
       final finished = countFinished(entries);
       final double percentage = total > 0 ? (finished / total) * 100 : 0.0;
-      final Color barColor = _getBarColor(percentage);
+
+      final finishedEntries =
+          entries.where((e) => e.progress == 'selesai').toList();
+
+      final List<BarChartRodStackItem> stackItems = [];
+      if (finishedEntries.isNotEmpty && percentage > 0) {
+        final double segmentHeight = percentage / finishedEntries.length;
+        double currentY = 0;
+        for (final entry in finishedEntries) {
+          stackItems.add(
+            BarChartRodStackItem(
+              currentY,
+              currentY + segmentHeight,
+              colorFromItemName(entry.itemName),
+            ),
+          );
+          currentY += segmentHeight;
+        }
+      }
+
+      final bool isZero = stackItems.isEmpty;
 
       barGroups.add(
         BarChartGroupData(
           x: i,
           barRods: [
             BarChartRodData(
-              toY: percentage,
-              color: barColor,
+              toY: isZero ? 5.0 : percentage,
+              color: isZero ? Colors.grey.shade200 : Colors.transparent,
+              rodStackItems: stackItems,
               width: dateKeys.length > 20
                   ? 6
                   : dateKeys.length > 10
@@ -125,7 +135,7 @@ class HistoryBarChart extends StatelessWidget {
                 final entries = dailyLogs[dateKey] ?? [];
                 final total = countTotal(entries);
                 final finished = countFinished(entries);
-                final percent = rod.toY.round();
+                final percent = total > 0 ? ((finished / total) * 100).round() : 0;
                 final formattedDate = _formatTooltipDate(dateKey);
 
                 final String finishedText = finished % 1 == 0
