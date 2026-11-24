@@ -62,6 +62,7 @@ dependencies:
   fl_chart: ^0.69.0 # Bar chart untuk DailyTracker History
 
   open_file: ^3.3.2
+  flutter_colorpicker: ^1.1.0
   # shelf: ^1.4.1
   # shelf_web_socket: ^1.0.4
   # web_socket_channel: ^3.0.1

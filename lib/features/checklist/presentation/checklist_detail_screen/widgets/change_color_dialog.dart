@@ -1,6 +1,7 @@
 // lib/features/daily/presentation/widgets/change_color_dialog.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import '../../../data/models/daily_model.dart';
 
 class ChangeColorDialog extends StatefulWidget {
@@ -23,7 +24,6 @@ class _ChangeColorDialogState extends State<ChangeColorDialog> {
 
   final _hexInputController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
-  bool _isTextDarkForCustom = true;
 
   // Daftar warna kustom tambahan (Menggunakan objek Color untuk UI Picker)
   // Daftar warna kustom tambahan di dalam _ChangeColorDialogState
@@ -68,6 +68,11 @@ class _ChangeColorDialogState extends State<ChangeColorDialog> {
         .toUpperCase();
   }
 
+  Color _autoTextColor(Color bgColor) {
+    final Brightness brightness = ThemeData.estimateBrightnessForColor(bgColor);
+    return (brightness == Brightness.dark) ? Colors.white : Colors.black87;
+  }
+
   void _applyCustomHexColor(String val) {
     String cleanHex = val.replaceAll('#', '').trim();
     if (cleanHex.length == 6) {
@@ -76,16 +81,9 @@ class _ChangeColorDialogState extends State<ChangeColorDialog> {
     final int? parsedValue = int.tryParse(cleanHex, radix: 16);
     if (parsedValue != null) {
       final Color newBgColor = Color(parsedValue);
-      final Brightness brightness = ThemeData.estimateBrightnessForColor(
-        newBgColor,
-      );
-
       setState(() {
         _selectedBgColor = newBgColor;
-        // Mengabaikan dropdown manual dan mendeteksi otomatis kecerahan kode HEX
-        _selectedTextColor = (brightness == Brightness.dark)
-            ? Colors.white
-            : Colors.black87;
+        _selectedTextColor = _autoTextColor(newBgColor);
       });
     }
   }
@@ -147,9 +145,29 @@ class _ChangeColorDialogState extends State<ChangeColorDialog> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
 
-                // 2. INPUT KODE HEX
+                // 2. COLOR WHEEL INTERAKTIF
+                Center(
+                  child: ColorPicker(
+                    pickerColor: _selectedBgColor,
+                    onColorChanged: (color) {
+                      setState(() {
+                        _selectedBgColor = color;
+                        _selectedTextColor = _autoTextColor(color);
+                        _updateHexTextField(color);
+                      });
+                    },
+                    paletteType: PaletteType.hueWheel,
+                    enableAlpha: false,
+                    labelTypes: const [],
+                    hexInputBar: false,
+                    pickerAreaHeightPercent: 0.7,
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // 3. INPUT KODE HEX
                 const Text(
                   'Warna Bebas / Kustom (Kode HEX):',
                   style: TextStyle(
@@ -159,68 +177,29 @@ class _ChangeColorDialogState extends State<ChangeColorDialog> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _hexInputController,
-                        maxLength: 6,
-                        decoration: const InputDecoration(
-                          hintText: 'F5CBA7',
-                          prefixText: '# ',
-                          isDense: true,
-                          counterText: '',
-                          border: OutlineInputBorder(),
-                        ),
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty)
-                            return null;
-                          if (value.trim().length != 6)
-                            return 'Harus 6 karakter';
-                          if (int.tryParse(value.trim(), radix: 16) == null) {
-                            return 'HEX tidak valid';
-                          }
-                          return null;
-                        },
-                        onChanged: (val) {
-                          if (val.trim().length == 6) {
-                            _applyCustomHexColor(val);
-                          }
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Column(
-                      children: [
-                        const Text(
-                          'Warna Teks',
-                          style: TextStyle(fontSize: 10, color: Colors.grey),
-                        ),
-                        DropdownButton<bool>(
-                          value: _isTextDarkForCustom,
-                          isDense: true,
-                          items: const [
-                            DropdownMenuItem(value: true, child: Text('Gelap')),
-                            DropdownMenuItem(
-                              value: false,
-                              child: Text('Putih'),
-                            ),
-                          ],
-                          onChanged: (val) {
-                            if (val != null) {
-                              setState(() {
-                                _isTextDarkForCustom = val;
-                                _selectedTextColor = val
-                                    ? Colors.black87
-                                    : Colors.white;
-                              });
-                            }
-                          },
-                        ),
-                      ],
-                    ),
-                  ],
+                TextFormField(
+                  controller: _hexInputController,
+                  maxLength: 6,
+                  decoration: const InputDecoration(
+                    hintText: 'F5CBA7',
+                    prefixText: '# ',
+                    isDense: true,
+                    counterText: '',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) return null;
+                    if (value.trim().length != 6) return 'Harus 6 karakter';
+                    if (int.tryParse(value.trim(), radix: 16) == null) {
+                      return 'HEX tidak valid';
+                    }
+                    return null;
+                  },
+                  onChanged: (val) {
+                    if (val.trim().length == 6) {
+                      _applyCustomHexColor(val);
+                    }
+                  },
                 ),
                 const SizedBox(height: 20),
 
