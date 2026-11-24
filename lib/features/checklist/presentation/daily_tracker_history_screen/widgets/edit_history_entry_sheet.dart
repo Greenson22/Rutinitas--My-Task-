@@ -42,6 +42,7 @@ class _EditableEntry {
   final String itemType;
   int currentValue;
   final int targetValue;
+  final bool isDisabled;
   final List<_EditableEntry> children;
   late final TextEditingController controller;
 
@@ -51,6 +52,7 @@ class _EditableEntry {
     required this.itemType,
     required this.currentValue,
     required this.targetValue,
+    this.isDisabled = false,
     required this.children,
   }) {
     controller = TextEditingController(text: currentValue.toString());
@@ -63,6 +65,7 @@ class _EditableEntry {
       itemType: entry.itemType,
       currentValue: entry.currentValue,
       targetValue: entry.targetValue,
+      isDisabled: entry.isDisabled,
       children: entry.children
           .map((child) => _EditableEntry.fromDailyLogEntry(child))
           .toList(),
@@ -81,6 +84,7 @@ class _EditableEntry {
       itemType: itemType,
       currentValue: parsedValue,
       targetValue: targetValue,
+      isDisabled: isDisabled,
       children: children.map((c) => c.toDailyLogEntry()).toList(),
     );
   }

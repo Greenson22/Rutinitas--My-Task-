@@ -252,6 +252,7 @@ class DailySubject {
 }
 
 class SubSubjectItem {
+  String id;
   String subjectName;
   String progress;
   String? finishedDate;
@@ -261,17 +262,28 @@ class SubSubjectItem {
   int targetValue;
   bool isDisabled;
 
+  String? linkedSubjectId;
   String? linkedSubjectName;
+  String? accumulatorItemId;
   String? accumulatorItemName;
 
   // Menyimpan kaitan akumulasi nilai harian lintas Card Checklist
   String? linkedExternalCardName;
+  String? linkedExternalItemId;
   String? linkedExternalItemName;
 
   // Melacak status expand/collapse UI item list secara runtime harian
   bool isExpanded;
 
+  static int _idCounter = 0;
+  static String generateId() {
+    final now = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+    final counter = (++_idCounter).toRadixString(36);
+    return '$now-$counter';
+  }
+
   SubSubjectItem({
+    String? id,
     required this.subjectName,
     required this.progress,
     this.finishedDate,
@@ -280,28 +292,36 @@ class SubSubjectItem {
     this.currentValue = 0,
     this.targetValue = 0,
     this.isDisabled = false,
+    this.linkedSubjectId,
     this.linkedSubjectName,
+    this.accumulatorItemId,
     this.accumulatorItemName,
     this.linkedExternalCardName,
+    this.linkedExternalItemId,
     this.linkedExternalItemName,
     this.isExpanded = false,
-  }) : this.subMateri = subMateri ?? [];
+  })  : id = id ?? generateId(),
+        subMateri = subMateri ?? [];
 
   SubSubjectItem clone() {
     return SubSubjectItem(
-      subjectName: this.subjectName,
-      progress: this.progress,
-      finishedDate: this.finishedDate,
-      subMateri: this.subMateri.map((child) => child.clone()).toList(),
-      itemType: this.itemType,
-      currentValue: this.currentValue,
-      targetValue: this.targetValue,
-      isDisabled: this.isDisabled,
-      linkedSubjectName: this.linkedSubjectName,
-      accumulatorItemName: this.accumulatorItemName,
-      linkedExternalCardName: this.linkedExternalCardName,
-      linkedExternalItemName: this.linkedExternalItemName,
-      isExpanded: this.isExpanded,
+      id: id,
+      subjectName: subjectName,
+      progress: progress,
+      finishedDate: finishedDate,
+      subMateri: subMateri.map((child) => child.clone()).toList(),
+      itemType: itemType,
+      currentValue: currentValue,
+      targetValue: targetValue,
+      isDisabled: isDisabled,
+      linkedSubjectId: linkedSubjectId,
+      linkedSubjectName: linkedSubjectName,
+      accumulatorItemId: accumulatorItemId,
+      accumulatorItemName: accumulatorItemName,
+      linkedExternalCardName: linkedExternalCardName,
+      linkedExternalItemId: linkedExternalItemId,
+      linkedExternalItemName: linkedExternalItemName,
+      isExpanded: isExpanded,
     );
   }
 
@@ -312,6 +332,7 @@ class SubSubjectItem {
         .toList();
 
     return SubSubjectItem(
+      id: json['id'],
       subjectName: json['nama_materi'] ?? '',
       progress: json['progress'] ?? 'belum',
       finishedDate: json['finishedDate'],
@@ -320,9 +341,12 @@ class SubSubjectItem {
       currentValue: json['currentValue'] ?? 0,
       targetValue: json['targetValue'] ?? 0,
       isDisabled: json['isDisabled'] ?? false,
+      linkedSubjectId: json['linkedSubjectId'],
       linkedSubjectName: json['linkedSubjectName'],
+      accumulatorItemId: json['accumulatorItemId'],
       accumulatorItemName: json['accumulatorItemName'],
       linkedExternalCardName: json['linkedExternalCardName'],
+      linkedExternalItemId: json['linkedExternalItemId'],
       linkedExternalItemName: json['linkedExternalItemName'],
       isExpanded: false,
     );
@@ -330,6 +354,7 @@ class SubSubjectItem {
 
   Map<String, dynamic> toJson() {
     return {
+      'id': id,
       'nama_materi': subjectName,
       'progress': progress,
       'finishedDate': finishedDate,
@@ -338,9 +363,12 @@ class SubSubjectItem {
       'currentValue': currentValue,
       'targetValue': targetValue,
       'isDisabled': isDisabled,
+      'linkedSubjectId': linkedSubjectId,
       'linkedSubjectName': linkedSubjectName,
+      'accumulatorItemId': accumulatorItemId,
       'accumulatorItemName': accumulatorItemName,
       'linkedExternalCardName': linkedExternalCardName,
+      'linkedExternalItemId': linkedExternalItemId,
       'linkedExternalItemName': linkedExternalItemName,
     };
   }
@@ -383,6 +411,7 @@ class DailyLogEntry {
   final String itemType;
   final int currentValue;
   final int targetValue;
+  final bool isDisabled;
   final List<DailyLogEntry> children;
 
   const DailyLogEntry({
@@ -391,6 +420,7 @@ class DailyLogEntry {
     required this.itemType,
     required this.currentValue,
     required this.targetValue,
+    this.isDisabled = false,
     this.children = const [],
   });
 
@@ -400,6 +430,7 @@ class DailyLogEntry {
     String? itemType,
     int? currentValue,
     int? targetValue,
+    bool? isDisabled,
     List<DailyLogEntry>? children,
   }) {
     return DailyLogEntry(
@@ -408,6 +439,7 @@ class DailyLogEntry {
       itemType: itemType ?? this.itemType,
       currentValue: currentValue ?? this.currentValue,
       targetValue: targetValue ?? this.targetValue,
+      isDisabled: isDisabled ?? this.isDisabled,
       children: children ?? this.children,
     );
   }
@@ -419,6 +451,7 @@ class DailyLogEntry {
       itemType: item.itemType,
       currentValue: item.currentValue,
       targetValue: item.targetValue,
+      isDisabled: item.isDisabled,
       children: item.subMateri
           .map((child) => DailyLogEntry.fromSubSubjectItem(child))
           .toList(),
@@ -437,6 +470,7 @@ class DailyLogEntry {
       itemType: json['itemType'] ?? 'normal',
       currentValue: json['currentValue'] ?? 0,
       targetValue: json['targetValue'] ?? 0,
+      isDisabled: json['isDisabled'] ?? false,
       children: parsedChildren,
     );
   }
@@ -448,6 +482,7 @@ class DailyLogEntry {
       'itemType': itemType,
       'currentValue': currentValue,
       'targetValue': targetValue,
+      'isDisabled': isDisabled,
       'children': children.map((e) => e.toJson()).toList(),
     };
   }
