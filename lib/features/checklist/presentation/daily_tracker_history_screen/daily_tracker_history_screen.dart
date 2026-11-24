@@ -1,16 +1,23 @@
 import 'package:flutter/material.dart';
 import '../../data/models/daily_model.dart';
+import 'widgets/edit_history_entry_sheet.dart';
+import 'widgets/history_bar_chart.dart';
+import 'widgets/history_filter_chips.dart';
 
 class DailyTrackerHistoryScreen extends StatefulWidget {
   final DailySubject subject;
   final Future<void> Function()? onDeleteAll;
   final Future<void> Function(String yearMonth)? onDeleteByMonth;
+  final Future<void> Function(String dateKey, List<DailyLogEntry> updated)? onEditEntry;
+  final Future<void> Function(String dateKey)? onDeleteEntry;
 
   const DailyTrackerHistoryScreen({
     super.key,
     required this.subject,
     this.onDeleteAll,
     this.onDeleteByMonth,
+    this.onEditEntry,
+    this.onDeleteEntry,
   });
 
   @override
@@ -19,6 +26,9 @@ class DailyTrackerHistoryScreen extends StatefulWidget {
 }
 
 class _DailyTrackerHistoryScreenState extends State<DailyTrackerHistoryScreen> {
+  HistoryFilterPreset _selectedPreset = HistoryFilterPreset.thisMonth;
+  DateTimeRange? _customRange;
+
   // Menghitung ringkasan item selesai dan total secara rekursif
   int _countTotal(List<DailyLogEntry> entries) {
     int count = 0;
@@ -50,7 +60,7 @@ class _DailyTrackerHistoryScreenState extends State<DailyTrackerHistoryScreen> {
       if (parts.length == 3) {
         final year = parts[0];
         final monthNum = int.tryParse(parts[1]) ?? 1;
-        final day = parts[2];
+        final day = int.tryParse(parts[2]) ?? 1;
         const monthNames = [
           'Januari',
           'Februari',
@@ -71,6 +81,44 @@ class _DailyTrackerHistoryScreenState extends State<DailyTrackerHistoryScreen> {
       }
     } catch (_) {}
     return dateKey;
+  }
+
+  /// Memfilter keys dari subject.dailyLogs berdasarkan preset atau custom range
+  List<String> get _filteredKeys {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final allKeys = widget.subject.dailyLogs.keys.toList();
+
+    return allKeys.where((key) {
+      final parsedDate = DateTime.tryParse(key);
+      if (parsedDate == null) return false;
+
+      final keyDate = DateTime(parsedDate.year, parsedDate.month, parsedDate.day);
+
+      switch (_selectedPreset) {
+        case HistoryFilterPreset.thisMonth:
+          return keyDate.year == today.year && keyDate.month == today.month;
+        case HistoryFilterPreset.last7Days:
+          final start7 = today.subtract(const Duration(days: 6));
+          return !keyDate.isBefore(start7) && !keyDate.isAfter(today);
+        case HistoryFilterPreset.last30Days:
+          final start30 = today.subtract(const Duration(days: 29));
+          return !keyDate.isBefore(start30) && !keyDate.isAfter(today);
+        case HistoryFilterPreset.custom:
+          if (_customRange == null) return true;
+          final start = DateTime(
+            _customRange!.start.year,
+            _customRange!.start.month,
+            _customRange!.start.day,
+          );
+          final end = DateTime(
+            _customRange!.end.year,
+            _customRange!.end.month,
+            _customRange!.end.day,
+          );
+          return !keyDate.isBefore(start) && !keyDate.isAfter(end);
+      }
+    }).toList();
   }
 
   void _showDetailSnapshot(String dateKey, List<DailyLogEntry> entries) {
@@ -204,6 +252,89 @@ class _DailyTrackerHistoryScreenState extends State<DailyTrackerHistoryScreen> {
     return widgets;
   }
 
+  void _showEntryContextMenu(String dateKey, List<DailyLogEntry> entries) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.edit_calendar_rounded, color: Colors.teal),
+                title: const Text('Edit Entry'),
+                subtitle: Text(_formatDisplayDate(dateKey)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _openEditSheet(dateKey, entries);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_outline_rounded, color: Colors.red),
+                title: const Text('Hapus Entry', style: TextStyle(color: Colors.red)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _handleDeleteEntry(dateKey);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openEditSheet(String dateKey, List<DailyLogEntry> entries) async {
+    await EditHistoryEntrySheet.show(
+      context: context,
+      dateKey: dateKey,
+      entries: entries,
+      onSave: (updated) async {
+        if (widget.onEditEntry != null) {
+          await widget.onEditEntry!(dateKey, updated);
+        } else {
+          widget.subject.dailyLogs[dateKey] = updated;
+        }
+        if (mounted) setState(() {});
+      },
+    );
+  }
+
+  Future<void> _handleDeleteEntry(String dateKey) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Konfirmasi Hapus Entry'),
+        content: Text(
+          'Apakah Anda yakin ingin menghapus data riwayat tanggal "${_formatDisplayDate(dateKey)}"?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            key: const Key('btn_confirm_delete_entry'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Hapus', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      if (widget.onDeleteEntry != null) {
+        await widget.onDeleteEntry!(dateKey);
+      } else {
+        widget.subject.dailyLogs.remove(dateKey);
+      }
+      if (mounted) setState(() {});
+    }
+  }
+
   Future<void> _handleDeleteAll() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -268,7 +399,6 @@ class _DailyTrackerHistoryScreenState extends State<DailyTrackerHistoryScreen> {
   }
 
   Future<void> _handleDeleteByMonth() async {
-    // Ambil daftar unique month (yyyy-MM)
     final months = widget.subject.dailyLogs.keys
         .map((k) => k.length >= 7 ? k.substring(0, 7) : '')
         .where((m) => m.isNotEmpty)
@@ -336,9 +466,14 @@ class _DailyTrackerHistoryScreenState extends State<DailyTrackerHistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Ambil tanggal terurut descending
-    final sortedKeys = widget.subject.dailyLogs.keys.toList()
-      ..sort((a, b) => b.compareTo(a));
+    final hasAnyData = widget.subject.dailyLogs.isNotEmpty;
+
+    // Keys terfilter
+    final filtered = _filteredKeys;
+    // Untuk grafik: urutkan ascending
+    final chartDateKeys = List<String>.from(filtered)..sort((a, b) => a.compareTo(b));
+    // Untuk list: urutkan descending
+    final listDateKeys = List<String>.from(filtered)..sort((a, b) => b.compareTo(a));
 
     return Scaffold(
       appBar: AppBar(
@@ -346,7 +481,7 @@ class _DailyTrackerHistoryScreenState extends State<DailyTrackerHistoryScreen> {
         backgroundColor: Colors.teal,
         foregroundColor: Colors.white,
         actions: [
-          if (sortedKeys.isNotEmpty)
+          if (hasAnyData)
             PopupMenuButton<String>(
               key: const Key('btn_history_menu'),
               icon: const Icon(Icons.more_vert, color: Colors.white),
@@ -394,7 +529,7 @@ class _DailyTrackerHistoryScreenState extends State<DailyTrackerHistoryScreen> {
             ),
         ],
       ),
-      body: sortedKeys.isEmpty
+      body: !hasAnyData
           ? Center(
               key: const Key('daily_tracker_history_empty'),
               child: Padding(
@@ -429,77 +564,152 @@ class _DailyTrackerHistoryScreenState extends State<DailyTrackerHistoryScreen> {
                 ),
               ),
             )
-          : ListView.separated(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              itemCount: sortedKeys.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 4),
-              itemBuilder: (context, index) {
-                final dateKey = sortedKeys[index];
-                final entries = widget.subject.dailyLogs[dateKey] ?? [];
-                final total = _countTotal(entries);
-                final finished = _countFinished(entries);
-
-                return Card(
-                  key: Key('history_date_tile_$dateKey'),
-                  elevation: 1,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+          : CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      HistoryFilterChips(
+                        selected: _selectedPreset,
+                        customRange: _customRange,
+                        onPresetChanged: (preset) {
+                          setState(() {
+                            _selectedPreset = preset;
+                          });
+                        },
+                        onCustomRangeChanged: (range) {
+                          setState(() {
+                            _selectedPreset = HistoryFilterPreset.custom;
+                            _customRange = range;
+                          });
+                        },
+                      ),
+                      HistoryBarChart(
+                        dateKeys: chartDateKeys,
+                        dailyLogs: widget.subject.dailyLogs,
+                        countTotal: _countTotal,
+                        countFinished: _countFinished,
+                      ),
+                      const SizedBox(height: 8),
+                    ],
                   ),
-                  child: ListTile(
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                    leading: CircleAvatar(
-                      backgroundColor: finished == total && total > 0
-                          ? Colors.teal.shade50
-                          : Colors.grey.shade100,
-                      child: Icon(
-                        finished == total && total > 0
-                            ? Icons.check_circle_rounded
-                            : Icons.calendar_today_rounded,
-                        color: finished == total && total > 0
-                            ? Colors.teal
-                            : Colors.blueGrey,
-                        size: 20,
-                      ),
-                    ),
-                    title: Text(
-                      _formatDisplayDate(dateKey),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                      ),
-                    ),
-                    subtitle: Text(
-                      dateKey,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                    trailing: Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: finished == total && total > 0
-                            ? Colors.teal.shade100
-                            : Colors.grey.shade200,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        '$finished / $total Selesai',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: finished == total && total > 0
-                              ? Colors.teal.shade800
-                              : Colors.grey.shade800,
+                ),
+                if (listDateKeys.isEmpty)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24.0),
+                        child: Text(
+                          'Tidak ada entri riwayat pada rentang waktu ini.',
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 13,
+                          ),
                         ),
                       ),
                     ),
-                    onTap: () => _showDetailSnapshot(dateKey, entries),
+                  )
+                else
+                  SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final dateKey = listDateKeys[index];
+                          final entries = widget.subject.dailyLogs[dateKey] ?? [];
+                          final total = _countTotal(entries);
+                          final finished = _countFinished(entries);
+
+                          return Card(
+                            key: Key('history_date_tile_$dateKey'),
+                            elevation: 1,
+                            margin: const EdgeInsets.symmetric(vertical: 4),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(10),
+                              onTap: () => _showDetailSnapshot(dateKey, entries),
+                              onLongPress: () => _showEntryContextMenu(dateKey, entries),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                                child: Row(
+                                  children: [
+                                    CircleAvatar(
+                                      backgroundColor: finished == total && total > 0
+                                          ? Colors.teal.shade50
+                                          : Colors.grey.shade100,
+                                      child: Icon(
+                                        finished == total && total > 0
+                                            ? Icons.check_circle_rounded
+                                            : Icons.calendar_today_rounded,
+                                        color: finished == total && total > 0
+                                            ? Colors.teal
+                                            : Colors.blueGrey,
+                                        size: 20,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            _formatDisplayDate(dateKey),
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            dateKey,
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: Colors.grey.shade600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: finished == total && total > 0
+                                            ? Colors.teal.shade100
+                                            : Colors.grey.shade200,
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        '$finished / $total Selesai',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: finished == total && total > 0
+                                              ? Colors.teal.shade800
+                                              : Colors.grey.shade800,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                        childCount: listDateKeys.length,
+                      ),
+                    ),
                   ),
-                );
-              },
+              ],
             ),
     );
   }

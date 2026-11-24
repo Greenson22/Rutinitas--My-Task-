@@ -1178,6 +1178,10 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                               onDeleteAll: () => deleteDailyLog(subject),
                               onDeleteByMonth: (month) =>
                                   deleteDailyLogsByMonth(subject, month),
+                              onEditEntry: (dateKey, updated) =>
+                                  editDailyLogEntry(subject, dateKey, updated),
+                              onDeleteEntry: (dateKey) =>
+                                  deleteDailyLogEntry(subject, dateKey),
                             ),
                           ),
                         ).then((_) {

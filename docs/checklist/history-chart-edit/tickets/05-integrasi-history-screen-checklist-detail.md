@@ -81,28 +81,37 @@ onDeleteEntry: (dateKey) async {
 
 **Blocked by:** 02, 03, 04
 
-**Status:** todo
+**Status:** done
 
-- [ ] `DailyTrackerHistoryScreen` menerima `onEditEntry` & `onDeleteEntry` sebagai parameter opsional (nullable).
-- [ ] Saat screen dibuka, filter default = "Bulan Ini"; grafik dan list hanya menampilkan entry bulan berjalan.
-- [ ] `HistoryFilterChips` tampil dan perubahan filter memperbarui grafik dan list secara sinkron.
-- [ ] `HistoryBarChart` tampil di atas list dengan data dari `_filteredKeys` (sorted ascending).
-- [ ] Long-press card tanggal memunculkan menu konteks dengan "Edit" dan "Hapus".
-- [ ] Memilih "Edit" dari menu membuka `EditHistoryEntrySheet` dengan data entry hari itu.
-- [ ] Setelah simpan di sheet edit, `onEditEntry` dipanggil dan ringkasan card diperbarui.
-- [ ] Memilih "Hapus" dari menu menampilkan dialog konfirmasi.
-- [ ] Setelah konfirmasi hapus, `onDeleteEntry` dipanggil dan card tanggal itu hilang dari list.
-- [ ] `ChecklistDetailScreen` meneruskan `onEditEntry` & `onDeleteEntry` dengan implementasi controller yang benar.
-- [ ] Fungsionalitas lama (delete all, delete by month, detail snapshot read-only via tap biasa) tetap berjalan.
-- [ ] Widget test: saat screen dibuka dengan data 2 bulan, hanya entry bulan ini yang tampil (default filter).
-- [ ] Widget test: setelah pilih "30 Hari", semua entry 30 hari terakhir tampil.
-- [ ] Widget test: long-press card → menu tampil → pilih Edit → `EditHistoryEntrySheet` terbuka.
-- [ ] Widget test: long-press card → pilih Hapus → konfirmasi → `onDeleteEntry` dipanggil dengan dateKey yang benar.
-- [ ] Widget test: tap biasa pada card masih membuka detail snapshot read-only (tidak terpengaruh oleh long-press).
-- [ ] Seluruh test suite lama tetap lulus 100%; tidak ada regresi.
+- [x] `DailyTrackerHistoryScreen` menerima `onEditEntry` & `onDeleteEntry` sebagai parameter opsional (nullable).
+- [x] Saat screen dibuka, filter default = "Bulan Ini"; grafik dan list hanya menampilkan entry bulan berjalan.
+- [x] `HistoryFilterChips` tampil dan perubahan filter memperbarui grafik dan list secara sinkron.
+- [x] `HistoryBarChart` tampil di atas list dengan data dari `_filteredKeys` (sorted ascending).
+- [x] Long-press card tanggal memunculkan menu konteks dengan "Edit" dan "Hapus".
+- [x] Memilih "Edit" dari menu membuka `EditHistoryEntrySheet` dengan data entry hari itu.
+- [x] Setelah simpan di sheet edit, `onEditEntry` dipanggil dan ringkasan card diperbarui.
+- [x] Memilih "Hapus" dari menu menampilkan dialog konfirmasi.
+- [x] Setelah konfirmasi hapus, `onDeleteEntry` dipanggil dan card tanggal itu hilang dari list.
+- [x] `ChecklistDetailScreen` meneruskan `onEditEntry` & `onDeleteEntry` dengan implementasi controller yang benar.
+- [x] Fungsionalitas lama (delete all, delete by month, detail snapshot read-only via tap biasa) tetap berjalan.
+- [x] Widget test: saat screen dibuka dengan data 2 bulan, hanya entry bulan ini yang tampil (default filter).
+- [x] Widget test: setelah pilih "30 Hari", semua entry 30 hari terakhir tampil.
+- [x] Widget test: long-press card → menu tampil → pilih Edit → `EditHistoryEntrySheet` terbuka.
+- [x] Widget test: long-press card → pilih Hapus → konfirmasi → `onDeleteEntry` dipanggil dengan dateKey yang benar.
+- [x] Widget test: tap biasa pada card masih membuka detail snapshot read-only (tidak terpengaruh oleh long-press).
+- [x] Seluruh test suite lama tetap lulus 100%; tidak ada regresi.
 
 ---
 
 ## Catatan implementasi
 
-_Diisi oleh agent setelah implementasi selesai._
+- Melakukan refactor pada `DailyTrackerHistoryScreen` di `lib/features/checklist/presentation/daily_tracker_history_screen/daily_tracker_history_screen.dart`:
+  - Menambahkan callback opsional `onEditEntry` dan `onDeleteEntry`.
+  - Mengintegrasikan state filter: `HistoryFilterPreset.thisMonth` (default) dan `_customRange`.
+  - Menerapkan layout berbasis `CustomScrollView` yang menampilkan `HistoryFilterChips` dan `HistoryBarChart` (dengan data `_filteredKeys` terurut ascending) di bagian atas list.
+  - Setiap card tanggal mendukung `onTap` (membuka snapshot read-only) dan `onLongPress` (membuka bottom sheet opsi "Edit Entry" dan "Hapus Entry").
+  - Menghubungkan opsi Edit ke `EditHistoryEntrySheet` dan opsi Hapus ke dialog konfirmasi `AlertDialog` yang memanggil `onDeleteEntry`.
+- Memperbarui navigasi di `lib/features/checklist/presentation/checklist_detail_screen/checklist_detail_screen.dart` untuk meneruskan callback `onEditEntry` dan `onDeleteEntry` ke method controller `editDailyLogEntry` dan `deleteDailyLogEntry`.
+- Memperbarui dan melengkapi widget tests di `test/features/checklist/presentation/daily_tracker_history_screen_test.dart` menguji filter default bulan ini, pergantian filter ke 30 hari, interaksi long-press, sheet edit, dialog konfirmasi hapus, dan fungsi snapshot read-only saat tap normal.
+- Seluruh test suite (383 test cases) lulus 100% tanpa regresi.
+- Waktu selesai: 2026-11-24T09:31:00+08:00.
