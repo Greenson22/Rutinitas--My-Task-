@@ -13,6 +13,7 @@ import '../../../../core/presentation/widgets/interactive_section_header.dart';
 import '../../../../core/presentation/widgets/universal_empty_state.dart'; // Using Universal Widget from Core[cite: 5]
 import '../../../../core/presentation/widgets/adaptive_banner_ad.dart'; // <--- IMPORT WIDGET ADMOB BARU
 import 'widgets/checklist_dialog.dart'; // Import Dialog kustom[cite: 5]
+import '../daily_tracker_history_screen/daily_tracker_history_screen.dart';
 
 class ChecklistDetailScreen extends StatefulWidget {
   final ChecklistGroup group;
@@ -1058,12 +1059,156 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                   },
                 ),
               ],
+              if (subject.isDailyTrackerEnabled && subject.type != 'note') ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Tooltip(
+                        message: 'Simpan status hari ini',
+                        child: OutlinedButton(
+                          key: const Key('btn_save_today_log'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.teal.shade800,
+                            side: BorderSide(color: Colors.teal.shade400, width: 1),
+                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                            minimumSize: const Size(0, 28),
+                            visualDensity: VisualDensity.compact,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                          ),
+                          onPressed: () async {
+                            final messenger = ScaffoldMessenger.of(context);
+                            final savedDate = await saveTodayLog(subject);
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Daily tracker "$savedDate" berhasil disimpan!',
+                                ),
+                                backgroundColor: Colors.teal,
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                          },
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.save_rounded, size: 12),
+                              SizedBox(width: 3),
+                              Flexible(
+                                child: Text(
+                                  'Simpan Hari Ini',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Tooltip(
+                        message: 'Reset centang untuk hari baru',
+                        child: OutlinedButton(
+                          key: const Key('btn_reset_for_new_day'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.grey.shade700,
+                            side: BorderSide(color: Colors.grey.shade400, width: 1),
+                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                            minimumSize: const Size(0, 28),
+                            visualDensity: VisualDensity.compact,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                          ),
+                          onPressed: () async {
+                            await resetForNewDay(subject);
+                          },
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.refresh_rounded, size: 12),
+                              SizedBox(width: 3),
+                              Flexible(
+                                child: Text(
+                                  'Reset Hari Baru',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                SizedBox(
+                  width: double.infinity,
+                  child: Tooltip(
+                    message: 'Lihat riwayat catatan harian',
+                    child: OutlinedButton(
+                      key: const Key('btn_view_history'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.indigo.shade700,
+                        side: BorderSide(color: Colors.indigo.shade300, width: 1),
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                        minimumSize: const Size(0, 28),
+                        visualDensity: VisualDensity.compact,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => DailyTrackerHistoryScreen(
+                              subject: subject,
+                            ),
+                          ),
+                        );
+                      },
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.history_rounded, size: 12),
+                          SizedBox(width: 3),
+                          Text(
+                            'Lihat History',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ],
           );
 
           return InteractiveGridCard(
             themeColor: Color(subject.backgroundColor),
-            content: cardContent,
+            content: subject.isDailyTrackerEnabled
+                ? SingleChildScrollView(
+                    physics: const ClampingScrollPhysics(),
+                    child: cardContent,
+                  )
+                : cardContent,
             isEditMode: isLayoutEditMode ? true : isPageEditMode,
             isHiddenStyle: subject.isHidden,
             isFirst: index == 0,

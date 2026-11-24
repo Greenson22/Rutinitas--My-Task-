@@ -600,7 +600,8 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
 
   /// Menyimpan snapshot status seluruh item checklist hari ini secara rekursif.
   /// Jika sudah ada entri di hari yang sama, data akan di-overwrite.
-  Future<void> saveTodayLog(DailySubject subject) async {
+  /// Mengembalikan string key tanggal yang berhasil disimpan (format yyyy-MM-dd).
+  Future<String> saveTodayLog(DailySubject subject) async {
     final now = DateTime.now();
     final String todayKey =
         '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
@@ -611,6 +612,7 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
 
     subject.dailyLogs[todayKey] = entries;
     await saveGroupData();
+    return todayKey;
   }
 
   /// Menampilkan dialog konfirmasi dan mereset status semua item checklist
