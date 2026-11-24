@@ -187,5 +187,108 @@ void main() {
       expect(find.byType(EditHistoryEntrySheet), findsNothing);
       expect(onSaveCalled, isFalse);
     });
+
+    testWidgets('menampilkan badge Progress dan Hitung Mundur sesuai tipe item serta label input yang benar', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: EditHistoryEntrySheet(
+              dateKey: '2026-11-24',
+              entries: sampleEntries,
+              onSave: (_) async {},
+            ),
+          ),
+        ),
+      );
+
+      // Badge Progress tampil untuk item progress
+      expect(find.text('Progress'), findsOneWidget);
+      expect(find.byIcon(Icons.trending_up), findsOneWidget);
+
+      // Badge Hitung Mundur tampil untuk item countdown
+      expect(find.text('Hitung Mundur'), findsOneWidget);
+      expect(find.byIcon(Icons.timer_outlined), findsOneWidget);
+
+      // Label input nilai sesuai tipe
+      expect(find.text('Nilai saat ini:'), findsOneWidget);
+      expect(find.text('Sisa:'), findsOneWidget);
+      expect(find.text('Nilai:'), findsNothing);
+    });
+
+    testWidgets('tidak menampilkan badge apapun untuk item bertipe normal', (tester) async {
+      const normalOnlyEntries = [
+        DailyLogEntry(
+          itemName: 'Sholat Subuh',
+          progress: 'selesai',
+          itemType: 'normal',
+          currentValue: 0,
+          targetValue: 0,
+        ),
+      ];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: EditHistoryEntrySheet(
+              dateKey: '2026-11-24',
+              entries: normalOnlyEntries,
+              onSave: (_) async {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Progress'), findsNothing);
+      expect(find.text('Hitung Mundur'), findsNothing);
+      expect(find.byIcon(Icons.trending_up), findsNothing);
+      expect(find.byIcon(Icons.timer_outlined), findsNothing);
+    });
+
+    testWidgets('menampilkan badge dan label input untuk sub-item (children) bertipe progress dan countdown', (tester) async {
+      const nestedEntries = [
+        DailyLogEntry(
+          itemName: 'Parent Normal',
+          progress: 'sementara',
+          itemType: 'normal',
+          currentValue: 0,
+          targetValue: 0,
+          children: [
+            DailyLogEntry(
+              itemName: 'Child Progress',
+              progress: 'sementara',
+              itemType: 'progress',
+              currentValue: 3,
+              targetValue: 10,
+            ),
+            DailyLogEntry(
+              itemName: 'Child Countdown',
+              progress: 'belum',
+              itemType: 'countdown',
+              currentValue: 5,
+              targetValue: 15,
+            ),
+          ],
+        ),
+      ];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: EditHistoryEntrySheet(
+              dateKey: '2026-11-24',
+              entries: nestedEntries,
+              onSave: (_) async {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Progress'), findsOneWidget);
+      expect(find.byIcon(Icons.trending_up), findsOneWidget);
+      expect(find.text('Hitung Mundur'), findsOneWidget);
+      expect(find.byIcon(Icons.timer_outlined), findsOneWidget);
+      expect(find.text('Nilai saat ini:'), findsOneWidget);
+      expect(find.text('Sisa:'), findsOneWidget);
+    });
   });
 }

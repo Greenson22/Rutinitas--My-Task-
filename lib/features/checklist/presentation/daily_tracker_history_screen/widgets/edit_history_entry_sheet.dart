@@ -285,12 +285,21 @@ class _EditHistoryEntrySheetState extends State<EditHistoryEntrySheet> {
             Row(
               children: [
                 Expanded(
-                  child: Text(
-                    entry.itemName,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        entry.itemName,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      ),
+                      if (_buildTypeBadge(entry.itemType) case final badge?) ...[
+                        const SizedBox(height: 4),
+                        badge,
+                      ],
+                    ],
                   ),
                 ),
                 _buildStatusSelector(entry),
@@ -301,7 +310,7 @@ class _EditHistoryEntrySheetState extends State<EditHistoryEntrySheet> {
               Row(
                 children: [
                   Text(
-                    entry.itemType == 'countdown' ? 'Sisa:' : 'Nilai:',
+                    entry.itemType == 'countdown' ? 'Sisa:' : 'Nilai saat ini:',
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.grey.shade700,
@@ -343,6 +352,51 @@ class _EditHistoryEntrySheetState extends State<EditHistoryEntrySheet> {
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget? _buildTypeBadge(String itemType) {
+    final (IconData icon, String label, Color bgColor, Color fgColor)? config =
+        switch (itemType) {
+      'progress' => (
+          Icons.trending_up,
+          'Progress',
+          Colors.blue.shade100,
+          Colors.blue.shade800,
+        ),
+      'countdown' => (
+          Icons.timer_outlined,
+          'Hitung Mundur',
+          Colors.orange.shade100,
+          Colors.orange.shade800,
+        ),
+      _ => null,
+    };
+
+    if (config == null) return null;
+
+    final (icon, label, bgColor, fgColor) = config;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: fgColor),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: fgColor,
+            ),
+          ),
+        ],
       ),
     );
   }
