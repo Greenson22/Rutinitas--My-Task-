@@ -450,5 +450,81 @@ void main() {
         expect(entryFalse.toJson()['isDisabled'], isFalse);
       });
     });
+
+    group('ChecklistSection Model Tests', () {
+      test('ChecklistSection defaults: isHidden false, isCollapsed false', () {
+        final section = ChecklistSection(
+          sectionName: 'Fokus',
+          items: [],
+        );
+
+        expect(section.isHidden, isFalse);
+        expect(section.isCollapsed, isFalse);
+      });
+
+      test('ChecklistSection.fromJson with complete JSON parses fields correctly', () {
+        final json = {
+          'nama_seksi': 'Proyek',
+          'items': [],
+          'isHidden': true,
+          'isCollapsed': true,
+        };
+
+        final section = ChecklistSection.fromJson(json);
+        expect(section.sectionName, 'Proyek');
+        expect(section.isHidden, isTrue);
+        expect(section.isCollapsed, isTrue);
+      });
+
+      test('ChecklistSection.fromJson with legacy JSON (no new fields) defaults to false', () {
+        final legacyJson = {
+          'nama_seksi': 'Seksi Lama',
+          'items': [],
+        };
+
+        final section = ChecklistSection.fromJson(legacyJson);
+        expect(section.sectionName, 'Seksi Lama');
+        expect(section.isHidden, isFalse);
+        expect(section.isCollapsed, isFalse);
+      });
+
+      test('ChecklistSection.toJson includes both isHidden and isCollapsed', () {
+        final section = ChecklistSection(
+          sectionName: 'Rutin',
+          items: [],
+          isHidden: true,
+          isCollapsed: false,
+        );
+
+        final json = section.toJson();
+        expect(json['nama_seksi'], 'Rutin');
+        expect(json['isHidden'], isTrue);
+        expect(json['isCollapsed'], isFalse);
+      });
+
+      test('ChecklistSection round-trip toJson -> fromJson preserves field values', () {
+        final section = ChecklistSection(
+          sectionName: 'Arsip',
+          items: [
+            DailySubject(
+              subjectName: 'Item 1',
+              progress: 'selesai',
+              subMateri: [],
+            ),
+          ],
+          isHidden: true,
+          isCollapsed: true,
+        );
+
+        final json = section.toJson();
+        final parsed = ChecklistSection.fromJson(json);
+
+        expect(parsed.sectionName, 'Arsip');
+        expect(parsed.items.length, 1);
+        expect(parsed.items.first.subjectName, 'Item 1');
+        expect(parsed.isHidden, isTrue);
+        expect(parsed.isCollapsed, isTrue);
+      });
+    });
   });
 }

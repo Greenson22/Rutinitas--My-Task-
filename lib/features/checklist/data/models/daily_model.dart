@@ -544,14 +544,23 @@ class ChecklistGroup {
 class ChecklistSection {
   String sectionName;
   List<DailySubject> items;
+  bool isHidden;
+  bool isCollapsed;
 
-  ChecklistSection({required this.sectionName, required this.items});
+  ChecklistSection({
+    required this.sectionName,
+    required this.items,
+    this.isHidden = false,
+    this.isCollapsed = false,
+  });
 
   factory ChecklistSection.fromJson(Map<String, dynamic> json) {
     var list = json['items'] as List? ?? [];
     return ChecklistSection(
       sectionName: json['nama_seksi'] ?? 'Seksi Baru',
       items: list.map((i) => DailySubject.fromJson(i)).toList(),
+      isHidden: json['isHidden'] ?? false,
+      isCollapsed: json['isCollapsed'] ?? false,
     );
   }
 
@@ -559,6 +568,8 @@ class ChecklistSection {
     return {
       'nama_seksi': sectionName,
       'items': items.map((e) => e.toJson()).toList(),
+      'isHidden': isHidden,
+      'isCollapsed': isCollapsed,
     };
   }
 }
