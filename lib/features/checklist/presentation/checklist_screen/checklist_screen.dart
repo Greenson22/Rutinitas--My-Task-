@@ -807,7 +807,8 @@ class _DailyScreenState extends State<DailyScreen> {
         onAddPressed: _showAddMainSectionDialog,
         isSectionCollapsed: (sectionKey) =>
             _controller.isSectionCollapsed(sectionKey) ||
-            _controller.isSectionHidden(sectionKey),
+            (!_controller.showHiddenSection &&
+                _controller.isSectionHidden(sectionKey)),
         appBarTrailingAction: _controller.isGlobalEncryptionEnabled
             ? Padding(
                 padding: const EdgeInsets.only(right: 8.0),
@@ -904,7 +905,9 @@ class _DailyScreenState extends State<DailyScreen> {
                   isEditMode: isLayoutEditMode
                       ? true
                       : _controller.isPageEditMode,
-                  isHiddenStyle: false,
+                  isHiddenStyle: _controller.isSectionHidden(
+                    group.sectionCategory,
+                  ),
                   isFirst: index == 0,
                   isLast: index == sectionItems.length - 1,
                   onTap: () => _showManualDecryptDialog(group),
@@ -1019,7 +1022,9 @@ class _DailyScreenState extends State<DailyScreen> {
                 isEditMode: isLayoutEditMode
                     ? true
                     : _controller.isPageEditMode,
-                isHiddenStyle: group.isHidden,
+                isHiddenStyle:
+                    group.isHidden ||
+                    _controller.isSectionHidden(group.sectionCategory),
                 isFirst: index == 0,
                 isLast: index == sectionItems.length - 1,
                 onTap: () {
