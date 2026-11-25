@@ -33,6 +33,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
 
   // Settings Tampilan Checklist
   bool _sectionDefaultCollapsed = false;
+  bool _checklistGroupsDefaultCollapsed = false;
   bool _sectionRememberCollapseState = true;
 
   final StorageService _storageService = StorageService();
@@ -62,6 +63,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
           prefs.getBool('section_default_collapsed') ?? false;
       _sectionRememberCollapseState =
           prefs.getBool('section_remember_collapse_state') ?? true;
+      _checklistGroupsDefaultCollapsed =
+          prefs.getBool('checklist_groups_default_collapsed') ?? false;
     });
   }
 
@@ -462,6 +465,14 @@ class _SettingsDialogState extends State<SettingsDialog> {
     });
   }
 
+  Future<void> _handleChecklistGroupsDefaultCollapsedToggle(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('checklist_groups_default_collapsed', value);
+    setState(() {
+      _checklistGroupsDefaultCollapsed = value;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
@@ -625,6 +636,22 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 value: _sectionRememberCollapseState,
                 activeThumbColor: Colors.teal,
                 onChanged: _handleSectionRememberCollapseStateToggle,
+              ),
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text(
+                'Checklist Groups: Tutup seksi secara default',
+                style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+              ),
+              subtitle: const Text(
+                'Seksi dimulai dalam kondisi terlipat saat layar Checklist Groups dibuka (bukan Checklist Detail).',
+                style: TextStyle(fontSize: 11, color: Colors.black54),
+              ),
+              trailing: Switch(
+                value: _checklistGroupsDefaultCollapsed,
+                activeThumbColor: Colors.teal,
+                onChanged: _handleChecklistGroupsDefaultCollapsedToggle,
               ),
             ),
             const Divider(),
