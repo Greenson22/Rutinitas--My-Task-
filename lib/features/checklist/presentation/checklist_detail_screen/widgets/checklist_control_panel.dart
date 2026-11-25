@@ -3,7 +3,7 @@
 import 'package:flutter/material.dart';
 import '../../../data/models/daily_model.dart';
 
-class ChecklistControlPanel extends StatelessWidget {
+class ChecklistControlPanel extends StatefulWidget {
   final DailySubject subject;
   final TextEditingController singleInputController;
   final VoidCallback onAddRootItem;
@@ -29,6 +29,11 @@ class ChecklistControlPanel extends StatelessWidget {
   // === KONTROL SAKELAR BARU: AKSES IMPOR DATA DATA JSON ===
   final VoidCallback onImportJsonPressed;
 
+  // === KONTROL PINDAH SEKSI LAZY-EXPAND ===
+  final List<ChecklistSection> availableSections;
+  final String currentSectionName;
+  final ValueChanged<ChecklistSection>? onMoveToSection;
+
   const ChecklistControlPanel({
     super.key,
     required this.subject,
@@ -52,10 +57,23 @@ class ChecklistControlPanel extends StatelessWidget {
     required this.onTriggerAllExpansion,
     // --- MASUKKAN BARU KE CONSTRUCTOR ---
     required this.onImportJsonPressed,
+    this.availableSections = const [],
+    this.currentSectionName = '',
+    this.onMoveToSection,
   });
 
   @override
+  State<ChecklistControlPanel> createState() => _ChecklistControlPanelState();
+}
+
+class _ChecklistControlPanelState extends State<ChecklistControlPanel> {
+  bool _isSectionPickerExpanded = false;
+
+  @override
   Widget build(BuildContext context) {
+    final targetSections = widget.availableSections
+        .where((s) => s.sectionName != widget.currentSectionName)
+        .toList();
     return Container(
       color: Colors.grey.shade50,
       child: Column(
@@ -67,7 +85,7 @@ class ChecklistControlPanel extends StatelessWidget {
               children: [
                 Expanded(
                   child: TextField(
-                    controller: singleInputController,
+                    controller: widget.singleInputController,
                     decoration: const InputDecoration(
                       hintText: 'Tambah sub-materi utama baru...',
                       isDense: true,
@@ -77,14 +95,14 @@ class ChecklistControlPanel extends StatelessWidget {
                       ),
                       border: OutlineInputBorder(),
                     ),
-                    onSubmitted: (_) => onAddRootItem(),
+                    onSubmitted: (_) => widget.onAddRootItem(),
                   ),
                 ),
                 const SizedBox(width: 4),
                 IconButton(
                   icon: const Icon(Icons.add_box, color: Colors.teal),
                   tooltip: 'Tambah Utama',
-                  onPressed: onAddRootItem,
+                  onPressed: widget.onAddRootItem,
                 ),
                 IconButton(
                   icon: const Icon(
@@ -92,7 +110,7 @@ class ChecklistControlPanel extends StatelessWidget {
                     color: Colors.indigo,
                   ),
                   tooltip: 'Paste Banyak Baris dari Clipboard',
-                  onPressed: onPasteFromClipboard,
+                  onPressed: widget.onPasteFromClipboard,
                 ),
                 // --- SAKELAR ICON BUTTON BARU KHUSUS IMPOR JSON ---
                 IconButton(
@@ -101,7 +119,7 @@ class ChecklistControlPanel extends StatelessWidget {
                     color: Colors.deepOrange,
                   ),
                   tooltip: 'Impor Data dari JSON',
-                  onPressed: onImportJsonPressed,
+                  onPressed: widget.onImportJsonPressed,
                 ),
               ],
             ),
@@ -132,15 +150,15 @@ class ChecklistControlPanel extends StatelessWidget {
                     Transform.scale(
                       scale: 0.8,
                       child: Switch(
-                        value: defaultCardExpanded,
+                        value: widget.defaultCardExpanded,
                         activeColor: Colors.indigo,
-                        onChanged: onDefaultExpandedPrefChanged,
+                        onChanged: widget.onDefaultExpandedPrefChanged,
                       ),
                     ),
                     const Spacer(),
                     // Tombol cepat buka semua anak list
                     TextButton.icon(
-                      onPressed: () => onTriggerAllExpansion(true),
+                      onPressed: () => widget.onTriggerAllExpansion(true),
                       icon: const Icon(Icons.unfold_more, size: 14),
                       label: const Text(
                         'Buka Semua',
@@ -154,7 +172,7 @@ class ChecklistControlPanel extends StatelessWidget {
                     const SizedBox(width: 8),
                     // Tombol cepat ciutkan semua anak list
                     TextButton.icon(
-                      onPressed: () => onTriggerAllExpansion(false),
+                      onPressed: () => widget.onTriggerAllExpansion(false),
                       icon: const Icon(Icons.unfold_less, size: 14),
                       label: const Text(
                         'Tutup Semua',
@@ -180,15 +198,15 @@ class ChecklistControlPanel extends StatelessWidget {
                     Transform.scale(
                       scale: 0.8,
                       child: Switch(
-                        value: subject.isDateActive,
+                        value: widget.subject.isDateActive,
                         activeColor: Colors.teal,
-                        onChanged: onDateActiveChanged,
+                        onChanged: widget.onDateActiveChanged,
                       ),
                     ),
-                    if (subject.isDateActive) ...[
+                    if (widget.subject.isDateActive) ...[
                       const SizedBox(width: 8),
                       DropdownButton<String>(
-                        value: subject.dateType,
+                        value: widget.subject.dateType,
                         style: const TextStyle(
                           fontSize: 12,
                           color: Colors.black87,
@@ -205,31 +223,31 @@ class ChecklistControlPanel extends StatelessWidget {
                             child: Text('Rentang'),
                           ),
                         ],
-                        onChanged: onDateTypeChanged,
+                        onChanged: widget.onDateTypeChanged,
                       ),
                     ],
                   ],
                 ),
-                if (subject.isDateActive)
+                if (widget.subject.isDateActive)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 4.0),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.start,
                       children: [
                         TextButton(
-                          onPressed: onSelectStartDate,
+                          onPressed: widget.onSelectStartDate,
                           style: TextButton.styleFrom(padding: EdgeInsets.zero),
                           child: Text(
-                            subject.dateType == 'range'
-                                ? 'Dari: ${subject.date}'
-                                : subject.date ?? 'Pilih Tanggal',
+                            widget.subject.dateType == 'range'
+                                ? 'Dari: ${widget.subject.date}'
+                                : widget.subject.date ?? 'Pilih Tanggal',
                             style: const TextStyle(
                               fontSize: 12,
                               color: Colors.teal,
                             ),
                           ),
                         ),
-                        if (subject.dateType == 'range') ...[
+                        if (widget.subject.dateType == 'range') ...[
                           const Padding(
                             padding: EdgeInsets.symmetric(horizontal: 6.0),
                             child: Text(
@@ -241,12 +259,12 @@ class ChecklistControlPanel extends StatelessWidget {
                             ),
                           ),
                           TextButton(
-                            onPressed: onSelectEndDate,
+                            onPressed: widget.onSelectEndDate,
                             style: TextButton.styleFrom(
                               padding: EdgeInsets.zero,
                             ),
                             child: Text(
-                              'Sampai: ${subject.endDate}',
+                              'Sampai: ${widget.subject.endDate}',
                               style: const TextStyle(
                                 fontSize: 12,
                                 color: Colors.teal,
@@ -257,7 +275,7 @@ class ChecklistControlPanel extends StatelessWidget {
                       ],
                     ),
                   ),
-                if (isEditMode && subject.subMateri.isNotEmpty)
+                if (widget.isEditMode && widget.subject.subMateri.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4.0),
                     child: Column(
@@ -266,8 +284,8 @@ class ChecklistControlPanel extends StatelessWidget {
                           children: [
                             Checkbox(
                               activeColor: Colors.teal,
-                              value: isAllSelected,
-                              onChanged: onSelectAllChanged,
+                              value: widget.isAllSelected,
+                              onChanged: widget.onSelectAllChanged,
                             ),
                             const Text(
                               'Pilih Semua Item',
@@ -282,8 +300,8 @@ class ChecklistControlPanel extends StatelessWidget {
                           children: [
                             Checkbox(
                               activeColor: Colors.green,
-                              value: isAllFinishedSelected,
-                              onChanged: onSelectAllFinishedChanged,
+                              value: widget.isAllFinishedSelected,
+                              onChanged: widget.onSelectAllFinishedChanged,
                             ),
                             const Text(
                               'Pilih Semua Selesai',
@@ -304,9 +322,9 @@ class ChecklistControlPanel extends StatelessWidget {
                   child: Row(
                     children: [
                       ElevatedButton.icon(
-                        onPressed: subject.subMateri.isEmpty
+                        onPressed: widget.subject.subMateri.isEmpty
                             ? null
-                            : onMarkAllDone,
+                            : widget.onMarkAllDone,
                         icon: const Icon(Icons.done_all, size: 16),
                         label: const Text(
                           'Tandai Semua Selesai',
@@ -323,15 +341,15 @@ class ChecklistControlPanel extends StatelessWidget {
                       ),
                       const Spacer(),
                       OutlinedButton.icon(
-                        onPressed: onToggleHideFinished,
+                        onPressed: widget.onToggleHideFinished,
                         icon: Icon(
-                          hideFinishedItems
+                          widget.hideFinishedItems
                               ? Icons.visibility_off
                               : Icons.visibility,
                           size: 16,
                         ),
                         label: Text(
-                          hideFinishedItems
+                          widget.hideFinishedItems
                               ? 'Tampilkan Selesai'
                               : 'Sembunyikan Selesai',
                           style: const TextStyle(fontSize: 11),
@@ -347,6 +365,60 @@ class ChecklistControlPanel extends StatelessWidget {
                       ),
                     ],
                   ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _isSectionPickerExpanded = !_isSectionPickerExpanded;
+                    });
+                  },
+                  icon: const Icon(Icons.drive_file_move_outlined, size: 16),
+                  label: const Text(
+                    'Pindah Seksi',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.indigo[700],
+                    side: BorderSide(color: Colors.indigo.shade200),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                ),
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeInOut,
+                  child: _isSectionPickerExpanded
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: targetSections
+                              .map(
+                                (section) => ListTile(
+                                  dense: true,
+                                  title: Text(
+                                    section.sectionName,
+                                    style: const TextStyle(fontSize: 13),
+                                  ),
+                                  onTap: () {
+                                    widget.onMoveToSection?.call(section);
+                                    setState(() {
+                                      _isSectionPickerExpanded = false;
+                                    });
+                                  },
+                                ),
+                              )
+                              .toList(),
+                        )
+                      : const SizedBox.shrink(),
                 ),
               ],
             ),
