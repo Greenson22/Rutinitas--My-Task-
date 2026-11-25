@@ -613,6 +613,8 @@ class CategoryDetailScreenState extends State<CategoryDetailScreen> {
               required int targetTotal,
               required bool isActive,
               required todayVisibility,
+              countToday,
+              countDate,
             }) {
               if (task == null) {
                 return controller.addTask(
@@ -634,6 +636,8 @@ class CategoryDetailScreenState extends State<CategoryDetailScreen> {
                 targetTotal: targetTotal,
                 isActive: isActive,
                 todayVisibility: todayVisibility,
+                countToday: countToday,
+                countDate: countDate,
               );
             },
       ),

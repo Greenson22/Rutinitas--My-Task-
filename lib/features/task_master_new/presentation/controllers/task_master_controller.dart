@@ -407,6 +407,8 @@ class TaskMasterNewController extends ChangeNotifier {
     required int targetTotal,
     required bool isActive,
     TodayVisibility? todayVisibility,
+    int? countToday,
+    String? countDate,
   }) async {
     return _runDataAction(
       () => _repository.updateTask(
@@ -418,6 +420,8 @@ class TaskMasterNewController extends ChangeNotifier {
         targetTotal: targetTotal,
         isActive: isActive,
         todayVisibility: todayVisibility,
+        countToday: countToday,
+        countDate: countDate,
       ),
     );
   }

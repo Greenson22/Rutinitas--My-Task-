@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../domain/entities/daily_progress.dart';
 import '../../domain/entities/task.dart';
 import '../../domain/entities/task_kind.dart';
 import '../../domain/entities/today_visibility.dart';
@@ -11,6 +12,7 @@ class TaskFormDialog extends StatefulWidget {
   const TaskFormDialog({
     super.key,
     this.task,
+    this.todayKey,
     required this.onValidateName,
     required this.onSave,
     this.failureMessage,
@@ -18,6 +20,7 @@ class TaskFormDialog extends StatefulWidget {
 
   /// `null` berarti mode tambah.
   final Task? task;
+  final String? todayKey;
   final String? Function(String name) onValidateName;
   final String? Function()? failureMessage;
   final Future<bool> Function({
@@ -27,6 +30,8 @@ class TaskFormDialog extends StatefulWidget {
     required int targetTotal,
     required bool isActive,
     required TodayVisibility todayVisibility,
+    int? countToday,
+    String? countDate,
   })
   onSave;
 
@@ -39,6 +44,8 @@ class _TaskFormDialogState extends State<TaskFormDialog> {
   late final TextEditingController _nameController;
   late final TextEditingController _targetDailyController;
   late final TextEditingController _targetTotalController;
+  late final TextEditingController _countTodayController;
+  late final String _effectiveTodayKey;
   late TaskKind _kind;
   late bool _isActive;
   late TodayVisibility _todayVisibility;
@@ -61,6 +68,11 @@ class _TaskFormDialogState extends State<TaskFormDialog> {
     _targetTotalController = TextEditingController(
       text: (task?.targetTotal ?? 0) > 0 ? '${task!.targetTotal}' : '',
     );
+    _effectiveTodayKey =
+        widget.todayKey ?? DailyProgress.dateKey(DateTime.now());
+    _countTodayController = TextEditingController(
+      text: task != null ? '${task.countOn(_effectiveTodayKey)}' : '',
+    );
   }
 
   @override
@@ -68,6 +80,7 @@ class _TaskFormDialogState extends State<TaskFormDialog> {
     _nameController.dispose();
     _targetDailyController.dispose();
     _targetTotalController.dispose();
+    _countTodayController.dispose();
     super.dispose();
   }
 
@@ -185,6 +198,19 @@ class _TaskFormDialogState extends State<TaskFormDialog> {
                   style: const TextStyle(color: Colors.red, fontSize: 12),
                 ),
               ],
+              if (_isEditing) ...[
+                const SizedBox(height: 8),
+                TextFormField(
+                  key: const Key('taskCountTodayField'),
+                  controller: _countTodayController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Hitungan Hari Ini',
+                    hintText: '0',
+                  ),
+                  validator: _validateCountToday,
+                ),
+              ],
             ],
           ),
         ),
@@ -233,6 +259,16 @@ class _TaskFormDialogState extends State<TaskFormDialog> {
     return validateTaskTotalTarget(kind: _kind, targetTotal: parsed);
   }
 
+  String? _validateCountToday(String? value) {
+    if (!_isEditing) return null;
+    final trimmed = value?.trim() ?? '';
+    if (trimmed.isEmpty) return 'Hitungan tidak boleh kosong';
+    final parsed = int.tryParse(trimmed);
+    if (parsed == null) return 'Masukkan angka bulat';
+    if (parsed < 0) return 'Hitungan tidak boleh negatif';
+    return null;
+  }
+
   int get _parsedDaily {
     final trimmed = _targetDailyController.text.trim();
     if (trimmed.isEmpty) return 0;
@@ -252,6 +288,17 @@ class _TaskFormDialogState extends State<TaskFormDialog> {
       _submitError = null;
     });
 
+    int? countToday;
+    String? countDate;
+    if (_isEditing) {
+      final parsedCount = int.tryParse(_countTodayController.text.trim());
+      final oldCount = widget.task!.countOn(_effectiveTodayKey);
+      if (parsedCount != null && parsedCount != oldCount) {
+        countToday = parsedCount;
+        countDate = _effectiveTodayKey;
+      }
+    }
+
     final saved = await widget.onSave(
       name: _nameController.text.trim(),
       kind: _kind,
@@ -259,6 +306,8 @@ class _TaskFormDialogState extends State<TaskFormDialog> {
       targetTotal: _parsedTotal,
       isActive: _isActive,
       todayVisibility: _todayVisibility,
+      countToday: countToday,
+      countDate: countDate,
     );
 
     if (!mounted) return;

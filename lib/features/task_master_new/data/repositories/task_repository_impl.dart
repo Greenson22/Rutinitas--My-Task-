@@ -337,6 +337,8 @@ class TaskRepositoryImpl implements TaskRepository {
     required int targetTotal,
     required bool isActive,
     TodayVisibility? todayVisibility,
+    int? countToday,
+    String? countDate,
   }) {
     return _mutateData(
       (data) => updateTaskIn(
@@ -349,6 +351,8 @@ class TaskRepositoryImpl implements TaskRepository {
         targetTotal: targetTotal,
         isActive: isActive,
         todayVisibility: todayVisibility,
+        countToday: countToday,
+        countDate: countDate,
         now: _clock(),
       ),
     );

@@ -104,6 +104,8 @@ abstract interface class TaskRepository {
     required int targetTotal,
     required bool isActive,
     TodayVisibility? todayVisibility,
+    int? countToday,
+    String? countDate,
   });
 
   /// Mengubah pengaturan Tampil di Hari Ini untuk satu tugas.

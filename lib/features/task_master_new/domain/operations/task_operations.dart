@@ -132,6 +132,8 @@ TaskMasterData updateTaskIn(
   required int targetTotal,
   required bool isActive,
   TodayVisibility? todayVisibility,
+  int? countToday,
+  String? countDate,
   required DateTime now,
 }) {
   final error = validateTaskName(name);
@@ -144,19 +146,46 @@ TaskMasterData updateTaskIn(
   );
   if (targetError != null) throw TaskValidationException(targetError);
 
+  if (countToday != null && countToday < 0) {
+    throw TaskValidationException('Hitungan hari ini tidak boleh negatif.');
+  }
+
   return _replaceTask(
     data,
     categoryId: categoryId,
     taskId: taskId,
-    update: (task) => task.copyWith(
-      name: name.trim(),
-      kind: kind,
-      targetDaily: targetDaily,
-      targetTotal: targetTotal,
-      isActive: isActive,
-      todayVisibility: todayVisibility ?? task.todayVisibility,
-      updatedAt: now,
-    ),
+    update: (task) {
+      var updatedHistory = task.history;
+      var updatedTotalCount = task.totalCount;
+      if (countToday != null && countDate != null) {
+        final oldCount = task.countOn(countDate);
+        if (countToday != oldCount) {
+          updatedHistory = Map<String, DailyProgress>.from(task.history);
+          if (countToday == 0) {
+            updatedHistory.remove(countDate);
+          } else {
+            updatedHistory[countDate] = DailyProgress(
+              date: countDate,
+              count: countToday,
+              updatedAt: now,
+            );
+          }
+          updatedTotalCount =
+              (task.totalCount - oldCount + countToday).clamp(0, 1 << 30);
+        }
+      }
+      return task.copyWith(
+        name: name.trim(),
+        kind: kind,
+        targetDaily: targetDaily,
+        targetTotal: targetTotal,
+        totalCount: updatedTotalCount,
+        history: updatedHistory,
+        isActive: isActive,
+        todayVisibility: todayVisibility ?? task.todayVisibility,
+        updatedAt: now,
+      );
+    },
   );
 }
 
