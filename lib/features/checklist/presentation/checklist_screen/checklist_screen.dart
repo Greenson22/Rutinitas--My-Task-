@@ -799,6 +799,8 @@ class _DailyScreenState extends State<DailyScreen> {
         enableMultiSelect: false,
         onSearchChanged: _controller.updateSearchQuery,
         onAddPressed: _showAddMainSectionDialog,
+        isSectionCollapsed: (sectionKey) =>
+            _controller.isSectionCollapsed(sectionKey),
         appBarTrailingAction: _controller.isGlobalEncryptionEnabled
             ? Padding(
                 padding: const EdgeInsets.only(right: 8.0),
@@ -877,6 +879,9 @@ class _DailyScreenState extends State<DailyScreen> {
             onEditName: () => _editMainSectionName(sectionKey),
             onDelete: () => _deleteMainSection(sectionKey),
             onAddItem: () => _showAddGroupDialogAtSection(sectionKey),
+            isCollapsed: _controller.isSectionCollapsed(sectionKey),
+            onToggleCollapse: () =>
+                _controller.toggleSectionCollapsed(sectionKey),
           );
         },
         gridItemBuilder:
