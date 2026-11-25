@@ -106,6 +106,7 @@ abstract interface class TaskRepository {
     TodayVisibility? todayVisibility,
     int? countToday,
     String? countDate,
+    int? totalCount,
   });
 
   /// Mengubah pengaturan Tampil di Hari Ini untuk satu tugas.

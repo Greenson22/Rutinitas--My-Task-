@@ -100,6 +100,27 @@ void main() {
         final updatedTask = repo.data!.categories.first.tasks.first;
         expect(updatedTask.countOn(key), 20);
         expect(updatedTask.totalCount, 65);
+
+        // (e) Ubah Total Hitungan secara langsung (mis. 65 -> 1400)
+        await tester.tap(find.byIcon(Icons.more_vert).first);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Ubah'));
+        await tester.pumpAndSettle();
+
+        final totalCountFieldFinder = find.byKey(const Key('taskTotalCountField'));
+        expect(totalCountFieldFinder, findsOneWidget);
+        expect(
+          tester.widget<TextFormField>(totalCountFieldFinder).controller?.text,
+          '65',
+        );
+
+        await tester.enterText(totalCountFieldFinder, '1400');
+        await tester.tap(find.byKey(const Key('taskSaveButton')));
+        await tester.pumpAndSettle();
+
+        final afterTotalEdit = repo.data!.categories.first.tasks.first;
+        expect(afterTotalEdit.totalCount, 1400);
+        expect(afterTotalEdit.countOn(key), 20);
       },
     );
   });

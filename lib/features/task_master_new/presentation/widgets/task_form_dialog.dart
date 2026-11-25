@@ -32,6 +32,7 @@ class TaskFormDialog extends StatefulWidget {
     required TodayVisibility todayVisibility,
     int? countToday,
     String? countDate,
+    int? totalCount,
   })
   onSave;
 
@@ -45,6 +46,7 @@ class _TaskFormDialogState extends State<TaskFormDialog> {
   late final TextEditingController _targetDailyController;
   late final TextEditingController _targetTotalController;
   late final TextEditingController _countTodayController;
+  late final TextEditingController _totalCountController;
   late final String _effectiveTodayKey;
   late TaskKind _kind;
   late bool _isActive;
@@ -73,6 +75,9 @@ class _TaskFormDialogState extends State<TaskFormDialog> {
     _countTodayController = TextEditingController(
       text: task != null ? '${task.countOn(_effectiveTodayKey)}' : '',
     );
+    _totalCountController = TextEditingController(
+      text: task != null ? '${task.totalCount}' : '',
+    );
   }
 
   @override
@@ -81,6 +86,7 @@ class _TaskFormDialogState extends State<TaskFormDialog> {
     _targetDailyController.dispose();
     _targetTotalController.dispose();
     _countTodayController.dispose();
+    _totalCountController.dispose();
     super.dispose();
   }
 
@@ -210,6 +216,17 @@ class _TaskFormDialogState extends State<TaskFormDialog> {
                   ),
                   validator: _validateCountToday,
                 ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  key: const Key('taskTotalCountField'),
+                  controller: _totalCountController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Total Hitungan',
+                    hintText: '0',
+                  ),
+                  validator: _validateCountToday,
+                ),
               ],
             ],
           ),
@@ -290,12 +307,18 @@ class _TaskFormDialogState extends State<TaskFormDialog> {
 
     int? countToday;
     String? countDate;
+    int? totalCount;
     if (_isEditing) {
       final parsedCount = int.tryParse(_countTodayController.text.trim());
       final oldCount = widget.task!.countOn(_effectiveTodayKey);
       if (parsedCount != null && parsedCount != oldCount) {
         countToday = parsedCount;
         countDate = _effectiveTodayKey;
+      }
+      final parsedTotalCount = int.tryParse(_totalCountController.text.trim());
+      if (parsedTotalCount != null &&
+          parsedTotalCount != widget.task!.totalCount) {
+        totalCount = parsedTotalCount;
       }
     }
 
@@ -308,6 +331,7 @@ class _TaskFormDialogState extends State<TaskFormDialog> {
       todayVisibility: _todayVisibility,
       countToday: countToday,
       countDate: countDate,
+      totalCount: totalCount,
     );
 
     if (!mounted) return;

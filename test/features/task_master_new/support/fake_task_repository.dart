@@ -231,6 +231,7 @@ class FakeTaskRepository implements TaskRepository {
     TodayVisibility? todayVisibility,
     int? countToday,
     String? countDate,
+    int? totalCount,
   }) {
     return _mutateTasks(
       (data) => updateTaskIn(
@@ -245,6 +246,7 @@ class FakeTaskRepository implements TaskRepository {
         todayVisibility: todayVisibility,
         countToday: countToday,
         countDate: countDate,
+        totalCount: totalCount,
         now: now,
       ),
     );

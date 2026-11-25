@@ -615,6 +615,7 @@ class CategoryDetailScreenState extends State<CategoryDetailScreen> {
               required todayVisibility,
               countToday,
               countDate,
+              totalCount,
             }) {
               if (task == null) {
                 return controller.addTask(
@@ -638,6 +639,7 @@ class CategoryDetailScreenState extends State<CategoryDetailScreen> {
                 todayVisibility: todayVisibility,
                 countToday: countToday,
                 countDate: countDate,
+                totalCount: totalCount,
               );
             },
       ),

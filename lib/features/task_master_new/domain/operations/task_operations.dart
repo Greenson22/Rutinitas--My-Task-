@@ -134,6 +134,7 @@ TaskMasterData updateTaskIn(
   TodayVisibility? todayVisibility,
   int? countToday,
   String? countDate,
+  int? totalCount,
   required DateTime now,
 }) {
   final error = validateTaskName(name);
@@ -149,6 +150,9 @@ TaskMasterData updateTaskIn(
   if (countToday != null && countToday < 0) {
     throw TaskValidationException('Hitungan hari ini tidak boleh negatif.');
   }
+  if (totalCount != null && totalCount < 0) {
+    throw TaskValidationException('Total hitungan tidak boleh negatif.');
+  }
 
   return _replaceTask(
     data,
@@ -156,7 +160,7 @@ TaskMasterData updateTaskIn(
     taskId: taskId,
     update: (task) {
       var updatedHistory = task.history;
-      var updatedTotalCount = task.totalCount;
+      var updatedTotalCount = totalCount ?? task.totalCount;
       if (countToday != null && countDate != null) {
         final oldCount = task.countOn(countDate);
         if (countToday != oldCount) {
@@ -171,7 +175,7 @@ TaskMasterData updateTaskIn(
             );
           }
           updatedTotalCount =
-              (task.totalCount - oldCount + countToday).clamp(0, 1 << 30);
+              (updatedTotalCount - oldCount + countToday).clamp(0, 1 << 30);
         }
       }
       return task.copyWith(
