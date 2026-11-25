@@ -462,34 +462,20 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
         enableMultiSelect: false,
         onSearchChanged: _controller.updateSearchQuery,
         onAddPressed: _showAddMainSectionDialog,
-        additionalAction: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: Icon(
-                _controller.showHiddenSections
-                    ? Icons.layers
-                    : Icons.layers_clear,
-                color: Colors.white,
-              ),
-              tooltip: _controller.showHiddenSections
-                  ? 'Sembunyikan Seksi Nonaktif'
-                  : 'Tampilkan Seksi Tersembunyi',
-              onPressed: _controller.toggleShowHiddenSections,
-            ),
-            IconButton(
-              icon: Icon(
-                _controller.showHiddenSection
-                    ? Icons.visibility
-                    : Icons.visibility_off,
-                color: Colors.white,
-              ),
-              tooltip: _controller.showHiddenSection
-                  ? 'Sembunyikan Grup Nonaktif'
-                  : 'Tampilkan Grup Tersembunyi',
-              onPressed: _controller.toggleShowHiddenSection,
-            ),
-          ],
+        additionalAction: IconButton(
+          icon: Icon(
+            _controller.showHiddenSection
+                ? Icons.visibility
+                : Icons.visibility_off,
+            color: Colors.white,
+          ),
+          tooltip: _controller.showHiddenSection
+              ? 'Sembunyikan Seksi & Grup Nonaktif'
+              : 'Tampilkan Seksi & Grup Tersembunyi',
+          onPressed: () {
+            _controller.toggleShowHiddenSection();
+            _controller.toggleShowHiddenSections();
+          },
         ),
         sectionHeaderBuilder: (context, index, sectionKey, isLayoutEditMode) {
           if (index >= visibleKeysCount) {
