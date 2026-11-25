@@ -67,5 +67,16 @@ void main() {
       expect(controller.isSectionCollapsed('Seksi A'), isTrue);
       expect(controller.isSectionHidden('Seksi B'), isTrue);
     });
+
+    test('persists section collapse state across new DailyController instances', () async {
+      final controller1 = DailyController();
+      controller1.toggleSectionCollapsed('Pekerjaan');
+      await Future<void>.delayed(Duration.zero);
+
+      final controller2 = DailyController();
+      await controller2.loadGroupsData(showLoading: false);
+
+      expect(controller2.isSectionCollapsed('Pekerjaan'), isTrue);
+    });
   });
 }
