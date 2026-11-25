@@ -2,6 +2,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:rutinitasku/core/services/storage_service.dart';
 import 'package:rutinitasku/core/utils/atomic_write_helper.dart';
 import 'package:rutinitasku/core/utils/crypto_helper.dart'; // <--- MEMASTIKAN IMPORT CRYPTO HELPER TERSEDIA
@@ -22,6 +23,9 @@ class PromptController extends ChangeNotifier {
   // State tambahan untuk Fitur Pencarian Dinamis
   String _searchQuery = '';
 
+  // State collapse per seksi
+  final Set<String> _collapsedSections = {};
+
   // STATE BARU: Menyimpan jenis pengurutan aktif ('manual', 'az', 'za')
   String currentSortType = 'manual';
 
@@ -38,6 +42,29 @@ class PromptController extends ChangeNotifier {
 
   // Getter Pencarian
   String get searchQuery => _searchQuery;
+
+  // Getter Collapse Seksi
+  Set<String> get collapsedSections => _collapsedSections;
+  bool isSectionCollapsed(String sectionName) =>
+      _collapsedSections.contains(sectionName);
+
+  Future<void> toggleSectionCollapse(String sectionName) async {
+    if (_collapsedSections.contains(sectionName)) {
+      _collapsedSections.remove(sectionName);
+    } else {
+      _collapsedSections.add(sectionName);
+    }
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    final rememberCollapse =
+        prefs.getBool('sections_remember_collapse_state') ?? true;
+    if (rememberCollapse) {
+      await prefs.setString(
+        'prompt_collapsed_sections',
+        jsonEncode(_collapsedSections.toList()),
+      );
+    }
+  }
 
   // =========================================================================
   // LOGIKA FILTER PENCARIAN (DYNAMIC FILTERING)
@@ -173,6 +200,28 @@ class PromptController extends ChangeNotifier {
         }
       }
       _promptGroups = loadedGroups;
+
+      final prefs = await SharedPreferences.getInstance();
+      final defaultCollapsed =
+          prefs.getBool('sections_default_collapsed') ?? false;
+      final rememberCollapse =
+          prefs.getBool('sections_remember_collapse_state') ?? true;
+      _collapsedSections.clear();
+      final allSectionNames = {
+        ...loadedGroups.map((g) => g.sectionName),
+        ..._localEmptySections,
+      };
+      if (rememberCollapse) {
+        final rawCollapsed = prefs.getString('prompt_collapsed_sections');
+        if (rawCollapsed != null) {
+          final decoded = jsonDecode(rawCollapsed) as List<dynamic>;
+          _collapsedSections.addAll(decoded.map((e) => e.toString()));
+        } else if (defaultCollapsed) {
+          _collapsedSections.addAll(allSectionNames);
+        }
+      } else if (defaultCollapsed) {
+        _collapsedSections.addAll(allSectionNames);
+      }
 
       // Mengurutkan berdasarkan orderIndex
       _promptGroups.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));

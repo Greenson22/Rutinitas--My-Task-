@@ -876,6 +876,7 @@ class _PromptScreenState extends State<PromptScreen> {
             ),
             sectionKeys: sectionKeys,
             groupedItems: sectionsMap,
+            isSectionCollapsed: (key) => _controller.isSectionCollapsed(key),
             sectionHeaderBuilder:
                 (context, sIndex, sectionName, isLayoutEditMode) {
                   if (sIndex >= visibleKeysCount) {
@@ -918,6 +919,9 @@ class _PromptScreenState extends State<PromptScreen> {
                     isEditMode: isLayoutEditMode
                         ? true
                         : _controller.isSectionEditMode,
+                    isCollapsed: _controller.isSectionCollapsed(sectionName),
+                    onToggleCollapse: () =>
+                        _controller.toggleSectionCollapse(sectionName),
                     isUpperCase: false,
                     isFirst: isSearching ? true : (sIndex == 0),
                     isLast: isSearching

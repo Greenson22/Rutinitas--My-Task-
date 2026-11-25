@@ -4,18 +4,18 @@
 
 **Blocked by:** 01 — Settings Dialog toggle baru.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Tap pada header seksi di MyPrompt melipat kartu-kartu grup; ikon chevron berubah ke `chevron_right`.
-- [ ] Tap lagi membuka kartu-kartu grup; ikon chevron berubah ke `expand_more`.
-- [ ] Saat `sections_remember_collapse_state = true`: nama seksi yang terlipat tersimpan ke `prompt_collapsed_sections` di SharedPreferences.
-- [ ] Saat `sections_remember_collapse_state = true`: membuka ulang layar memulihkan state lipatan per seksi.
-- [ ] Saat `sections_remember_collapse_state = false`: `prompt_collapsed_sections` tidak berubah saat tap collapse.
-- [ ] Saat `sections_default_collapsed = true` dan remember off: semua seksi dimulai terlipat.
-- [ ] Saat `sections_default_collapsed = false` dan remember off: semua seksi dimulai terbuka.
-- [ ] Melipat seksi A tidak memengaruhi state seksi B.
-- [ ] Widget test: tap header → kartu grup hilang, chevron berubah.
-- [ ] Widget test: `sections_remember_collapse_state = true` → tap → `prompt_collapsed_sections` di SharedPreferences berisi nama seksi.
-- [ ] Widget test: `sections_remember_collapse_state = false` → tap → `prompt_collapsed_sections` tidak berubah.
-- [ ] Widget test: `sections_default_collapsed = true` → semua seksi terlipat saat build.
-- [ ] `flutter analyze` tidak memunculkan issue baru dan seluruh test lulus.
+- [x] Tap pada header seksi di MyPrompt melipat kartu-kartu grup; ikon chevron berubah ke `chevron_right`.
+- [x] Tap lagi membuka kartu-kartu grup; ikon chevron berubah ke `expand_more`.
+- [x] Saat `sections_remember_collapse_state = true`: nama seksi yang terlipat tersimpan ke `prompt_collapsed_sections` di SharedPreferences.
+- [x] Saat `sections_remember_collapse_state = true`: membuka ulang layar memulihkan state lipatan per seksi.
+- [x] Saat `sections_remember_collapse_state = false`: `prompt_collapsed_sections` tidak berubah saat tap collapse.
+- [x] Saat `sections_default_collapsed = true` dan remember off: semua seksi dimulai terlipat.
+- [x] Saat `sections_default_collapsed = false` dan remember off: semua seksi dimulai terbuka.
+- [x] Melipat seksi A tidak memengaruhi state seksi B.
+- [x] Widget test: tap header → kartu grup hilang, chevron berubah.
+- [x] Widget test: `sections_remember_collapse_state = true` → tap → `prompt_collapsed_sections` di SharedPreferences berisi nama seksi.
+- [x] Widget test: `sections_remember_collapse_state = false` → tap → `prompt_collapsed_sections` tidak berubah.
+- [x] Widget test: `sections_default_collapsed = true` → semua seksi terlipat saat build.
+- [x] `flutter analyze` tidak memunculkan issue baru dan seluruh test lulus.
