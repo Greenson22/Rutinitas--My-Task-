@@ -34,9 +34,11 @@ class DailyController extends ChangeNotifier {
   final Map<String, List<ChecklistGroup>> groupedVisibleGroup = {};
   final Map<String, List<ChecklistGroup>> groupedHiddenGroup = {};
 
-  // Ephemeral session state for section hidden visibility, and persisted collapse state
+  // Persisted section collapse and hidden visibility state
   static const String _collapsedSectionsPrefsKey =
       'checklist_groups_collapsed_sections';
+  static const String _hiddenSectionsPrefsKey =
+      'checklist_groups_hidden_sections';
   final Map<String, bool> _collapsedSections = {};
   final Map<String, bool> _hiddenSections = {};
   bool _defaultCollapseState = false;
@@ -67,6 +69,15 @@ class DailyController extends ChangeNotifier {
   void toggleSectionHidden(String sectionKey) {
     _hiddenSections[sectionKey] = !isSectionHidden(sectionKey);
     notifyListeners();
+    _saveHiddenSections();
+  }
+
+  Future<void> _saveHiddenSections() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _hiddenSectionsPrefsKey,
+      jsonEncode(_hiddenSections),
+    );
   }
 
   // Toggle UI States
@@ -111,6 +122,20 @@ class DailyController extends ChangeNotifier {
           for (final entry in decoded.entries) {
             if (entry.value is bool) {
               _collapsedSections.putIfAbsent(
+                entry.key,
+                () => entry.value as bool,
+              );
+            }
+          }
+        } catch (_) {}
+      }
+      final savedHiddenJson = prefs.getString(_hiddenSectionsPrefsKey);
+      if (savedHiddenJson != null && savedHiddenJson.isNotEmpty) {
+        try {
+          final decoded = jsonDecode(savedHiddenJson) as Map<String, dynamic>;
+          for (final entry in decoded.entries) {
+            if (entry.value is bool) {
+              _hiddenSections.putIfAbsent(
                 entry.key,
                 () => entry.value as bool,
               );

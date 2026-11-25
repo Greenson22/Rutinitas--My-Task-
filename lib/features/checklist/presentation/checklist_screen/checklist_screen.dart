@@ -760,10 +760,16 @@ class _DailyScreenState extends State<DailyScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final List<String> allKeys = _controller.groupedVisibleGroup.keys.toList();
-    final Map<String, List<ChecklistGroup>> allItems = Map.from(
-      _controller.groupedVisibleGroup,
-    );
+    final List<String> allKeys = _controller.groupedVisibleGroup.keys
+        .where(
+          (key) =>
+              _controller.showHiddenSection ||
+              !_controller.isSectionHidden(key),
+        )
+        .toList();
+    final Map<String, List<ChecklistGroup>> allItems = {
+      for (final key in allKeys) key: _controller.groupedVisibleGroup[key]!,
+    };
     final int visibleKeysCount = allKeys.length;
 
     if (_controller.hiddenGroup.isNotEmpty && _controller.showHiddenSection) {
