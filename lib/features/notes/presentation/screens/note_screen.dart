@@ -2,6 +2,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:rutinitasku/core/presentation/widgets/drawer_menu.dart';
 import 'package:rutinitasku/core/presentation/widgets/universal_empty_state.dart';
 import 'package:rutinitasku/core/services/storage_service.dart';
@@ -41,6 +42,9 @@ class _NotesScreenState extends State<NotesScreen> {
 
   // STATE BARU: Menampung kategori grup tersembunyi terpisah dari grid utama
   final Map<String, List<NoteGroup>> _hiddenGroupedCategories = {};
+
+  // State collapse per seksi
+  final Set<String> _collapsedSections = {};
 
   @override
   void initState() {
@@ -145,6 +149,25 @@ class _NotesScreenState extends State<NotesScreen> {
           _groupedCategories[secName]!.add(group);
         }
       }
+      // Inisialisasi state collapse seksi dari SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      final defaultCollapsed =
+          prefs.getBool('sections_default_collapsed') ?? false;
+      final rememberCollapse =
+          prefs.getBool('sections_remember_collapse_state') ?? true;
+      _collapsedSections.clear();
+      if (rememberCollapse) {
+        final rawCollapsed = prefs.getString('notes_collapsed_sections');
+        if (rawCollapsed != null) {
+          final decoded = jsonDecode(rawCollapsed) as List<dynamic>;
+          _collapsedSections.addAll(decoded.map((e) => e.toString()));
+        } else if (defaultCollapsed) {
+          _collapsedSections.addAll(_sectionKeys);
+        }
+      } else if (defaultCollapsed) {
+        _collapsedSections.addAll(_sectionKeys);
+      }
+
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -155,6 +178,25 @@ class _NotesScreenState extends State<NotesScreen> {
         setState(() => _isLoading = false);
       }
       debugPrint("Gagal memuat catatan: $e");
+    }
+  }
+
+  Future<void> _toggleSectionCollapse(String sectionName) async {
+    setState(() {
+      if (_collapsedSections.contains(sectionName)) {
+        _collapsedSections.remove(sectionName);
+      } else {
+        _collapsedSections.add(sectionName);
+      }
+    });
+    final prefs = await SharedPreferences.getInstance();
+    final rememberCollapse =
+        prefs.getBool('sections_remember_collapse_state') ?? true;
+    if (rememberCollapse) {
+      await prefs.setString(
+        'notes_collapsed_sections',
+        jsonEncode(_collapsedSections.toList()),
+      );
     }
   }
 
@@ -1123,6 +1165,7 @@ class _NotesScreenState extends State<NotesScreen> {
             : null,
         sectionKeys: allRenderedKeys,
         groupedItems: allRenderedItems,
+        isSectionCollapsed: (key) => _collapsedSections.contains(key),
         isSelectMode: false,
         selectedItemsCount: 0,
         onClearSelection: () {},
@@ -1180,6 +1223,8 @@ class _NotesScreenState extends State<NotesScreen> {
             sectionName: sectionName,
             themeColor: _themeColor,
             isEditMode: isLayoutEditMode ? true : _isSectionEditMode,
+            isCollapsed: _collapsedSections.contains(sectionName),
+            onToggleCollapse: () => _toggleSectionCollapse(sectionName),
             isFirst: index == 0,
             isLast: index == _sectionKeys.length - 1,
             onToggleEdit: () =>
