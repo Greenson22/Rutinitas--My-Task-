@@ -166,9 +166,10 @@ void main() {
       await tester.pumpAndSettle();
 
       // Detail snapshot muncul
-      expect(find.text('Subjek Bertingkat'), findsOneWidget);
-      expect(find.text('Anak 1 Selesai'), findsOneWidget);
-      expect(find.text('Anak 2 Belum'), findsOneWidget);
+      final sheet = find.byType(DraggableScrollableSheet);
+      expect(find.descendant(of: sheet, matching: find.text('Subjek Bertingkat')), findsOneWidget);
+      expect(find.descendant(of: sheet, matching: find.text('Anak 1 Selesai')), findsOneWidget);
+      expect(find.descendant(of: sheet, matching: find.text('Anak 2 Belum')), findsOneWidget);
 
       // Memastikan ada indikasi visual selesai (ikon centang) dan belum
       expect(find.byKey(const Key('status_icon_done')), findsWidgets);
@@ -466,7 +467,13 @@ void main() {
 
       // Detail snapshot muncul (bukan menu Edit/Hapus)
       expect(find.text('Edit Entry'), findsNothing);
-      expect(find.text('Item Biasa'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(DraggableScrollableSheet),
+          matching: find.text('Item Biasa'),
+        ),
+        findsOneWidget,
+      );
       expect(find.byIcon(Icons.close_rounded), findsOneWidget);
     });
   });

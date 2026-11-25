@@ -3,6 +3,7 @@ import '../../data/models/daily_model.dart';
 import '../../utils/checklist_calculation_helper.dart';
 import 'widgets/edit_history_entry_sheet.dart';
 import 'widgets/history_bar_chart.dart';
+import 'widgets/history_color_legend.dart';
 import 'widgets/history_filter_chips.dart';
 
 class DailyTrackerHistoryScreen extends StatefulWidget {
@@ -572,6 +573,10 @@ class _DailyTrackerHistoryScreenState extends State<DailyTrackerHistoryScreen> {
                         dailyLogs: widget.subject.dailyLogs,
                         countTotal: _countTotal,
                         countFinished: _countFinished,
+                      ),
+                      HistoryColorLegend(
+                        dateKeys: chartDateKeys,
+                        dailyLogs: widget.subject.dailyLogs,
                       ),
                       const SizedBox(height: 8),
                     ],
