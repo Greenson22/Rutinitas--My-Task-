@@ -800,7 +800,8 @@ class _DailyScreenState extends State<DailyScreen> {
         onSearchChanged: _controller.updateSearchQuery,
         onAddPressed: _showAddMainSectionDialog,
         isSectionCollapsed: (sectionKey) =>
-            _controller.isSectionCollapsed(sectionKey),
+            _controller.isSectionCollapsed(sectionKey) ||
+            _controller.isSectionHidden(sectionKey),
         appBarTrailingAction: _controller.isGlobalEncryptionEnabled
             ? Padding(
                 padding: const EdgeInsets.only(right: 8.0),
@@ -882,6 +883,9 @@ class _DailyScreenState extends State<DailyScreen> {
             isCollapsed: _controller.isSectionCollapsed(sectionKey),
             onToggleCollapse: () =>
                 _controller.toggleSectionCollapsed(sectionKey),
+            isHidden: _controller.isSectionHidden(sectionKey),
+            onToggleVisibility: () =>
+                _controller.toggleSectionHidden(sectionKey),
           );
         },
         gridItemBuilder:
