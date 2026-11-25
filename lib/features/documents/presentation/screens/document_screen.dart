@@ -451,6 +451,7 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
 
         sectionKeys: allKeys,
         groupedItems: allItems,
+        isSectionCollapsed: (key) => _controller.isSectionCollapsed(key),
         isSelectMode: false,
         selectedItemsCount: 0,
         onClearSelection: () {},
@@ -507,6 +508,9 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
             sectionName: sectionKey,
             themeColor: _themeColor,
             isEditMode: isLayoutEditMode ? true : _controller.isSectionEditMode,
+            isCollapsed: _controller.isSectionCollapsed(sectionKey),
+            onToggleCollapse: () =>
+                _controller.toggleSectionCollapse(sectionKey),
             isUpperCase:
                 true, // <--- SEKARANG MENJADI HURUF BESAR SEPERTI DI NOTES
             isFirst: index == 0,

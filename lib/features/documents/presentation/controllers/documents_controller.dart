@@ -2,6 +2,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/services/storage_service.dart';
 import '../../../../core/utils/atomic_write_helper.dart'; // <--- TAMBAHAN: Import Atomic Write Helper[cite: 1, 3]
 import '../../data/models/document_model.dart';
@@ -21,6 +22,28 @@ class DocumentsController extends ChangeNotifier {
   Map<String, List<DocumentGroup>> groupedHiddenGroup = {};
 
   Map<String, int> groupFileCounts = {};
+
+  final Set<String> collapsedSections = {};
+  bool isSectionCollapsed(String sectionName) =>
+      collapsedSections.contains(sectionName);
+
+  Future<void> toggleSectionCollapse(String sectionName) async {
+    if (collapsedSections.contains(sectionName)) {
+      collapsedSections.remove(sectionName);
+    } else {
+      collapsedSections.add(sectionName);
+    }
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    final rememberCollapse =
+        prefs.getBool('sections_remember_collapse_state') ?? true;
+    if (rememberCollapse) {
+      await prefs.setString(
+        'docs_collapsed_sections',
+        jsonEncode(collapsedSections.toList()),
+      );
+    }
+  }
 
   DocumentsController() {
     loadGroupsData();
@@ -56,6 +79,26 @@ class DocumentsController extends ChangeNotifier {
       loadedGroups.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
 
       allGroupRaw = loadedGroups;
+
+      final prefs = await SharedPreferences.getInstance();
+      final defaultCollapsed =
+          prefs.getBool('sections_default_collapsed') ?? false;
+      final rememberCollapse =
+          prefs.getBool('sections_remember_collapse_state') ?? true;
+      collapsedSections.clear();
+      final allSectionNames =
+          loadedGroups.map((g) => g.mainSectionName).toSet();
+      if (rememberCollapse) {
+        final rawCollapsed = prefs.getString('docs_collapsed_sections');
+        if (rawCollapsed != null) {
+          final decoded = jsonDecode(rawCollapsed) as List<dynamic>;
+          collapsedSections.addAll(decoded.map((e) => e.toString()));
+        } else if (defaultCollapsed) {
+          collapsedSections.addAll(allSectionNames);
+        }
+      } else if (defaultCollapsed) {
+        collapsedSections.addAll(allSectionNames);
+      }
       await _countPhysicalFiles();
       _groupData();
     } catch (e) {
