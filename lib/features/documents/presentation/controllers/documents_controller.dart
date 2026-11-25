@@ -27,6 +27,11 @@ class DocumentsController extends ChangeNotifier {
   bool isSectionCollapsed(String sectionName) =>
       collapsedSections.contains(sectionName);
 
+  bool showHiddenSections = false;
+  final Set<String> hiddenSections = {};
+  bool isSectionHidden(String sectionName) =>
+      hiddenSections.contains(sectionName);
+
   Future<void> toggleSectionCollapse(String sectionName) async {
     if (collapsedSections.contains(sectionName)) {
       collapsedSections.remove(sectionName);
@@ -43,6 +48,25 @@ class DocumentsController extends ChangeNotifier {
         jsonEncode(collapsedSections.toList()),
       );
     }
+  }
+
+  void toggleShowHiddenSections() {
+    showHiddenSections = !showHiddenSections;
+    notifyListeners();
+  }
+
+  Future<void> toggleSectionHidden(String sectionName) async {
+    if (hiddenSections.contains(sectionName)) {
+      hiddenSections.remove(sectionName);
+    } else {
+      hiddenSections.add(sectionName);
+    }
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      'docs_hidden_sections',
+      jsonEncode(hiddenSections.toList()),
+    );
   }
 
   DocumentsController() {
@@ -98,6 +122,13 @@ class DocumentsController extends ChangeNotifier {
         }
       } else if (defaultCollapsed) {
         collapsedSections.addAll(allSectionNames);
+      }
+
+      hiddenSections.clear();
+      final rawHidden = prefs.getString('docs_hidden_sections');
+      if (rawHidden != null) {
+        final decodedHidden = jsonDecode(rawHidden) as List<dynamic>;
+        hiddenSections.addAll(decodedHidden.map((e) => e.toString()));
       }
       await _countPhysicalFiles();
       _groupData();

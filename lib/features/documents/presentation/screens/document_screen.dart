@@ -394,6 +394,9 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
   @override
   Widget build(BuildContext context) {
     final List<String> allKeys = _controller.groupedVisibleGroup.keys.toList();
+    if (!_controller.showHiddenSections) {
+      allKeys.removeWhere((k) => _controller.isSectionHidden(k));
+    }
     final Map<String, List<DocumentGroup>> allItems = Map.from(
       _controller.groupedVisibleGroup,
     );
@@ -459,17 +462,34 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
         enableMultiSelect: false,
         onSearchChanged: _controller.updateSearchQuery,
         onAddPressed: _showAddMainSectionDialog,
-        additionalAction: IconButton(
-          icon: Icon(
-            _controller.showHiddenSection
-                ? Icons.visibility
-                : Icons.visibility_off,
-            color: Colors.white,
-          ),
-          tooltip: _controller.showHiddenSection
-              ? 'Sembunyikan Grup Nonaktif'
-              : 'Tampilkan Grup Tersembunyi',
-          onPressed: _controller.toggleShowHiddenSection,
+        additionalAction: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: Icon(
+                _controller.showHiddenSections
+                    ? Icons.layers
+                    : Icons.layers_clear,
+                color: Colors.white,
+              ),
+              tooltip: _controller.showHiddenSections
+                  ? 'Sembunyikan Seksi Nonaktif'
+                  : 'Tampilkan Seksi Tersembunyi',
+              onPressed: _controller.toggleShowHiddenSections,
+            ),
+            IconButton(
+              icon: Icon(
+                _controller.showHiddenSection
+                    ? Icons.visibility
+                    : Icons.visibility_off,
+                color: Colors.white,
+              ),
+              tooltip: _controller.showHiddenSection
+                  ? 'Sembunyikan Grup Nonaktif'
+                  : 'Tampilkan Grup Tersembunyi',
+              onPressed: _controller.toggleShowHiddenSection,
+            ),
+          ],
         ),
         sectionHeaderBuilder: (context, index, sectionKey, isLayoutEditMode) {
           if (index >= visibleKeysCount) {
@@ -511,6 +531,9 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
             isCollapsed: _controller.isSectionCollapsed(sectionKey),
             onToggleCollapse: () =>
                 _controller.toggleSectionCollapse(sectionKey),
+            isHidden: _controller.isSectionHidden(sectionKey),
+            onToggleVisibility: () =>
+                _controller.toggleSectionHidden(sectionKey),
             isUpperCase:
                 true, // <--- SEKARANG MENJADI HURUF BESAR SEPERTI DI NOTES
             isFirst: index == 0,
