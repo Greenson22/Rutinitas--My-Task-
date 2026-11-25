@@ -45,6 +45,8 @@ class _NotesScreenState extends State<NotesScreen> {
 
   // State collapse per seksi
   final Set<String> _collapsedSections = {};
+  // State hidden per seksi
+  final Set<String> _hiddenSections = {};
 
   @override
   void initState() {
@@ -168,6 +170,14 @@ class _NotesScreenState extends State<NotesScreen> {
         _collapsedSections.addAll(_sectionKeys);
       }
 
+      // Inisialisasi state hidden seksi dari SharedPreferences
+      _hiddenSections.clear();
+      final rawHidden = prefs.getString('notes_hidden_sections');
+      if (rawHidden != null) {
+        final decodedHidden = jsonDecode(rawHidden) as List<dynamic>;
+        _hiddenSections.addAll(decodedHidden.map((e) => e.toString()));
+      }
+
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -198,6 +208,21 @@ class _NotesScreenState extends State<NotesScreen> {
         jsonEncode(_collapsedSections.toList()),
       );
     }
+  }
+
+  Future<void> _toggleSectionHidden(String sectionName) async {
+    setState(() {
+      if (_hiddenSections.contains(sectionName)) {
+        _hiddenSections.remove(sectionName);
+      } else {
+        _hiddenSections.add(sectionName);
+      }
+    });
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      'notes_hidden_sections',
+      jsonEncode(_hiddenSections.toList()),
+    );
   }
 
   // === PENERAPAN SINKRONISASI AKTIF: PROTEKSI ATOMIC WRITE ANTI-KORUP ===
@@ -1099,10 +1124,14 @@ class _NotesScreenState extends State<NotesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    List<String> allRenderedKeys = List.from(_sectionKeys);
+    final List<String> visibleSectionKeys = _showHiddenSection
+        ? List<String>.from(_sectionKeys)
+        : _sectionKeys.where((k) => !_hiddenSections.contains(k)).toList();
+
+    List<String> allRenderedKeys = List.from(visibleSectionKeys);
     Map<String, List<NoteGroup>> allRenderedItems = _getFilteredCategories(
       _groupedCategories,
-      _sectionKeys,
+      visibleSectionKeys,
     );
 
     if (_showHiddenSection && _hiddenGroupedCategories.isNotEmpty) {
@@ -1123,7 +1152,7 @@ class _NotesScreenState extends State<NotesScreen> {
       });
     }
 
-    final int visibleKeysCount = _sectionKeys.length;
+    final int visibleKeysCount = visibleSectionKeys.length;
 
     // Dibungkus komponen Scaffold terluar agar properti bottomNavigationBar bisa aktif merender widget iklan banner
     return Scaffold(
@@ -1225,8 +1254,10 @@ class _NotesScreenState extends State<NotesScreen> {
             isEditMode: isLayoutEditMode ? true : _isSectionEditMode,
             isCollapsed: _collapsedSections.contains(sectionName),
             onToggleCollapse: () => _toggleSectionCollapse(sectionName),
+            isHidden: _hiddenSections.contains(sectionName),
+            onToggleVisibility: () => _toggleSectionHidden(sectionName),
             isFirst: index == 0,
-            isLast: index == _sectionKeys.length - 1,
+            isLast: index == visibleKeysCount - 1,
             onToggleEdit: () =>
                 setState(() => _isSectionEditMode = !_isSectionEditMode),
             onEditName: () => _showRenameSectionDialog(sectionName),
