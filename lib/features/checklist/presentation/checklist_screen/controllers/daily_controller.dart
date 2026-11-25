@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:rutinitasku/core/utils/atomic_write_helper.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../../core/services/storage_service.dart';
 import '../../../data/models/daily_model.dart';
@@ -32,6 +33,30 @@ class DailyController extends ChangeNotifier {
 
   final Map<String, List<ChecklistGroup>> groupedVisibleGroup = {};
   final Map<String, List<ChecklistGroup>> groupedHiddenGroup = {};
+
+  // Ephemeral session state for section collapse and hidden visibility
+  final Map<String, bool> _collapsedSections = {};
+  final Map<String, bool> _hiddenSections = {};
+  bool _defaultCollapseState = false;
+  bool _hasLoadedDefaultCollapseState = false;
+
+  bool isSectionCollapsed(String sectionKey) {
+    return _collapsedSections[sectionKey] ?? _defaultCollapseState;
+  }
+
+  void toggleSectionCollapsed(String sectionKey) {
+    _collapsedSections[sectionKey] = !isSectionCollapsed(sectionKey);
+    notifyListeners();
+  }
+
+  bool isSectionHidden(String sectionKey) {
+    return _hiddenSections[sectionKey] ?? false;
+  }
+
+  void toggleSectionHidden(String sectionKey) {
+    _hiddenSections[sectionKey] = !isSectionHidden(sectionKey);
+    notifyListeners();
+  }
 
   // Toggle UI States
   void togglePageEditMode() {
@@ -62,6 +87,13 @@ class DailyController extends ChangeNotifier {
     if (showLoading) {
       isLoading = true;
       notifyListeners();
+    }
+
+    if (!_hasLoadedDefaultCollapseState) {
+      final prefs = await SharedPreferences.getInstance();
+      _defaultCollapseState =
+          prefs.getBool('checklist_groups_default_collapsed') ?? false;
+      _hasLoadedDefaultCollapseState = true;
     }
 
     try {
