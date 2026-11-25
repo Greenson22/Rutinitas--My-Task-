@@ -36,6 +36,10 @@ class _SettingsDialogState extends State<SettingsDialog> {
   bool _checklistGroupsDefaultCollapsed = false;
   bool _sectionRememberCollapseState = true;
 
+  // Settings Tampilan Sections (Notes, Prompt, Dokumen)
+  bool _sectionsDefaultCollapsed = false;
+  bool _sectionsRememberCollapseState = true;
+
   final StorageService _storageService = StorageService();
 
   @override
@@ -65,6 +69,12 @@ class _SettingsDialogState extends State<SettingsDialog> {
           prefs.getBool('section_remember_collapse_state') ?? true;
       _checklistGroupsDefaultCollapsed =
           prefs.getBool('checklist_groups_default_collapsed') ?? false;
+
+      // Settings Tampilan Sections (Notes, Prompt, Dokumen)
+      _sectionsDefaultCollapsed =
+          prefs.getBool('sections_default_collapsed') ?? false;
+      _sectionsRememberCollapseState =
+          prefs.getBool('sections_remember_collapse_state') ?? true;
     });
   }
 
@@ -473,6 +483,22 @@ class _SettingsDialogState extends State<SettingsDialog> {
     });
   }
 
+  Future<void> _handleSectionsDefaultCollapsedToggle(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('sections_default_collapsed', value);
+    setState(() {
+      _sectionsDefaultCollapsed = value;
+    });
+  }
+
+  Future<void> _handleSectionsRememberCollapseStateToggle(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('sections_remember_collapse_state', value);
+    setState(() {
+      _sectionsRememberCollapseState = value;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
@@ -652,6 +678,63 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 value: _checklistGroupsDefaultCollapsed,
                 activeThumbColor: Colors.teal,
                 onChanged: _handleChecklistGroupsDefaultCollapsedToggle,
+              ),
+            ),
+            const Divider(),
+            const SizedBox(height: 10),
+
+            // ==================== TAMPILAN SECTIONS ====================
+            Row(
+              children: [
+                Icon(
+                  Icons.view_agenda_outlined,
+                  color: Colors.teal[700],
+                  size: 18,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Tampilan Sections (Notes, Prompt, Dokumen)',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.teal[900],
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text(
+                'Tutup seksi secara default',
+                style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+              ),
+              subtitle: const Text(
+                'Seksi dimulai dalam kondisi terlipat saat halaman utama Notes, Prompt, atau Dokumen dibuka.',
+                style: TextStyle(fontSize: 11, color: Colors.black54),
+              ),
+              trailing: Switch(
+                value: _sectionsDefaultCollapsed,
+                activeThumbColor: Colors.teal,
+                onChanged: _handleSectionsDefaultCollapsedToggle,
+              ),
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text(
+                'Ingat status lipatan seksi',
+                style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+              ),
+              subtitle: const Text(
+                'Simpan status terbuka/terlipat masing-masing seksi antar sesi.',
+                style: TextStyle(fontSize: 11, color: Colors.black54),
+              ),
+              trailing: Switch(
+                value: _sectionsRememberCollapseState,
+                activeThumbColor: Colors.teal,
+                onChanged: _handleSectionsRememberCollapseStateToggle,
               ),
             ),
             const Divider(),
