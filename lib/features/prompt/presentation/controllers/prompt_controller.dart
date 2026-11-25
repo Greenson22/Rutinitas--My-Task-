@@ -25,6 +25,8 @@ class PromptController extends ChangeNotifier {
 
   // State collapse per seksi
   final Set<String> _collapsedSections = {};
+  // State hidden per seksi
+  final Set<String> _hiddenSections = {};
 
   // STATE BARU: Menyimpan jenis pengurutan aktif ('manual', 'az', 'za')
   String currentSortType = 'manual';
@@ -48,6 +50,11 @@ class PromptController extends ChangeNotifier {
   bool isSectionCollapsed(String sectionName) =>
       _collapsedSections.contains(sectionName);
 
+  // Getter Hidden Seksi
+  Set<String> get hiddenSections => _hiddenSections;
+  bool isSectionHidden(String sectionName) =>
+      _hiddenSections.contains(sectionName);
+
   Future<void> toggleSectionCollapse(String sectionName) async {
     if (_collapsedSections.contains(sectionName)) {
       _collapsedSections.remove(sectionName);
@@ -64,6 +71,20 @@ class PromptController extends ChangeNotifier {
         jsonEncode(_collapsedSections.toList()),
       );
     }
+  }
+
+  Future<void> toggleSectionHidden(String sectionName) async {
+    if (_hiddenSections.contains(sectionName)) {
+      _hiddenSections.remove(sectionName);
+    } else {
+      _hiddenSections.add(sectionName);
+    }
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      'prompt_hidden_sections',
+      jsonEncode(_hiddenSections.toList()),
+    );
   }
 
   // =========================================================================
@@ -221,6 +242,13 @@ class PromptController extends ChangeNotifier {
         }
       } else if (defaultCollapsed) {
         _collapsedSections.addAll(allSectionNames);
+      }
+
+      _hiddenSections.clear();
+      final rawHidden = prefs.getString('prompt_hidden_sections');
+      if (rawHidden != null) {
+        final decodedHidden = jsonDecode(rawHidden) as List<dynamic>;
+        _hiddenSections.addAll(decodedHidden.map((e) => e.toString()));
       }
 
       // Mengurutkan berdasarkan orderIndex

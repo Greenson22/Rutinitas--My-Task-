@@ -782,6 +782,10 @@ class _PromptScreenState extends State<PromptScreen> {
           sectionKeys.insert(0, 'GENERAL');
         }
 
+        if (!_showHiddenSection) {
+          sectionKeys.removeWhere((k) => _controller.isSectionHidden(k));
+        }
+
         final int visibleKeysCount = sectionKeys.length;
 
         if (_showHiddenSection && hiddenSectionsMap.isNotEmpty) {
@@ -922,6 +926,9 @@ class _PromptScreenState extends State<PromptScreen> {
                     isCollapsed: _controller.isSectionCollapsed(sectionName),
                     onToggleCollapse: () =>
                         _controller.toggleSectionCollapse(sectionName),
+                    isHidden: _controller.isSectionHidden(sectionName),
+                    onToggleVisibility: () =>
+                        _controller.toggleSectionHidden(sectionName),
                     isUpperCase: false,
                     isFirst: isSearching ? true : (sIndex == 0),
                     isLast: isSearching
