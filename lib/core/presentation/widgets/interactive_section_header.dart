@@ -62,116 +62,125 @@ class InteractiveSectionHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (onToggleCollapse != null)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 6.0),
-                          child: Icon(
-                            isCollapsed == true
-                                ? Icons.chevron_right
-                                : Icons.expand_more,
-                            size: 20,
-                            color: themeColor,
-                          ),
-                        ),
-                      Text(
-                        displayedTitle,
+                  if (onToggleCollapse != null)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6.0),
+                      child: Icon(
+                        isCollapsed == true
+                            ? Icons.chevron_right
+                            : Icons.expand_more,
+                        size: 20,
+                        color: themeColor,
+                      ),
+                    ),
+                  Flexible(
+                    child: Text(
+                      displayedTitle,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: isHidden == true
+                            ? themeColor.withValues(alpha: 0.5)
+                            : themeColor,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ),
+                  if (isHidden == true) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.blueGrey.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Text(
+                        'Tersembunyi',
                         style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: isHidden == true
-                              ? themeColor.withValues(alpha: 0.5)
-                              : themeColor,
-                          letterSpacing: 0.8,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.blueGrey,
                         ),
                       ),
-                      if (isHidden == true) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.blueGrey.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Text(
-                            'Tersembunyi',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.blueGrey,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (onToggleVisibility != null)
-                        IconButton(
-                          icon: Icon(
-                            isHidden == true
-                                ? Icons.visibility_off
-                                : Icons.visibility,
-                            size: 18,
-                            color: isHidden == true
-                                ? Colors.grey
-                                : themeColor,
-                          ),
-                          tooltip: isHidden == true
-                              ? 'Tampilkan Seksi'
-                              : 'Sembunyikan Seksi',
-                          onPressed: onToggleVisibility,
-                        ),
-                      if (isEditMode) ...[
-                        IconButton(
-                          icon: const Icon(
-                            Icons.arrow_upward,
-                            size: 18,
-                            color: Colors.blueGrey,
-                          ),
-                          onPressed: isFirst ? null : onMoveUp,
-                        ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.arrow_downward,
-                            size: 18,
-                            color: Colors.blueGrey,
-                          ),
-                          onPressed: isLast ? null : onMoveDown,
-                        ),
-                        IconButton(
-                          icon: Icon(Icons.edit, size: 18, color: themeColor),
-                          onPressed: onEditName,
-                        ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.delete,
-                            size: 18,
-                            color: Colors.redAccent,
-                          ),
-                          onPressed: onDelete,
-                        ),
-                        IconButton(
-                          icon: Icon(
-                            Icons.add_circle_outline,
-                            color: themeColor,
-                            size: 18,
-                          ),
-                          onPressed: onAddItem,
-                        ),
-                      ],
-                    ],
-                  ),
+                    ),
+                  ],
                 ],
+              ),
+              AnimatedSize(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeInOut,
+                child: isEditMode
+                    ? Padding(
+                        padding: const EdgeInsets.only(top: 4.0),
+                        child: Wrap(
+                          spacing: 4,
+                          runSpacing: 2,
+                          children: [
+                            IconButton(
+                              icon: Icon(
+                                Icons.add_circle_outline,
+                                color: themeColor,
+                                size: 18,
+                              ),
+                              tooltip: 'Tambah Materi',
+                              onPressed: onAddItem,
+                            ),
+                            IconButton(
+                              icon: Icon(Icons.edit, size: 18, color: themeColor),
+                              tooltip: 'Ubah Nama',
+                              onPressed: onEditName,
+                            ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.arrow_upward,
+                                size: 18,
+                                color: Colors.blueGrey,
+                              ),
+                              tooltip: 'Pindah Atas',
+                              onPressed: isFirst ? null : onMoveUp,
+                            ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.arrow_downward,
+                                size: 18,
+                                color: Colors.blueGrey,
+                              ),
+                              tooltip: 'Pindah Bawah',
+                              onPressed: isLast ? null : onMoveDown,
+                            ),
+                            if (onToggleVisibility != null)
+                              IconButton(
+                                icon: Icon(
+                                  isHidden == true
+                                      ? Icons.visibility_off
+                                      : Icons.visibility,
+                                  size: 18,
+                                  color: isHidden == true
+                                      ? Colors.grey
+                                      : themeColor,
+                                ),
+                                tooltip: isHidden == true
+                                    ? 'Tampilkan Seksi'
+                                    : 'Sembunyikan Seksi',
+                                onPressed: onToggleVisibility,
+                              ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.delete,
+                                size: 18,
+                                color: Colors.redAccent,
+                              ),
+                              tooltip: 'Hapus Seksi',
+                              onPressed: onDelete,
+                            ),
+                          ],
+                        ),
+                      )
+                    : const SizedBox.shrink(),
               ),
               const Divider(height: 2, thickness: 1),
             ],

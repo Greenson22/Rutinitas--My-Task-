@@ -35,6 +35,7 @@ class ChecklistDetailScreen extends StatefulWidget {
 }
 
 class _ChecklistDetailScreenState extends ChecklistDetailController {
+  final Set<int> _expandedActionSections = {};
   List<ChecklistGroup> _loadedAllGroups = [];
 
   // === STATE SAKELAR GLOBAL: Tampil/Sembunyikan item tersembunyi ===
@@ -734,7 +735,9 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
           return InteractiveSectionHeader(
             sectionName: section.sectionName,
             themeColor: Colors.teal[800]!,
-            isEditMode: isLayoutEditMode ? true : isSectionEditMode,
+            isEditMode: isLayoutEditMode
+                ? true
+                : _expandedActionSections.contains(index),
             isUpperCase: false,
             isFirst: index == 0,
             isLast: index == visibleKeysCount - 1,
@@ -744,7 +747,11 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
             onToggleVisibility: () => toggleSectionHidden(section),
             onToggleEdit: () {
               setState(() {
-                isSectionEditMode = !isSectionEditMode;
+                if (_expandedActionSections.contains(index)) {
+                  _expandedActionSections.remove(index);
+                } else {
+                  _expandedActionSections.add(index);
+                }
               });
             },
             onMoveUp: () {
