@@ -182,7 +182,7 @@ void main() {
     // Empat kartu ringkasan akurat dan mengabaikan kategori tersembunyi.
     expect(summaryValue(tester, 'summaryActiveCategories'), '2');
     expect(summaryValue(tester, 'summaryActiveTasks'), '3');
-    expect(summaryValue(tester, 'summaryCompletedTargets'), '1');
+    expect(summaryValue(tester, 'summaryCompletedTargets'), '1 / 2');
     expect(summaryValue(tester, 'summaryJournalMinutes'), '1 jam 15 mnt');
 
     // Daftar "Hari Ini" hanya memuat tugas bertarget atau beraktivitas.
@@ -277,7 +277,7 @@ void main() {
 
     expect(find.byKey(const Key('emptyTodayTasks')), findsOneWidget);
     expect(find.text('Belum ada tugas hari ini'), findsOneWidget);
-    expect(summaryValue(tester, 'summaryCompletedTargets'), '0');
+    expect(summaryValue(tester, 'summaryCompletedTargets'), '0 / 0');
   });
 
   testWidgets('mode tampilkan tersembunyi menampilkan kategori tersembunyi', (

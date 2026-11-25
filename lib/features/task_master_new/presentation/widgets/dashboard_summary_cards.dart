@@ -8,12 +8,14 @@ class DashboardSummaryCards extends StatelessWidget {
     required this.activeCategoryCount,
     required this.activeTaskCount,
     required this.completedTargetsToday,
+    required this.todayTasksTotalCount,
     required this.journalMinutesToday,
   });
 
   final int activeCategoryCount;
   final int activeTaskCount;
   final int completedTargetsToday;
+  final int todayTasksTotalCount;
   final int journalMinutesToday;
 
   @override
@@ -53,8 +55,12 @@ class DashboardSummaryCards extends StatelessWidget {
                 cardKey: const Key('summaryCompletedTargets'),
                 icon: Icons.flag_rounded,
                 label: 'Target tercapai',
-                value: '$completedTargetsToday',
-                color: Colors.orange[800]!,
+                value: '$completedTargetsToday / $todayTasksTotalCount',
+                color:
+                    (completedTargetsToday == todayTasksTotalCount &&
+                        todayTasksTotalCount > 0)
+                    ? Colors.green[700]!
+                    : Colors.orange[800]!,
               ),
             ),
             const SizedBox(width: 10),

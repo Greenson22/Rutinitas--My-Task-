@@ -45,9 +45,12 @@ class TodayTaskTile extends StatelessWidget {
     final streak = _streakFor(todayKey);
     final targetMet = isTaskTargetMetToday(task, todayKey);
 
-    return Padding(
+    return Container(
       key: Key('todayTask_${task.id}'),
       padding: const EdgeInsets.symmetric(vertical: 10),
+      decoration: BoxDecoration(
+        color: targetMet ? const Color(0xFFE8F5E9) : Colors.transparent,
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
