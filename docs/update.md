@@ -19,6 +19,11 @@
 - **Color Wheel Interaktif**: Pemilihan warna pada Card Checklist kini dilengkapi color wheel yang sinkron dua arah dengan input kode HEX serta palet kuratif. Warna teks (hitam/putih) otomatis disesuaikan berdasarkan kecerahan latar belakang agar selalu terbaca jelas.
 - **Bar History Multi-Warna (Stacked)**: Grafik batang riwayat DailyTracker kini tersusun dari segmen-segmen berwarna yang mewakili setiap item yang diselesaikan, dengan warna konsisten yang dihasilkan otomatis dari kombinasi huruf nama item.
 - **Edit History Sadar Tipe Item**: Sheet edit riwayat kini menampilkan badge tipe item (`Progress` atau `Hitung Mundur`) beserta label input nilai yang lebih jelas (*"Nilai saat ini:"* / *"Sisa:"*) secara rekursif hingga ke sub-item.
+- **Legenda Warna History Bar Chart**: Menambahkan legenda warna di bawah grafik batang riwayat harian yang mengikuti filter tanggal aktif dan hanya menampilkan item yang selesai.
+- **Tombol Aksi Seksi via Long Press**: Tombol aksi pada header seksi checklist kini disembunyikan secara default agar judul panjang tidak terpotong, dan dapat dimunculkan/disembunyikan di bawah nama seksi melalui long press.
+
+### Task Master New
+- **Edit Hitungan Hari Ini**: Dialog *Ubah Tugas* kini menyediakan field *Hitungan Hari Ini* untuk mengoreksi hitungan harian secara langsung (termasuk ke `0`) dengan penyesuaian `totalCount` otomatis via delta.
 
 ---
 
