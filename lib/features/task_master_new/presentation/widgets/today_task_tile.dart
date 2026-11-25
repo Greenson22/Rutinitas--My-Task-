@@ -110,7 +110,12 @@ class TodayTaskTile extends StatelessWidget {
                       _progressText(countToday),
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.blueGrey[700],
+                        fontWeight: FontWeight.w600,
+                        color: targetMet
+                            ? Colors.green[800]
+                            : (countToday > 0
+                                  ? Colors.indigo[700]
+                                  : Colors.orange[800]),
                       ),
                     ),
                     _TargetStatus(task: task, targetMet: targetMet),
@@ -258,10 +263,15 @@ class TodayTaskTile extends StatelessWidget {
         final target = task.targetDaily > 0 ? '${task.targetDaily}' : '∞';
         return 'Hari ini $countToday / $target';
       case TaskKind.counter:
-        return 'Hari ini $countToday';
+        return task.targetDaily > 0
+            ? 'Hari ini $countToday / ${task.targetDaily}'
+            : 'Hari ini $countToday';
       case TaskKind.progress:
+        final daily = task.targetDaily > 0
+            ? '$countToday / ${task.targetDaily}'
+            : '$countToday';
         final total = task.targetTotal > 0 ? ' / ${task.targetTotal}' : '';
-        return 'Hari ini $countToday • ${task.totalCount}$total';
+        return 'Hari ini $daily • ${task.totalCount}$total';
     }
   }
 
