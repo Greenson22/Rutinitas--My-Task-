@@ -29,9 +29,10 @@ void main() {
         id: 'd1',
         groupName: 'Dokumen Kerja',
         icon: '📄',
-        sectionName: 'KERJA',
+        sectionCategory: 'KERJA',
         orderIndex: 0,
         isHidden: false,
+        allList: [],
       ),
     );
     await writeDocumentGroup(
@@ -39,9 +40,10 @@ void main() {
         id: 'd2',
         groupName: 'Dokumen Pribadi',
         icon: '📁',
-        sectionName: 'PRIBADI',
+        sectionCategory: 'PRIBADI',
         orderIndex: 1,
         isHidden: false,
+        allList: [],
       ),
     );
     await writeDocumentGroup(
@@ -49,9 +51,10 @@ void main() {
         id: 'd3',
         groupName: 'Dokumen Rahasia',
         icon: '🔒',
-        sectionName: 'PRIBADI',
+        sectionCategory: 'PRIBADI',
         orderIndex: 2,
         isHidden: true,
+        allList: [],
       ),
     );
   });

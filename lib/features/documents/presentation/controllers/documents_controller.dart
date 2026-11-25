@@ -111,7 +111,7 @@ class DocumentsController extends ChangeNotifier {
           prefs.getBool('sections_remember_collapse_state') ?? true;
       collapsedSections.clear();
       final allSectionNames =
-          loadedGroups.map((g) => g.sectionName).toSet();
+          loadedGroups.map((g) => g.sectionCategory).toSet();
       if (rememberCollapse) {
         final rawCollapsed = prefs.getString('docs_collapsed_sections');
         if (rawCollapsed != null) {
