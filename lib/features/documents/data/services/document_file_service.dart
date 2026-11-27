@@ -2,6 +2,8 @@
 
 import 'dart:io';
 
+import 'package:archive/archive.dart';
+
 /// Pilihan penanganan ketika berkas yang diimpor sudah ada di direktori tujuan.
 enum DocumentNameConflictPolicy {
   /// Lewati berkas yang bentrok.
@@ -336,6 +338,40 @@ class DocumentFileService {
     if (await dir.exists()) {
       await dir.delete(recursive: true);
     }
+  }
+
+  /// Mengemas seluruh isi folder (termasuk subfolder) menjadi berkas ZIP sementara.
+  ///
+  /// Folder kosong tetap menghasilkan berkas ZIP yang valid.
+  Future<File> zipFolder({
+    required String groupId,
+    required String relativePath,
+    required String zipFileName,
+    Directory? outputDir,
+  }) async {
+    final dir = resolveDirectory(groupId, relativePath: relativePath);
+    final archive = Archive();
+    if (await dir.exists()) {
+      final rootNorm = _normalize(dir.path);
+      final prefix = rootNorm.endsWith('/') ? rootNorm : '$rootNorm/';
+      for (final entity in dir.listSync(recursive: true)) {
+        if (entity is File) {
+          final entityNorm = _normalize(entity.path);
+          final rel = entityNorm.startsWith(prefix)
+              ? entityNorm.substring(prefix.length)
+              : _baseName(entity.path);
+          final bytes = await entity.readAsBytes();
+          archive.addFile(ArchiveFile(rel, bytes.length, bytes));
+        }
+      }
+    }
+    final encoded = ZipEncoder().encode(archive);
+    final targetDir = outputDir ?? Directory.systemTemp;
+    final safeName = sanitizeFolderName(zipFileName);
+    final finalName = safeName.isEmpty ? 'folder' : safeName;
+    final zipFile = File('${targetDir.path}$_separator$finalName.zip');
+    await zipFile.writeAsBytes(encoded, flush: true);
+    return zipFile;
   }
 
   /// Path direktori group tanpa menyentuh filesystem.

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rutinitasku/features/documents/data/services/document_file_service.dart';
 
@@ -360,6 +361,42 @@ void main() {
         autoRenameWithNumber: true,
       );
       expect(service.fileName(moved!), 'laporan (1).pdf');
+    });
+
+    test('zipFolder mengemas subtree beserta struktur relatif dan folder kosong tetap valid', () async {
+      await service.createFolderDirectory('g1', 'Paket/Sub');
+      final rootFile = File(
+        '${service.resolveDirectory('g1', relativePath: 'Paket').path}/a.txt',
+      );
+      final subFile = File(
+        '${service.resolveDirectory('g1', relativePath: 'Paket/Sub').path}/b.txt',
+      );
+      await rootFile.writeAsString('satu');
+      await subFile.writeAsString('dua');
+
+      final zipFile = await service.zipFolder(
+        groupId: 'g1',
+        relativePath: 'Paket',
+        zipFileName: 'Paket',
+        outputDir: tempDir,
+      );
+      expect(await zipFile.exists(), isTrue);
+      final decoded = ZipDecoder().decodeBytes(await zipFile.readAsBytes());
+      final names = decoded.files.map((f) => f.name).toSet();
+      expect(names, containsAll(['a.txt', 'Sub/b.txt']));
+
+      await service.createFolderDirectory('g1', 'Kosong');
+      final emptyZip = await service.zipFolder(
+        groupId: 'g1',
+        relativePath: 'Kosong',
+        zipFileName: 'Kosong',
+        outputDir: tempDir,
+      );
+      expect(await emptyZip.exists(), isTrue);
+      final decodedEmpty = ZipDecoder().decodeBytes(
+        await emptyZip.readAsBytes(),
+      );
+      expect(decodedEmpty.files, isEmpty);
     });
   });
 }

@@ -918,6 +918,8 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
                     _showRenameFolderDialog(folder);
                   } else if (action == 'move') {
                     _showMoveFolderDialog(folder);
+                  } else if (action == 'share_zip') {
+                    _shareFolderAsZip(folder);
                   } else if (action == 'delete') {
                     _confirmDeleteFolder(folder);
                   }
@@ -925,6 +927,10 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
                 itemBuilder: (_) => const [
                   PopupMenuItem(value: 'rename', child: Text('Ubah Nama')),
                   PopupMenuItem(value: 'move', child: Text('Pindahkan')),
+                  PopupMenuItem(
+                    value: 'share_zip',
+                    child: Text('Bagikan (ZIP)'),
+                  ),
                   PopupMenuItem(
                     value: 'delete',
                     child: Text('Hapus', style: TextStyle(color: Colors.red)),
@@ -936,6 +942,28 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
           ),
       ],
     );
+  }
+
+  Future<void> _shareFolderAsZip(DocumentFolder folder) async {
+    File? zipFile;
+    try {
+      final relPath = _documentsController.folderRelativePath(
+        _currentGroup,
+        folder.id,
+      );
+      zipFile = await _fileService.zipFolder(
+        groupId: _currentGroup.id,
+        relativePath: relPath,
+        zipFileName: folder.name,
+      );
+      await Share.shareXFiles([XFile(zipFile.path)]);
+    } catch (e) {
+      debugPrint('Gagal membagikan folder ZIP: $e');
+    } finally {
+      if (zipFile != null && await zipFile.exists()) {
+        await zipFile.delete();
+      }
+    }
   }
 
   String _folderSummaryText(String folderId) {
@@ -1359,16 +1387,6 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
                   ),
                 ),
                 const PopupMenuItem(
-                  value: 'export',
-                  child: Row(
-                    children: [
-                      Icon(Icons.output_rounded, size: 18, color: Colors.amber),
-                      SizedBox(width: 10),
-                      Text('Ekspor Berkas', style: TextStyle(fontSize: 13)),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
                   value: 'share',
                   child: Row(
                     children: [
@@ -1401,8 +1419,6 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
                   _renamePhysicalFile(file);
                 } else if (value == 'move') {
                   _showMoveDocumentsDialog([file]);
-                } else if (value == 'export') {
-                  _exportPhysicalFile(file);
                 } else if (value == 'share') {
                   _sharePhysicalFile(file);
                 } else if (value == 'delete') {
@@ -1414,9 +1430,6 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
               },
               onMoveMassive: (selectedItems) {
                 _showMoveDocumentsDialog(selectedItems);
-              },
-              onExportMassive: (selectedItems) async {
-                await _exportMassiveFiles(selectedItems);
               },
               onShareMassive: (selectedItems) async {
                 await _shareMassiveFiles(selectedItems);
