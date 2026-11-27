@@ -680,102 +680,188 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
       return;
     }
 
-    showDialog(
+    final allGroups = _documentsController.allGroupRaw;
+    if (allGroups.isEmpty) return;
+
+    DocumentGroup? selectedGroup;
+    String? selectedFolderId;
+
+    final result = await showDialog<({DocumentGroup group, String? folderId})>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            Icon(Icons.drive_file_move_outlined, color: Colors.blueGrey[800]),
-            const SizedBox(width: 10),
-            Text('Pindahkan ${filesToMove.length} Dokumen'),
-          ],
-        ),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: availableGroups.length,
-            itemBuilder: (context, index) {
-              final targetGroup = availableGroups[index];
-              return ListTile(
-                leading: Text(
-                  targetGroup.icon,
-                  style: const TextStyle(fontSize: 24),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final folders = selectedGroup == null
+              ? const <DocumentFolder>[]
+              : _documentsController.getChildFolders(
+                  selectedGroup!,
+                  selectedFolderId,
+                );
+          final currentPath = selectedGroup == null
+              ? ''
+              : _documentsController.folderRelativePath(
+                  selectedGroup!,
+                  selectedFolderId,
+                );
+
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Row(
+              children: [
+                Icon(
+                  Icons.drive_file_move_outlined,
+                  color: Colors.blueGrey[800],
                 ),
-                title: Text(targetGroup.groupName),
-                subtitle: Text('Kategori: ${targetGroup.sectionCategory}'),
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  setState(() => isLoading = true);
-
-                  bool success = filesToMove.isNotEmpty;
-                  try {
-                    for (final file in filesToMove) {
-                      final oldRel = _fileService.relativePath(
-                        widget.group.id,
-                        file,
-                      );
-                      final moved = await _fileService.moveFile(
-                        file: file,
-                        targetGroupId: targetGroup.id,
-                        autoRenameWithNumber: true,
-                      );
-                      if (moved == null) {
-                        success = false;
-                      } else {
-                        final newRel = _fileService.relativePath(
-                          targetGroup.id,
-                          moved,
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    selectedGroup == null
+                        ? 'Pindahkan ${filesToMove.length} Dokumen'
+                        : '${selectedGroup!.groupName}${currentPath.isEmpty ? '' : ' / $currentPath'}',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            content: SizedBox(
+              width: double.maxFinite,
+              height: 320,
+              child: selectedGroup == null
+                  ? ListView.builder(
+                      itemCount: allGroups.length,
+                      itemBuilder: (context, index) {
+                        final targetGroup = allGroups[index];
+                        return ListTile(
+                          leading: Text(
+                            targetGroup.icon,
+                            style: const TextStyle(fontSize: 24),
+                          ),
+                          title: Text(targetGroup.groupName),
+                          subtitle: Text(
+                            'Kategori: ${targetGroup.sectionCategory}',
+                          ),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () => setDialogState(() {
+                            selectedGroup = targetGroup;
+                            selectedFolderId = null;
+                          }),
                         );
-                        await _linkService.updateLinkPath(
-                          widget.group.id,
-                          oldRel,
-                          newRel,
-                          _fileService.fileName(moved),
-                          newGroupId: targetGroup.id,
-                        );
-                      }
-                    }
-                  } catch (e) {
-                    debugPrint("Gagal memindahkan berkas: $e");
-                    success = false;
-                  }
-
-                  if (success) {
-                    await _loadPhysicalFiles();
-                    if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          'Berhasil memindahkan dokumen ke "${targetGroup.groupName}"',
+                      },
+                    )
+                  : Column(
+                      children: [
+                        ListTile(
+                          leading: const Icon(Icons.arrow_back),
+                          title: const Text('Kembali ke Daftar Group'),
+                          onTap: () => setDialogState(() {
+                            selectedGroup = null;
+                            selectedFolderId = null;
+                          }),
                         ),
-                        backgroundColor: Colors.teal,
-                      ),
-                    );
-                  } else {
-                    if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Gagal memindahkan beberapa berkas.'),
-                        backgroundColor: Colors.redAccent,
-                      ),
-                    );
-                  }
-                  setState(() => isLoading = false);
-                },
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
-          ),
-        ],
+                        const Divider(height: 1),
+                        Expanded(
+                          child: folders.isEmpty
+                              ? const Center(
+                                  child: Text('Tidak ada subfolder di sini.'),
+                                )
+                              : ListView.builder(
+                                  itemCount: folders.length,
+                                  itemBuilder: (context, index) {
+                                    final folder = folders[index];
+                                    return ListTile(
+                                      leading: Text(
+                                        folder.icon,
+                                        style: const TextStyle(fontSize: 22),
+                                      ),
+                                      title: Text(folder.name),
+                                      trailing: const Icon(Icons.chevron_right),
+                                      onTap: () => setDialogState(() {
+                                        selectedFolderId = folder.id;
+                                      }),
+                                    );
+                                  },
+                                ),
+                        ),
+                      ],
+                    ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+              ),
+              if (selectedGroup != null)
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx, (
+                    group: selectedGroup!,
+                    folderId: selectedFolderId,
+                  )),
+                  child: const Text('Pindahkan ke Sini'),
+                ),
+            ],
+          );
+        },
       ),
     );
+
+    if (result == null) return;
+    final targetGroup = result.group;
+    final targetRelPath = _documentsController.folderRelativePath(
+      targetGroup,
+      result.folderId,
+    );
+
+    setState(() => isLoading = true);
+    bool success = filesToMove.isNotEmpty;
+    try {
+      for (final file in filesToMove) {
+        final oldRel = _fileService.relativePath(widget.group.id, file);
+        final moved = await _fileService.moveFile(
+          file: file,
+          targetGroupId: targetGroup.id,
+          targetRelativePath: targetRelPath,
+          autoRenameWithNumber: true,
+        );
+        if (moved == null) {
+          success = false;
+        } else {
+          final newRel = _fileService.relativePath(targetGroup.id, moved);
+          await _linkService.updateLinkPath(
+            widget.group.id,
+            oldRel,
+            newRel,
+            _fileService.fileName(moved),
+            newGroupId: targetGroup.id,
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint("Gagal memindahkan berkas: $e");
+      success = false;
+    }
+
+    if (success) {
+      await _loadPhysicalFiles();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Berhasil memindahkan dokumen ke "${targetGroup.groupName}${targetRelPath.isEmpty ? '' : '/$targetRelPath'}"',
+          ),
+          backgroundColor: Colors.teal,
+        ),
+      );
+    } else {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Gagal memindahkan beberapa berkas.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+    if (mounted) setState(() => isLoading = false);
   }
 
   void _deletePhysicalFile(File file) async {
