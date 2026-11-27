@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../data/models/daily_model.dart';
+import 'document_file_picker_dialog.dart';
 
 class EditItemRelationsDialog extends StatefulWidget {
   final SubSubjectItem item;
@@ -59,6 +60,10 @@ class _EditItemRelationsDialogState extends State<EditItemRelationsDialog> {
   String? _localExternalItemId;
   String? _localExternalItemName;
 
+  String? _localDocGroupId;
+  String? _localDocRelativePath;
+  String? _localDocName;
+
   late final List<ChecklistGroup> _validGroupsList;
 
   @override
@@ -79,6 +84,9 @@ class _EditItemRelationsDialogState extends State<EditItemRelationsDialog> {
     _localExternalCardName = widget.item.linkedExternalCardName;
     _localExternalItemId = widget.item.linkedExternalItemId;
     _localExternalItemName = widget.item.linkedExternalItemName;
+    _localDocGroupId = widget.item.linkedDocumentGroupId;
+    _localDocRelativePath = widget.item.linkedDocumentRelativePath;
+    _localDocName = widget.item.linkedDocumentName;
 
     if (_localLinkedTarget != null && _localLinkedTarget!.isNotEmpty) {
       for (var group in widget.allAvailableGroups ?? <ChecklistGroup>[]) {
@@ -478,6 +486,107 @@ class _EditItemRelationsDialogState extends State<EditItemRelationsDialog> {
                         _localLinkedTargetId = val;
                       }),
             ),
+            const SizedBox(height: 16),
+            const Divider(),
+            const Text(
+              'Berkas My Documents Tertaut',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+            const SizedBox(height: 8),
+            if (_localDocRelativePath != null && _localDocRelativePath!.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.indigo.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '📎 ${_localDocName ?? _localDocRelativePath}',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    Text(
+                      _localDocRelativePath!,
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              )
+            else
+              const Text(
+                'Belum ada berkas tertaut.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.attach_file, size: 18),
+                  label: Text(
+                    _localDocRelativePath == null ? 'Pilih Berkas' : 'Ganti Berkas',
+                  ),
+                  onPressed: () async {
+                    final selected = await showDialog<DocumentFileSelection>(
+                      context: context,
+                      builder: (_) => const DocumentFilePickerDialog(),
+                    );
+                    if (selected != null && mounted) {
+                      setState(() {
+                        _localDocGroupId = selected.groupId;
+                        _localDocRelativePath = selected.relativePath;
+                        _localDocName = selected.fileName;
+                      });
+                    }
+                  },
+                ),
+                if (_localDocRelativePath != null &&
+                    _localDocRelativePath!.isNotEmpty)
+                  TextButton.icon(
+                    icon: const Icon(Icons.link_off, size: 18, color: Colors.red),
+                    label: const Text(
+                      'Hapus Kaitan',
+                      style: TextStyle(color: Colors.red),
+                    ),
+                    onPressed: () async {
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('Lepas Kaitan Berkas?'),
+                          content: const Text(
+                            'Tautan ke berkas My Documents ini akan dilepas.',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, false),
+                              child: const Text('Batal'),
+                            ),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red,
+                              ),
+                              onPressed: () => Navigator.pop(ctx, true),
+                              child: const Text(
+                                'Lepas',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirm == true && mounted) {
+                        setState(() {
+                          _localDocGroupId = null;
+                          _localDocRelativePath = null;
+                          _localDocName = null;
+                        });
+                      }
+                    },
+                  ),
+              ],
+            ),
           ],
         ),
       ),
@@ -496,6 +605,10 @@ class _EditItemRelationsDialogState extends State<EditItemRelationsDialog> {
               final int parsedTarget =
                   int.tryParse(_targetValController.text) ??
                   widget.item.targetValue;
+
+              widget.item.linkedDocumentGroupId = _localDocGroupId;
+              widget.item.linkedDocumentRelativePath = _localDocRelativePath;
+              widget.item.linkedDocumentName = _localDocName;
 
               Navigator.pop(context);
               widget.onConfirm(

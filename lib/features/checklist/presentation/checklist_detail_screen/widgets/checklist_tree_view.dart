@@ -1,6 +1,9 @@
 // lib/features/daily/presentation/widgets/checklist_detail/checklist_dialog/checklist_tree_view.dart
 
 import 'package:flutter/material.dart';
+import 'package:open_file/open_file.dart';
+import '../../../../core/services/storage_service.dart';
+import '../../../documents/data/services/document_file_service.dart';
 import '../../../data/models/daily_model.dart';
 
 class ChecklistTreeView extends StatelessWidget {
@@ -184,7 +187,7 @@ class ChecklistTreeView extends StatelessWidget {
                               Expanded(
                                 child: RichText(
                                   text: TextSpan(
-                                    text: item.subjectName,
+                                    text: item.hasLinkedDocument ? '📎 ${item.subjectName}' : item.subjectName,
                                     style: TextStyle(
                                       fontSize: 14,
                                       fontFamily:
@@ -340,7 +343,7 @@ class ChecklistTreeView extends StatelessWidget {
                                     Flexible(
                                       child: RichText(
                                         text: TextSpan(
-                                          text: item.subjectName,
+                                          text: item.hasLinkedDocument ? '📎 ${item.subjectName}' : item.subjectName,
                                           style: TextStyle(
                                             fontSize: 14,
                                             fontFamily: 'Roboto',
@@ -513,8 +516,32 @@ class ChecklistTreeView extends StatelessWidget {
                   ),
                   constraints: const BoxConstraints(),
                   padding: const EdgeInsets.all(4),
-                  onSelected: (String value) {
-                    if (value == 'add_child') {
+                  onSelected: (String value) async {
+                    if (value == 'open_linked_file') {
+                      final baseDir = await StorageService().getBaseDirSetting();
+                      final file = DocumentFileService(baseDir: baseDir)
+                          .resolveRelativePath(
+                            item.linkedDocumentGroupId!,
+                            item.linkedDocumentRelativePath!,
+                          );
+                      if (await file.exists()) {
+                        await OpenFile.open(file.path);
+                      } else if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: const Text('Berkas tidak ditemukan'),
+                            action: SnackBarAction(
+                              label: 'Lepas',
+                              onPressed: () {
+                                item.linkedDocumentGroupId = null;
+                                item.linkedDocumentRelativePath = null;
+                                item.linkedDocumentName = null;
+                              },
+                            ),
+                          ),
+                        );
+                      }
+                    } else if (value == 'add_child') {
                       onAddChild(item);
                     } else if (value == 'toggle_disable') {
                       onToggleDisable?.call(item);
@@ -528,6 +555,17 @@ class ChecklistTreeView extends StatelessWidget {
                     }
                   },
                   itemBuilder: (BuildContext context) => [
+                    if (item.hasLinkedDocument)
+                      const PopupMenuItem<String>(
+                        value: 'open_linked_file',
+                        child: Row(
+                          children: [
+                            Icon(Icons.open_in_new, size: 18, color: Colors.indigo),
+                            SizedBox(width: 8),
+                            Text('Buka Berkas'),
+                          ],
+                        ),
+                      ),
                     PopupMenuItem<String>(
                       value: 'add_child',
                       child: Row(

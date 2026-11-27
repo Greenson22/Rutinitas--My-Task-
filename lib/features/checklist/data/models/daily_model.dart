@@ -272,6 +272,17 @@ class SubSubjectItem {
   String? linkedExternalItemId;
   String? linkedExternalItemName;
 
+  // Tautan berkas My Documents
+  String? linkedDocumentGroupId;
+  String? linkedDocumentRelativePath;
+  String? linkedDocumentName;
+
+  bool get hasLinkedDocument =>
+      linkedDocumentGroupId != null &&
+      linkedDocumentGroupId!.isNotEmpty &&
+      linkedDocumentRelativePath != null &&
+      linkedDocumentRelativePath!.isNotEmpty;
+
   // Melacak status expand/collapse UI item list secara runtime harian
   bool isExpanded;
 
@@ -299,6 +310,9 @@ class SubSubjectItem {
     this.linkedExternalCardName,
     this.linkedExternalItemId,
     this.linkedExternalItemName,
+    this.linkedDocumentGroupId,
+    this.linkedDocumentRelativePath,
+    this.linkedDocumentName,
     this.isExpanded = false,
   })  : id = id ?? generateId(),
         subMateri = subMateri ?? [];
@@ -321,6 +335,9 @@ class SubSubjectItem {
       linkedExternalCardName: linkedExternalCardName,
       linkedExternalItemId: linkedExternalItemId,
       linkedExternalItemName: linkedExternalItemName,
+      linkedDocumentGroupId: linkedDocumentGroupId,
+      linkedDocumentRelativePath: linkedDocumentRelativePath,
+      linkedDocumentName: linkedDocumentName,
       isExpanded: isExpanded,
     );
   }
@@ -348,6 +365,9 @@ class SubSubjectItem {
       linkedExternalCardName: json['linkedExternalCardName'],
       linkedExternalItemId: json['linkedExternalItemId'],
       linkedExternalItemName: json['linkedExternalItemName'],
+      linkedDocumentGroupId: json['linkedDocumentGroupId'],
+      linkedDocumentRelativePath: json['linkedDocumentRelativePath'],
+      linkedDocumentName: json['linkedDocumentName'],
       isExpanded: false,
     );
   }
@@ -370,6 +390,9 @@ class SubSubjectItem {
       'linkedExternalCardName': linkedExternalCardName,
       'linkedExternalItemId': linkedExternalItemId,
       'linkedExternalItemName': linkedExternalItemName,
+      'linkedDocumentGroupId': linkedDocumentGroupId,
+      'linkedDocumentRelativePath': linkedDocumentRelativePath,
+      'linkedDocumentName': linkedDocumentName,
     };
   }
 
