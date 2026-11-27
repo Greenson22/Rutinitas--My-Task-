@@ -267,16 +267,30 @@ class DailySubject {
 class MonitorItemRef {
   String sourceSubjectName;
   String sourceItemId;
+  bool isGroupParent;
+  String? parentTitle;
+  bool isExpanded;
+  List<MonitorItemRef> children;
 
   MonitorItemRef({
-    required this.sourceSubjectName,
-    required this.sourceItemId,
-  });
+    this.sourceSubjectName = '',
+    this.sourceItemId = '',
+    this.isGroupParent = false,
+    this.parentTitle,
+    this.isExpanded = true,
+    List<MonitorItemRef>? children,
+  }) : children = children ?? [];
 
   factory MonitorItemRef.fromJson(Map<String, dynamic> json) {
     return MonitorItemRef(
       sourceSubjectName: json['sourceSubjectName'] ?? '',
       sourceItemId: json['sourceItemId'] ?? '',
+      isGroupParent: json['isGroupParent'] ?? false,
+      parentTitle: json['parentTitle'],
+      isExpanded: json['isExpanded'] ?? true,
+      children: (json['children'] as List? ?? [])
+          .map((e) => MonitorItemRef.fromJson(Map<String, dynamic>.from(e)))
+          .toList(),
     );
   }
 
@@ -284,6 +298,11 @@ class MonitorItemRef {
     return {
       'sourceSubjectName': sourceSubjectName,
       'sourceItemId': sourceItemId,
+      if (isGroupParent) 'isGroupParent': true,
+      if (parentTitle != null) 'parentTitle': parentTitle,
+      if (!isExpanded) 'isExpanded': false,
+      if (children.isNotEmpty)
+        'children': children.map((e) => e.toJson()).toList(),
     };
   }
 }

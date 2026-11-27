@@ -474,35 +474,174 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
     }
   }
 
-  Widget _buildMonitorListView() {
-    final resolvedEntries =
-        <({MonitorItemRef ref, DailySubject sourceSubject, SubSubjectItem item})>[];
+  ({DailySubject sourceSubject, SubSubjectItem item})? _resolveMonitorRef(
+    MonitorItemRef ref,
+  ) {
+    final sourceSubject = widget.allAvailableSubjects.firstWhere(
+      (s) => s.subjectName == ref.sourceSubjectName,
+      orElse: () => DailySubject(
+        subjectName: '',
+        progress: 'belum',
+        subMateri: const [],
+      ),
+    );
+    if (sourceSubject.subjectName.isEmpty) return null;
 
-    for (final ref in widget.subject.monitorItems) {
-      final sourceSubject = widget.allAvailableSubjects.firstWhere(
-        (s) => s.subjectName == ref.sourceSubjectName,
-        orElse: () => DailySubject(
-          subjectName: '',
-          progress: 'belum',
-          subMateri: const [],
+    final List<SubSubjectItem> flat = [];
+    getAllItemsFlattened(sourceSubject.subMateri, flat);
+    final sourceItem = flat.firstWhere(
+      (i) => i.id == ref.sourceItemId,
+      orElse: () => SubSubjectItem(subjectName: '', progress: 'belum'),
+    );
+    if (sourceItem.subjectName.isEmpty) return null;
+    return (sourceSubject: sourceSubject, item: sourceItem);
+  }
+
+  void _showAddMonitorParentDialog({MonitorItemRef? existingParent}) {
+    final controller = TextEditingController(
+      text: existingParent?.parentTitle ?? '',
+    );
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(
+          existingParent == null ? 'Tambah Parent Monitor' : 'Ubah Nama Parent',
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
-      );
-      if (sourceSubject.subjectName.isEmpty) continue;
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'Nama kelompok/parent...',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final title = controller.text.trim();
+              if (title.isEmpty) return;
+              setState(() {
+                if (existingParent != null) {
+                  existingParent.parentTitle = title;
+                } else {
+                  widget.subject.monitorItems.add(
+                    MonitorItemRef(
+                      isGroupParent: true,
+                      parentTitle: title,
+                    ),
+                  );
+                }
+              });
+              widget.onDataChanged();
+              Navigator.pop(ctx);
+            },
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+  }
 
-      final List<SubSubjectItem> flat = [];
-      getAllItemsFlattened(sourceSubject.subMateri, flat);
-      final sourceItem = flat.firstWhere(
-        (i) => i.id == ref.sourceItemId,
-        orElse: () => SubSubjectItem(subjectName: '', progress: 'belum'),
-      );
-      if (sourceItem.subjectName.isEmpty) continue;
+  Widget _buildMonitorShadowRow(
+    MonitorItemRef ref,
+    List<MonitorItemRef> containerList,
+    int index,
+    int total,
+  ) {
+    final resolved = _resolveMonitorRef(ref);
+    if (resolved == null) return const SizedBox.shrink();
+    final sourceItem = resolved.item;
+    final sourceSubject = resolved.sourceSubject;
 
-      resolvedEntries.add((
-        ref: ref,
-        sourceSubject: sourceSubject,
-        item: sourceItem,
-      ));
-    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: ChecklistTreeView(
+            item: sourceItem,
+            depth: 0,
+            isEditMode: false,
+            selectedItems: const [],
+            highlightedItem: null,
+            isFirst: index == 0,
+            isLast: index == total - 1,
+            monitorSourceLabel: 'Bayangan • Dari: ${sourceSubject.subjectName}',
+            onSelectItem: (_, __) {},
+            onMoveOrder: (_, __) {},
+            onEditName: (target) => showEditNameDialogView(target),
+            onLongPressToggle: () {},
+            onCheckStatusChanged: (target, val) {
+              setState(() {
+                target.progress = (val == true) ? 'selesai' : 'belum';
+                target.finishedDate =
+                    (val == true) ? DateTime.now().toIso8601String() : null;
+              });
+              widget.onDataChanged();
+            },
+            onTapToggleStatus: (target) {
+              handleTapToggleStatusView(target);
+            },
+            onAddChild: (_) {},
+            onDeleteItem: (_) {},
+            onToggleItemType: handleToggleItemTypeView,
+            onUpdateProgressValue: showUpdateProgressValueDialogView,
+            onToggleDisable: (target) {
+              setState(() => target.isDisabled = !target.isDisabled);
+              widget.onDataChanged();
+            },
+            onToggleExpansion: (target) {
+              setState(() => target.isExpanded = !target.isExpanded);
+            },
+          ),
+        ),
+        IconButton(
+          tooltip: 'Lepas dari Monitor',
+          icon: const Icon(
+            Icons.link_off_rounded,
+            size: 18,
+            color: Colors.redAccent,
+          ),
+          constraints: const BoxConstraints(),
+          padding: const EdgeInsets.all(6),
+          onPressed: () async {
+            final confirm = await showDialog<bool>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Lepas Item Bayangan?'),
+                content: Text(
+                  'Lepaskan "${sourceItem.subjectName}" dari daftar monitor?\n(Item asli di "${sourceSubject.subjectName}" tidak akan terhapus.)',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: const Text('Batal'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: const Text('Lepaskan'),
+                  ),
+                ],
+              ),
+            );
+            if (confirm == true) {
+              setState(() {
+                containerList.remove(ref);
+              });
+              widget.onDataChanged();
+            }
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMonitorListView() {
+    final items = widget.subject.monitorItems;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -521,7 +660,7 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
               const SizedBox(width: 8),
               const Expanded(
                 child: Text(
-                  'Mode Monitor Aktif (item asli disembunyikan)',
+                  'Mode Monitor Aktif',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
@@ -530,11 +669,22 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                 ),
               ),
               TextButton.icon(
-                onPressed: _showAddMonitorItemDialog,
-                icon: const Icon(Icons.add, size: 16),
-                label: const Text('Tambah', style: TextStyle(fontSize: 12)),
+                onPressed: () => _showAddMonitorParentDialog(),
+                icon: const Icon(Icons.create_new_folder_outlined, size: 15),
+                label: const Text('Parent', style: TextStyle(fontSize: 12)),
                 style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+              const SizedBox(width: 4),
+              TextButton.icon(
+                onPressed: () => _showAddMonitorItemDialog(),
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('Item', style: TextStyle(fontSize: 12)),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
                   minimumSize: Size.zero,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
@@ -542,11 +692,11 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
             ],
           ),
         ),
-        if (resolvedEntries.isEmpty)
+        if (items.isEmpty)
           const Padding(
             padding: EdgeInsets.all(24.0),
             child: Text(
-              'Belum ada item monitor.\nTekan "Tambah" untuk memantau item dari card lain di grup ini.',
+              'Belum ada item monitor.\nTekan "+ Parent" untuk membuat kelompok atau "+ Item" untuk memantau item dari card lain.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey, fontSize: 13),
             ),
@@ -556,93 +706,131 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
             child: ListView.builder(
               shrinkWrap: true,
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-              itemCount: resolvedEntries.length,
+              itemCount: items.length,
               itemBuilder: (context, index) {
-                final entry = resolvedEntries[index];
-                final sourceItem = entry.item;
-                final sourceSubject = entry.sourceSubject;
-
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(
-                      child: ChecklistTreeView(
-                        item: sourceItem,
-                        depth: 0,
-                        isEditMode: false,
-                        selectedItems: const [],
-                        highlightedItem: null,
-                        isFirst: index == 0,
-                        isLast: index == resolvedEntries.length - 1,
-                        monitorSourceLabel:
-                            'Bayangan • Dari: ${sourceSubject.subjectName}',
-                        onSelectItem: (_, __) {},
-                        onMoveOrder: (_, __) {},
-                        onEditName: (target) => showEditNameDialogView(target),
-                        onLongPressToggle: () {},
-                        onCheckStatusChanged: (target, val) {
-                          setState(() {
-                            target.progress = (val == true) ? 'selesai' : 'belum';
-                            target.finishedDate = (val == true)
-                                ? DateTime.now().toIso8601String()
-                                : null;
-                          });
+                final entry = items[index];
+                if (entry.isGroupParent) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      InkWell(
+                        onTap: () {
+                          setState(() => entry.isExpanded = !entry.isExpanded);
                           widget.onDataChanged();
                         },
-                        onTapToggleStatus: (target) {
-                          handleTapToggleStatusView(target);
-                        },
-                        onAddChild: (_) {},
-                        onDeleteItem: (_) {},
-                        onToggleItemType: handleToggleItemTypeView,
-                        onUpdateProgressValue: showUpdateProgressValueDialogView,
-                        onToggleDisable: (target) {
-                          setState(() => target.isDisabled = !target.isDisabled);
-                          widget.onDataChanged();
-                        },
-                        onToggleExpansion: (target) {
-                          setState(() => target.isExpanded = !target.isExpanded);
-                        },
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'Lepas dari Monitor',
-                      icon: const Icon(
-                        Icons.link_off_rounded,
-                        size: 18,
-                        color: Colors.redAccent,
-                      ),
-                      constraints: const BoxConstraints(),
-                      padding: const EdgeInsets.all(6),
-                      onPressed: () async {
-                        final confirm = await showDialog<bool>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: const Text('Lepas Item Bayangan?'),
-                            content: Text(
-                              'Lepaskan "${sourceItem.subjectName}" dari daftar monitor?\n(Item asli di "${sourceSubject.subjectName}" tidak akan terhapus.)',
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx, false),
-                                child: const Text('Batal'),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 6,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                entry.isExpanded
+                                    ? Icons.keyboard_arrow_down_rounded
+                                    : Icons.keyboard_arrow_right_rounded,
+                                size: 20,
+                                color: Colors.indigo,
                               ),
-                              ElevatedButton(
-                                onPressed: () => Navigator.pop(ctx, true),
-                                child: const Text('Lepaskan'),
+                              const SizedBox(width: 4),
+                              const Icon(
+                                Icons.folder_outlined,
+                                size: 18,
+                                color: Colors.indigo,
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  entry.parentTitle ?? 'Parent',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    color: Colors.indigo,
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                tooltip: 'Tambah Item ke Parent',
+                                icon: const Icon(
+                                  Icons.add_circle_outline,
+                                  size: 18,
+                                  color: Colors.teal,
+                                ),
+                                constraints: const BoxConstraints(),
+                                padding: const EdgeInsets.all(4),
+                                onPressed: () =>
+                                    _showAddMonitorItemDialog(targetParent: entry),
+                              ),
+                              IconButton(
+                                tooltip: 'Ubah Nama Parent',
+                                icon: const Icon(
+                                  Icons.edit_outlined,
+                                  size: 17,
+                                  color: Colors.blueGrey,
+                                ),
+                                constraints: const BoxConstraints(),
+                                padding: const EdgeInsets.all(4),
+                                onPressed: () => _showAddMonitorParentDialog(
+                                  existingParent: entry,
+                                ),
+                              ),
+                              IconButton(
+                                tooltip: 'Hapus Parent',
+                                icon: const Icon(
+                                  Icons.delete_outline,
+                                  size: 18,
+                                  color: Colors.redAccent,
+                                ),
+                                constraints: const BoxConstraints(),
+                                padding: const EdgeInsets.all(4),
+                                onPressed: () {
+                                  setState(() => items.remove(entry));
+                                  widget.onDataChanged();
+                                },
                               ),
                             ],
                           ),
-                        );
-                        if (confirm == true) {
-                          setState(() {
-                            widget.subject.monitorItems.remove(entry.ref);
-                          });
-                          widget.onDataChanged();
-                        }
-                      },
-                    ),
-                  ],
+                        ),
+                      ),
+                      if (entry.isExpanded)
+                        Padding(
+                          padding: const EdgeInsets.only(left: 18.0),
+                          child: entry.children.isEmpty
+                              ? const Padding(
+                                  padding: EdgeInsets.symmetric(
+                                    vertical: 4,
+                                    horizontal: 8,
+                                  ),
+                                  child: Text(
+                                    'Kosong — tekan + di parent untuk menambah item',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontStyle: FontStyle.italic,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                )
+                              : Column(
+                                  children: List.generate(
+                                    entry.children.length,
+                                    (cIdx) => _buildMonitorShadowRow(
+                                      entry.children[cIdx],
+                                      entry.children,
+                                      cIdx,
+                                      entry.children.length,
+                                    ),
+                                  ),
+                                ),
+                        ),
+                    ],
+                  );
+                }
+
+                return _buildMonitorShadowRow(
+                  entry,
+                  items,
+                  index,
+                  items.length,
                 );
               },
             ),
@@ -651,7 +839,10 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
     );
   }
 
-  void _showAddMonitorItemDialog() {
+  void _showAddMonitorItemDialog({MonitorItemRef? targetParent}) {
+    final targetList = targetParent != null
+        ? targetParent.children
+        : widget.subject.monitorItems;
     final otherSubjects = widget.allAvailableSubjects
         .where(
           (s) =>
@@ -740,8 +931,9 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                 final entry = flatItems[idx];
                 final it = entry.item;
                 final depth = entry.depth;
-                final alreadyAdded = widget.subject.monitorItems.any(
+                final alreadyAdded = targetList.any(
                   (m) =>
+                      !m.isGroupParent &&
                       m.sourceSubjectName == selectedSubject!.subjectName &&
                       m.sourceItemId == it.id,
                 );
@@ -779,13 +971,14 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                   onTap: () {
                     setState(() {
                       if (alreadyAdded) {
-                        widget.subject.monitorItems.removeWhere(
+                        targetList.removeWhere(
                           (m) =>
+                              !m.isGroupParent &&
                               m.sourceSubjectName == selectedSubject!.subjectName &&
                               m.sourceItemId == it.id,
                         );
                       } else {
-                        widget.subject.monitorItems.add(
+                        targetList.add(
                           MonitorItemRef(
                             sourceSubjectName: selectedSubject!.subjectName,
                             sourceItemId: it.id,

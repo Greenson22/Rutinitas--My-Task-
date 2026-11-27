@@ -911,19 +911,26 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
             final allInGroup = currentGroup.allList
                 .expand((sec) => sec.items)
                 .toList();
-            for (final ref in subject.monitorItems) {
-              final srcSubj = allInGroup.firstWhere(
-                (s) => s.subjectName == ref.sourceSubjectName,
-                orElse: () => DailySubject(
-                  subjectName: '',
-                  progress: 'belum',
-                  subMateri: const [],
-                ),
-              );
-              if (srcSubj.subjectName.isEmpty) continue;
-              final found = findItemById(srcSubj.subMateri, ref.sourceItemId);
-              if (found != null) resolvedMonitorItems.add(found);
+            void resolveRefs(List<MonitorItemRef> refs) {
+              for (final ref in refs) {
+                if (ref.isGroupParent) {
+                  resolveRefs(ref.children);
+                  continue;
+                }
+                final srcSubj = allInGroup.firstWhere(
+                  (s) => s.subjectName == ref.sourceSubjectName,
+                  orElse: () => DailySubject(
+                    subjectName: '',
+                    progress: 'belum',
+                    subMateri: const [],
+                  ),
+                );
+                if (srcSubj.subjectName.isEmpty) continue;
+                final found = findItemById(srcSubj.subMateri, ref.sourceItemId);
+                if (found != null) resolvedMonitorItems.add(found);
+              }
             }
+            resolveRefs(subject.monitorItems);
           }
 
           // Menggunakan ChecklistCalculationHelper
