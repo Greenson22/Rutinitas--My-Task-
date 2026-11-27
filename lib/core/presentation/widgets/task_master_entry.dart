@@ -11,6 +11,7 @@ import '../../../features/task_master_new/presentation/screens/task_master_scree
 import '../../config/task_master_rollout.dart';
 import '../../services/storage_service.dart';
 import '../../utils/crypto_helper.dart';
+import 'ad_notice_dialog.dart';
 
 /// Titik masuk tunggal Task Master.
 ///
@@ -60,12 +61,15 @@ class _TaskMasterEntryState extends State<TaskMasterEntry> {
       _useNewModule = useNew;
     });
 
-    if (!useNew && !_promoChecked) {
-      _promoChecked = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        AdNoticeDialog.showIfEnabled(context);
+      }
+      if (!useNew && !_promoChecked) {
+        _promoChecked = true;
         _checkAndShowPromo();
-      });
-    }
+      }
+    });
   }
 
   Future<void> _checkAndShowPromo() async {

@@ -683,13 +683,24 @@ abstract class ChecklistDetailController extends State<ChecklistDetailScreen> {
   // OPERASI INTI DAILY TRACKER
   // =========================================================================
 
-  /// Menyimpan snapshot status seluruh item checklist hari ini secara rekursif.
+  /// Menyimpan snapshot status seluruh item checklist secara rekursif.
+  /// Menggunakan tanggal yang terpasang pada checklist (`subject.date`) jika aktif,
+  /// atau jatuh kembali ke tanggal hari ini jika tidak ada.
   /// Jika sudah ada entri di hari yang sama, data akan di-overwrite.
   /// Mengembalikan string key tanggal yang berhasil disimpan (format yyyy-MM-dd).
   Future<String> saveTodayLog(DailySubject subject) async {
-    final now = DateTime.now();
+    DateTime targetDate = DateTime.now();
+    if (subject.isDateActive &&
+        subject.date != null &&
+        subject.date!.isNotEmpty) {
+      final parsed = DateTime.tryParse(subject.date!);
+      if (parsed != null) {
+        targetDate = parsed;
+      }
+    }
+
     final String todayKey =
-        '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+        '${targetDate.year.toString().padLeft(4, '0')}-${targetDate.month.toString().padLeft(2, '0')}-${targetDate.day.toString().padLeft(2, '0')}';
 
     final List<DailyLogEntry> entries = subject.subMateri
         .map((item) => DailyLogEntry.fromSubSubjectItem(item))

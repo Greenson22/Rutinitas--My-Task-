@@ -30,6 +30,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
   bool _enableRandomGenerator = false; // Flag untuk status Random Generator
   bool _enableAdBannerShowcase = false; // Flag untuk status Ad Banner Showcase
   bool _useNewTaskMaster = false; // Flag untuk Task Master New
+  bool _showAdNoticeOnStartup = true; // Flag untuk dialog info iklan saat buka aplikasi
 
   // Settings Tampilan Checklist
   bool _sectionDefaultCollapsed = false;
@@ -61,6 +62,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
       _enableAdBannerShowcase =
           prefs.getBool('enable_ad_banner_showcase') ?? false;
       _useNewTaskMaster = useNewModule;
+      _showAdNoticeOnStartup =
+          prefs.getBool('show_ad_notice_on_startup') ?? true;
 
       // Settings Tampilan Checklist
       _sectionDefaultCollapsed =
@@ -499,6 +502,14 @@ class _SettingsDialogState extends State<SettingsDialog> {
     });
   }
 
+  Future<void> _handleShowAdNoticeToggle(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('show_ad_notice_on_startup', value);
+    setState(() {
+      _showAdNoticeOnStartup = value;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
@@ -807,6 +818,22 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 value: _useNewTaskMaster,
                 activeThumbColor: Colors.deepPurple,
                 onChanged: _handleTaskMasterNewToggle,
+              ),
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text(
+                'Tampilkan Info Iklan Saat Buka Aplikasi',
+                style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+              ),
+              subtitle: const Text(
+                'Menampilkan pesan dukungan iklan setiap kali aplikasi baru dibuka.',
+                style: TextStyle(fontSize: 11, color: Colors.black54),
+              ),
+              trailing: Switch(
+                value: _showAdNoticeOnStartup,
+                activeThumbColor: Colors.deepPurple,
+                onChanged: _handleShowAdNoticeToggle,
               ),
             ),
           ],
