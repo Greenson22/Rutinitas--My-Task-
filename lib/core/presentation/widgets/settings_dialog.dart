@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:rutinitasku/core/config/task_master_rollout.dart';
 import 'package:rutinitasku/core/services/storage_service.dart';
+import 'package:rutinitasku/features/multimedia/services/multimedia_opener_service.dart';
 
 class SettingsDialog extends StatefulWidget {
   final String currentBaseDir;
@@ -40,6 +41,10 @@ class _SettingsDialogState extends State<SettingsDialog> {
   // Settings Tampilan Sections (Notes, Prompt, Dokumen)
   bool _sectionsDefaultCollapsed = false;
   bool _sectionsRememberCollapseState = true;
+
+  // Settings Pembukaan File Multimedia (Internal Dialog vs External App)
+  bool _openImageInternal = true;
+  bool _openAudioInternal = true;
 
   final StorageService _storageService = StorageService();
 
@@ -78,6 +83,12 @@ class _SettingsDialogState extends State<SettingsDialog> {
           prefs.getBool('sections_default_collapsed') ?? false;
       _sectionsRememberCollapseState =
           prefs.getBool('sections_remember_collapse_state') ?? true;
+
+      // Settings Pembukaan File Multimedia
+      _openImageInternal =
+          prefs.getBool(MultimediaOpenerService.prefOpenImageInternal) ?? true;
+      _openAudioInternal =
+          prefs.getBool(MultimediaOpenerService.prefOpenAudioInternal) ?? true;
     });
   }
 
@@ -834,6 +845,62 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 value: _showAdNoticeOnStartup,
                 activeThumbColor: Colors.deepPurple,
                 onChanged: _handleShowAdNoticeToggle,
+              ),
+            ),
+            const Divider(height: 24),
+            const Text(
+              'Pembukaan File Multimedia',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            ),
+            const SizedBox(height: 4),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text(
+                'Buka Gambar dengan Dialog Internal',
+                style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+              ),
+              subtitle: Text(
+                _openImageInternal
+                    ? 'Internal: Gambar langsung tampil di dialog cepat.'
+                    : 'Eksternal: Gambar dibuka dengan aplikasi luar.',
+                style: const TextStyle(fontSize: 11, color: Colors.black54),
+              ),
+              trailing: Switch(
+                value: _openImageInternal,
+                activeThumbColor: Colors.teal,
+                onChanged: (val) async {
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setBool(
+                    MultimediaOpenerService.prefOpenImageInternal,
+                    val,
+                  );
+                  if (mounted) setState(() => _openImageInternal = val);
+                },
+              ),
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text(
+                'Buka Audio dengan Dialog Internal',
+                style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+              ),
+              subtitle: Text(
+                _openAudioInternal
+                    ? 'Internal: Audio diputar langsung di dialog pemutar.'
+                    : 'Eksternal: Audio dibuka dengan aplikasi luar.',
+                style: const TextStyle(fontSize: 11, color: Colors.black54),
+              ),
+              trailing: Switch(
+                value: _openAudioInternal,
+                activeThumbColor: Colors.teal,
+                onChanged: (val) async {
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setBool(
+                    MultimediaOpenerService.prefOpenAudioInternal,
+                    val,
+                  );
+                  if (mounted) setState(() => _openAudioInternal = val);
+                },
               ),
             ),
           ],

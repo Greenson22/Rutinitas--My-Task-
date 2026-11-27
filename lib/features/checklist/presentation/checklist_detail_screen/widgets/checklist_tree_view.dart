@@ -1,9 +1,9 @@
 // lib/features/daily/presentation/widgets/checklist_detail/checklist_dialog/checklist_tree_view.dart
 
 import 'package:flutter/material.dart';
-import 'package:open_file/open_file.dart';
 import 'package:rutinitasku/core/services/storage_service.dart';
 import 'package:rutinitasku/features/documents/data/services/document_file_service.dart';
+import 'package:rutinitasku/features/multimedia/services/multimedia_opener_service.dart';
 import '../../../data/models/daily_model.dart';
 
 class ChecklistTreeView extends StatelessWidget {
@@ -525,7 +525,9 @@ class ChecklistTreeView extends StatelessWidget {
                             item.linkedDocumentRelativePath!,
                           );
                       if (await file.exists()) {
-                        await OpenFile.open(file.path);
+                        if (context.mounted) {
+                          await MultimediaOpenerService.openFile(context, file);
+                        }
                       } else if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
