@@ -73,13 +73,8 @@ class ChecklistControlPanel extends StatefulWidget {
 }
 
 class _ChecklistControlPanelState extends State<ChecklistControlPanel> {
-  bool _isSectionPickerExpanded = false;
-
   @override
   Widget build(BuildContext context) {
-    final targetSections = widget.availableSections
-        .where((s) => s.sectionName != widget.currentSectionName)
-        .toList();
     return Container(
       color: Colors.grey.shade50,
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
@@ -518,95 +513,6 @@ class _ChecklistControlPanelState extends State<ChecklistControlPanel> {
                 ),
               ),
             ],
-          ),
-
-          const SizedBox(height: 8),
-
-          // 4. Pindah Seksi
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.indigo.shade100),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                InkWell(
-                  borderRadius: BorderRadius.circular(10),
-                  onTap: () {
-                    setState(() {
-                      _isSectionPickerExpanded = !_isSectionPickerExpanded;
-                    });
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.drive_file_move_outlined,
-                          size: 16,
-                          color: Colors.indigo[700],
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Pindah Seksi',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.indigo[700],
-                            ),
-                          ),
-                        ),
-                        Icon(
-                          _isSectionPickerExpanded
-                              ? Icons.keyboard_arrow_up_rounded
-                              : Icons.keyboard_arrow_down_rounded,
-                          size: 18,
-                          color: Colors.indigo[700],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                AnimatedSize(
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeInOut,
-                  child: _isSectionPickerExpanded
-                      ? Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            const Divider(height: 1),
-                            ...targetSections.map(
-                              (section) => ListTile(
-                                dense: true,
-                                leading: const Icon(
-                                  Icons.folder_outlined,
-                                  size: 16,
-                                  color: Colors.indigo,
-                                ),
-                                title: Text(
-                                  section.sectionName,
-                                  style: const TextStyle(fontSize: 13),
-                                ),
-                                onTap: () {
-                                  widget.onMoveToSection?.call(section);
-                                  setState(() {
-                                    _isSectionPickerExpanded = false;
-                                  });
-                                },
-                              ),
-                            ),
-                          ],
-                        )
-                      : const SizedBox.shrink(),
-                ),
-              ],
-            ),
           ),
         ],
       ),
