@@ -895,13 +895,66 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
         },
 
         gridItemBuilder: (context, subject, index, sectionItems, isLayoutEditMode) {
+          SubSubjectItem? findItemById(List<SubSubjectItem> list, String id) {
+            for (final it in list) {
+              if (it.id == id) return it;
+              if (it.subMateri.isNotEmpty) {
+                final found = findItemById(it.subMateri, id);
+                if (found != null) return found;
+              }
+            }
+            return null;
+          }
+
+          List<SubSubjectItem> resolvedMonitorItems = [];
+          if (subject.isMonitorMode) {
+            final allInGroup = currentGroup.allList
+                .expand((sec) => sec.items)
+                .toList();
+            for (final ref in subject.monitorItems) {
+              final srcSubj = allInGroup.firstWhere(
+                (s) => s.subjectName == ref.sourceSubjectName,
+                orElse: () => DailySubject(
+                  subjectName: '',
+                  progress: 'belum',
+                  subMateri: const [],
+                ),
+              );
+              if (srcSubj.subjectName.isEmpty) continue;
+              final found = findItemById(srcSubj.subMateri, ref.sourceItemId);
+              if (found != null) resolvedMonitorItems.add(found);
+            }
+          }
+
           // Menggunakan ChecklistCalculationHelper
-          double totalSub = ChecklistCalculationHelper.countTotalItems(subject.subMateri);
-          double selesaiSub = ChecklistCalculationHelper.countFinishedItems(subject.subMateri);
+          double totalSub = subject.isMonitorMode
+              ? resolvedMonitorItems.where((i) => !i.isDisabled).length.toDouble()
+              : ChecklistCalculationHelper.countTotalItems(subject.subMateri);
+          double selesaiSub = subject.isMonitorMode
+              ? resolvedMonitorItems
+                  .where((i) => i.progress == 'selesai' && !i.isDisabled)
+                  .length
+                  .toDouble()
+              : ChecklistCalculationHelper.countFinishedItems(subject.subMateri);
           bool isAllDone = totalSub > 0 && totalSub == selesaiSub;
 
           String topListText = "Tidak ada list";
-          if (subject.subMateri.isNotEmpty) {
+          if (subject.isMonitorMode) {
+            if (resolvedMonitorItems.isEmpty) {
+              topListText = "Mode Monitor (kosong)";
+            } else {
+              final firstUnfinished = resolvedMonitorItems.firstWhere(
+                (sm) => sm.progress != 'selesai' && !sm.isDisabled,
+                orElse: () =>
+                    SubSubjectItem(subjectName: '', progress: 'selesai'),
+              );
+              if (firstUnfinished.subjectName.isNotEmpty) {
+                topListText = firstUnfinished.subjectName;
+              } else {
+                topListText = "Semua Selesai!";
+              }
+            }
+          } else if (subject.subMateri.isNotEmpty) {
             // Cari item pertama yang belum selesai dan TIDAK dinonaktifkan[cite: 5]
             final firstUnfinishedItem = subject.subMateri.firstWhere(
               (sm) => sm.progress != 'selesai' && !sm.isDisabled,
