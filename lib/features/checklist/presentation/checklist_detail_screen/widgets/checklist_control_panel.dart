@@ -34,8 +34,9 @@ class ChecklistControlPanel extends StatefulWidget {
   final String currentSectionName;
   final ValueChanged<ChecklistSection>? onMoveToSection;
 
-  // === KONTROL MODE MONITOR ===
+  // === KONTROL MODE MONITOR & DAILY TRACKER ===
   final ValueChanged<bool>? onToggleMonitorMode;
+  final ValueChanged<bool>? onToggleDailyTracker;
 
   const ChecklistControlPanel({
     super.key,
@@ -64,6 +65,7 @@ class ChecklistControlPanel extends StatefulWidget {
     this.currentSectionName = '',
     this.onMoveToSection,
     this.onToggleMonitorMode,
+    this.onToggleDailyTracker,
   });
 
   @override
@@ -178,6 +180,38 @@ class _ChecklistControlPanelState extends State<ChecklistControlPanel> {
                         activeColor: Colors.indigo,
                         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         onChanged: widget.onToggleMonitorMode,
+                      ),
+                    ),
+                  ],
+                ),
+                const Divider(height: 8),
+                // Daily Tracker
+                Row(
+                  children: [
+                    Icon(
+                      Icons.calendar_today_rounded,
+                      size: 17,
+                      color: widget.subject.isDailyTrackerEnabled
+                          ? Colors.teal
+                          : Colors.blueGrey,
+                    ),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'Daily Tracker',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    Transform.scale(
+                      scale: 0.8,
+                      child: Switch(
+                        value: widget.subject.isDailyTrackerEnabled,
+                        activeColor: Colors.teal,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        onChanged: widget.onToggleDailyTracker,
                       ),
                     ),
                   ],

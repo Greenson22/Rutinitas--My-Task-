@@ -1049,6 +1049,43 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                       textAlign: TextAlign.center,
                     ),
                   ),
+                  if (subject.isMonitorMode) ...[
+                    const SizedBox(width: 4),
+                    Container(
+                      key: const Key('monitor_mode_badge'),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 1.5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.indigo.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          color: Colors.indigo.withValues(alpha: 0.5),
+                          width: 0.8,
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.monitor_heart_rounded,
+                            size: 10,
+                            color: Colors.indigo,
+                          ),
+                          SizedBox(width: 3),
+                          Text(
+                            'Monitor',
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.indigo,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   if (subject.isDailyTrackerEnabled) ...[
                     const SizedBox(width: 4),
                     Container(

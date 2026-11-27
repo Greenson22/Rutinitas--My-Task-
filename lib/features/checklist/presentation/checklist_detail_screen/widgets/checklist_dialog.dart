@@ -1559,6 +1559,12 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                       });
                       widget.onDataChanged();
                     },
+                    onToggleDailyTracker: (val) {
+                      setState(() {
+                        widget.subject.isDailyTrackerEnabled = val;
+                      });
+                      widget.onDataChanged();
+                    },
                   )
                 : const SizedBox.shrink(),
           ),
