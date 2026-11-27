@@ -34,6 +34,9 @@ class ChecklistControlPanel extends StatefulWidget {
   final String currentSectionName;
   final ValueChanged<ChecklistSection>? onMoveToSection;
 
+  // === KONTROL MODE MONITOR ===
+  final ValueChanged<bool>? onToggleMonitorMode;
+
   const ChecklistControlPanel({
     super.key,
     required this.subject,
@@ -60,6 +63,7 @@ class ChecklistControlPanel extends StatefulWidget {
     this.availableSections = const [],
     this.currentSectionName = '',
     this.onMoveToSection,
+    this.onToggleMonitorMode,
   });
 
   @override
@@ -76,72 +80,120 @@ class _ChecklistControlPanelState extends State<ChecklistControlPanel> {
         .toList();
     return Container(
       color: Colors.grey.shade50,
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: widget.singleInputController,
-                    decoration: const InputDecoration(
-                      hintText: 'Tambah sub-materi utama baru...',
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(
-                        vertical: 10,
-                        horizontal: 12,
-                      ),
-                      border: OutlineInputBorder(),
+          // 1. Input Tambah Sub-Materi + Aksi Cepat (Tambah, Paste, JSON)
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: widget.singleInputController,
+                  style: const TextStyle(fontSize: 13),
+                  decoration: InputDecoration(
+                    hintText: 'Tambah sub-materi baru...',
+                    hintStyle: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                    filled: true,
+                    fillColor: Colors.white,
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      vertical: 10,
+                      horizontal: 12,
                     ),
-                    onSubmitted: (_) => widget.onAddRootItem(),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
                   ),
+                  onSubmitted: (_) => widget.onAddRootItem(),
                 ),
-                const SizedBox(width: 4),
-                IconButton(
-                  icon: const Icon(Icons.add_box, color: Colors.teal),
-                  tooltip: 'Tambah Utama',
-                  onPressed: widget.onAddRootItem,
-                ),
-                IconButton(
-                  icon: const Icon(
-                    Icons.assignment_returned_outlined,
-                    color: Colors.indigo,
-                  ),
-                  tooltip: 'Paste Banyak Baris dari Clipboard',
-                  onPressed: widget.onPasteFromClipboard,
-                ),
-                // --- SAKELAR ICON BUTTON BARU KHUSUS IMPOR JSON ---
-                IconButton(
-                  icon: const Icon(
-                    Icons.code_rounded,
-                    color: Colors.deepOrange,
-                  ),
-                  tooltip: 'Impor Data dari JSON',
-                  onPressed: widget.onImportJsonPressed,
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 6),
+              _buildActionIcon(
+                icon: Icons.add_rounded,
+                color: Colors.teal,
+                tooltip: 'Tambah Utama',
+                onTap: widget.onAddRootItem,
+              ),
+              const SizedBox(width: 4),
+              _buildActionIcon(
+                icon: Icons.assignment_returned_outlined,
+                color: Colors.indigo,
+                tooltip: 'Paste Banyak Baris dari Clipboard',
+                onTap: widget.onPasteFromClipboard,
+              ),
+              const SizedBox(width: 4),
+              _buildActionIcon(
+                icon: Icons.code_rounded,
+                color: Colors.deepOrange,
+                tooltip: 'Impor Data dari JSON',
+                onTap: widget.onImportJsonPressed,
+              ),
+            ],
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16.0,
-              vertical: 4.0,
+          const SizedBox(height: 10),
+
+          // 2. Kartu Pengaturan (Mode Monitor, Default Anak Terbuka, Tanggal)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.grey.shade200),
             ),
             child: Column(
               children: [
-                // --- BARIS KONTROL BARU: ATURAN DEFALT EXPAND / COLLAPSE MASAL ---
+                // Mode Monitor
+                Row(
+                  children: [
+                    Icon(
+                      widget.subject.isMonitorMode
+                          ? Icons.monitor_heart_rounded
+                          : Icons.monitor_heart_outlined,
+                      size: 18,
+                      color: widget.subject.isMonitorMode
+                          ? Colors.indigo
+                          : Colors.blueGrey,
+                    ),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'Mode Monitor',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    Transform.scale(
+                      scale: 0.8,
+                      child: Switch(
+                        value: widget.subject.isMonitorMode,
+                        activeColor: Colors.indigo,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        onChanged: widget.onToggleMonitorMode,
+                      ),
+                    ),
+                  ],
+                ),
+                const Divider(height: 8),
+                // Default Anak Terbuka & Buka/Tutup Semua
                 Row(
                   children: [
                     const Icon(
                       Icons.account_tree_outlined,
-                      size: 16,
+                      size: 17,
                       color: Colors.blueGrey,
                     ),
                     const SizedBox(width: 8),
                     const Text(
-                      'Default Anak Terbuka:',
+                      'Anak Terbuka:',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
@@ -152,42 +204,72 @@ class _ChecklistControlPanelState extends State<ChecklistControlPanel> {
                       child: Switch(
                         value: widget.defaultCardExpanded,
                         activeColor: Colors.indigo,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         onChanged: widget.onDefaultExpandedPrefChanged,
                       ),
                     ),
                     const Spacer(),
-                    // Tombol cepat buka semua anak list
-                    TextButton.icon(
-                      onPressed: () => widget.onTriggerAllExpansion(true),
-                      icon: const Icon(Icons.unfold_more, size: 14),
-                      label: const Text(
-                        'Buka Semua',
-                        style: TextStyle(fontSize: 11),
-                      ),
-                      style: TextButton.styleFrom(
-                        padding: EdgeInsets.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    InkWell(
+                      onTap: () => widget.onTriggerAllExpansion(true),
+                      borderRadius: BorderRadius.circular(6),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 4,
+                        ),
+                        child: Row(
+                          children: const [
+                            Icon(Icons.unfold_more, size: 14, color: Colors.indigo),
+                            SizedBox(width: 2),
+                            Text(
+                              'Buka',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.indigo,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    // Tombol cepat ciutkan semua anak list
-                    TextButton.icon(
-                      onPressed: () => widget.onTriggerAllExpansion(false),
-                      icon: const Icon(Icons.unfold_less, size: 14),
-                      label: const Text(
-                        'Tutup Semua',
-                        style: TextStyle(fontSize: 11),
-                      ),
-                      style: TextButton.styleFrom(
-                        padding: EdgeInsets.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    const SizedBox(width: 4),
+                    InkWell(
+                      onTap: () => widget.onTriggerAllExpansion(false),
+                      borderRadius: BorderRadius.circular(6),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 4,
+                        ),
+                        child: Row(
+                          children: const [
+                            Icon(Icons.unfold_less, size: 14, color: Colors.blueGrey),
+                            SizedBox(width: 2),
+                            Text(
+                              'Tutup',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.blueGrey,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
                 ),
-
+                const Divider(height: 8),
+                // Aktifkan Tanggal
                 Row(
                   children: [
+                    const Icon(
+                      Icons.calendar_today_outlined,
+                      size: 16,
+                      color: Colors.blueGrey,
+                    ),
+                    const SizedBox(width: 8),
                     const Text(
                       'Aktifkan Tanggal:',
                       style: TextStyle(
@@ -200,16 +282,18 @@ class _ChecklistControlPanelState extends State<ChecklistControlPanel> {
                       child: Switch(
                         value: widget.subject.isDateActive,
                         activeColor: Colors.teal,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         onChanged: widget.onDateActiveChanged,
                       ),
                     ),
                     if (widget.subject.isDateActive) ...[
-                      const SizedBox(width: 8),
+                      const Spacer(),
                       DropdownButton<String>(
                         value: widget.subject.dateType,
                         style: const TextStyle(
                           fontSize: 12,
                           color: Colors.black87,
+                          fontWeight: FontWeight.w500,
                         ),
                         isDense: true,
                         underline: const SizedBox(),
@@ -230,13 +314,16 @@ class _ChecklistControlPanelState extends State<ChecklistControlPanel> {
                 ),
                 if (widget.subject.isDateActive)
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 4.0),
+                    padding: const EdgeInsets.only(top: 4.0, left: 24.0),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.start,
                       children: [
                         TextButton(
                           onPressed: widget.onSelectStartDate,
-                          style: TextButton.styleFrom(padding: EdgeInsets.zero),
+                          style: TextButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
                           child: Text(
                             widget.subject.dateType == 'range'
                                 ? 'Dari: ${widget.subject.date}'
@@ -244,6 +331,7 @@ class _ChecklistControlPanelState extends State<ChecklistControlPanel> {
                             style: const TextStyle(
                               fontSize: 12,
                               color: Colors.teal,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
@@ -252,22 +340,22 @@ class _ChecklistControlPanelState extends State<ChecklistControlPanel> {
                             padding: EdgeInsets.symmetric(horizontal: 6.0),
                             child: Text(
                               '—',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey,
-                              ),
+                              style: TextStyle(fontSize: 12, color: Colors.grey),
                             ),
                           ),
                           TextButton(
                             onPressed: widget.onSelectEndDate,
                             style: TextButton.styleFrom(
                               padding: EdgeInsets.zero,
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             ),
                             child: Text(
                               'Sampai: ${widget.subject.endDate}',
                               style: const TextStyle(
                                 fontSize: 12,
                                 color: Colors.teal,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
@@ -275,122 +363,179 @@ class _ChecklistControlPanelState extends State<ChecklistControlPanel> {
                       ],
                     ),
                   ),
-                if (widget.isEditMode && widget.subject.subMateri.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4.0),
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            Checkbox(
-                              activeColor: Colors.teal,
-                              value: widget.isAllSelected,
-                              onChanged: widget.onSelectAllChanged,
-                            ),
-                            const Text(
-                              'Pilih Semua Item',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                        Row(
-                          children: [
-                            Checkbox(
-                              activeColor: Colors.green,
-                              value: widget.isAllFinishedSelected,
-                              onChanged: widget.onSelectAllFinishedChanged,
-                            ),
-                            const Text(
-                              'Pilih Semua Selesai',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.green,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                const Divider(height: 12),
-                Padding(
-                  padding: const EdgeInsets.only(top: 4.0, bottom: 8.0),
-                  child: Row(
-                    children: [
-                      ElevatedButton.icon(
-                        onPressed: widget.subject.subMateri.isEmpty
-                            ? null
-                            : widget.onMarkAllDone,
-                        icon: const Icon(Icons.done_all, size: 16),
-                        label: const Text(
-                          'Tandai Semua Selesai',
-                          style: TextStyle(fontSize: 11),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.teal[700],
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                        ),
-                      ),
-                      const Spacer(),
-                      OutlinedButton.icon(
-                        onPressed: widget.onToggleHideFinished,
-                        icon: Icon(
-                          widget.hideFinishedItems
-                              ? Icons.visibility_off
-                              : Icons.visibility,
-                          size: 16,
-                        ),
-                        label: Text(
-                          widget.hideFinishedItems
-                              ? 'Tampilkan Selesai'
-                              : 'Sembunyikan Selesai',
-                          style: const TextStyle(fontSize: 11),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.blueGrey[700],
-                          side: BorderSide(color: Colors.blueGrey.shade200),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
               ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+
+          if (widget.isEditMode && widget.subject.subMateri.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Checkbox(
+                          activeColor: Colors.teal,
+                          value: widget.isAllSelected,
+                          onChanged: widget.onSelectAllChanged,
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        const Text(
+                          'Pilih Semua Item',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        Checkbox(
+                          activeColor: Colors.green,
+                          value: widget.isAllFinishedSelected,
+                          onChanged: widget.onSelectAllFinishedChanged,
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        const Text(
+                          'Pilih Semua Selesai',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          const SizedBox(height: 8),
+
+          // 3. Tombol Tandai Semua Selesai & Sembunyikan Selesai
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: widget.subject.subMateri.isEmpty
+                      ? null
+                      : widget.onMarkAllDone,
+                  icon: const Icon(Icons.done_all, size: 15),
+                  label: const Text(
+                    'Tandai Selesai',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.teal[700],
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 10,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: widget.onToggleHideFinished,
+                  icon: Icon(
+                    widget.hideFinishedItems
+                        ? Icons.visibility_off
+                        : Icons.visibility,
+                    size: 15,
+                  ),
+                  label: Text(
+                    widget.hideFinishedItems
+                        ? 'Tampilkan Selesai'
+                        : 'Sembunyi Selesai',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.blueGrey[700],
+                    side: BorderSide(color: Colors.blueGrey.shade200),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 10,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 8),
+
+          // 4. Pindah Seksi
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.indigo.shade100),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                OutlinedButton.icon(
-                  onPressed: () {
+                InkWell(
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: () {
                     setState(() {
                       _isSectionPickerExpanded = !_isSectionPickerExpanded;
                     });
                   },
-                  icon: const Icon(Icons.drive_file_move_outlined, size: 16),
-                  label: const Text(
-                    'Pindah Seksi',
-                    style: TextStyle(fontSize: 12),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.indigo[700],
-                    side: BorderSide(color: Colors.indigo.shade200),
+                  child: Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
-                      vertical: 8,
+                      vertical: 10,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.drive_file_move_outlined,
+                          size: 16,
+                          color: Colors.indigo[700],
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Pindah Seksi',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.indigo[700],
+                            ),
+                          ),
+                        ),
+                        Icon(
+                          _isSectionPickerExpanded
+                              ? Icons.keyboard_arrow_up_rounded
+                              : Icons.keyboard_arrow_down_rounded,
+                          size: 18,
+                          color: Colors.indigo[700],
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -400,31 +545,59 @@ class _ChecklistControlPanelState extends State<ChecklistControlPanel> {
                   child: _isSectionPickerExpanded
                       ? Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: targetSections
-                              .map(
-                                (section) => ListTile(
-                                  dense: true,
-                                  title: Text(
-                                    section.sectionName,
-                                    style: const TextStyle(fontSize: 13),
-                                  ),
-                                  onTap: () {
-                                    widget.onMoveToSection?.call(section);
-                                    setState(() {
-                                      _isSectionPickerExpanded = false;
-                                    });
-                                  },
+                          children: [
+                            const Divider(height: 1),
+                            ...targetSections.map(
+                              (section) => ListTile(
+                                dense: true,
+                                leading: const Icon(
+                                  Icons.folder_outlined,
+                                  size: 16,
+                                  color: Colors.indigo,
                                 ),
-                              )
-                              .toList(),
+                                title: Text(
+                                  section.sectionName,
+                                  style: const TextStyle(fontSize: 13),
+                                ),
+                                onTap: () {
+                                  widget.onMoveToSection?.call(section);
+                                  setState(() {
+                                    _isSectionPickerExpanded = false;
+                                  });
+                                },
+                              ),
+                            ),
+                          ],
                         )
                       : const SizedBox.shrink(),
                 ),
               ],
             ),
           ),
-          const Divider(height: 1),
         ],
+      ),
+    );
+  }
+
+  Widget _buildActionIcon({
+    required IconData icon,
+    required Color color,
+    required String tooltip,
+    required VoidCallback onTap,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.all(9),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, size: 20, color: color),
+        ),
       ),
     );
   }
