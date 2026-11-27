@@ -1351,30 +1351,26 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
               saveGroupData();
             },
             popupMenuItems: [
-              ...currentGroup.allList
+              if (currentGroup.allList
                   .where((sec) => !sec.items.contains(subject))
-                  .map(
-                    (sec) => PopupMenuItem<String>(
-                      value: 'INTERNAL_MOVE:${sec.sectionName}',
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.drive_file_move_outlined,
-                            size: 18,
-                            color: Colors.teal,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'Pindah ke Seksi: ${sec.sectionName}',
-                              style: const TextStyle(fontSize: 13),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
+                  .isNotEmpty)
+                const PopupMenuItem<String>(
+                  value: 'CHOOSE_INTERNAL_SECTION_DIALOG',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.drive_file_move_outlined,
+                        size: 18,
+                        color: Colors.teal,
                       ),
-                    ),
+                      SizedBox(width: 10),
+                      Text(
+                        'Pindah ke Seksi',
+                        style: TextStyle(fontSize: 13),
+                      ),
+                    ],
                   ),
+                ),
               if (_loadedAllGroups
                   .where(
                     (g) =>
@@ -1512,19 +1508,105 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                 );
               } else if (value == 'TOGGLE_VISIBILITY') {
                 toggleSubjectVisibility(subject);
-              } else if (value.startsWith('INTERNAL_MOVE:')) {
-                final String targetSectionName = value.replaceFirst(
-                  'INTERNAL_MOVE:',
-                  '',
+              } else if (value == 'CHOOSE_INTERNAL_SECTION_DIALOG') {
+                final targetSections = currentGroup.allList
+                    .where((sec) => !sec.items.contains(subject))
+                    .toList();
+                if (targetSections.isEmpty) return;
+                showDialog(
+                  context: context,
+                  builder: (dialogCtx) => BasePopupDialog(
+                    title: Text(
+                      'Pindah "${subject.subjectName}" ke Seksi',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    themeColor: Colors.teal,
+                    titleColor: Colors.white,
+                    content: Padding(
+                      padding: const EdgeInsets.all(14.0),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Pilih Seksi Tujuan:',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Flexible(
+                            child: ListView.separated(
+                              shrinkWrap: true,
+                              itemCount: targetSections.length,
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(height: 6),
+                              itemBuilder: (_, idx) {
+                                final sec = targetSections[idx];
+                                return Card(
+                                  elevation: 0,
+                                  margin: EdgeInsets.zero,
+                                  color: Colors.grey.shade50,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    side: BorderSide(
+                                      color: Colors.grey.shade200,
+                                    ),
+                                  ),
+                                  child: ListTile(
+                                    dense: true,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    leading: const Icon(
+                                      Icons.folder_outlined,
+                                      color: Colors.teal,
+                                      size: 20,
+                                    ),
+                                    title: Text(
+                                      sec.sectionName,
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    subtitle: Text(
+                                      '${sec.items.length} Item',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                    ),
+                                    trailing: const Icon(
+                                      Icons.drive_file_move_rounded,
+                                      color: Colors.teal,
+                                      size: 20,
+                                    ),
+                                    onTap: () {
+                                      Navigator.pop(dialogCtx);
+                                      setState(() {
+                                        originalSection.items.remove(subject);
+                                        sec.items.add(subject);
+                                      });
+                                      saveGroupData();
+                                    },
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 );
-                setState(() {
-                  originalSection.items.remove(subject);
-                  currentGroup.allList
-                      .firstWhere((sec) => sec.sectionName == targetSectionName)
-                      .items
-                      .add(subject);
-                });
-                saveGroupData();
               }
             },
           );
