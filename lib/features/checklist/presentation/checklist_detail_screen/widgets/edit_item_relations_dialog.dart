@@ -87,6 +87,15 @@ class _EditItemRelationsDialogState extends State<EditItemRelationsDialog> {
     0xFFAD1457, // Pink
   ];
 
+  int _colorFromText(String text) {
+    int hash = 0;
+    for (final unit in text.codeUnits) {
+      hash = (hash * 31 + unit) & 0x7FFFFFFF;
+    }
+    final double hue = (hash % 360).toDouble();
+    return HSLColor.fromAHSL(1.0, hue, 0.72, 0.36).toColor().value;
+  }
+
   Future<void> _showCustomColorPickerDialog() async {
     Color tempColor = _selectedTextColor != null
         ? Color(_selectedTextColor!)
@@ -397,6 +406,41 @@ class _EditItemRelationsDialogState extends State<EditItemRelationsDialog> {
                         Icons.colorize_rounded,
                         size: 15,
                         color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  Tooltip(
+                    message: 'Warna Otomatis dari Huruf Item',
+                    child: GestureDetector(
+                      onTap: () {
+                        final text = _editController.text.trim();
+                        final colorVal = _colorFromText(
+                          text.isEmpty ? widget.item.subjectName : text,
+                        );
+                        setState(() => _selectedTextColor = colorVal);
+                      },
+                      child: Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Color(
+                            _colorFromText(
+                              _editController.text.trim().isEmpty
+                                  ? widget.item.subjectName
+                                  : _editController.text.trim(),
+                            ),
+                          ),
+                          border: Border.all(
+                            color: Colors.grey.shade400,
+                            width: 1,
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.auto_awesome_rounded,
+                          size: 15,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ),
