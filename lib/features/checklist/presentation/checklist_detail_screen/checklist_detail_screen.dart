@@ -101,78 +101,211 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
       return;
     }
 
-    // Tampilkan Dialog berbasis BasePopupDialog dengan spesifikasi UI modul Notes[cite: 5]
+    final List<String> sections = validTargetGroups
+        .map(
+          (g) => g.sectionCategory.trim().isEmpty
+              ? 'Umum'
+              : g.sectionCategory.trim(),
+        )
+        .toSet()
+        .toList();
+
+    String? selectedSection;
+
     showDialog(
       context: context,
-      builder: (dialogCtx) => BasePopupDialog(
-        title: const Text(
-          'Pindah Target Grup Tujuan',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-          ),
-        ),
-        themeColor:
-            Colors.teal[700]!, // Menyesuaikan aksen Checklist (Teal)[cite: 5]
-        titleColor: Colors.white,
-        content: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Pilih Grup Tujuan Pemindahan:',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final groupsInSection = selectedSection == null
+              ? <dynamic>[]
+              : validTargetGroups
+                  .where(
+                    (g) =>
+                        (g.sectionCategory.trim().isEmpty
+                            ? 'Umum'
+                            : g.sectionCategory.trim()) ==
+                        selectedSection,
+                  )
+                  .toList();
+
+          return BasePopupDialog(
+            title: Text(
+              'Pindahkan "${subject.subjectName}"',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
               ),
-              const SizedBox(height: 6),
-              Flexible(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: validTargetGroups.length,
-                  itemBuilder: (context, index) {
-                    final targetGroupObj = validTargetGroups[index];
-                    return ListTile(
-                      dense: true,
-                      leading: Text(
-                        targetGroupObj.icon.isEmpty ? ' ' : targetGroupObj.icon,
-                        style: const TextStyle(fontSize: 18),
-                      ),
-                      title: Text(
-                        targetGroupObj.groupName,
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                      subtitle: Text(
-                        targetGroupObj.sectionCategory,
-                        style: const TextStyle(fontSize: 11),
-                      ),
-                      trailing: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.teal[700],
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
+            ),
+            themeColor: Colors.indigo,
+            titleColor: Colors.white,
+            content: Padding(
+              padding: const EdgeInsets.all(14.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (selectedSection != null) ...[
+                    InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: () => setDialogState(() => selectedSection = null),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 4,
+                          horizontal: 2,
                         ),
-                        onPressed: () {
-                          Navigator.pop(dialogCtx);
-                          // Jalankan fungsi mutasi data ke controller utama
-                          moveChecklistToAnotherGroup(
-                            currentSectionItems: originalSection.items,
-                            subject: subject,
-                            targetGroup: targetGroupObj,
-                          );
-                        },
-                        child: const Text(
-                          'Pindah Ke Sini',
-                          style: TextStyle(color: Colors.white, fontSize: 12),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.arrow_back_ios_new_rounded,
+                              size: 14,
+                              color: Colors.indigo,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Seksi: $selectedSection',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                                color: Colors.indigo,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    );
-                  },
-                ),
+                    ),
+                    const SizedBox(height: 8),
+                  ] else ...[
+                    const Text(
+                      'Pilih Seksi:',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  Flexible(
+                    child: selectedSection == null
+                        ? ListView.separated(
+                            shrinkWrap: true,
+                            itemCount: sections.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 6),
+                            itemBuilder: (_, idx) {
+                              final sec = sections[idx];
+                              final count = validTargetGroups
+                                  .where(
+                                    (g) =>
+                                        (g.sectionCategory.trim().isEmpty
+                                            ? 'Umum'
+                                            : g.sectionCategory.trim()) ==
+                                        sec,
+                                  )
+                                  .length;
+                              return Card(
+                                elevation: 0,
+                                margin: EdgeInsets.zero,
+                                color: Colors.grey.shade50,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  side: BorderSide(color: Colors.grey.shade200),
+                                ),
+                                child: ListTile(
+                                  dense: true,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  leading: const Icon(
+                                    Icons.folder_copy_rounded,
+                                    color: Colors.indigo,
+                                    size: 20,
+                                  ),
+                                  title: Text(
+                                    sec,
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    '$count Grup',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.grey.shade600,
+                                    ),
+                                  ),
+                                  trailing: const Icon(
+                                    Icons.chevron_right_rounded,
+                                    color: Colors.indigo,
+                                  ),
+                                  onTap: () => setDialogState(
+                                    () => selectedSection = sec,
+                                  ),
+                                ),
+                              );
+                            },
+                          )
+                        : ListView.separated(
+                            shrinkWrap: true,
+                            itemCount: groupsInSection.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 6),
+                            itemBuilder: (_, idx) {
+                              final targetGroupObj = groupsInSection[idx];
+                              return Card(
+                                elevation: 0,
+                                margin: EdgeInsets.zero,
+                                color: Colors.grey.shade50,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  side: BorderSide(color: Colors.grey.shade200),
+                                ),
+                                child: ListTile(
+                                  dense: true,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  leading: Text(
+                                    targetGroupObj.icon.isEmpty
+                                        ? '📁'
+                                        : targetGroupObj.icon,
+                                    style: const TextStyle(fontSize: 18),
+                                  ),
+                                  title: Text(
+                                    targetGroupObj.groupName,
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  trailing: const Icon(
+                                    Icons.drive_file_move_rounded,
+                                    color: Colors.indigo,
+                                    size: 20,
+                                  ),
+                                  onTap: () {
+                                    Navigator.pop(dialogCtx);
+                                    moveChecklistToAnotherGroup(
+                                      currentSectionItems:
+                                          originalSection.items,
+                                      subject: subject,
+                                      targetGroup: targetGroupObj,
+                                    );
+                                  },
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
