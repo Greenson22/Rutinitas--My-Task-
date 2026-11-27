@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart'; // <--- BARU: Diperlukan untuk merender teks MD
+import 'package:rutinitasku/core/widgets/markdown_code_block_builder.dart';
 
 class ChecklistNoteView extends StatelessWidget {
   final TextEditingController noteController;
@@ -36,6 +37,7 @@ class ChecklistNoteView extends StatelessWidget {
               ? '*Catatan kosong.*'
               : noteController.text,
           selectable: true,
+          builders: {'pre': MarkdownCodeBlockBuilder()},
           styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
             p: const TextStyle(
               fontSize: 14.5,

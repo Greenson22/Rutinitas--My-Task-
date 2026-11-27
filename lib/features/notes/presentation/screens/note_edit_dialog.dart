@@ -4,6 +4,7 @@ import 'dart:convert'; // TAMBAHAN: Diperlukan untuk parsing JSON encoder & deco
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:rutinitasku/core/widgets/markdown_code_block_builder.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../models/note_model.dart';
 import '../controllers/note_detail_controller.dart';
@@ -1109,6 +1110,7 @@ class _NoteEditDialogState extends State<NoteEditDialog>
                                 ? '*Catatan kosong.*'
                                 : _contentController.text,
                             selectable: true,
+                            builders: {'pre': MarkdownCodeBlockBuilder()},
                             styleSheet:
                                 MarkdownStyleSheet.fromTheme(
                                   Theme.of(context),
