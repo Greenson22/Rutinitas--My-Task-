@@ -806,9 +806,10 @@ class _DailyScreenState extends State<DailyScreen> {
         onSearchChanged: _controller.updateSearchQuery,
         onAddPressed: _showAddMainSectionDialog,
         isSectionCollapsed: (sectionKey) =>
-            _controller.isSectionCollapsed(sectionKey) ||
-            (!_controller.showHiddenSection &&
-                _controller.isSectionHidden(sectionKey)),
+            !sectionKey.endsWith('_hidden_key') &&
+            (_controller.isSectionCollapsed(sectionKey) ||
+                (!_controller.showHiddenSection &&
+                    _controller.isSectionHidden(sectionKey))),
         appBarTrailingAction: _controller.isGlobalEncryptionEnabled
             ? Padding(
                 padding: const EdgeInsets.only(right: 8.0),
