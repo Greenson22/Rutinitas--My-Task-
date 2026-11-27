@@ -782,7 +782,26 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
             }
           }
 
-          // --- PEMPROSESAN LOGIKA PRATINU TEKS CATATAN MULTI-HALAMAN ---[cite: 5]
+          String stripMarkdown(String text) {
+    var result = text;
+    // Hapus code fence (```lang ... ```)
+    result = result.replaceAll(RegExp(r'```[^\n]*\n?'), '');
+    // Hapus heading (#, ##, dll), blockquote (>), dan list (-, *, +, 1.) di awal baris
+    result = result.replaceAll(
+      RegExp(r'^\s{0,3}(?:#{1,6}\s+|>\s+|[-*+]\s+|\d+\.\s+)', multiLine: true),
+      '',
+    );
+    // Ubah link/gambar [label](url) menjadi label
+    result = result.replaceAllMapped(
+      RegExp(r'!?\[([^\]]*)\]\([^)]*\)'),
+      (m) => m.group(1) ?? '',
+    );
+    // Hapus penanda format inline (**, __, *, _, ~~, `)
+    result = result.replaceAll(RegExp(r'(\*\*|__|~~|\*|_|`)'), '');
+    return result;
+  }
+
+  // --- PEMPROSESAN LOGIKA PRATINU TEKS CATATAN MULTI-HALAMAN ---[cite: 5]
           String notePreviewText = "Catatan kosong...";
           String targetText = "";
 
@@ -795,9 +814,13 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
             targetText = subject.noteContent ?? "";
           }
 
-          if (targetText.trim().isNotEmpty) {
+          final String previewSource = subject.isMarkdownEnabled
+              ? stripMarkdown(targetText)
+              : targetText;
+
+          if (previewSource.trim().isNotEmpty) {
             // Memisahkan teks berdasarkan spasi/whitespace berlebih[cite: 5]
-            List<String> words = targetText.trim().split(RegExp(r'\s+'));
+            List<String> words = previewSource.trim().split(RegExp(r'\s+'));
             if (words.length > 4) {
               // Mengambil 4 kata pertama dan menambahkan akhiran titik-titik[cite: 5]
               notePreviewText = '${words.take(4).join(' ')}...';
