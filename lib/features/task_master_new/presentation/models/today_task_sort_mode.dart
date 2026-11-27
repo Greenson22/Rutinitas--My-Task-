@@ -1,15 +1,7 @@
+import '../../domain/entities/today_task_sort_mode.dart';
 import '../../domain/operations/dashboard_summary.dart';
 
-/// Pilihan mode pengurutan tugas di bagian Hari Ini.
-enum TodayTaskSortMode {
-  defaultOrder,
-  nameAsc,
-  nameDesc,
-  incompleteFirst,
-  completedFirst,
-  categoryAsc,
-  custom,
-}
+export '../../domain/entities/today_task_sort_mode.dart';
 
 /// Helper fungsi untuk mengurutkan daftar [TodayTaskEntry] pada dashboard Hari Ini.
 List<TodayTaskEntry> sortTodayTasks(

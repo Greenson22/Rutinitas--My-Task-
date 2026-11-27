@@ -3,6 +3,7 @@ import 'dart:math';
 import '../../domain/entities/task_backup.dart';
 import '../../domain/entities/task_kind.dart';
 import '../../domain/entities/task_master_data.dart';
+import '../../domain/entities/today_task_sort_mode.dart';
 import '../../domain/entities/today_visibility.dart';
 import '../../domain/operations/category_operations.dart';
 import '../../domain/operations/task_operations.dart';
@@ -209,7 +210,9 @@ class TaskRepositoryImpl implements TaskRepository {
 
   int _validateSchemaVersion(Map<String, dynamic> json) {
     final version = _mapper.detectSchemaVersion(json);
-    if (version != 1 && version != TaskMasterData.currentSchemaVersion) {
+    if (version != 1 &&
+        version != 2 &&
+        version != TaskMasterData.currentSchemaVersion) {
       // Jangan membuat backup atau menulis apa pun untuk versi yang tidak dikenal.
       throw UnsupportedSchemaVersionException(version);
     }
@@ -291,6 +294,19 @@ class TaskRepositoryImpl implements TaskRepository {
     return _mutateData(
       (data) =>
           reorderCategoryIn(data, categoryId: categoryId, newIndex: newIndex),
+    );
+  }
+
+  @override
+  Future<TaskMasterData> updateTodaySort({
+    required TodayTaskSortMode mode,
+    List<String>? todayOrder,
+  }) {
+    return _mutateData(
+      (data) => data.copyWith(
+        todaySortMode: mode,
+        todayOrder: todayOrder ?? data.todayOrder,
+      ),
     );
   }
 

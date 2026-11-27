@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:rutinitasku/features/task_master_new/data/mappers/task_master_mapper.dart';
 import 'package:rutinitasku/features/task_master_new/domain/entities/daily_progress.dart';
 import 'package:rutinitasku/features/task_master_new/domain/entities/task_kind.dart';
+import 'package:rutinitasku/features/task_master_new/domain/entities/today_task_sort_mode.dart';
 import 'package:rutinitasku/features/task_master_new/domain/entities/task_master_data.dart';
 
 void main() {
@@ -214,7 +215,7 @@ void main() {
               as Map<String, dynamic>;
       expect(writtenTask['countToday'], 12);
       expect(writtenTask['type'], 0);
-      expect(jsonEncode(written), contains('"schemaVersion":2'));
+      expect(jsonEncode(written), contains('"schemaVersion":3'));
     });
 
     test('riwayat lebih dari 365 hari dipangkas saat menulis', () {
@@ -254,6 +255,48 @@ void main() {
 
       expect(history.containsKey('2024-01-01'), isFalse);
       expect(history['2026-11-14']['count'], 2);
+    });
+
+    test('skema v3: membaca dan menulis todaySortMode serta todayOrder', () {
+      final json = {
+        'schemaVersion': 3,
+        'todaySortMode': 'custom',
+        'todayOrder': ['t2', 't_missing', 't1', 't2'],
+        'categories': [
+          {
+            'id': 'cat_1',
+            'name': 'Belajar',
+            'tasks': [
+              {'id': 't1', 'name': 'Satu', 'isActive': true},
+              {'id': 't2', 'name': 'Dua', 'isActive': false},
+            ],
+          },
+        ],
+      };
+
+      final data = mapper.fromJson(json);
+
+      expect(data.schemaVersion, 3);
+      expect(data.todaySortMode, TodayTaskSortMode.custom);
+      expect(data.todayOrder, ['t2', 't1']);
+
+      final written = mapper.toJson(data, today: now);
+      expect(written['schemaVersion'], 3);
+      expect(written['todaySortMode'], 'custom');
+      expect(written['todayOrder'], ['t2', 't1']);
+    });
+
+    test('nilai todaySortMode tidak dikenal jatuh ke defaultOrder', () {
+      final json = {
+        'schemaVersion': 3,
+        'todaySortMode': 'mode_entah_apa',
+        'categories': [],
+      };
+
+      final data = mapper.fromJson(json);
+
+      expect(data.todaySortMode, TodayTaskSortMode.defaultOrder);
+      expect(data.todayOrder, isEmpty);
     });
   });
 }

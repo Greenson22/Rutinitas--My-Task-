@@ -9,6 +9,7 @@ import '../../domain/entities/task.dart';
 import '../../domain/entities/task_backup.dart';
 import '../../domain/entities/task_kind.dart';
 import '../../domain/entities/task_master_data.dart';
+import '../../domain/entities/today_task_sort_mode.dart';
 import '../../domain/entities/today_visibility.dart';
 import '../../domain/operations/category_operations.dart' as ops;
 import '../../domain/operations/task_operations.dart' as task_ops;
@@ -364,6 +365,16 @@ class TaskMasterNewController extends ChangeNotifier {
 
   Future<bool> deleteCategory(String categoryId) async {
     return _runDataAction(() => _repository.deleteCategory(categoryId));
+  }
+
+  /// Menyimpan mode pengurutan dan (opsional) urutan manual Hari Ini.
+  Future<bool> updateTodaySort({
+    required TodayTaskSortMode mode,
+    List<String>? todayOrder,
+  }) async {
+    return _runDataAction(
+      () => _repository.updateTodaySort(mode: mode, todayOrder: todayOrder),
+    );
   }
 
   /// Memvalidasi nama tugas untuk form tambah/edit.

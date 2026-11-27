@@ -8,6 +8,7 @@ import '../../domain/entities/daily_progress.dart';
 import '../../domain/entities/task.dart';
 import '../../domain/entities/task_kind.dart';
 import '../../domain/entities/task_master_data.dart';
+import '../../domain/entities/today_task_sort_mode.dart';
 import '../../domain/entities/today_visibility.dart';
 import '../../domain/operations/streak_calculator.dart';
 import '../exceptions/task_master_exceptions.dart';
@@ -40,6 +41,7 @@ class TaskMasterMapper {
     switch (version) {
       case 1:
         return _fromJson(json, isLegacy: true);
+      case 2:
       case TaskMasterData.currentSchemaVersion:
         return _fromJson(json, isLegacy: false);
       default:
@@ -119,10 +121,35 @@ class TaskMasterMapper {
       );
     }
 
+    final validTaskIds = categories
+        .expand((category) => category.tasks)
+        .map((task) => task.id)
+        .toSet();
+    final todaySortMode = parseTodayTaskSortMode(
+      _asString(json['todaySortMode']),
+    );
+    final todayOrder = _sanitizeTodayOrder(json['todayOrder'], validTaskIds);
+
     return TaskMasterData(
       schemaVersion: TaskMasterData.currentSchemaVersion,
       categories: categories,
+      todaySortMode: todaySortMode,
+      todayOrder: todayOrder,
     );
+  }
+
+  List<String> _sanitizeTodayOrder(dynamic rawOrder, Set<String> validTaskIds) {
+    if (rawOrder is! List) return const [];
+    final seen = <String>{};
+    final result = <String>[];
+    for (final item in rawOrder) {
+      if (item is! String) continue;
+      if (item.isEmpty || !validTaskIds.contains(item)) continue;
+      if (seen.add(item)) {
+        result.add(item);
+      }
+    }
+    return result;
   }
 
   Task _taskFromJson(
@@ -235,6 +262,9 @@ class TaskMasterMapper {
     final todayKey = DailyProgress.dateKey(today ?? _clock());
     final result = <String, dynamic>{...?original};
     result['schemaVersion'] = TaskMasterData.currentSchemaVersion;
+    result['todaySortMode'] = data.todaySortMode.name;
+    final validTaskIds = data.allTasks.map((t) => t.id).toSet();
+    result['todayOrder'] = _sanitizeTodayOrder(data.todayOrder, validTaskIds);
 
     final originalCategories = original?['categories'];
     final originalCategoryList = originalCategories is List

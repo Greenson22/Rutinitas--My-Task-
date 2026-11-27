@@ -84,7 +84,7 @@ void main() {
       expect(data.categories.single.tasks.single.countOn('2026-11-13'), 4);
 
       final written = jsonDecode(source.writes.single) as Map<String, dynamic>;
-      expect(written['schemaVersion'], 2);
+      expect(written['schemaVersion'], 3);
     });
 
     test(
@@ -177,7 +177,7 @@ void main() {
 
       expect(source.writeCount, 1);
       final written = jsonDecode(source.writes.single) as Map<String, dynamic>;
-      expect(written['schemaVersion'], 2);
+      expect(written['schemaVersion'], 3);
     });
 
     test('readRawJson mengembalikan JSON terformat', () async {
@@ -238,7 +238,7 @@ void main() {
       expect(data.categories.single.name, 'Fokus');
       expect(source.writeCount, 1);
       final written = jsonDecode(source.writes.single) as Map<String, dynamic>;
-      expect(written['schemaVersion'], 2);
+      expect(written['schemaVersion'], 3);
       expect(written['fieldTambahan'], 'dipertahankan');
       expect(written['categories'][0]['tasks'][0]['id'], 'task_1');
     });
@@ -257,7 +257,7 @@ void main() {
         expect(source.writeCount, 1);
         final written =
             jsonDecode(source.writes.single) as Map<String, dynamic>;
-        expect(written['schemaVersion'], 2);
+        expect(written['schemaVersion'], 3);
         expect(written['categories'], isEmpty);
       },
     );
@@ -455,7 +455,7 @@ void main() {
       final importedJson =
           jsonDecode(sourceB.writes.single) as Map<String, dynamic>;
       expect(importedJson['fieldTambahan'], 'dipertahankan');
-      expect(importedJson['schemaVersion'], 2);
+      expect(importedJson['schemaVersion'], 3);
       final importedTask =
           importedJson['categories'][0]['tasks'][0] as Map<String, dynamic>;
       expect(importedTask['type'], 0);
@@ -583,7 +583,7 @@ void main() {
 
         final snapshot = await dataSource.read();
         final migrated = jsonDecode(snapshot!.content) as Map<String, dynamic>;
-        expect(migrated['schemaVersion'], 2);
+        expect(migrated['schemaVersion'], 3);
 
         final backups = await dataSource.listBackups();
         expect(backups, hasLength(1));

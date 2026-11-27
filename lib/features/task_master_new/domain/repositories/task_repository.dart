@@ -1,6 +1,7 @@
 import '../entities/task_backup.dart';
 import '../entities/task_kind.dart';
 import '../entities/task_master_data.dart';
+import '../entities/today_task_sort_mode.dart';
 import '../entities/today_visibility.dart';
 
 /// Seam utama antara presentasi dan penyimpanan Task Master.
@@ -78,6 +79,12 @@ abstract interface class TaskRepository {
   Future<TaskMasterData> reorderCategory({
     required String categoryId,
     required int newIndex,
+  });
+
+  /// Menyimpan mode pengurutan dan (opsional) urutan manual Hari Ini.
+  Future<TaskMasterData> updateTodaySort({
+    required TodayTaskSortMode mode,
+    List<String>? todayOrder,
   });
 
   /// Menghapus kategori beserta tugas di dalamnya.

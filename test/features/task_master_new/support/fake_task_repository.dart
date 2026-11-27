@@ -4,6 +4,7 @@ import 'package:rutinitasku/features/task_master_new/data/exceptions/task_master
 import 'package:rutinitasku/features/task_master_new/domain/entities/task_backup.dart';
 import 'package:rutinitasku/features/task_master_new/domain/entities/task_kind.dart';
 import 'package:rutinitasku/features/task_master_new/domain/entities/task_master_data.dart';
+import 'package:rutinitasku/features/task_master_new/domain/entities/today_task_sort_mode.dart';
 import 'package:rutinitasku/features/task_master_new/domain/entities/today_visibility.dart';
 import 'package:rutinitasku/features/task_master_new/domain/operations/category_operations.dart';
 import 'package:rutinitasku/features/task_master_new/domain/operations/task_operations.dart';
@@ -183,6 +184,19 @@ class FakeTaskRepository implements TaskRepository {
     return _mutateCategories(
       (data) =>
           reorderCategoryIn(data, categoryId: categoryId, newIndex: newIndex),
+    );
+  }
+
+  @override
+  Future<TaskMasterData> updateTodaySort({
+    required TodayTaskSortMode mode,
+    List<String>? todayOrder,
+  }) {
+    return _mutateCategories(
+      (data) => data.copyWith(
+        todaySortMode: mode,
+        todayOrder: todayOrder ?? data.todayOrder,
+      ),
     );
   }
 

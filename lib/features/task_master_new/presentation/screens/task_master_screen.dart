@@ -65,9 +65,7 @@ class _TaskMasterNewScreenState extends State<TaskMasterNewScreen> {
   String? _selectedCategoryId;
 
   /// Pengurutan tugas di Hari Ini.
-  TodayTaskSortMode _todaySortMode = TodayTaskSortMode.defaultOrder;
   bool _todayReorderMode = false;
-  List<String> _todayCustomOrder = const [];
 
   final FocusNode _searchFocusNode = FocusNode(debugLabel: 'taskSearch');
   final GlobalKey<CategoryDetailScreenState> _desktopDetailKey =
@@ -282,31 +280,11 @@ class _TaskMasterNewScreenState extends State<TaskMasterNewScreen> {
                   const SizedBox(height: 20),
                   _TodaySectionHeader(
                     taskCount: todayTasks.length,
-                    sortMode: _todaySortMode,
+                    sortMode: data.todaySortMode,
                     isReorderMode: _todayReorderMode,
-                    onSortModeChanged: (mode) {
-                      setState(() {
-                        _todaySortMode = mode;
-                        if (mode != TodayTaskSortMode.custom) {
-                          _todayReorderMode = false;
-                        }
-                      });
-                    },
-                    onToggleReorderMode: () {
-                      setState(() {
-                        _todayReorderMode = !_todayReorderMode;
-                        if (_todayReorderMode) {
-                          _todaySortMode = TodayTaskSortMode.custom;
-                          final sorted = sortTodayTasks(
-                            todayTasks,
-                            mode: _todaySortMode,
-                            todayKey: todayKey,
-                            customOrder: _todayCustomOrder,
-                          );
-                          _todayCustomOrder = sorted.map((e) => e.task.id).toList();
-                        }
-                      });
-                    },
+                    onSortModeChanged: (mode) => _onTodaySortModeChanged(mode),
+                    onToggleReorderMode: () =>
+                        _onToggleTodayReorderMode(todayTasks, todayKey),
                   ),
                   const SizedBox(height: 8),
                   if (todayTasks.isEmpty)
@@ -344,11 +322,12 @@ class _TaskMasterNewScreenState extends State<TaskMasterNewScreen> {
   }
 
   Widget _buildTodayCard(List<TodayTaskEntry> rawTodayTasks, String todayKey) {
+    final data = _controller.state.data;
     final todayTasks = sortTodayTasks(
       rawTodayTasks,
-      mode: _todaySortMode,
+      mode: data?.todaySortMode ?? TodayTaskSortMode.defaultOrder,
       todayKey: todayKey,
-      customOrder: _todayCustomOrder,
+      customOrder: data?.todayOrder ?? const [],
     );
 
     return Card(
@@ -436,6 +415,64 @@ class _TaskMasterNewScreenState extends State<TaskMasterNewScreen> {
     );
   }
 
+  void _onTodaySortModeChanged(TodayTaskSortMode mode) {
+    if (mode != TodayTaskSortMode.custom && _todayReorderMode) {
+      setState(() {
+        _todayReorderMode = false;
+      });
+    }
+    _controller.updateTodaySort(mode: mode);
+  }
+
+  void _onToggleTodayReorderMode(
+    List<TodayTaskEntry> todayTasks,
+    String todayKey,
+  ) {
+    final nextReorder = !_todayReorderMode;
+    setState(() {
+      _todayReorderMode = nextReorder;
+    });
+    if (nextReorder) {
+      final existingOrder = _controller.state.data?.todayOrder ?? const [];
+      final sorted = sortTodayTasks(
+        todayTasks,
+        mode: TodayTaskSortMode.custom,
+        todayKey: todayKey,
+        customOrder: existingOrder,
+      );
+      final mergedOrder = _mergeTodayOrder(
+        existingOrder: existingOrder,
+        visibleIds: sorted.map((e) => e.task.id).toList(),
+      );
+      _controller.updateTodaySort(
+        mode: TodayTaskSortMode.custom,
+        todayOrder: mergedOrder,
+      );
+    }
+  }
+
+  List<String> _mergeTodayOrder({
+    required List<String> existingOrder,
+    required List<String> visibleIds,
+  }) {
+    final visibleSet = visibleIds.toSet();
+    var visibleIdx = 0;
+    final result = <String>[];
+    for (final id in existingOrder) {
+      if (visibleSet.contains(id)) {
+        if (visibleIdx < visibleIds.length) {
+          result.add(visibleIds[visibleIdx++]);
+        }
+      } else {
+        result.add(id);
+      }
+    }
+    while (visibleIdx < visibleIds.length) {
+      result.add(visibleIds[visibleIdx++]);
+    }
+    return result;
+  }
+
   void _reorderTodayTask(
     List<TodayTaskEntry> currentList,
     int oldIndex,
@@ -444,10 +481,15 @@ class _TaskMasterNewScreenState extends State<TaskMasterNewScreen> {
     final list = List<TodayTaskEntry>.from(currentList);
     final moved = list.removeAt(oldIndex);
     list.insert(newIndex, moved);
-    setState(() {
-      _todaySortMode = TodayTaskSortMode.custom;
-      _todayCustomOrder = list.map((e) => e.task.id).toList();
-    });
+    final existingOrder = _controller.state.data?.todayOrder ?? const [];
+    final mergedOrder = _mergeTodayOrder(
+      existingOrder: existingOrder,
+      visibleIds: list.map((e) => e.task.id).toList(),
+    );
+    _controller.updateTodaySort(
+      mode: TodayTaskSortMode.custom,
+      todayOrder: mergedOrder,
+    );
   }
 
   /// Layout desktop: daftar kategori di kiri dan dashboard/detail di kanan.
@@ -663,31 +705,11 @@ class _TaskMasterNewScreenState extends State<TaskMasterNewScreen> {
             const SizedBox(height: 20),
             _TodaySectionHeader(
               taskCount: todayTasks.length,
-              sortMode: _todaySortMode,
+              sortMode: data.todaySortMode,
               isReorderMode: _todayReorderMode,
-              onSortModeChanged: (mode) {
-                setState(() {
-                  _todaySortMode = mode;
-                  if (mode != TodayTaskSortMode.custom) {
-                    _todayReorderMode = false;
-                  }
-                });
-              },
-              onToggleReorderMode: () {
-                setState(() {
-                  _todayReorderMode = !_todayReorderMode;
-                  if (_todayReorderMode) {
-                    _todaySortMode = TodayTaskSortMode.custom;
-                    final sorted = sortTodayTasks(
-                      todayTasks,
-                      mode: _todaySortMode,
-                      todayKey: todayKey,
-                      customOrder: _todayCustomOrder,
-                    );
-                    _todayCustomOrder = sorted.map((e) => e.task.id).toList();
-                  }
-                });
-              },
+              onSortModeChanged: (mode) => _onTodaySortModeChanged(mode),
+              onToggleReorderMode: () =>
+                  _onToggleTodayReorderMode(todayTasks, todayKey),
             ),
             const SizedBox(height: 8),
             if (todayTasks.isEmpty)
