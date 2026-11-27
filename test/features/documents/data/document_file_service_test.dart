@@ -318,5 +318,48 @@ void main() {
         isFalse,
       );
     });
+
+    test('import, rename, dan move berkas di dalam subfolder dengan auto-rename', () async {
+      final src = await createSourceFile('laporan.pdf', 'isi');
+      final inSubA = await service.importFile(
+        groupId: 'g1',
+        sourceFile: src,
+        fileName: 'laporan.pdf',
+        relativePath: 'SubA',
+      );
+      final inSubB = await service.importFile(
+        groupId: 'g1',
+        sourceFile: src,
+        fileName: 'laporan.pdf',
+        relativePath: 'SubB',
+      );
+      expect(service.fileName(inSubA!), 'laporan.pdf');
+      expect(service.fileName(inSubB!), 'laporan.pdf');
+
+      final secondInSubA = await service.importFile(
+        groupId: 'g1',
+        sourceFile: src,
+        fileName: 'laporan.pdf',
+        relativePath: 'SubA',
+      );
+      expect(service.fileName(secondInSubA!), 'laporan (1).pdf');
+
+      final renamed = await service.renameFile(
+        groupId: 'g1',
+        file: secondInSubA,
+        newFileName: 'laporan.pdf',
+        relativePath: 'SubA',
+        autoRenameOnConflict: true,
+      );
+      expect(service.fileName(renamed!), 'laporan (2).pdf');
+
+      final moved = await service.moveFile(
+        file: inSubB,
+        targetGroupId: 'g1',
+        targetRelativePath: 'SubA',
+        autoRenameWithNumber: true,
+      );
+      expect(service.fileName(moved!), 'laporan (1).pdf');
+    });
   });
 }

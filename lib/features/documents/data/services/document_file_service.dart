@@ -122,10 +122,11 @@ class DocumentFileService {
     required String groupId,
     required File sourceFile,
     required String fileName,
+    String relativePath = '',
     DocumentNameConflictPolicy conflictPolicy =
         DocumentNameConflictPolicy.keepBoth,
   }) async {
-    final dir = await ensureGroupDirectory(groupId);
+    final dir = await ensureDirectory(groupId, relativePath: relativePath);
     File targetFile = File('${dir.path}$_separator$fileName');
 
     if (await targetFile.exists()) {
@@ -155,29 +156,41 @@ class DocumentFileService {
     required String groupId,
     required File file,
     required String newFileName,
+    String relativePath = '',
+    bool autoRenameOnConflict = false,
   }) async {
-    final dir = await ensureGroupDirectory(groupId);
-    final targetFile = File('${dir.path}$_separator$newFileName');
-    if (await targetFile.exists()) return null;
+    final dir = await ensureDirectory(groupId, relativePath: relativePath);
+    File targetFile = File('${dir.path}$_separator$newFileName');
+    if (await targetFile.exists()) {
+      if (!autoRenameOnConflict) return null;
+      targetFile = await _firstAvailableKeepBothPath(targetFile);
+    }
     await file.rename(targetFile.path);
     return targetFile;
   }
 
-  /// Memindahkan satu berkas ke root group lain.
+  /// Memindahkan satu berkas ke folder/group tujuan.
   ///
-  /// Bila nama bentrok di tujuan, berkas diberi akhiran berbasis waktu seperti
-  /// perilaku lama, sehingga tidak ada berkas yang tertimpa.
+  /// Bila nama bentrok di tujuan, berkas diberi akhiran angka `(1)`, `(2)`, dst.
+  /// bila [autoRenameWithNumber] bernilai `true`.
   Future<File?> moveFile({
     required File file,
     required String targetGroupId,
+    String targetRelativePath = '',
+    bool autoRenameWithNumber = false,
   }) async {
-    final targetDir = await ensureGroupDirectory(targetGroupId);
+    final targetDir = await ensureDirectory(
+      targetGroupId,
+      relativePath: targetRelativePath,
+    );
     if (!await file.exists()) return null;
 
     final originalName = _baseName(file.path);
     File targetFile = File('${targetDir.path}$_separator$originalName');
     if (await targetFile.exists()) {
-      targetFile = await _firstAvailableTimestampPath(targetFile);
+      targetFile = autoRenameWithNumber
+          ? await _firstAvailableKeepBothPath(targetFile)
+          : await _firstAvailableTimestampPath(targetFile);
     }
 
     await file.rename(targetFile.path);

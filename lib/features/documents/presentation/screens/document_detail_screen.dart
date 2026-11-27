@@ -379,6 +379,10 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
             groupId: widget.group.id,
             sourceFile: sourceFile,
             fileName: fileName,
+            relativePath: _documentsController.folderRelativePath(
+              _currentGroup,
+              _currentFolderId,
+            ),
             conflictPolicy: policy,
           );
           if (imported != null) successCount++;
@@ -619,6 +623,11 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
                   groupId: widget.group.id,
                   file: file,
                   newFileName: '$newName$extension',
+                  relativePath: _documentsController.folderRelativePath(
+                    _currentGroup,
+                    _currentFolderId,
+                  ),
+                  autoRenameOnConflict: true,
                 );
                 await _loadPhysicalFiles();
               } catch (e) {
@@ -689,6 +698,7 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
                       final moved = await _fileService.moveFile(
                         file: file,
                         targetGroupId: targetGroup.id,
+                        autoRenameWithNumber: true,
                       );
                       if (moved == null) success = false;
                     }
