@@ -562,69 +562,87 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                 final sourceItem = entry.item;
                 final sourceSubject = entry.sourceSubject;
 
-                return ChecklistTreeView(
-                  item: sourceItem,
-                  depth: 0,
-                  isEditMode: false,
-                  selectedItems: const [],
-                  highlightedItem: null,
-                  isFirst: index == 0,
-                  isLast: index == resolvedEntries.length - 1,
-                  monitorSourceLabel:
-                      'Bayangan • Dari: ${sourceSubject.subjectName}',
-                  onSelectItem: (_, __) {},
-                  onMoveOrder: (_, __) {},
-                  onEditName: (target) => showEditNameDialogView(target),
-                  onLongPressToggle: () {},
-                  onCheckStatusChanged: (target, val) {
-                    setState(() {
-                      target.progress = (val == true) ? 'selesai' : 'belum';
-                      target.finishedDate = (val == true)
-                          ? DateTime.now().toIso8601String()
-                          : null;
-                    });
-                    widget.onDataChanged();
-                  },
-                  onTapToggleStatus: (target) {
-                    handleTapToggleStatusView(target);
-                  },
-                  onAddChild: (_) {},
-                  onDeleteItem: (_) async {
-                    final confirm = await showDialog<bool>(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        title: const Text('Lepas Item Bayangan?'),
-                        content: Text(
-                          'Lepaskan "${sourceItem.subjectName}" dari daftar monitor?\n(Item asli di "${sourceSubject.subjectName}" tidak akan terhapus.)',
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(ctx, false),
-                            child: const Text('Batal'),
-                          ),
-                          ElevatedButton(
-                            onPressed: () => Navigator.pop(ctx, true),
-                            child: const Text('Lepaskan'),
-                          ),
-                        ],
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: ChecklistTreeView(
+                        item: sourceItem,
+                        depth: 0,
+                        isEditMode: false,
+                        selectedItems: const [],
+                        highlightedItem: null,
+                        isFirst: index == 0,
+                        isLast: index == resolvedEntries.length - 1,
+                        monitorSourceLabel:
+                            'Bayangan • Dari: ${sourceSubject.subjectName}',
+                        onSelectItem: (_, __) {},
+                        onMoveOrder: (_, __) {},
+                        onEditName: (target) => showEditNameDialogView(target),
+                        onLongPressToggle: () {},
+                        onCheckStatusChanged: (target, val) {
+                          setState(() {
+                            target.progress = (val == true) ? 'selesai' : 'belum';
+                            target.finishedDate = (val == true)
+                                ? DateTime.now().toIso8601String()
+                                : null;
+                          });
+                          widget.onDataChanged();
+                        },
+                        onTapToggleStatus: (target) {
+                          handleTapToggleStatusView(target);
+                        },
+                        onAddChild: (_) {},
+                        onDeleteItem: (_) {},
+                        onToggleItemType: handleToggleItemTypeView,
+                        onUpdateProgressValue: showUpdateProgressValueDialogView,
+                        onToggleDisable: (target) {
+                          setState(() => target.isDisabled = !target.isDisabled);
+                          widget.onDataChanged();
+                        },
+                        onToggleExpansion: (target) {
+                          setState(() => target.isExpanded = !target.isExpanded);
+                        },
                       ),
-                    );
-                    if (confirm == true) {
-                      setState(() {
-                        widget.subject.monitorItems.remove(entry.ref);
-                      });
-                      widget.onDataChanged();
-                    }
-                  },
-                  onToggleItemType: handleToggleItemTypeView,
-                  onUpdateProgressValue: showUpdateProgressValueDialogView,
-                  onToggleDisable: (target) {
-                    setState(() => target.isDisabled = !target.isDisabled);
-                    widget.onDataChanged();
-                  },
-                  onToggleExpansion: (target) {
-                    setState(() => target.isExpanded = !target.isExpanded);
-                  },
+                    ),
+                    IconButton(
+                      tooltip: 'Lepas dari Monitor',
+                      icon: const Icon(
+                        Icons.link_off_rounded,
+                        size: 18,
+                        color: Colors.redAccent,
+                      ),
+                      constraints: const BoxConstraints(),
+                      padding: const EdgeInsets.all(6),
+                      onPressed: () async {
+                        final confirm = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Lepas Item Bayangan?'),
+                            content: Text(
+                              'Lepaskan "${sourceItem.subjectName}" dari daftar monitor?\n(Item asli di "${sourceSubject.subjectName}" tidak akan terhapus.)',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, false),
+                                child: const Text('Batal'),
+                              ),
+                              ElevatedButton(
+                                onPressed: () => Navigator.pop(ctx, true),
+                                child: const Text('Lepaskan'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirm == true) {
+                          setState(() {
+                            widget.subject.monitorItems.remove(entry.ref);
+                          });
+                          widget.onDataChanged();
+                        }
+                      },
+                    ),
+                  ],
                 );
               },
             ),
@@ -643,78 +661,192 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
         )
         .toList();
 
+    final sections = otherSubjects.map((s) => s.section).toSet().toList();
+    String? selectedSection = sections.length == 1 ? sections.first : null;
+    DailySubject? selectedSubject;
+
+    List<({SubSubjectItem item, int depth})> flattenWithDepth(
+      List<SubSubjectItem> list, [
+      int depth = 0,
+    ]) {
+      final result = <({SubSubjectItem item, int depth})>[];
+      for (final item in list) {
+        result.add((item: item, depth: depth));
+        if (item.subMateri.isNotEmpty) {
+          result.addAll(flattenWithDepth(item.subMateri, depth + 1));
+        }
+      }
+      return result;
+    }
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text(
-          'Pilih Item untuk Dimonitor',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: otherSubjects.isEmpty
-              ? const Text('Tidak ada card list lain di grup ini.')
-              : ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: otherSubjects.length,
-                  itemBuilder: (context, sIdx) {
-                    final subj = otherSubjects[sIdx];
-                    final List<SubSubjectItem> flat = [];
-                    getAllItemsFlattened(subj.subMateri, flat);
-                    return ExpansionTile(
-                      title: Text(
-                        subj.subjectName,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          Widget body;
+          String titleText = 'Pilih Seksi';
+
+          if (otherSubjects.isEmpty) {
+            titleText = 'Pilih Item untuk Dimonitor';
+            body = const Text('Tidak ada card list lain di grup ini.');
+          } else if (selectedSection == null) {
+            titleText = '1. Pilih Seksi';
+            body = ListView.builder(
+              shrinkWrap: true,
+              itemCount: sections.length,
+              itemBuilder: (context, idx) {
+                final sec = sections[idx];
+                final count = otherSubjects
+                    .where((s) => s.section == sec)
+                    .length;
+                return ListTile(
+                  leading: const Icon(Icons.folder_outlined, color: Colors.indigo),
+                  title: Text(sec),
+                  subtitle: Text('$count card checklist'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    setDialogState(() => selectedSection = sec);
+                  },
+                );
+              },
+            );
+          } else if (selectedSubject == null) {
+            titleText = '2. Pilih Card ($selectedSection)';
+            final cardsInSection = otherSubjects
+                .where((s) => s.section == selectedSection)
+                .toList();
+            body = ListView.builder(
+              shrinkWrap: true,
+              itemCount: cardsInSection.length,
+              itemBuilder: (context, idx) {
+                final card = cardsInSection[idx];
+                return ListTile(
+                  leading: Text(card.icon, style: const TextStyle(fontSize: 18)),
+                  title: Text(card.subjectName),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    setDialogState(() => selectedSubject = card);
+                  },
+                );
+              },
+            );
+          } else {
+            titleText = '3. Pilih Item (${selectedSubject!.subjectName})';
+            final flatItems = flattenWithDepth(selectedSubject!.subMateri);
+            body = ListView.builder(
+              shrinkWrap: true,
+              itemCount: flatItems.length,
+              itemBuilder: (context, idx) {
+                final entry = flatItems[idx];
+                final it = entry.item;
+                final depth = entry.depth;
+                final alreadyAdded = widget.subject.monitorItems.any(
+                  (m) =>
+                      m.sourceSubjectName == selectedSubject!.subjectName &&
+                      m.sourceItemId == it.id,
+                );
+                return ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.only(
+                    left: 12.0 + (depth * 18.0),
+                    right: 8.0,
+                  ),
+                  leading: depth > 0
+                      ? const Icon(
+                          Icons.subdirectory_arrow_right,
+                          size: 16,
+                          color: Colors.grey,
+                        )
+                      : null,
+                  title: Text(
+                    it.subjectName,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: depth == 0 ? FontWeight.w600 : FontWeight.normal,
+                    ),
+                  ),
+                  trailing: alreadyAdded
+                      ? const Icon(
+                          Icons.check_circle,
+                          color: Colors.teal,
+                          size: 20,
+                        )
+                      : const Icon(
+                          Icons.add_circle_outline,
+                          color: Colors.indigo,
+                          size: 20,
                         ),
-                      ),
-                      children: flat.map((it) {
-                        final alreadyAdded = widget.subject.monitorItems.any(
+                  onTap: () {
+                    setState(() {
+                      if (alreadyAdded) {
+                        widget.subject.monitorItems.removeWhere(
                           (m) =>
-                              m.sourceSubjectName == subj.subjectName &&
+                              m.sourceSubjectName == selectedSubject!.subjectName &&
                               m.sourceItemId == it.id,
                         );
-                        return ListTile(
-                          dense: true,
-                          title: Text(it.subjectName),
-                          trailing: alreadyAdded
-                              ? const Icon(
-                                  Icons.check_circle,
-                                  color: Colors.teal,
-                                  size: 20,
-                                )
-                              : const Icon(
-                                  Icons.add_circle_outline,
-                                  color: Colors.indigo,
-                                  size: 20,
-                                ),
-                          onTap: alreadyAdded
-                              ? null
-                              : () {
-                                  setState(() {
-                                    widget.subject.monitorItems.add(
-                                      MonitorItemRef(
-                                        sourceSubjectName: subj.subjectName,
-                                        sourceItemId: it.id,
-                                      ),
-                                    );
-                                  });
-                                  widget.onDataChanged();
-                                  Navigator.pop(ctx);
-                                },
+                      } else {
+                        widget.subject.monitorItems.add(
+                          MonitorItemRef(
+                            sourceSubjectName: selectedSubject!.subjectName,
+                            sourceItemId: it.id,
+                          ),
                         );
-                      }).toList(),
-                    );
+                      }
+                    });
+                    setDialogState(() {});
+                    widget.onDataChanged();
                   },
+                );
+              },
+            );
+          }
+
+          return AlertDialog(
+            title: Row(
+              children: [
+                if (selectedSubject != null ||
+                    (selectedSection != null && sections.length > 1))
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back, size: 20),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    onPressed: () {
+                      setDialogState(() {
+                        if (selectedSubject != null) {
+                          selectedSubject = null;
+                        } else {
+                          selectedSection = null;
+                        }
+                      });
+                    },
+                  ),
+                if (selectedSubject != null ||
+                    (selectedSection != null && sections.length > 1))
+                  const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    titleText,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Tutup'),
-          ),
-        ],
+              ],
+            ),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: body,
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Selesai'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
