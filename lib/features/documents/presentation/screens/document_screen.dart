@@ -8,6 +8,7 @@ import 'package:rutinitasku/core/presentation/widgets/universal_empty_state.dart
 import 'package:rutinitasku/core/presentation/widgets/adaptive_banner_ad.dart'; // <--- IMPORT WIDGET ADMOB BARU DARI CORE[cite: 2]
 import '../../data/models/document_model.dart';
 import '../controllers/documents_controller.dart';
+import '../widgets/document_emoji_picker.dart';
 import 'document_detail_screen.dart';
 
 class MyDocumentsScreen extends StatefulWidget {
@@ -198,63 +199,63 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
 
   void _showAddGroupDialogAtSection(String targetMainSection) {
     final nameController = TextEditingController();
-    final iconController = TextEditingController(text: '📁');
+    String selectedIcon = '📁';
     final formKey = GlobalKey<FormState>();
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Buat Group Dokumen di $targetMainSection'),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: nameController,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  labelText: 'Nama Group Dokumen',
-                  hintText: 'Contoh: Arsip Pajak, Resep, Jurnal...',
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text('Buat Group Dokumen di $targetMainSection'),
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: nameController,
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Nama Group Dokumen',
+                    hintText: 'Contoh: Arsip Pajak, Resep, Jurnal...',
+                  ),
+                  validator: (value) => value == null || value.trim().isEmpty
+                      ? 'Nama group tidak boleh kosong'
+                      : null,
                 ),
-                validator: (value) => value == null || value.trim().isEmpty
-                    ? 'Nama group tidak boleh kosong'
-                    : null,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: iconController,
-                decoration: const InputDecoration(labelText: 'Ikon Emoji'),
-                validator: (value) => value == null || value.trim().isEmpty
-                    ? 'Ikon tidak boleh kosong'
-                    : null,
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (formKey.currentState!.validate()) {
-                _controller.createGroupAtSection(
-                  nameController.text.trim(),
-                  iconController.text.trim(),
-                  targetMainSection,
-                );
-                Navigator.pop(context);
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: _themeColor),
-            child: const Text(
-              'Buat Group',
-              style: TextStyle(color: Colors.white),
+                const SizedBox(height: 12),
+                DocumentEmojiPicker(
+                  selectedEmoji: selectedIcon,
+                  onSelected: (emoji) =>
+                      setDialogState(() => selectedIcon = emoji),
+                ),
+              ],
             ),
           ),
-        ],
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (formKey.currentState!.validate()) {
+                  _controller.createGroupAtSection(
+                    nameController.text.trim(),
+                    selectedIcon,
+                    targetMainSection,
+                  );
+                  Navigator.pop(context);
+                }
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: _themeColor),
+              child: const Text(
+                'Buat Group',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -263,49 +264,50 @@ class _MyDocumentsScreenState extends State<MyDocumentsScreen> {
     final TextEditingController nameController = TextEditingController(
       text: group.groupName,
     );
-    final TextEditingController iconController = TextEditingController(
-      text: group.icon,
-    );
+    String selectedIcon = group.icon.isEmpty ? '📁' : group.icon;
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Ubah Nama & Ikon Grup'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(labelText: 'Nama Grup Baru'),
-              autofocus: true,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Ubah Nama & Ikon Grup'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(labelText: 'Nama Grup Baru'),
+                autofocus: true,
+              ),
+              const SizedBox(height: 12),
+              DocumentEmojiPicker(
+                selectedEmoji: selectedIcon,
+                onSelected: (emoji) =>
+                    setDialogState(() => selectedIcon = emoji),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Batal'),
             ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: iconController,
-              decoration: const InputDecoration(labelText: 'Ikon Emoji Baru'),
+            ElevatedButton(
+              onPressed: () async {
+                final updatedName = nameController.text.trim();
+                if (updatedName.isNotEmpty) {
+                  group.groupName = updatedName;
+                  group.icon = selectedIcon;
+                  await _controller.saveGroupDataToFile(group);
+                  await _controller.loadGroupsData();
+                  if (mounted) Navigator.pop(context);
+                }
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: _themeColor),
+              child:
+                  const Text('Simpan', style: TextStyle(color: Colors.white)),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final updatedName = nameController.text.trim();
-              final updatedIcon = iconController.text.trim();
-              if (updatedName.isNotEmpty) {
-                group.groupName = updatedName;
-                group.icon = updatedIcon.isEmpty ? '📁' : updatedIcon;
-                await _controller.saveGroupDataToFile(group);
-                await _controller.loadGroupsData();
-                if (mounted) Navigator.pop(context);
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: _themeColor),
-            child: const Text('Simpan', style: TextStyle(color: Colors.white)),
-          ),
-        ],
       ),
     );
   }

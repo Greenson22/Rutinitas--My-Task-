@@ -10,6 +10,7 @@ import '../../../../core/presentation/widgets/base_detail_list_screen.dart';
 import '../../data/models/document_model.dart';
 import '../../data/services/document_file_service.dart';
 import '../controllers/documents_controller.dart';
+import '../widgets/document_emoji_picker.dart';
 
 class DocumentDetailScreen extends StatefulWidget {
   final DocumentGroup group;
@@ -960,42 +961,57 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
 
   Future<void> _showCreateFolderDialog() async {
     final controller = TextEditingController();
+    String selectedIcon = '📁';
     final created = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Folder Baru'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'Nama Folder',
-            border: OutlineInputBorder(),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Folder Baru'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: controller,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Nama Folder',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              DocumentEmojiPicker(
+                selectedEmoji: selectedIcon,
+                onSelected: (emoji) =>
+                    setDialogState(() => selectedIcon = emoji),
+              ),
+            ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final err = await _documentsController.createFolder(
-                groupId: _currentGroup.id,
-                parentId: _currentFolderId,
-                name: controller.text,
-              );
-              if (!ctx.mounted) return;
-              if (err != null) {
-                ScaffoldMessenger.of(ctx).showSnackBar(
-                  SnackBar(content: Text(err)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final err = await _documentsController.createFolder(
+                  groupId: _currentGroup.id,
+                  parentId: _currentFolderId,
+                  name: controller.text,
+                  icon: selectedIcon,
                 );
-              } else {
-                Navigator.pop(ctx, true);
-              }
-            },
-            child: const Text('Buat'),
-          ),
-        ],
+                if (!ctx.mounted) return;
+                if (err != null) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    SnackBar(content: Text(err)),
+                  );
+                } else {
+                  Navigator.pop(ctx, true);
+                }
+              },
+              child: const Text('Buat'),
+            ),
+          ],
+        ),
       ),
     );
     if (created == true) {
@@ -1005,42 +1021,57 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
 
   Future<void> _showRenameFolderDialog(DocumentFolder folder) async {
     final controller = TextEditingController(text: folder.name);
+    String selectedIcon = folder.icon.isEmpty ? '📁' : folder.icon;
     final renamed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Ubah Nama Folder'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'Nama Folder',
-            border: OutlineInputBorder(),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Ubah Nama & Ikon Folder'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: controller,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Nama Folder',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              DocumentEmojiPicker(
+                selectedEmoji: selectedIcon,
+                onSelected: (emoji) =>
+                    setDialogState(() => selectedIcon = emoji),
+              ),
+            ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final err = await _documentsController.renameFolder(
-                groupId: _currentGroup.id,
-                folderId: folder.id,
-                newName: controller.text,
-              );
-              if (!ctx.mounted) return;
-              if (err != null) {
-                ScaffoldMessenger.of(ctx).showSnackBar(
-                  SnackBar(content: Text(err)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final err = await _documentsController.renameFolder(
+                  groupId: _currentGroup.id,
+                  folderId: folder.id,
+                  newName: controller.text,
+                  newIcon: selectedIcon,
                 );
-              } else {
-                Navigator.pop(ctx, true);
-              }
-            },
-            child: const Text('Simpan'),
-          ),
-        ],
+                if (!ctx.mounted) return;
+                if (err != null) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    SnackBar(content: Text(err)),
+                  );
+                } else {
+                  Navigator.pop(ctx, true);
+                }
+              },
+              child: const Text('Simpan'),
+            ),
+          ],
+        ),
       ),
     );
     if (renamed == true) {
