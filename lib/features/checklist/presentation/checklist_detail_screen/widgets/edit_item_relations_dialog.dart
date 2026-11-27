@@ -47,7 +47,9 @@ class _EditItemRelationsDialogState extends State<EditItemRelationsDialog> {
   late final TextEditingController _targetValController;
   late final TextEditingController _extIncrementController;
 
+  String? _selectedGroupCategory;
   ChecklistGroup? _selectedGroupTarget;
+  String? _selectedPrasyaratSection;
   List<DailySubject> _filteredCardTargets = [];
   String? _localLinkedTargetId;
   String? _localLinkedTarget;
@@ -99,10 +101,12 @@ class _EditItemRelationsDialogState extends State<EditItemRelationsDialog> {
           if (section.items.any(
             (sub) => sub.subjectName == _localLinkedTarget,
           )) {
+            _selectedGroupCategory = group.sectionCategory.trim().isEmpty
+                ? 'Lainnya'
+                : group.sectionCategory;
             _selectedGroupTarget = group;
-            for (var sec in group.allList) {
-              _filteredCardTargets.addAll(sec.items);
-            }
+            _selectedPrasyaratSection = section.sectionName;
+            _filteredCardTargets.addAll(section.items);
             break;
           }
         }
@@ -181,8 +185,15 @@ class _EditItemRelationsDialogState extends State<EditItemRelationsDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: const Text('Ubah Item & Hubungan Lintas Data'),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+      contentPadding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+      title: const Text(
+        'Ubah Item & Hubungan Lintas Data',
+        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+      ),
       content: SingleChildScrollView(
+        padding: const EdgeInsets.only(top: 8),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -253,6 +264,8 @@ class _EditItemRelationsDialogState extends State<EditItemRelationsDialog> {
             const SizedBox(height: 8),
             DropdownButtonFormField<String?>(
               value: _selectedExternalSection,
+              isExpanded: true,
+              menuMaxHeight: 350,
               decoration: const InputDecoration(
                 labelText: 'Kategori / Seksi Card Target',
                 border: OutlineInputBorder(),
@@ -297,6 +310,8 @@ class _EditItemRelationsDialogState extends State<EditItemRelationsDialog> {
               const SizedBox(height: 10),
               DropdownButtonFormField<DailySubject>(
                 value: _selectedExternalCard,
+                isExpanded: true,
+                menuMaxHeight: 350,
                 decoration: const InputDecoration(
                   labelText: 'Pilih Card Checklist Target',
                   border: OutlineInputBorder(),
@@ -346,6 +361,8 @@ class _EditItemRelationsDialogState extends State<EditItemRelationsDialog> {
             ],
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
+              isExpanded: true,
+              menuMaxHeight: 350,
               value: _localExternalItemId ??
                   (_externalCardProgressItems.any((el) => el.subjectName == _localExternalItemName)
                       ? _externalCardProgressItems
@@ -414,6 +431,8 @@ class _EditItemRelationsDialogState extends State<EditItemRelationsDialog> {
             ),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
+              isExpanded: true,
+              menuMaxHeight: 350,
               value: _localAccumulatorTargetId ??
                   (_progressOptions.any((opt) => opt.subjectName == _localAccumulatorTarget)
                       ? _progressOptions
@@ -455,56 +474,160 @@ class _EditItemRelationsDialogState extends State<EditItemRelationsDialog> {
             ),
             const SizedBox(height: 16),
             const Divider(),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<ChecklistGroup>(
-              value: _selectedGroupTarget,
-              decoration: const InputDecoration(
-                labelText: '1. Pilih Kelompok Grup',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.group_work_outlined),
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '🔒 Prasyarat Kunci (Kunci Penyelesaian Card)',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.amber,
+                ),
               ),
-              hint: const Text('Pilih Grup Asal Card (Opsional)'),
+            ),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String?>(
+              value: _selectedGroupCategory,
+              isExpanded: true,
+              menuMaxHeight: 350,
+              decoration: const InputDecoration(
+                labelText: '1. Pilih Seksi Grup',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.category_outlined),
+              ),
+              hint: const Text('Pilih Seksi Grup (Opsional)'),
               items: [
-                const DropdownMenuItem<ChecklistGroup>(
+                const DropdownMenuItem<String?>(
                   value: null,
                   child: Text('Tidak Dikaitkan (Bebas Klik)'),
                 ),
-                ..._validGroupsList.map(
-                  (group) => DropdownMenuItem(
-                    value: group,
-                    child: Text('${group.icon} ${group.groupName}'),
-                  ),
-                ),
+                ..._validGroupsList
+                    .map(
+                      (g) => g.sectionCategory.trim().isEmpty
+                          ? 'Lainnya'
+                          : g.sectionCategory,
+                    )
+                    .toSet()
+                    .map(
+                      (cat) => DropdownMenuItem<String?>(
+                        value: cat,
+                        child: Text(cat),
+                      ),
+                    ),
               ],
-              onChanged: (ChecklistGroup? targetGroup) {
+              onChanged: (String? cat) {
                 setState(() {
-                  _selectedGroupTarget = targetGroup;
+                  _selectedGroupCategory = cat;
+                  _selectedGroupTarget = null;
+                  _selectedPrasyaratSection = null;
                   _filteredCardTargets.clear();
                   _localLinkedTargetId = null;
                   _localLinkedTarget = null;
-                  if (targetGroup != null) {
-                    for (var section in targetGroup.allList) {
-                      _filteredCardTargets.addAll(section.items);
-                    }
-                    _filteredCardTargets.removeWhere(
-                      (sub) =>
-                          sub.subjectName == widget.currentSubject.subjectName,
-                    );
-                  }
                 });
               },
             ),
-            const SizedBox(height: 16),
+            if (_selectedGroupCategory != null) ...[
+              const SizedBox(height: 12),
+              DropdownButtonFormField<ChecklistGroup>(
+                value: _selectedGroupTarget,
+                isExpanded: true,
+                menuMaxHeight: 350,
+                decoration: const InputDecoration(
+                  labelText: '2. Pilih Kelompok Grup',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.group_work_outlined),
+                ),
+                hint: const Text('Pilih Grup Asal Card'),
+                items: _validGroupsList
+                    .where((g) {
+                      final cat = g.sectionCategory.trim().isEmpty
+                          ? 'Lainnya'
+                          : g.sectionCategory;
+                      return cat == _selectedGroupCategory;
+                    })
+                    .map(
+                      (group) => DropdownMenuItem(
+                        value: group,
+                        child: Text('${group.icon} ${group.groupName}'),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (ChecklistGroup? targetGroup) {
+                  setState(() {
+                    _selectedGroupTarget = targetGroup;
+                    _selectedPrasyaratSection = null;
+                    _filteredCardTargets.clear();
+                    _localLinkedTargetId = null;
+                    _localLinkedTarget = null;
+                  });
+                },
+              ),
+            ],
+            if (_selectedGroupTarget != null) ...[
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: _selectedPrasyaratSection,
+                isExpanded: true,
+                menuMaxHeight: 350,
+                decoration: const InputDecoration(
+                  labelText: '3. Pilih Seksi Card',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.folder_outlined),
+                ),
+                hint: const Text('Pilih Seksi Card'),
+                items: _selectedGroupTarget!.allList
+                    .where(
+                      (sec) => sec.items.any(
+                        (sub) =>
+                            sub.subjectName != widget.currentSubject.subjectName,
+                      ),
+                    )
+                    .map(
+                      (sec) => DropdownMenuItem<String>(
+                        value: sec.sectionName,
+                        child: Text(
+                          sec.sectionName.trim().isEmpty
+                              ? 'Seksi Utama'
+                              : sec.sectionName.toUpperCase(),
+                        ),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (String? secTitle) {
+                  setState(() {
+                    _selectedPrasyaratSection = secTitle;
+                    _filteredCardTargets.clear();
+                    _localLinkedTargetId = null;
+                    _localLinkedTarget = null;
+                    if (secTitle != null) {
+                      final matchingSec = _selectedGroupTarget!.allList
+                          .where((s) => s.sectionName == secTitle)
+                          .expand((s) => s.items)
+                          .where(
+                            (sub) =>
+                                sub.subjectName !=
+                                widget.currentSubject.subjectName,
+                          );
+                      _filteredCardTargets.addAll(matchingSec);
+                    }
+                  });
+                },
+              ),
+            ],
+            const SizedBox(height: 12),
             DropdownButtonFormField<String>(
               value: _localLinkedTarget,
+              isExpanded: true,
+              menuMaxHeight: 350,
               disabledHint: const Text(
-                'Pilih kelompok grup terlebih dahulu...',
+                'Pilih grup dan seksi terlebih dahulu...',
               ),
               decoration: InputDecoration(
-                labelText: '2. Pilih Card Prasyarat',
+                labelText: '4. Pilih Card Prasyarat',
                 border: const OutlineInputBorder(),
                 enabled:
                     _selectedGroupTarget != null &&
+                    _selectedPrasyaratSection != null &&
                     _filteredCardTargets.isNotEmpty,
                 prefixIcon: const Icon(Icons.credit_card_rounded),
               ),

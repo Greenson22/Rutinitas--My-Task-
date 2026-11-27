@@ -10,6 +10,7 @@ class NoteGroup {
   String sectionName; // Menyimpan informasi seksi tempat grup ini berada
   bool isHidden;
   int orderIndex; // Menyimpan urutan posisi group note
+  String? parentId; // ID folder induk jika merupakan sub-folder
 
   NoteGroup({
     required this.id,
@@ -21,6 +22,7 @@ class NoteGroup {
     this.sectionName = 'Catatan Utama', // Default seksi awal
     this.isHidden = false,
     this.orderIndex = 0, // Default value urutan
+    this.parentId,
   });
 
   Map<String, dynamic> toJson() => {
@@ -33,21 +35,29 @@ class NoteGroup {
     'sectionName': sectionName,
     'isHidden': isHidden,
     'order_index': orderIndex,
+    'parentId': parentId,
   };
 
-  factory NoteGroup.fromJson(Map<String, dynamic> json) => NoteGroup(
-    id: json['id'],
-    groupName: json['groupName'],
-    icon: json['icon'] ?? '',
-    notes: (json['notes'] as List)
-        .map((e) => NoteModel.fromJson(e as Map<String, dynamic>))
-        .toList(),
-    type: json['type'] ?? 'text',
-    fields: Map<String, String>.from(json['fields'] ?? {}),
-    sectionName: json['sectionName'] ?? 'Catatan Utama',
-    isHidden: json['isHidden'] ?? false,
-    orderIndex: json['order_index'] ?? 0,
-  );
+  factory NoteGroup.fromJson(Map<String, dynamic> json) {
+    final rawParent = json['parentId'];
+    final parsedParentId = rawParent is String && rawParent.isNotEmpty
+        ? rawParent
+        : null;
+    return NoteGroup(
+      id: json['id'],
+      groupName: json['groupName'],
+      icon: json['icon'] ?? '',
+      notes: (json['notes'] as List)
+          .map((e) => NoteModel.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      type: json['type'] ?? 'text',
+      fields: Map<String, String>.from(json['fields'] ?? {}),
+      sectionName: json['sectionName'] ?? 'Catatan Utama',
+      isHidden: json['isHidden'] ?? false,
+      orderIndex: json['order_index'] ?? 0,
+      parentId: parsedParentId,
+    );
+  }
 }
 
 class NoteModel {

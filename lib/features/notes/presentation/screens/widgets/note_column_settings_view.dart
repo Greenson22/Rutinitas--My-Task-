@@ -30,6 +30,7 @@ class _NoteColumnSettingsViewState extends State<NoteColumnSettingsView> {
   final List<String> _availableTypes = [
     'String',
     'Numerik',
+    'Password',
     'Date',
     'Time',
     'Pengingat',

@@ -136,6 +136,7 @@ class _NotesScreenState extends State<NotesScreen> {
 
       // Distribusikan note groups ke dalam seksinya masing-masing dengan filter isHidden
       for (var group in loadedGroups) {
+        if (group.parentId != null) continue;
         String secName =
             group.sectionName; // Menggunakan properti baru dari model
         if (group.isHidden) {

@@ -29,7 +29,158 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     _controller = NoteDetailController(
       noteGroup: widget.noteGroup,
       context: context,
-      onStateChanged: () => setState(() {}),
+      onStateChanged: () {
+        if (mounted) setState(() {});
+      },
+    );
+    _controller.loadChildFolders();
+  }
+
+  void _showSubFolderDialog({NoteGroup? existingFolder}) {
+    final nameController = TextEditingController(
+      text: existingFolder?.groupName ?? '',
+    );
+    final iconController = TextEditingController(
+      text: existingFolder?.icon.isNotEmpty == true
+          ? existingFolder!.icon
+          : '📁',
+    );
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          existingFolder == null ? 'Buat Sub-Folder' : 'Edit Sub-Folder',
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Nama Folder',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: iconController,
+              decoration: const InputDecoration(
+                labelText: 'Ikon / Emoji',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final name = nameController.text.trim();
+              if (name.isEmpty) return;
+              final icon = iconController.text.trim().isEmpty
+                  ? '📁'
+                  : iconController.text.trim();
+              Navigator.pop(ctx);
+              if (existingFolder == null) {
+                await _controller.createSubFolder(name: name, icon: icon);
+              } else {
+                await _controller.renameSubFolder(existingFolder, name, icon);
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
+            child: const Text('Simpan', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget? _buildSubFoldersHeader() {
+    if (_controller.childFolders.isEmpty) return null;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Sub-Folder (${_controller.childFolders.length})',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: Colors.indigo[700],
+            ),
+          ),
+          const SizedBox(height: 8),
+          ..._controller.childFolders.map((folder) {
+            final displayIcon = folder.icon.isNotEmpty ? folder.icon : '📁';
+            return Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: ListTile(
+                leading: Text(
+                  displayIcon,
+                  style: const TextStyle(fontSize: 24),
+                ),
+                title: Text(
+                  folder.groupName,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                subtitle: Text(
+                  '${folder.notes.length} catatan',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                ),
+                trailing: PopupMenuButton<String>(
+                  onSelected: (val) async {
+                    if (val == 'edit') {
+                      _showSubFolderDialog(existingFolder: folder);
+                    } else if (val == 'move') {
+                      _showMoveSubFolderDialog(folder);
+                    } else if (val == 'delete') {
+                      final confirm = await _controller.showConfirmDialog(
+                        title: 'Hapus Sub-Folder',
+                        content:
+                            'Yakin ingin menghapus folder "${folder.groupName}" beserta seluruh isi di dalamnya?',
+                      );
+                      if (confirm) {
+                        await _controller.deleteSubFolder(folder);
+                      }
+                    }
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'edit', child: Text('Edit Folder')),
+                    PopupMenuItem(value: 'move', child: Text('Pindah Folder')),
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Text(
+                        'Hapus Folder',
+                        style: TextStyle(color: Colors.red),
+                      ),
+                    ),
+                  ],
+                ),
+                onTap: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => NoteDetailScreen(noteGroup: folder),
+                    ),
+                  );
+                  _controller.loadChildFolders();
+                },
+              ),
+            );
+          }),
+        ],
+      ),
     );
   }
 
@@ -71,11 +222,363 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     _controller.saveCurrentGroup();
   }
 
-  // =========================================================================
-  // FITUR BARU: DIALOG PINDAH MASSAL MENGIKUTI STYLE PROMPT SCREEN
-  // =========================================================================
-  void _showMoveMassiveDialog(List<NoteModel> selectedItems) async {
-    // 1. Tampilkan loading indicator selagi mengambil berkas dari storage
+  String _getFolderPath(NoteGroup group, Map<String, NoteGroup> groupMap) {
+    final List<String> parts = [];
+    String? currentParentId = group.parentId;
+    final Set<String> visited = {group.id};
+    while (currentParentId != null && !visited.contains(currentParentId)) {
+      visited.add(currentParentId);
+      final parent = groupMap[currentParentId];
+      if (parent == null) break;
+      parts.insert(0, parent.groupName);
+      currentParentId = parent.parentId;
+    }
+    if (parts.isEmpty) return group.sectionName;
+    return '${group.sectionName} > ${parts.join(' > ')}';
+  }
+
+  Future<void> _showFolderPickerDialog({
+    required String title,
+    required List<NoteGroup> allGroups,
+    required Set<String> excludedIds,
+    required Future<void> Function(NoteGroup target) onSelectTarget,
+    String? cannotSelectTargetId,
+    bool allowRootMove = false,
+    Future<void> Function()? onMoveToRoot,
+  }) async {
+    final groupMap = {for (var g in allGroups) g.id: g};
+    final validGroups =
+        allGroups.where((g) => !excludedIds.contains(g.id)).toList();
+    final sections = validGroups.map((g) => g.sectionName).toSet().toList()
+      ..sort();
+
+    if (validGroups.isEmpty && !allowRootMove) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Tidak ada folder tujuan lain yang tersedia."),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
+
+    await showDialog(
+      context: context,
+      builder: (ctx) {
+        String? selectedSection;
+        NoteGroup? currentFolder;
+
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            final List<NoteGroup> currentList = selectedSection == null
+                ? []
+                : validGroups.where((g) {
+                    if (currentFolder == null) {
+                      return g.sectionName == selectedSection &&
+                          g.parentId == null;
+                    }
+                    return g.parentId == currentFolder!.id;
+                  }).toList();
+
+            return BasePopupDialog(
+              title: Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              themeColor: Colors.indigo,
+              titleColor: Colors.white,
+              content: Padding(
+                padding: const EdgeInsets.all(14.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (selectedSection != null) ...[
+                      InkWell(
+                        borderRadius: BorderRadius.circular(8),
+                        onTap: () => setDialogState(() {
+                          if (currentFolder != null) {
+                            currentFolder = currentFolder!.parentId != null
+                                ? groupMap[currentFolder!.parentId]
+                                : null;
+                          } else {
+                            selectedSection = null;
+                          }
+                        }),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 6,
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.arrow_back_ios_new_rounded,
+                                size: 14,
+                                color: Colors.indigo,
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  currentFolder == null
+                                      ? "Kembali ke Daftar Seksi ($selectedSection)"
+                                      : "Kembali (${currentFolder!.groupName})",
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.indigo,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                    ] else ...[
+                      const Text(
+                        "Pilih Seksi:",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    if (allowRootMove && selectedSection == null)
+                      Card(
+                        elevation: 0,
+                        color: Colors.indigo.withValues(alpha: 0.06),
+                        margin: const EdgeInsets.only(bottom: 8),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(
+                            color: Colors.indigo.withValues(alpha: 0.2),
+                          ),
+                        ),
+                        child: ListTile(
+                          dense: true,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          leading: const Icon(
+                            Icons.home_rounded,
+                            color: Colors.indigo,
+                          ),
+                          title: const Text(
+                            "Halaman Utama (Root)",
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.indigo,
+                            ),
+                          ),
+                          trailing: const Icon(
+                            Icons.chevron_right_rounded,
+                            color: Colors.indigo,
+                          ),
+                          onTap: () async {
+                            Navigator.pop(ctx);
+                            if (onMoveToRoot != null) await onMoveToRoot();
+                          },
+                        ),
+                      ),
+                    if (currentFolder != null &&
+                        currentFolder!.id != cannotSelectTargetId) ...[
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          icon: const Icon(
+                            Icons.drive_file_move_rounded,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                          label: Text(
+                            "Pindah Di Sini (${currentFolder!.groupName})",
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.indigo,
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          onPressed: () async {
+                            final target = currentFolder!;
+                            Navigator.pop(ctx);
+                            await onSelectTarget(target);
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                    ],
+                    Flexible(
+                      child: selectedSection == null
+                          ? ListView.separated(
+                              shrinkWrap: true,
+                              itemCount: sections.length,
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(height: 6),
+                              itemBuilder: (_, idx) {
+                                final sec = sections[idx];
+                                final count = validGroups
+                                    .where(
+                                      (g) =>
+                                          g.sectionName == sec &&
+                                          g.parentId == null,
+                                    )
+                                    .length;
+                                return Material(
+                                  color: Colors.grey.withValues(alpha: 0.06),
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: ListTile(
+                                    dense: true,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    leading: CircleAvatar(
+                                      radius: 18,
+                                      backgroundColor:
+                                          Colors.indigo.withValues(alpha: 0.1),
+                                      child: const Icon(
+                                        Icons.folder_copy_rounded,
+                                        color: Colors.indigo,
+                                        size: 18,
+                                      ),
+                                    ),
+                                    title: Text(
+                                      sec,
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    subtitle: Text(
+                                      "$count group notes",
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                    trailing: Icon(
+                                      Icons.chevron_right_rounded,
+                                      color: Colors.grey[400],
+                                    ),
+                                    onTap: () => setDialogState(
+                                      () => selectedSection = sec,
+                                    ),
+                                  ),
+                                );
+                              },
+                            )
+                          : currentList.isEmpty
+                              ? Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 16),
+                                  child: Center(
+                                    child: Text(
+                                      currentFolder == null
+                                          ? "Tidak ada group di seksi ini."
+                                          : "Tidak ada sub-folder di dalam \"${currentFolder!.groupName}\".",
+                                      style: const TextStyle(
+                                        color: Colors.grey,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                                )
+                              : ListView.separated(
+                                  shrinkWrap: true,
+                                  itemCount: currentList.length,
+                                  separatorBuilder: (_, __) =>
+                                      const SizedBox(height: 6),
+                                  itemBuilder: (_, idx) {
+                                    final targetG = currentList[idx];
+                                    final subCount = validGroups
+                                        .where((g) => g.parentId == targetG.id)
+                                        .length;
+                                    return Material(
+                                      color: Colors.grey.withValues(alpha: 0.06),
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: ListTile(
+                                        dense: true,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
+                                        leading: CircleAvatar(
+                                          radius: 18,
+                                          backgroundColor: Colors.indigo
+                                              .withValues(alpha: 0.1),
+                                          child: Text(
+                                            targetG.icon.isEmpty
+                                                ? "📁"
+                                                : targetG.icon,
+                                            style:
+                                                const TextStyle(fontSize: 18),
+                                          ),
+                                        ),
+                                        title: Text(
+                                          targetG.groupName,
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        subtitle: Text(
+                                          subCount > 0
+                                              ? "$subCount sub-folder • ${targetG.notes.length} catatan"
+                                              : "${targetG.notes.length} catatan",
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.grey[600],
+                                          ),
+                                        ),
+                                        trailing: Icon(
+                                          Icons.chevron_right_rounded,
+                                          color: Colors.grey[400],
+                                        ),
+                                        onTap: () => setDialogState(
+                                          () => currentFolder = targetG,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                    ),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text(
+                          "Batal",
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showMoveSubFolderDialog(NoteGroup folder) async {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -83,118 +586,80 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           const Center(child: CircularProgressIndicator(color: Colors.indigo)),
     );
 
-    // 2. Ambil data semua grup notes via controller
     final allGroups = await _controller.getAllNoteGroups();
-
     if (!mounted) return;
-    Navigator.pop(context); // Tutup loading indicator
+    Navigator.pop(context);
 
-    // 3. Saring grup tujuan agar tidak menyertakan grup asal saat ini
-    final availableGroups = allGroups
-        .where((g) => g.id != _controller.currentGroup.id)
-        .toList();
-
-    // 4. Jika tidak ada grup lain selain grup ini, tampilkan notifikasi
-    if (availableGroups.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Tidak ada grup catatan lain yang tersedia.'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
+    final Set<String> excludedIds = {folder.id};
+    bool added = true;
+    while (added) {
+      added = false;
+      for (var g in allGroups) {
+        if (g.parentId != null &&
+            excludedIds.contains(g.parentId) &&
+            !excludedIds.contains(g.id)) {
+          excludedIds.add(g.id);
+          added = true;
+        }
+      }
+    }
+    if (folder.parentId != null) {
+      excludedIds.add(folder.parentId!);
     }
 
-    // 5. Tampilkan Dialog berbasis BasePopupDialog dengan spesifikasi UI modul Prompt
+    await _showFolderPickerDialog(
+      title: "Pindahkan \"${folder.groupName}\"",
+      allGroups: allGroups,
+      excludedIds: excludedIds,
+      allowRootMove: folder.parentId != null,
+      onMoveToRoot: () => _controller.moveSubFolder(folder, null),
+      onSelectTarget: (target) => _controller.moveSubFolder(folder, target.id),
+    );
+  }
+
+  void _showMoveMassiveDialog(List<NoteModel> selectedItems) async {
     showDialog(
       context: context,
-      builder: (ctx) => BasePopupDialog(
-        title: Text(
-          'Pindahkan ${selectedItems.length} Catatan Terpilih',
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-          ),
-        ),
-        themeColor: Colors.indigo,
-        titleColor: Colors.white,
-        content: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Pilih Grup Target Pemindahan:',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-              ),
-              const SizedBox(height: 6),
-              Flexible(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: availableGroups.length,
-                  itemBuilder: (c, idx) {
-                    final targetG = availableGroups[idx];
-                    return ListTile(
-                      dense: true,
-                      leading: Text(
-                        targetG.icon.isEmpty ? '📁' : targetG.icon,
-                        style: const TextStyle(fontSize: 18),
-                      ),
-                      title: Text(
-                        targetG.groupName,
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                      subtitle: Text(
-                        targetG.sectionName,
-                        style: const TextStyle(fontSize: 11),
-                      ),
-                      trailing: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.indigo,
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                        ),
-                        onPressed: () async {
-                          Navigator.pop(ctx); // Tutup Dialog utama
+      barrierDismissible: false,
+      builder: (ctx) =>
+          const Center(child: CircularProgressIndicator(color: Colors.indigo)),
+    );
 
-                          // Eksekusi pemindahan data massal di controller
-                          await _controller.moveMassiveNotes(
-                            selectedItems,
-                            targetG,
-                          );
+    final allGroups = await _controller.getAllNoteGroups();
+    if (!mounted) return;
+    Navigator.pop(context);
 
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Semua catatan terpilih berhasil dipindahkan ke "${targetG.groupName}"!',
-                                ),
-                                backgroundColor: Colors.indigo,
-                              ),
-                            );
-                          }
-                        },
-                        child: const Text(
-                          'Pindah Ke Sini',
-                          style: TextStyle(color: Colors.white, fontSize: 12),
-                        ),
-                      ),
-                    );
-                  },
-                ),
+    final hasSubFoldersInCurrent = allGroups.any(
+      (g) => g.parentId == _controller.currentGroup.id,
+    );
+
+    await _showFolderPickerDialog(
+      title: "Pindahkan ${selectedItems.length} Catatan Terpilih",
+      allGroups: allGroups,
+      excludedIds: hasSubFoldersInCurrent ? {} : {_controller.currentGroup.id},
+      cannotSelectTargetId: _controller.currentGroup.id,
+      onSelectTarget: (targetG) async {
+        await _controller.moveMassiveNotes(selectedItems, targetG);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                "${selectedItems.length} catatan berhasil dipindahkan ke \"${targetG.groupName}\"!",
               ),
-            ],
-          ),
-        ),
-      ),
+              backgroundColor: Colors.teal,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      },
     );
   }
 
   @override
   Widget build(BuildContext context) {
     // ================= TANGANI KEADAAN AWAL KOSONG DI SINI =================
-    if (_controller.currentGroup.notes.isEmpty) {
+    if (_controller.currentGroup.notes.isEmpty &&
+        _controller.childFolders.isEmpty) {
       return Scaffold(
         backgroundColor: const Color(
           0xFFF5F6FA,
@@ -216,6 +681,16 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
             0xFF3F51B5,
           ), // Menyelaraskan warna AppBar utama (Indigo)
           elevation: 2,
+          actions: [
+            IconButton(
+              icon: const Icon(
+                Icons.create_new_folder_rounded,
+                color: Colors.white,
+              ),
+              tooltip: 'Buat Sub-Folder',
+              onPressed: () => _showSubFolderDialog(),
+            ),
+          ],
         ),
         body: UniversalEmptyState(
           icon: Icons.note_add_rounded,
@@ -243,11 +718,23 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         enableAddButton: true,
         enableFavoriteSort: false,
         itemTitle: (note) => note.title,
+        headerWidget: _buildSubFoldersHeader(),
 
         // =========================================================================
         // PERBAIKAN UTAMA: Menggunakan parameter 'additionalAction'
         // =========================================================================
-        additionalAction: PopupMenuButton<String>(
+        additionalAction: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(
+                Icons.create_new_folder_rounded,
+                color: Colors.white,
+              ),
+              tooltip: 'Buat Sub-Folder',
+              onPressed: () => _showSubFolderDialog(),
+            ),
+            PopupMenuButton<String>(
           icon: const Icon(Icons.sort_rounded, color: Colors.white),
           tooltip: 'Urutkan Prompt',
           onSelected: _handleSort,
@@ -325,6 +812,8 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
               ),
             ),
           ],
+        ),
+        ],
         ),
 
         // 1. Mengembalikan Layout Widget Custom dengan Warna Berbeda

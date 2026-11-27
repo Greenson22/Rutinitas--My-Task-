@@ -36,6 +36,9 @@ class ChecklistTreeView extends StatelessWidget {
   // Callback opsional untuk meresolve teks akumulasi eksternal (contoh: "(45/100)")
   final String? Function(SubSubjectItem)? resolveExternalAccumulationText;
 
+  // Callback opsional untuk meresolve persentase penyelesaian Card prasyarat (0-100)
+  final int? Function(SubSubjectItem)? resolvePrerequisitePercentage;
+
   const ChecklistTreeView({
     super.key,
     required this.item,
@@ -58,6 +61,7 @@ class ChecklistTreeView extends StatelessWidget {
     this.onToggleDisable,
     this.onToggleExpansion,
     this.resolveExternalAccumulationText,
+    this.resolvePrerequisitePercentage,
   });
 
   // Fungsi pembantu untuk memformat angka dengan separator titik ribuan Indonesia
@@ -103,31 +107,6 @@ class ChecklistTreeView extends StatelessWidget {
           padding: EdgeInsets.fromLTRB(paddingLeft, 2, 4, 2),
           child: Row(
             children: [
-              // === PERBAIKAN STABILITAS SEJAJAR (ALIGNMENT FIX) ===
-              if (!isEditMode) ...[
-                if (item.subMateri.isNotEmpty)
-                  SizedBox(
-                    width: 32,
-                    height: 32,
-                    child: IconButton(
-                      icon: Icon(
-                        item.isExpanded
-                            ? Icons.keyboard_arrow_down_rounded
-                            : Icons.keyboard_arrow_right_rounded,
-                        color: Colors.blueGrey,
-                        size: 20,
-                      ),
-                      constraints: const BoxConstraints(),
-                      padding: EdgeInsets
-                          .zero, // Hilangkan padding bawaan agar pas di dalam Box
-                      onPressed: () => onToggleExpansion?.call(item),
-                    ),
-                  )
-                else
-                  const SizedBox(
-                    width: 32,
-                  ), // Spacer dengan lebar yang sama persis agar Checkbox sejajar sempurna
-              ],
 
               // ====================================================
               if (isEditMode) ...[
@@ -372,6 +351,19 @@ class ChecklistTreeView extends StatelessWidget {
                                                             : Colors.black87)),
                                           ),
                                           children: [
+                                            if (isLinkedAndLocked &&
+                                                resolvePrerequisitePercentage
+                                                        ?.call(item) !=
+                                                    null)
+                                              TextSpan(
+                                                text:
+                                                    ' (${resolvePrerequisitePercentage!.call(item)}%)',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Colors.amber[800],
+                                                ),
+                                              ),
                                             if (hasExternalCardLink)
                                               WidgetSpan(
                                                 alignment:
@@ -685,6 +677,23 @@ class ChecklistTreeView extends StatelessWidget {
                   ],
                 ),
               ],
+              if (!isEditMode && item.subMateri.isNotEmpty)
+                SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: IconButton(
+                    icon: Icon(
+                      item.isExpanded
+                          ? Icons.keyboard_arrow_down_rounded
+                          : Icons.keyboard_arrow_right_rounded,
+                      color: Colors.blueGrey,
+                      size: 20,
+                    ),
+                    constraints: const BoxConstraints(),
+                    padding: EdgeInsets.zero,
+                    onPressed: () => onToggleExpansion?.call(item),
+                  ),
+                ),
             ],
           ),
         ),
@@ -714,6 +723,7 @@ class ChecklistTreeView extends StatelessWidget {
                 onToggleExpansion: onToggleExpansion,
                 resolveExternalAccumulationText:
                     resolveExternalAccumulationText,
+                resolvePrerequisitePercentage: resolvePrerequisitePercentage,
               );
             }),
           ),

@@ -806,6 +806,14 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
             }
           }
 
+          final Color cardAccentColor = Color(subject.backgroundColor);
+          final Color readableAccentColor =
+              cardAccentColor.computeLuminance() > 0.45
+                  ? HSLColor.fromColor(cardAccentColor)
+                      .withLightness(0.32)
+                      .toColor()
+                  : cardAccentColor;
+
           Widget cardContent = Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -909,7 +917,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                             notePreviewText,
                             style: TextStyle(
                               fontSize: 12,
-                              color: Color(subject.backgroundColor),
+                              color: readableAccentColor,
                               fontStyle: FontStyle.italic,
                             ),
                             overflow: TextOverflow.ellipsis,
@@ -941,7 +949,7 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                           isAllDone ? '  Semua Selesai!' : '  $topListText',
                           style: TextStyle(
                             fontSize: 12,
-                            color: Color(subject.backgroundColor),
+                            color: readableAccentColor,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),

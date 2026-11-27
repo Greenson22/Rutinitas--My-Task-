@@ -522,7 +522,9 @@ class _NoteEditDialogState extends State<NoteEditDialog>
     setState(() => _isSaving = true);
 
     // Sinkronisasi teks dari text field ke array sebelum disimpan
-    if (_currentType == 'text') {
+    if (_notePages.isNotEmpty &&
+        _currentNotePage >= 0 &&
+        _currentNotePage < _notePages.length) {
       _notePages[_currentNotePage] = _contentController.text;
     }
 

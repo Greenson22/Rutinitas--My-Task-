@@ -163,18 +163,23 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
     int? rowIndex,
     bool isFormInput = false,
   }) {
+    String fullType = widget.currentFieldTypes[key] ?? 'String';
+    String type = fullType.split(':').first;
+
     if (widget.isViewMode) {
+      final displayText = controller.text.isEmpty
+          ? '-'
+          : (type == 'Password'
+              ? '*' * controller.text.length
+              : controller.text);
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
         child: SelectableText(
-          controller.text.isEmpty ? '-' : controller.text,
+          displayText,
           style: const TextStyle(fontSize: 13, color: Colors.black87),
         ),
       );
     }
-
-    String fullType = widget.currentFieldTypes[key] ?? 'String';
-    String type = fullType.split(':').first;
 
     InputDecoration inputDecoration = InputDecoration(
       isDense: true,

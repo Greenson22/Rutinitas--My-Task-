@@ -225,14 +225,7 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
   void handleTapToggleStatusView(SubSubjectItem target) {
     if (target.linkedSubjectName != null &&
         target.linkedSubjectName!.isNotEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '⚠️ Item ini dikunci oleh penyelesaian Card "${target.linkedSubjectName}"',
-          ),
-          backgroundColor: Colors.amber[800],
-        ),
-      );
+      _showLinkedPrerequisiteDialog(target);
       return;
     }
     if (target.itemType == 'progress' || target.itemType == 'countdown') {
@@ -240,6 +233,163 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
       return;
     }
     handleTapToggleStatusData(target);
+  }
+
+  int? _resolvePrerequisitePercentage(SubSubjectItem target) {
+    final targetName = target.linkedSubjectName ?? '';
+    final targetId = target.linkedSubjectId;
+    if (targetName.isEmpty && (targetId == null || targetId.isEmpty)) {
+      return null;
+    }
+
+    DailySubject? linkedCard;
+    for (final sub in widget.allAvailableSubjects) {
+      if ((targetId != null &&
+              targetId.isNotEmpty &&
+              sub.subjectName == targetId) ||
+          sub.subjectName == targetName) {
+        linkedCard = sub;
+        break;
+      }
+    }
+    if (linkedCard == null && widget.allAvailableGroups != null) {
+      for (final group in widget.allAvailableGroups!) {
+        for (final section in group.allList) {
+          for (final sub in section.items) {
+            if ((targetId != null &&
+                    targetId.isNotEmpty &&
+                    sub.subjectName == targetId) ||
+                sub.subjectName == targetName) {
+              linkedCard = sub;
+              break;
+            }
+          }
+          if (linkedCard != null) break;
+        }
+        if (linkedCard != null) break;
+      }
+    }
+
+    if (linkedCard == null) return null;
+    final List<SubSubjectItem> flatItems = [];
+    getAllItemsFlattened(linkedCard.subMateri, flatItems);
+    if (flatItems.isEmpty) return 0;
+    final doneCount = flatItems.where((el) => el.progress == 'selesai').length;
+    return ((doneCount / flatItems.length) * 100).round();
+  }
+
+  void _showLinkedPrerequisiteDialog(SubSubjectItem target) {
+    final targetName = target.linkedSubjectName ?? '';
+    final targetId = target.linkedSubjectId;
+
+    DailySubject? linkedCard;
+    for (final sub in widget.allAvailableSubjects) {
+      if ((targetId != null && targetId.isNotEmpty && sub.subjectName == targetId) ||
+          sub.subjectName == targetName) {
+        linkedCard = sub;
+        break;
+      }
+    }
+    if (linkedCard == null && widget.allAvailableGroups != null) {
+      for (final group in widget.allAvailableGroups!) {
+        for (final section in group.allList) {
+          for (final sub in section.items) {
+            if ((targetId != null &&
+                    targetId.isNotEmpty &&
+                    sub.subjectName == targetId) ||
+                sub.subjectName == targetName) {
+              linkedCard = sub;
+              break;
+            }
+          }
+          if (linkedCard != null) break;
+        }
+        if (linkedCard != null) break;
+      }
+    }
+
+    final List<SubSubjectItem> flatItems = [];
+    if (linkedCard != null) {
+      getAllItemsFlattened(linkedCard.subMateri, flatItems);
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.lock_outline_rounded, color: Colors.amber),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Item Terkunci Prasyarat',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Selesaikan terlebih dahulu Card "${linkedCard != null ? '${linkedCard.icon} ${linkedCard.subjectName}' : targetName}" sebelum mencentang "${target.subjectName}":',
+                style: const TextStyle(fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              if (flatItems.isEmpty)
+                const Text(
+                  'Tidak ada daftar item yang ditemukan pada Card prasyarat.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                )
+              else
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 280),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: flatItems.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final item = flatItems[index];
+                      final isDone = item.progress == 'selesai';
+                      return ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(
+                          isDone
+                              ? Icons.check_circle_rounded
+                              : Icons.radio_button_unchecked_rounded,
+                          color: isDone ? Colors.green : Colors.amber[700],
+                          size: 20,
+                        ),
+                        title: Text(
+                          item.subjectName,
+                          style: TextStyle(
+                            fontSize: 13,
+                            decoration: isDone
+                                ? TextDecoration.lineThrough
+                                : null,
+                            color: isDone ? Colors.grey : null,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Tutup'),
+          ),
+        ],
+      ),
+    );
   }
 
   void showUpdateProgressValueDialogView(SubSubjectItem item) {
@@ -491,9 +641,11 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
             children: [
               if (widget.subject.type == 'note') ...[
                 PopupMenuButton<String>(
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.more_vert,
-                    color: Colors.white,
+                    color: Color(widget.subject.backgroundColor).computeLuminance() > 0.5
+                        ? Colors.black87
+                        : Colors.white,
                     size: 22,
                   ),
                   tooltip: 'Opsi Catatan',
@@ -619,7 +771,13 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                   },
                 ),
               IconButton(
-                icon: const Icon(Icons.palette, color: Colors.white, size: 20),
+                icon: Icon(
+                  Icons.palette,
+                  color: Color(widget.subject.backgroundColor).computeLuminance() > 0.5
+                      ? Colors.black87
+                      : Colors.white,
+                  size: 20,
+                ),
                 onPressed: () => showDialog(
                   context: context,
                   builder: (ctx) => ChangeColorDialog(
@@ -634,7 +792,9 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
               IconButton(
                 icon: Icon(
                   widget.subject.type == 'note' ? Icons.checklist : Icons.notes,
-                  color: Colors.white,
+                  color: Color(widget.subject.backgroundColor).computeLuminance() > 0.5
+                      ? Colors.black87
+                      : Colors.white,
                   size: 20,
                 ),
                 onPressed: () {
@@ -651,7 +811,11 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                 IconButton(
                   icon: Icon(
                     showControlPanel ? Icons.tune : Icons.tune_outlined,
-                    color: showControlPanel ? Colors.amberAccent : Colors.white,
+                    color: showControlPanel
+                        ? Colors.amberAccent
+                        : (Color(widget.subject.backgroundColor).computeLuminance() > 0.5
+                            ? Colors.black87
+                            : Colors.white),
                     size: 20,
                   ),
                   onPressed: () =>
@@ -779,6 +943,8 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                                 isLast:
                                     index ==
                                     widget.subject.subMateri.length - 1,
+                                resolvePrerequisitePercentage:
+                                    _resolvePrerequisitePercentage,
                                 onSelectItem: (target, add) => setState(
                                   () => add
                                       ? selectedItems.add(target)
@@ -862,6 +1028,8 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                                     isLast:
                                         index ==
                                         widget.subject.subMateri.length - 1,
+                                    resolvePrerequisitePercentage:
+                                        _resolvePrerequisitePercentage,
                                     onSelectItem: (target, add) => setState(
                                       () => add
                                           ? selectedItems.add(target)

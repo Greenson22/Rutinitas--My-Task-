@@ -12,6 +12,7 @@ import '../../models/note_model.dart';
 class NoteDetailController {
   final StorageService _storageService = StorageService();
   late NoteGroup currentGroup;
+  List<NoteGroup> childFolders = [];
   final VoidCallback onStateChanged;
   final BuildContext context;
 
@@ -24,22 +25,19 @@ class NoteDetailController {
   }
 
   // === MODIFIKASI: PROTEKSI ANTI-KORUP DATA DENGAN ATOMIC WRITE ===
-  Future<void> saveCurrentGroup() async {
+  Future<void> _saveGroupToFile(NoteGroup group) async {
     try {
       final baseDir = await _storageService.getBaseDirSetting();
-      final File targetFile = File('$baseDir/notes/${currentGroup.id}.json');
+      final File targetFile = File('$baseDir/notes/${group.id}.json');
       bool isEncrypted = await _storageService.isEncryptionEnabled();
       String? password = await _storageService.getEncryptionPassword();
 
-      String jsonString = _storageService.formatJsonPretty(
-        currentGroup.toJson(),
-      );
+      String jsonString = _storageService.formatJsonPretty(group.toJson());
 
       if (isEncrypted && password != null) {
         jsonString = CryptoHelper.encrypt(jsonString, password);
       }
 
-      // PANGGIL HELPER DI SINI
       await AtomicWriteHelper.writeSafe(
         targetFile: targetFile,
         content: jsonString,
@@ -49,6 +47,79 @@ class NoteDetailController {
         "Gagal menyimpan pembaruan grup (Helper Atomic Write Error): $e",
       );
     }
+  }
+
+  Future<void> saveCurrentGroup() async {
+    await _saveGroupToFile(currentGroup);
+  }
+
+  Future<void> loadChildFolders() async {
+    final allGroups = await getAllNoteGroups();
+    childFolders = allGroups
+        .where((g) => g.parentId == currentGroup.id)
+        .toList()
+      ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+    onStateChanged();
+  }
+
+  Future<void> createSubFolder({
+    required String name,
+    required String icon,
+  }) async {
+    final newFolder = NoteGroup(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      groupName: name,
+      icon: icon,
+      notes: [],
+      sectionName: currentGroup.sectionName,
+      parentId: currentGroup.id,
+      orderIndex: childFolders.length,
+    );
+    await _saveGroupToFile(newFolder);
+    await loadChildFolders();
+  }
+
+  Future<void> renameSubFolder(
+    NoteGroup folder,
+    String newName,
+    String newIcon,
+  ) async {
+    folder.groupName = newName;
+    folder.icon = newIcon;
+    await _saveGroupToFile(folder);
+    await loadChildFolders();
+  }
+
+  Future<void> moveSubFolder(NoteGroup folder, String? newParentId) async {
+    folder.parentId = newParentId;
+    await _saveGroupToFile(folder);
+    await loadChildFolders();
+  }
+
+  Future<void> deleteSubFolder(NoteGroup folder) async {
+    final allGroups = await getAllNoteGroups();
+    final Set<String> idsToDelete = {folder.id};
+    bool added = true;
+    while (added) {
+      added = false;
+      for (var g in allGroups) {
+        if (g.parentId != null &&
+            idsToDelete.contains(g.parentId) &&
+            !idsToDelete.contains(g.id)) {
+          idsToDelete.add(g.id);
+          added = true;
+        }
+      }
+    }
+
+    final baseDir = await _storageService.getBaseDirSetting();
+    for (var id in idsToDelete) {
+      final file = File('$baseDir/notes/$id.json');
+      if (await file.exists()) {
+        await file.delete();
+      }
+    }
+    await loadChildFolders();
   }
 
   String formatDate(DateTime date) {
@@ -333,24 +404,20 @@ class NoteDetailController {
     if (finalTitle.isEmpty) finalTitle = originalTitle;
 
     List<Map<String, String>> finalTableData = [];
-    if (currentType == 'table') {
-      for (var rowControllers in tableRows) {
-        Map<String, String> rowData = {};
-        rowControllers.forEach((key, controller) {
-          rowData[key] = controller.text.trim();
-        });
-        finalTableData.add(rowData);
-      }
+    for (var rowControllers in tableRows) {
+      Map<String, String> rowData = {};
+      rowControllers.forEach((key, controller) {
+        rowData[key] = controller.text.trim();
+      });
+      finalTableData.add(rowData);
     }
 
     // Ekstrak teks pratinjau utama untuk parameter content bawaan
     String fallbackContent = '';
-    if (currentType == 'text') {
-      if (notePages != null && notePages.isNotEmpty) {
-        fallbackContent = notePages[0];
-      } else {
-        fallbackContent = contentController.text.trim();
-      }
+    if (notePages != null && notePages.isNotEmpty) {
+      fallbackContent = notePages[0];
+    } else {
+      fallbackContent = contentController.text.trim();
     }
 
     final newNote = NoteModel(
@@ -361,14 +428,12 @@ class NoteDetailController {
       createdAt: existingNote?.createdAt ?? DateTime.now(),
       updatedAt: DateTime.now(),
       type: currentType,
-      fieldKeys: currentType == 'table' ? currentFieldKeys : [],
-      fieldTypes: currentType == 'table' ? currentFieldTypes : {},
-      tableData: currentType == 'table' ? finalTableData : [],
+      fieldKeys: currentFieldKeys,
+      fieldTypes: currentFieldTypes,
+      tableData: finalTableData,
       isMarkdownEnabled: isMarkdownEnabled,
-      notePages: currentType == 'text' ? notePages : null, // <--- BARU
-      currentNotePage: currentType == 'text'
-          ? currentNotePage
-          : null, // <--- BARU
+      notePages: notePages,
+      currentNotePage: currentNotePage,
     );
 
     if (existingNote == null) {

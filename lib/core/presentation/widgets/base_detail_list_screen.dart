@@ -284,26 +284,28 @@ class _BaseDetailListScreenState<T> extends State<BaseDetailListScreen<T>> {
           ],
         ),
       ),
-      body: Column(
-        children: [
-          if (widget.headerWidget != null) widget.headerWidget!,
-          Expanded(
-            child: filteredItems.isEmpty
-                ? const Center(
-                    child: Text(
-                      'Tidak ada data.',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 12,
-                    ),
-                    itemCount: filteredItems.length,
-                    itemBuilder: (context, index) {
-                      final item = filteredItems[index];
-                      final isSelected = _selectedItems.contains(item);
+      body: filteredItems.isEmpty && widget.headerWidget == null
+          ? const Center(
+              child: Text(
+                'Tidak ada data.',
+                style: TextStyle(color: Colors.grey),
+              ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 12,
+              ),
+              itemCount:
+                  filteredItems.length + (widget.headerWidget != null ? 1 : 0),
+              itemBuilder: (context, index) {
+                if (widget.headerWidget != null && index == 0) {
+                  return widget.headerWidget!;
+                }
+                final itemIndex =
+                    widget.headerWidget != null ? index - 1 : index;
+                final item = filteredItems[itemIndex];
+                final isSelected = _selectedItems.contains(item);
 
                       return Card(
                         elevation: isSelected ? 4 : 0,
@@ -425,9 +427,6 @@ class _BaseDetailListScreenState<T> extends State<BaseDetailListScreen<T>> {
                       );
                     },
                   ),
-          ),
-        ],
-      ),
     );
   }
 }
