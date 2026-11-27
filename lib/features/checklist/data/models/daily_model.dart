@@ -31,6 +31,10 @@ class DailySubject {
   bool isDailyTrackerEnabled;
   Map<String, List<DailyLogEntry>> dailyLogs;
 
+  // Mode Monitor (menampilkan item bayangan dari card lain di grup yang sama)
+  bool isMonitorMode;
+  List<MonitorItemRef> monitorItems;
+
   // Palet warna standar yang estetis untuk memudahkan pengguna memilih warna kustom
   static const List<Map<String, dynamic>> customPalletColor = [
     {'nama': 'Teal', 'bg': 4281166415, 'text': 4294967295},
@@ -83,7 +87,10 @@ class DailySubject {
     this.defaultExpanded = false,
     this.isDailyTrackerEnabled = false,
     Map<String, List<DailyLogEntry>>? dailyLogs,
-  }) : dailyLogs = dailyLogs ?? {};
+    this.isMonitorMode = false,
+    List<MonitorItemRef>? monitorItems,
+  }) : dailyLogs = dailyLogs ?? {},
+       monitorItems = monitorItems ?? [];
 
   factory DailySubject.fromJson(Map<String, dynamic> json) {
     var subMatList = json['sub_materi'] as List? ?? [];
@@ -130,6 +137,10 @@ class DailySubject {
       defaultExpanded: json['defaultExpanded'] ?? false,
       isDailyTrackerEnabled: json['isDailyTrackerEnabled'] ?? false,
       dailyLogs: parsedDailyLogs,
+      isMonitorMode: json['isMonitorMode'] ?? false,
+      monitorItems: (json['monitorItems'] as List? ?? [])
+          .map((e) => MonitorItemRef.fromJson(Map<String, dynamic>.from(e)))
+          .toList(),
     );
   }
 
@@ -161,6 +172,8 @@ class DailySubject {
       'dailyLogs': dailyLogs.map(
         (key, list) => MapEntry(key, list.map((e) => e.toJson()).toList()),
       ),
+      'isMonitorMode': isMonitorMode,
+      'monitorItems': monitorItems.map((e) => e.toJson()).toList(),
     };
   }
 
@@ -248,6 +261,30 @@ class DailySubject {
         ),
       ];
     }
+  }
+}
+
+class MonitorItemRef {
+  String sourceSubjectName;
+  String sourceItemId;
+
+  MonitorItemRef({
+    required this.sourceSubjectName,
+    required this.sourceItemId,
+  });
+
+  factory MonitorItemRef.fromJson(Map<String, dynamic> json) {
+    return MonitorItemRef(
+      sourceSubjectName: json['sourceSubjectName'] ?? '',
+      sourceItemId: json['sourceItemId'] ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'sourceSubjectName': sourceSubjectName,
+      'sourceItemId': sourceItemId,
+    };
   }
 }
 

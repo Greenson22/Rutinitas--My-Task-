@@ -474,6 +474,251 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
     }
   }
 
+  Widget _buildMonitorListView() {
+    final resolvedEntries =
+        <({MonitorItemRef ref, DailySubject sourceSubject, SubSubjectItem item})>[];
+
+    for (final ref in widget.subject.monitorItems) {
+      final sourceSubject = widget.allAvailableSubjects.firstWhere(
+        (s) => s.subjectName == ref.sourceSubjectName,
+        orElse: () => DailySubject(
+          subjectName: '',
+          progress: 'belum',
+          subMateri: const [],
+        ),
+      );
+      if (sourceSubject.subjectName.isEmpty) continue;
+
+      final List<SubSubjectItem> flat = [];
+      getAllItemsFlattened(sourceSubject.subMateri, flat);
+      final sourceItem = flat.firstWhere(
+        (i) => i.id == ref.sourceItemId,
+        orElse: () => SubSubjectItem(subjectName: '', progress: 'belum'),
+      );
+      if (sourceItem.subjectName.isEmpty) continue;
+
+      resolvedEntries.add((
+        ref: ref,
+        sourceSubject: sourceSubject,
+        item: sourceItem,
+      ));
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          color: Colors.indigo.withValues(alpha: 0.08),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.monitor_heart_rounded,
+                size: 16,
+                color: Colors.indigo,
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Mode Monitor Aktif (item asli disembunyikan)',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.indigo,
+                  ),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: _showAddMonitorItemDialog,
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('Tambah', style: TextStyle(fontSize: 12)),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (resolvedEntries.isEmpty)
+          const Padding(
+            padding: EdgeInsets.all(24.0),
+            child: Text(
+              'Belum ada item monitor.\nTekan "Tambah" untuk memantau item dari card lain di grup ini.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey, fontSize: 13),
+            ),
+          )
+        else
+          Flexible(
+            child: ListView.builder(
+              shrinkWrap: true,
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+              itemCount: resolvedEntries.length,
+              itemBuilder: (context, index) {
+                final entry = resolvedEntries[index];
+                final sourceItem = entry.item;
+                final sourceSubject = entry.sourceSubject;
+
+                return ChecklistTreeView(
+                  item: sourceItem,
+                  depth: 0,
+                  isEditMode: false,
+                  selectedItems: const [],
+                  highlightedItem: null,
+                  isFirst: index == 0,
+                  isLast: index == resolvedEntries.length - 1,
+                  monitorSourceLabel:
+                      'Bayangan • Dari: ${sourceSubject.subjectName}',
+                  onSelectItem: (_, __) {},
+                  onMoveOrder: (_, __) {},
+                  onEditName: (target) => showEditNameDialogView(target),
+                  onLongPressToggle: () {},
+                  onCheckStatusChanged: (target, val) {
+                    setState(() {
+                      target.progress = (val == true) ? 'selesai' : 'belum';
+                      target.finishedDate = (val == true)
+                          ? DateTime.now().toIso8601String()
+                          : null;
+                    });
+                    widget.onDataChanged();
+                  },
+                  onTapToggleStatus: (target) {
+                    handleTapToggleStatusView(target);
+                  },
+                  onAddChild: (_) {},
+                  onDeleteItem: (_) async {
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('Lepas Item Bayangan?'),
+                        content: Text(
+                          'Lepaskan "${sourceItem.subjectName}" dari daftar monitor?\n(Item asli di "${sourceSubject.subjectName}" tidak akan terhapus.)',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx, false),
+                            child: const Text('Batal'),
+                          ),
+                          ElevatedButton(
+                            onPressed: () => Navigator.pop(ctx, true),
+                            child: const Text('Lepaskan'),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (confirm == true) {
+                      setState(() {
+                        widget.subject.monitorItems.remove(entry.ref);
+                      });
+                      widget.onDataChanged();
+                    }
+                  },
+                  onToggleItemType: handleToggleItemTypeView,
+                  onUpdateProgressValue: showUpdateProgressValueDialogView,
+                  onToggleDisable: (target) {
+                    setState(() => target.isDisabled = !target.isDisabled);
+                    widget.onDataChanged();
+                  },
+                  onToggleExpansion: (target) {
+                    setState(() => target.isExpanded = !target.isExpanded);
+                  },
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+
+  void _showAddMonitorItemDialog() {
+    final otherSubjects = widget.allAvailableSubjects
+        .where(
+          (s) =>
+              s.subjectName != widget.subject.subjectName &&
+              s.type == 'list' &&
+              s.subMateri.isNotEmpty,
+        )
+        .toList();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text(
+          'Pilih Item untuk Dimonitor',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: otherSubjects.isEmpty
+              ? const Text('Tidak ada card list lain di grup ini.')
+              : ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: otherSubjects.length,
+                  itemBuilder: (context, sIdx) {
+                    final subj = otherSubjects[sIdx];
+                    final List<SubSubjectItem> flat = [];
+                    getAllItemsFlattened(subj.subMateri, flat);
+                    return ExpansionTile(
+                      title: Text(
+                        subj.subjectName,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                      children: flat.map((it) {
+                        final alreadyAdded = widget.subject.monitorItems.any(
+                          (m) =>
+                              m.sourceSubjectName == subj.subjectName &&
+                              m.sourceItemId == it.id,
+                        );
+                        return ListTile(
+                          dense: true,
+                          title: Text(it.subjectName),
+                          trailing: alreadyAdded
+                              ? const Icon(
+                                  Icons.check_circle,
+                                  color: Colors.teal,
+                                  size: 20,
+                                )
+                              : const Icon(
+                                  Icons.add_circle_outline,
+                                  color: Colors.indigo,
+                                  size: 20,
+                                ),
+                          onTap: alreadyAdded
+                              ? null
+                              : () {
+                                  setState(() {
+                                    widget.subject.monitorItems.add(
+                                      MonitorItemRef(
+                                        sourceSubjectName: subj.subjectName,
+                                        sourceItemId: it.id,
+                                      ),
+                                    );
+                                  });
+                                  widget.onDataChanged();
+                                  Navigator.pop(ctx);
+                                },
+                        );
+                      }).toList(),
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Tutup'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void showEditNameDialogView(SubSubjectItem item) {
     showDialog(
       context: context,
@@ -924,12 +1169,14 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                       setState(() => isNoteModified = text != orig);
                     },
                   )
-                : (widget.subject.subMateri.isEmpty
-                      ? const Padding(
-                          padding: EdgeInsets.all(24.0),
-                          child: Text('Tidak ada item sub materi.'),
-                        )
-                      : ListView(
+                : (widget.subject.isMonitorMode
+                      ? _buildMonitorListView()
+                      : (widget.subject.subMateri.isEmpty
+                            ? const Padding(
+                                padding: EdgeInsets.all(24.0),
+                                child: Text('Tidak ada item sub materi.'),
+                              )
+                            : ListView(
                           shrinkWrap: true,
                           padding: const EdgeInsets.symmetric(
                             vertical: 8,
@@ -1070,7 +1317,7 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                                 },
                               ),
                           ],
-                        )),
+                        ))),
           ),
         ],
       ),

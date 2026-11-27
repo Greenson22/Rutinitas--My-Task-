@@ -39,6 +39,9 @@ class ChecklistTreeView extends StatelessWidget {
   // Callback opsional untuk meresolve persentase penyelesaian Card prasyarat (0-100)
   final int? Function(SubSubjectItem)? resolvePrerequisitePercentage;
 
+  // Label opsional untuk item bayangan pada Mode Monitor
+  final String? monitorSourceLabel;
+
   const ChecklistTreeView({
     super.key,
     required this.item,
@@ -58,6 +61,7 @@ class ChecklistTreeView extends StatelessWidget {
     required this.onDeleteItem,
     this.onToggleItemType,
     this.onUpdateProgressValue,
+    this.monitorSourceLabel,
     this.onToggleDisable,
     this.onToggleExpansion,
     this.resolveExternalAccumulationText,
@@ -322,9 +326,16 @@ class ChecklistTreeView extends StatelessWidget {
                                       const SizedBox(width: 4),
                                     ],
                                     Flexible(
-                                      child: RichText(
-                                        text: TextSpan(
-                                          text: item.hasLinkedDocument ? '📎 ${item.subjectName}' : item.subjectName,
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          RichText(
+                                            text: TextSpan(
+                                              text: item.hasLinkedDocument
+                                                  ? '📎 ${item.subjectName}'
+                                                  : item.subjectName,
                                           style: TextStyle(
                                             fontSize: 14,
                                             fontFamily: 'Roboto',
@@ -425,6 +436,17 @@ class ChecklistTreeView extends StatelessWidget {
                                               ),
                                           ],
                                         ),
+                                      ),
+                                      if (monitorSourceLabel != null)
+                                        Text(
+                                          monitorSourceLabel!,
+                                          style: const TextStyle(
+                                            fontSize: 10,
+                                            fontStyle: FontStyle.italic,
+                                            color: Colors.grey,
+                                          ),
+                                        ),
+                                        ],
                                       ),
                                     ),
                                     if (!item.isExpanded &&
