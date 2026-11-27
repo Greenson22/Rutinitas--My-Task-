@@ -173,7 +173,9 @@ class ChecklistTreeView extends StatelessWidget {
                                           'Roboto', // Memastikan fallback font aman
                                       color: item.isDisabled
                                           ? Colors.red.shade400
-                                          : Colors.black87,
+                                          : (item.textColor != null
+                                                ? Color(item.textColor!)
+                                                : Colors.black87),
                                       decoration: item.isDisabled
                                           ? TextDecoration.lineThrough
                                           : null,
@@ -348,7 +350,13 @@ class ChecklistTreeView extends StatelessWidget {
                                                       ? Colors.grey.shade700
                                                       : (isChecked
                                                             ? Colors.grey
-                                                            : Colors.black87)),
+                                                            : (item.textColor !=
+                                                                      null
+                                                                  ? Color(
+                                                                      item.textColor!,
+                                                                    )
+                                                                  : Colors
+                                                                        .black87))),
                                           ),
                                           children: [
                                             if (isLinkedAndLocked &&

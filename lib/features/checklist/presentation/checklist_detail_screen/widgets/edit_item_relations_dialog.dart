@@ -23,6 +23,7 @@ class EditItemRelationsDialog extends StatefulWidget {
     required int parsedCurrent,
     required int parsedTarget,
     required DailySubject? selectedExternalCard,
+    required int? textColor,
   })
   onConfirm;
 
@@ -70,9 +71,25 @@ class _EditItemRelationsDialogState extends State<EditItemRelationsDialog> {
 
   late final List<ChecklistGroup> _validGroupsList;
 
+  int? _selectedTextColor;
+
+  static const List<int?> _presetTextColors = [
+    null, // Default
+    0xFFD32F2F, // Merah
+    0xFFE65100, // Oranye
+    0xFFF57F17, // Kuning Gelap
+    0xFF2E7D32, // Hijau
+    0xFF00796B, // Teal
+    0xFF1565C0, // Biru
+    0xFF283593, // Indigo
+    0xFF6A1B9A, // Ungu
+    0xFFAD1457, // Pink
+  ];
+
   @override
   void initState() {
     super.initState();
+    _selectedTextColor = widget.item.textColor;
     _editController = TextEditingController(text: widget.item.subjectName);
     _currentValController = TextEditingController(
       text: widget.item.currentValue.toString(),
@@ -202,6 +219,58 @@ class _EditItemRelationsDialogState extends State<EditItemRelationsDialog> {
               decoration: const InputDecoration(
                 labelText: 'Nama Sub-Materi',
                 border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                widget.item.subMateri.isNotEmpty
+                    ? 'Warna Teks Item (otomatis diterapkan ke semua child):'
+                    : 'Warna Teks Item:',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _presetTextColors.map((colorVal) {
+                  final bool isSelected = _selectedTextColor == colorVal;
+                  final Color displayColor = colorVal == null
+                      ? Colors.black87
+                      : Color(colorVal);
+                  return GestureDetector(
+                    onTap: () => setState(() => _selectedTextColor = colorVal),
+                    child: Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: displayColor,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: isSelected
+                              ? Colors.amber.shade700
+                              : Colors.grey.shade300,
+                          width: isSelected ? 2.5 : 1,
+                        ),
+                      ),
+                      child: isSelected
+                          ? const Icon(
+                              Icons.check,
+                              size: 16,
+                              color: Colors.white,
+                            )
+                          : null,
+                    ),
+                  );
+                }).toList(),
               ),
             ),
             if (widget.item.itemType == 'progress' ||
@@ -807,6 +876,7 @@ class _EditItemRelationsDialogState extends State<EditItemRelationsDialog> {
                 parsedCurrent: parsedCurrent,
                 parsedTarget: parsedTarget,
                 selectedExternalCard: _selectedExternalCard,
+                textColor: _selectedTextColor,
               );
             }
           },

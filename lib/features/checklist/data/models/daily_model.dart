@@ -278,6 +278,8 @@ class SubSubjectItem {
   String? linkedDocumentRelativePath;
   String? linkedDocumentName;
 
+  int? textColor;
+
   bool get hasLinkedDocument =>
       linkedDocumentGroupId != null &&
       linkedDocumentGroupId!.isNotEmpty &&
@@ -315,6 +317,7 @@ class SubSubjectItem {
     this.linkedDocumentGroupId,
     this.linkedDocumentRelativePath,
     this.linkedDocumentName,
+    this.textColor,
     this.isExpanded = false,
   })  : id = id ?? generateId(),
         subMateri = subMateri ?? [];
@@ -341,6 +344,7 @@ class SubSubjectItem {
       linkedDocumentGroupId: linkedDocumentGroupId,
       linkedDocumentRelativePath: linkedDocumentRelativePath,
       linkedDocumentName: linkedDocumentName,
+      textColor: textColor,
       isExpanded: isExpanded,
     );
   }
@@ -372,6 +376,7 @@ class SubSubjectItem {
       linkedDocumentGroupId: json['linkedDocumentGroupId'],
       linkedDocumentRelativePath: json['linkedDocumentRelativePath'],
       linkedDocumentName: json['linkedDocumentName'],
+      textColor: json['textColor'],
       isExpanded: false,
     );
   }
@@ -398,6 +403,7 @@ class SubSubjectItem {
       'linkedDocumentGroupId': linkedDocumentGroupId,
       'linkedDocumentRelativePath': linkedDocumentRelativePath,
       'linkedDocumentName': linkedDocumentName,
+      'textColor': textColor,
     };
   }
 

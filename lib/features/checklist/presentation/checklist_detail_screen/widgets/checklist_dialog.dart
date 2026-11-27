@@ -497,7 +497,16 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
               required parsedCurrent,
               required parsedTarget,
               required selectedExternalCard,
+              required textColor,
             }) {
+              void applyTextColorRecursive(SubSubjectItem target, int? color) {
+                target.textColor = color;
+                for (final child in target.subMateri) {
+                  applyTextColorRecursive(child, color);
+                }
+              }
+
+              applyTextColorRecursive(item, textColor);
               updateItemNameAndRelationsData(
                 item: item,
                 newName: newName,
