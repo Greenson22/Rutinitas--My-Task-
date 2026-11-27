@@ -14,11 +14,13 @@ import '../controllers/documents_controller.dart';
 class DocumentDetailScreen extends StatefulWidget {
   final DocumentGroup group;
   final String baseDir;
+  final String? initialFolderId;
 
   const DocumentDetailScreen({
     super.key,
     required this.group,
     required this.baseDir,
+    this.initialFolderId,
   });
 
   @override
@@ -29,13 +31,23 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
   late DocumentsController _documentsController;
   late DocumentFileService _fileService;
   List<File> physicalFiles = [];
+  List<DocumentFolder> _childFolders = [];
+  Map<String, ({int folderCount, int fileCount})> _folderCounts = {};
+  String? _currentFolderId;
   bool isLoading = false;
 
   String _currentSortType = 'manual';
 
+  DocumentGroup get _currentGroup =>
+      _documentsController.allGroupRaw
+          .where((g) => g.id == widget.group.id)
+          .firstOrNull ??
+      widget.group;
+
   @override
   void initState() {
     super.initState();
+    _currentFolderId = widget.initialFolderId;
     _documentsController = DocumentsController();
     _fileService = DocumentFileService(baseDir: widget.baseDir);
     _loadPhysicalFiles();
@@ -49,16 +61,46 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
   Future<void> _loadPhysicalFiles() async {
     setState(() => isLoading = true);
     try {
-      final List<File> files = await _fileService.listFiles(widget.group.id);
-      setState(() {
-        physicalFiles = files;
-      });
+      await _documentsController.loadGroupsData();
+      final group = _currentGroup;
+      final relPath = _documentsController.folderRelativePath(
+        group,
+        _currentFolderId,
+      );
+      final listing = await _fileService.listDirectory(
+        group.id,
+        relativePath: relPath,
+      );
+      final folders = _documentsController.getChildFolders(
+        group,
+        _currentFolderId,
+      );
+      final counts = <String, ({int folderCount, int fileCount})>{};
+      for (final folder in folders) {
+        final folderPath = _documentsController.folderRelativePath(
+          group,
+          folder.id,
+        );
+        counts[folder.id] = await _fileService.countDirectoryEntries(
+          group.id,
+          relativePath: folderPath,
+        );
+      }
 
-      _handleSort(_currentSortType);
+      if (mounted) {
+        setState(() {
+          _childFolders = folders;
+          _folderCounts = counts;
+          physicalFiles = listing.files;
+        });
+        _handleSort(_currentSortType);
+      }
     } catch (e) {
       debugPrint("Gagal memuat daftar file fisik: $e");
     } finally {
-      setState(() => isLoading = false);
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
     }
   }
 
@@ -763,6 +805,333 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
     }
   }
 
+  List<DocumentFolder> _breadcrumbFolders() {
+    final byId = {for (final f in _currentGroup.folders) f.id: f};
+    final chain = <DocumentFolder>[];
+    String? current = _currentFolderId;
+    final visited = <String>{};
+    while (current != null && current.isNotEmpty) {
+      if (!visited.add(current)) break;
+      final folder = byId[current];
+      if (folder == null) break;
+      chain.add(folder);
+      current = folder.parentId;
+    }
+    return chain.reversed.toList();
+  }
+
+  Widget _buildBreadcrumbBar() {
+    final chain = _breadcrumbFolders();
+    return Container(
+      width: double.infinity,
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            InkWell(
+              onTap: _currentFolderId == null
+                  ? null
+                  : () {
+                      Navigator.of(context).popUntil((route) => route.isFirst);
+                    },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                child: Text(
+                  _currentGroup.groupName,
+                  style: TextStyle(
+                    fontWeight: _currentFolderId == null
+                        ? FontWeight.bold
+                        : FontWeight.w500,
+                    color: _currentFolderId == null
+                        ? Colors.indigo
+                        : Colors.blueGrey,
+                  ),
+                ),
+              ),
+            ),
+            for (int i = 0; i < chain.length; i++) ...[
+              const Icon(Icons.chevron_right, size: 16, color: Colors.grey),
+              InkWell(
+                onTap: i == chain.length - 1
+                    ? null
+                    : () {
+                        final stepsBack = chain.length - 1 - i;
+                        int popped = 0;
+                        Navigator.of(context).popUntil((_) => popped++ >= stepsBack);
+                      },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  child: Text(
+                    chain[i].name,
+                    style: TextStyle(
+                      fontWeight: i == chain.length - 1
+                          ? FontWeight.bold
+                          : FontWeight.w500,
+                      color: i == chain.length - 1
+                          ? Colors.indigo
+                          : Colors.blueGrey,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFolderSection() {
+    if (_childFolders.isEmpty) return const SizedBox.shrink();
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final folder in _childFolders)
+          Card(
+            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            child: ListTile(
+              leading: Text(folder.icon, style: const TextStyle(fontSize: 24)),
+              title: Text(
+                folder.name,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              subtitle: Text(
+                _folderSummaryText(folder.id),
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              trailing: PopupMenuButton<String>(
+                onSelected: (action) {
+                  if (action == 'rename') {
+                    _showRenameFolderDialog(folder);
+                  } else if (action == 'move') {
+                    _showMoveFolderDialog(folder);
+                  } else if (action == 'delete') {
+                    _confirmDeleteFolder(folder);
+                  }
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'rename', child: Text('Ubah Nama')),
+                  PopupMenuItem(value: 'move', child: Text('Pindahkan')),
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: Text('Hapus', style: TextStyle(color: Colors.red)),
+                  ),
+                ],
+              ),
+              onTap: () => _openFolder(folder),
+            ),
+          ),
+      ],
+    );
+  }
+
+  String _folderSummaryText(String folderId) {
+    final counts = _folderCounts[folderId];
+    if (counts == null) return 'Kosong';
+    if (counts.folderCount == 0 && counts.fileCount == 0) return 'Kosong';
+    return '${counts.folderCount} folder • ${counts.fileCount} berkas';
+  }
+
+  Future<void> _openFolder(DocumentFolder folder) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DocumentDetailScreen(
+          group: _currentGroup,
+          baseDir: widget.baseDir,
+          initialFolderId: folder.id,
+        ),
+      ),
+    );
+    await _loadPhysicalFiles();
+  }
+
+  Future<void> _showCreateFolderDialog() async {
+    final controller = TextEditingController();
+    final created = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Folder Baru'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Nama Folder',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final err = await _documentsController.createFolder(
+                groupId: _currentGroup.id,
+                parentId: _currentFolderId,
+                name: controller.text,
+              );
+              if (!ctx.mounted) return;
+              if (err != null) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  SnackBar(content: Text(err)),
+                );
+              } else {
+                Navigator.pop(ctx, true);
+              }
+            },
+            child: const Text('Buat'),
+          ),
+        ],
+      ),
+    );
+    if (created == true) {
+      await _loadPhysicalFiles();
+    }
+  }
+
+  Future<void> _showRenameFolderDialog(DocumentFolder folder) async {
+    final controller = TextEditingController(text: folder.name);
+    final renamed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Ubah Nama Folder'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Nama Folder',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final err = await _documentsController.renameFolder(
+                groupId: _currentGroup.id,
+                folderId: folder.id,
+                newName: controller.text,
+              );
+              if (!ctx.mounted) return;
+              if (err != null) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  SnackBar(content: Text(err)),
+                );
+              } else {
+                Navigator.pop(ctx, true);
+              }
+            },
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+    if (renamed == true) {
+      await _loadPhysicalFiles();
+    }
+  }
+
+  Future<void> _showMoveFolderDialog(DocumentFolder folder) async {
+    final targets = _currentGroup.folders
+        .where((f) => f.id != folder.id)
+        .toList();
+    String? selectedParentId = folder.parentId;
+    final moved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Pindahkan Folder'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                RadioListTile<String?>(
+                  value: null,
+                  groupValue: selectedParentId,
+                  title: Text('Root (${_currentGroup.groupName})'),
+                  onChanged: (val) => setDialogState(() => selectedParentId = val),
+                ),
+                for (final target in targets)
+                  RadioListTile<String?>(
+                    value: target.id,
+                    groupValue: selectedParentId,
+                    title: Text('${target.icon} ${target.name}'),
+                    onChanged: (val) =>
+                        setDialogState(() => selectedParentId = val),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final err = await _documentsController.moveFolder(
+                  groupId: _currentGroup.id,
+                  folderId: folder.id,
+                  newParentId: selectedParentId,
+                );
+                if (!ctx.mounted) return;
+                if (err != null) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    SnackBar(content: Text(err)),
+                  );
+                } else {
+                  Navigator.pop(ctx, true);
+                }
+              },
+              child: const Text('Pindahkan'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (moved == true) {
+      await _loadPhysicalFiles();
+    }
+  }
+
+  Future<void> _confirmDeleteFolder(DocumentFolder folder) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Hapus Folder?'),
+        content: Text(
+          'Folder "${folder.name}" beserta seluruh subfolder dan berkas di dalamnya akan dihapus permanen.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Hapus', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await _documentsController.deleteFolder(
+        groupId: _currentGroup.id,
+        folderId: folder.id,
+      );
+      await _loadPhysicalFiles();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final String pageTitleWithIcon =
@@ -774,26 +1143,45 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
           ? const Center(
               child: CircularProgressIndicator(color: Colors.blueGrey),
             )
-          : physicalFiles.isEmpty
+          : physicalFiles.isEmpty && _childFolders.isEmpty
           ? Scaffold(
               appBar: AppBar(
                 title: Text(widget.group.groupName),
                 backgroundColor: Colors.blueGrey[800],
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.create_new_folder_outlined),
+                    tooltip: 'Folder Baru',
+                    onPressed: _showCreateFolderDialog,
+                  ),
+                ],
               ),
-              body: UniversalEmptyState(
-                icon: Icons.drive_folder_upload_rounded,
-                title: 'Grup Dokumen Kosong',
-                description: 'Belum ada berkas tersimpan di grup ini.',
-                buttonLabel: 'Masukkan File',
-                themeColor: Colors.blueGrey,
-                onPressed: _importFileFromDevice,
+              body: Column(
+                children: [
+                  if (_currentFolderId != null) _buildBreadcrumbBar(),
+                  Expanded(
+                    child: UniversalEmptyState(
+                      icon: Icons.drive_folder_upload_rounded,
+                      title: 'Grup Dokumen Kosong',
+                      description: 'Belum ada berkas tersimpan di grup ini.',
+                      buttonLabel: 'Masukkan File',
+                      themeColor: Colors.blueGrey,
+                      onPressed: _importFileFromDevice,
+                    ),
+                  ),
+                ],
               ),
               // IMPLEMENTASI LAYOUT FOOTER BANNER MENGGUNAKAN WIDGET ADAPTIVE PADA KONDISI DATA KOSONG
               bottomNavigationBar: const AdaptiveBannerAd(
                 adKey: 'document_detail_banner',
               ),
             )
-          : BaseDetailListScreen<File>(
+          : Column(
+              children: [
+                if (_currentFolderId != null) _buildBreadcrumbBar(),
+                if (_childFolders.isNotEmpty) _buildFolderSection(),
+                Expanded(
+                  child: BaseDetailListScreen<File>(
               pageTitle: pageTitleWithIcon,
               items: physicalFiles,
               enableSearch: true,
@@ -992,6 +1380,9 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
               onShareMassive: (selectedItems) async {
                 await _shareMassiveFiles(selectedItems);
               },
+            ),
+                ),
+              ],
             ),
       // MENGGUNAKAN WIDGET KUSTOM ADMOB YANG BARU DAN MODULAR PADA FOOTER LAYOUT DATA UTAMA
       bottomNavigationBar: const AdaptiveBannerAd(

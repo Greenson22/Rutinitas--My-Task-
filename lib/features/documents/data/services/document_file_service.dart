@@ -208,6 +208,123 @@ class DocumentFileService {
     }
   }
 
+  /// Membersihkan nama folder dari karakter path terlarang.
+  String sanitizeFolderName(String rawName) {
+    final replaced = rawName
+        .replaceAll(RegExp(r'[/\\:*?"<>|]'), '_')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    if (replaced.isEmpty || replaced == '.' || replaced == '..') {
+      return '';
+    }
+    return replaced;
+  }
+
+  /// Mengembalikan [Directory] untuk [relativePath] di dalam [groupId].
+  Directory resolveDirectory(String groupId, {String relativePath = ''}) {
+    final normalized = relativePath.replaceAll('\\', '/');
+    final segments = normalized
+        .split('/')
+        .where((s) => s.isNotEmpty && s != '.')
+        .toList();
+    if (segments.isEmpty) return groupDirectory(groupId);
+    return Directory([groupDirectory(groupId).path, ...segments].join(_separator));
+  }
+
+  /// Memastikan direktori untuk [relativePath] di dalam [groupId] ada.
+  Future<Directory> ensureDirectory(
+    String groupId, {
+    String relativePath = '',
+  }) async {
+    final dir = resolveDirectory(groupId, relativePath: relativePath);
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
+    return dir;
+  }
+
+  /// Membaca isi langsung direktori (non-rekursif), memisahkan subfolder dan berkas.
+  ///
+  /// Berkas JSON metadata disembunyikan pada level root group.
+  Future<({List<Directory> directories, List<File> files})> listDirectory(
+    String groupId, {
+    String relativePath = '',
+  }) async {
+    final dir = await ensureDirectory(groupId, relativePath: relativePath);
+    final entities = dir.listSync();
+    final isRoot = relativePath.trim().isEmpty;
+    final directories = entities.whereType<Directory>().toList();
+    final files = entities
+        .whereType<File>()
+        .where((file) => !isRoot || !_isMetadataFile(file))
+        .toList();
+    return (directories: directories, files: files);
+  }
+
+  /// Menghitung jumlah subfolder dan berkas langsung di dalam [relativePath]
+  /// tanpa membuat direktori bila belum ada.
+  Future<({int folderCount, int fileCount})> countDirectoryEntries(
+    String groupId, {
+    String relativePath = '',
+  }) async {
+    final dir = resolveDirectory(groupId, relativePath: relativePath);
+    if (!await dir.exists()) return (folderCount: 0, fileCount: 0);
+    final entities = dir.listSync();
+    final isRoot = relativePath.trim().isEmpty;
+    final folderCount = entities.whereType<Directory>().length;
+    final fileCount = entities
+        .whereType<File>()
+        .where((file) => !isRoot || !_isMetadataFile(file))
+        .length;
+    return (folderCount: folderCount, fileCount: fileCount);
+  }
+
+  /// Membuat direktori fisik folder baru.
+  Future<Directory> createFolderDirectory(
+    String groupId,
+    String relativePath,
+  ) async {
+    return ensureDirectory(groupId, relativePath: relativePath);
+  }
+
+  /// Mengganti nama/lokasi direktori fisik folder.
+  Future<Directory> renameFolderDirectory(
+    String groupId,
+    String oldRelativePath,
+    String newRelativePath,
+  ) async {
+    final oldDir = resolveDirectory(groupId, relativePath: oldRelativePath);
+    final newDir = resolveDirectory(groupId, relativePath: newRelativePath);
+    if (!await newDir.parent.exists()) {
+      await newDir.parent.create(recursive: true);
+    }
+    if (await oldDir.exists()) {
+      return oldDir.rename(newDir.path);
+    }
+    await newDir.create(recursive: true);
+    return newDir;
+  }
+
+  /// Memindahkan direktori fisik folder ke lokasi baru.
+  Future<Directory> moveFolderDirectory(
+    String groupId,
+    String oldRelativePath,
+    String newRelativePath,
+  ) async {
+    return renameFolderDirectory(groupId, oldRelativePath, newRelativePath);
+  }
+
+  /// Menghapus direktori fisik folder beserta seluruh isinya secara rekursif.
+  Future<void> deleteFolderDirectory(
+    String groupId,
+    String relativePath,
+  ) async {
+    final dir = resolveDirectory(groupId, relativePath: relativePath);
+    if (await dir.exists()) {
+      await dir.delete(recursive: true);
+    }
+  }
+
   /// Path direktori group tanpa menyentuh filesystem.
   String ensureDirectoryPath(String groupId) => groupDirectory(groupId).path;
 

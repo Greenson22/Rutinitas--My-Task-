@@ -61,6 +61,46 @@ class DocumentSection {
   }
 }
 
+class DocumentFolder {
+  String id;
+  String name;
+  String icon;
+  String? parentId;
+  int orderIndex;
+
+  DocumentFolder({
+    required this.id,
+    required this.name,
+    this.icon = '📁',
+    this.parentId,
+    this.orderIndex = 0,
+  });
+
+  factory DocumentFolder.fromJson(Map<String, dynamic> json) {
+    final rawParent = json['parentId'];
+    final parentId = rawParent is String && rawParent.isNotEmpty
+        ? rawParent
+        : null;
+    return DocumentFolder(
+      id: json['id'] ?? '',
+      name: json['name'] ?? 'Folder',
+      icon: json['icon'] ?? '📁',
+      parentId: parentId,
+      orderIndex: json['orderIndex'] ?? json['order_index'] ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'icon': icon,
+      'parentId': parentId,
+      'orderIndex': orderIndex,
+    };
+  }
+}
+
 class DocumentGroup {
   String id;
   String groupName;
@@ -70,6 +110,7 @@ class DocumentGroup {
   bool isHidden;
   int orderIndex;
   List<DocumentSection> allList;
+  List<DocumentFolder> folders;
 
   DocumentGroup({
     required this.id,
@@ -80,7 +121,8 @@ class DocumentGroup {
     this.isHidden = false,
     this.orderIndex = 0,
     required this.allList,
-  });
+    List<DocumentFolder>? folders,
+  }) : folders = folders ?? [];
 
   factory DocumentGroup.fromJson(Map<String, dynamic> json) {
     return DocumentGroup(
@@ -101,6 +143,11 @@ class DocumentGroup {
               ?.map((section) => DocumentSection.fromJson(section))
               .toList() ??
           [],
+      folders:
+          (json['folders'] as List<dynamic>?)
+              ?.map((folder) => DocumentFolder.fromJson(folder))
+              .toList() ??
+          [],
     );
   }
 
@@ -115,6 +162,7 @@ class DocumentGroup {
       'isHidden': isHidden,
       'order_index': orderIndex,
       'allList': allList.map((section) => section.toJson()).toList(),
+      'folders': folders.map((folder) => folder.toJson()).toList(),
     };
   }
 }

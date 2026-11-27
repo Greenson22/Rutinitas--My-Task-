@@ -373,4 +373,196 @@ class DocumentsController extends ChangeNotifier {
   List<DocumentGroup> getAvailableTargetGroups(String currentGroupId) {
     return allGroupRaw.where((group) => group.id != currentGroupId).toList();
   }
+
+  /// Mengembalikan path relatif sebuah folder terhadap root group.
+  String folderRelativePath(DocumentGroup group, String? folderId) {
+    if (folderId == null || folderId.isEmpty) return '';
+    final byId = {for (final f in group.folders) f.id: f};
+    final segments = <String>[];
+    String? currentId = folderId;
+    final visited = <String>{};
+    while (currentId != null && currentId.isNotEmpty) {
+      if (!visited.add(currentId)) break;
+      final folder = byId[currentId];
+      if (folder == null) break;
+      segments.add(folder.name);
+      currentId = folder.parentId;
+    }
+    return segments.reversed.join('/');
+  }
+
+  /// Daftar folder anak langsung di bawah [parentId], diurutkan A-Z.
+  List<DocumentFolder> getChildFolders(DocumentGroup group, String? parentId) {
+    final normalizedParent = (parentId == null || parentId.isEmpty)
+        ? null
+        : parentId;
+    final children = group.folders
+        .where((f) => f.parentId == normalizedParent)
+        .toList();
+    children.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    return children;
+  }
+
+  /// Membuat folder baru di dalam [groupId] (di bawah [parentId]).
+  /// Mengembalikan `null` jika berhasil, atau pesan error jika gagal.
+  Future<String?> createFolder({
+    required String groupId,
+    String? parentId,
+    required String name,
+    String icon = '📁',
+  }) async {
+    final group = allGroupRaw.where((g) => g.id == groupId).firstOrNull;
+    if (group == null) return 'Group tidak ditemukan';
+
+    final sanitized = _fileService.sanitizeFolderName(name);
+    if (sanitized.isEmpty) return 'Nama folder tidak valid';
+
+    final normalizedParent = (parentId == null || parentId.isEmpty)
+        ? null
+        : parentId;
+    final duplicate = group.folders.any(
+      (f) =>
+          f.parentId == normalizedParent &&
+          f.name.toLowerCase() == sanitized.toLowerCase(),
+    );
+    if (duplicate) return 'Folder "$sanitized" sudah ada di lokasi ini';
+
+    final newFolder = DocumentFolder(
+      id: 'fld_${DateTime.now().millisecondsSinceEpoch}',
+      name: sanitized,
+      icon: icon,
+      parentId: normalizedParent,
+      orderIndex: getChildFolders(group, normalizedParent).length,
+    );
+    group.folders.add(newFolder);
+    final relPath = folderRelativePath(group, newFolder.id);
+    await _fileService.createFolderDirectory(groupId, relPath);
+    await saveGroupDataToFile(group);
+    await loadGroupsData();
+    return null;
+  }
+
+  /// Mengubah nama (dan opsional ikon) folder.
+  Future<String?> renameFolder({
+    required String groupId,
+    required String folderId,
+    required String newName,
+    String? newIcon,
+  }) async {
+    final group = allGroupRaw.where((g) => g.id == groupId).firstOrNull;
+    if (group == null) return 'Group tidak ditemukan';
+    final folder = group.folders.where((f) => f.id == folderId).firstOrNull;
+    if (folder == null) return 'Folder tidak ditemukan';
+
+    final sanitized = _fileService.sanitizeFolderName(newName);
+    if (sanitized.isEmpty) return 'Nama folder tidak valid';
+
+    final duplicate = group.folders.any(
+      (f) =>
+          f.id != folderId &&
+          f.parentId == folder.parentId &&
+          f.name.toLowerCase() == sanitized.toLowerCase(),
+    );
+    if (duplicate) return 'Folder "$sanitized" sudah ada di lokasi ini';
+
+    final oldPath = folderRelativePath(group, folderId);
+    folder.name = sanitized;
+    if (newIcon != null && newIcon.isNotEmpty) {
+      folder.icon = newIcon;
+    }
+    final newPath = folderRelativePath(group, folderId);
+    if (oldPath != newPath) {
+      await _fileService.renameFolderDirectory(groupId, oldPath, newPath);
+    }
+    await saveGroupDataToFile(group);
+    await loadGroupsData();
+    return null;
+  }
+
+  /// Memindahkan folder ke [newParentId] di group yang sama.
+  Future<String?> moveFolder({
+    required String groupId,
+    required String folderId,
+    String? newParentId,
+  }) async {
+    final group = allGroupRaw.where((g) => g.id == groupId).firstOrNull;
+    if (group == null) return 'Group tidak ditemukan';
+    final folder = group.folders.where((f) => f.id == folderId).firstOrNull;
+    if (folder == null) return 'Folder tidak ditemukan';
+
+    final normalizedParent = (newParentId == null || newParentId.isEmpty)
+        ? null
+        : newParentId;
+    if (normalizedParent == folderId ||
+        _isDescendantFolder(group, ancestorId: folderId, candidateId: normalizedParent)) {
+      return 'Tidak dapat memindahkan folder ke dalam dirinya sendiri atau turunannya';
+    }
+
+    final duplicate = group.folders.any(
+      (f) =>
+          f.id != folderId &&
+          f.parentId == normalizedParent &&
+          f.name.toLowerCase() == folder.name.toLowerCase(),
+    );
+    if (duplicate) {
+      return 'Folder "${folder.name}" sudah ada di folder tujuan';
+    }
+
+    final oldPath = folderRelativePath(group, folderId);
+    folder.parentId = normalizedParent;
+    final newPath = folderRelativePath(group, folderId);
+    if (oldPath != newPath) {
+      await _fileService.moveFolderDirectory(groupId, oldPath, newPath);
+    }
+    await saveGroupDataToFile(group);
+    await loadGroupsData();
+    return null;
+  }
+
+  /// Menghapus folder beserta seluruh subfolder dan berkas fisiknya secara rekursif.
+  Future<bool> deleteFolder({
+    required String groupId,
+    required String folderId,
+  }) async {
+    final group = allGroupRaw.where((g) => g.id == groupId).firstOrNull;
+    if (group == null) return false;
+    final relPath = folderRelativePath(group, folderId);
+    if (relPath.isEmpty) return false;
+
+    final toRemove = <String>{folderId};
+    bool added = true;
+    while (added) {
+      added = false;
+      for (final f in group.folders) {
+        if (f.parentId != null &&
+            toRemove.contains(f.parentId) &&
+            toRemove.add(f.id)) {
+          added = true;
+        }
+      }
+    }
+
+    group.folders.removeWhere((f) => toRemove.contains(f.id));
+    await _fileService.deleteFolderDirectory(groupId, relPath);
+    await saveGroupDataToFile(group);
+    await loadGroupsData();
+    return true;
+  }
+
+  bool _isDescendantFolder(
+    DocumentGroup group, {
+    required String ancestorId,
+    required String? candidateId,
+  }) {
+    if (candidateId == null) return false;
+    final byId = {for (final f in group.folders) f.id: f};
+    String? current = candidateId;
+    final visited = <String>{};
+    while (current != null && current.isNotEmpty) {
+      if (current == ancestorId) return true;
+      if (!visited.add(current)) break;
+      current = byId[current]?.parentId;
+    }
+    return false;
+  }
 }

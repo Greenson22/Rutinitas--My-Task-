@@ -279,4 +279,44 @@ void main() {
       },
     );
   });
+
+  group('folder operations', () {
+    test('sanitizeFolderName membersihkan karakter terlarang', () {
+      expect(service.sanitizeFolderName('  Kerja/2026:A*B?  '), 'Kerja_2026_A_B_');
+      expect(service.sanitizeFolderName('..'), '');
+      expect(service.sanitizeFolderName('   '), '');
+    });
+
+    test('create, listDirectory, countDirectoryEntries, rename, move, deleteFolderDirectory', () async {
+      await service.createFolderDirectory('g1', 'Induk/Anak');
+      final childDir = service.resolveDirectory('g1', relativePath: 'Induk/Anak');
+      await File('${childDir.path}/doc.txt').writeAsString('isi');
+
+      final rootListing = await service.listDirectory('g1');
+      expect(rootListing.directories.length, 1);
+      expect(rootListing.files, isEmpty);
+
+      final counts = await service.countDirectoryEntries('g1', relativePath: 'Induk');
+      expect(counts.folderCount, 1);
+      expect(counts.fileCount, 0);
+
+      await service.renameFolderDirectory('g1', 'Induk/Anak', 'Induk/AnakBaru');
+      expect(
+        await File('${service.resolveDirectory('g1', relativePath: 'Induk/AnakBaru').path}/doc.txt').exists(),
+        isTrue,
+      );
+
+      await service.moveFolderDirectory('g1', 'Induk/AnakBaru', 'AnakPindah');
+      expect(
+        await File('${service.resolveDirectory('g1', relativePath: 'AnakPindah').path}/doc.txt').exists(),
+        isTrue,
+      );
+
+      await service.deleteFolderDirectory('g1', 'AnakPindah');
+      expect(
+        await service.resolveDirectory('g1', relativePath: 'AnakPindah').exists(),
+        isFalse,
+      );
+    });
+  });
 }
