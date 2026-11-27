@@ -1063,6 +1063,33 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
               ),
               if (widget.subject.type != 'note')
                 IconButton(
+                  tooltip: widget.subject.isMonitorMode
+                      ? 'Matikan Mode Monitor'
+                      : 'Aktifkan Mode Monitor',
+                  icon: Icon(
+                    widget.subject.isMonitorMode
+                        ? Icons.monitor_heart_rounded
+                        : Icons.monitor_heart_outlined,
+                    color: widget.subject.isMonitorMode
+                        ? Colors.amberAccent
+                        : (Color(widget.subject.backgroundColor).computeLuminance() > 0.5
+                            ? Colors.black87
+                            : Colors.white),
+                    size: 20,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      widget.subject.isMonitorMode =
+                          !widget.subject.isMonitorMode;
+                      if (widget.subject.isMonitorMode) {
+                        isEditMode = false;
+                      }
+                    });
+                    widget.onDataChanged();
+                  },
+                ),
+              if (widget.subject.type != 'note')
+                IconButton(
                   icon: Icon(
                     showControlPanel ? Icons.tune : Icons.tune_outlined,
                     color: showControlPanel
