@@ -122,75 +122,81 @@ class _AboutPageState extends State<AboutPage>
     final features = [
       {
         'icon': Icons.format_list_bulleted,
-        'title': 'Task Master',
+        'title': 'Task Master & Target Harian',
         'subtitle':
-            'Kelola tugas Anda berdasarkan kategori dengan target hitungan harian. Mendukung fitur penambahan hitungan berkala yang terintegrasi langsung.',
+            'Kelola tugas berdasarkan kategori dengan target harian, pengurutan Hari Ini yang permanen, serta dukungan penambahan hitungan berkala.',
       },
       {
         'icon': Icons.stacked_line_chart,
         'title': 'Tipe Tugas Fleksibel',
         'subtitle':
-            'Pilih antara Tugas Biasa untuk hitungan rutinitas atau Tugas Progress yang dilengkapi Progress Bar dengan visualisasi warna dinamis yang mulus (Merah-Oranye-Hijau-Teal).',
+            'Pilih tugas kebiasaan, penghitung, atau progres dengan Progress Bar dinamis sesuai kebutuhan rutinitas Anda.',
       },
       {
         'icon': Icons.checklist_rtl,
         'title': 'My Checklist Hubs',
         'subtitle':
-            'Atur berbagai kategori rutinitas ke dalam multi-hub kustom. Dilengkapi struktur sub-materi bersarang (nested tree list) yang bisa dikelola secara tak terbatas.',
+            'Atur daftar rutinitas dalam multi-hub dengan sub-item bersarang, kontrol tampilan seksi, serta relasi antar item dan card.',
+      },
+      {
+        'icon': Icons.attach_file,
+        'title': 'Tautan Berkas Checklist',
+        'subtitle':
+            'Tautkan item checklist langsung ke berkas di My Documents dan buka berkasnya secara cepat dari menu item.',
+      },
+      {
+        'icon': Icons.history_toggle_off,
+        'title': 'DailyTracker & Riwayat',
+        'subtitle':
+            'Simpan progres harian pada card checklist dan pantau riwayat pencapaian Anda dari waktu ke waktu.',
+      },
+      {
+        'icon': Icons.folder_copy_outlined,
+        'title': 'My Documents (Folder Bertingkat)',
+        'subtitle':
+            'Kelompokkan berkas dalam group dan folder bersarang tanpa batas, lengkap dengan breadcrumb, ikon emoji, serta bagikan berkas atau folder ZIP.',
       },
       {
         'icon': Icons.note_alt_outlined,
-        'title': 'Catatan Dinamis (Notes)',
+        'title': 'My Notes',
         'subtitle':
-            'Buat dan kelola catatan secara terstruktur dengan dukungan tampilan tabel (Table Data View) serta pengaturan kolom kustom yang fleksibel.',
+            'Buat dan kelola catatan terstruktur dengan dukungan tampilan tabel dan pengaturan kolom yang fleksibel.',
       },
       {
         'icon': Icons.smart_button,
         'title': 'Manajemen Prompt',
         'subtitle':
-            'Simpan, organisir, dan kelola template teks atau prompt AI Anda dengan rapi. Dilengkapi fitur manajemen detail item prompt yang komprehensif.',
+            'Simpan dan organisir template teks atau prompt AI dengan rapi agar mudah dipakai ulang.',
       },
       {
         'icon': Icons.palette_outlined,
         'title': 'Kustomisasi Warna Adaptif',
         'subtitle':
-            'Ubah warna latar belakang kartu materi menggunakan kode HEX bebas atau palet kustom eksternal. Warna teks akan otomatis menyesuaikan tingkat kecerahan latar (Gelap/Terang).',
+            'Sesuaikan warna kartu menggunakan palet, color wheel, atau kode HEX dengan kontras teks otomatis.',
       },
       {
         'icon': Icons.menu_book,
         'title': 'Jurnal Aktivitas',
         'subtitle':
-            'Lacak durasi waktu produktif harian Anda. Setiap kali Anda melakukan increment count pada Task Master, sistem akan otomatis menambahkan durasi produktif +30 menit ke jurnal yang terhubung.',
+            'Catat durasi waktu produktif harian yang terhubung langsung dengan aktivitas Task Master.',
       },
       {
         'icon': Icons.analytics_outlined,
-        'title': 'Statistik & Analitik Tren',
+        'title': 'Statistik & Analitik',
         'subtitle':
-            'Visualisasikan distribusi waktu produktif dan tren harian melalui grafik Stacked Bar Chart (Batang Bertumpuk) interaktif yang ramah mobile berdasarkan filter rentang waktu.',
+            'Visualisasikan distribusi waktu produktif dan tren harian melalui grafik batang bertumpuk interaktif.',
       },
       {
         'icon': Icons.backup_outlined,
-        'title': 'Data Center (Backup & Restore)',
+        'title': 'Data Center & Berbagi Lokal',
         'subtitle':
-            'Ekspor dan impor data secara parsial (per fitur) dalam bentuk JSON atau gunakan fitur Backup Utama untuk mengompresi seluruh ekosistem data aplikasi menjadi satu berkas ZIP cadangan.',
-      },
-      {
-        'icon': Icons.wifi_find_outlined,
-        'title': 'Local Sharing (Pipa Komunikasi)',
-        'subtitle':
-            'Kirim dan terima data antar-perangkat secara instan dalam satu jaringan lokal WiFi/LAN menggunakan protokol komunikasi dua arah WebSocket Server-Client.',
+            'Ekspor, impor, backup ZIP seluruh data, serta sinkronisasi antar-perangkat dalam satu jaringan lokal.',
       },
       {
         'icon': Icons.folder_shared_outlined,
-        'title': 'Penyimpanan Offline Lokal',
+        'title': 'Penyimpanan Offline & Direktori Kustom',
         'subtitle':
-            'Data disimpan sepenuhnya di memori lokal perangkat Anda (subfolder /mytask, /my_checklist, /jurnal_aktivitas, /notes, /prompt) untuk menjamin privasi data 100% tanpa ketergantungan cloud.',
-      },
-      {
-        'icon': Icons.tune,
-        'title': 'Pengaturan Direktori Kustom',
-        'subtitle':
-            'Kebebasan penuh untuk memindahkan dan memilih folder penyimpanan data utama (base directory) aplikasi, sangat fleksibel dan ramah untuk pengguna Linux maupun Android.',
+            'Seluruh data tersimpan lokal di perangkat Anda dengan kebebasan memilih folder penyimpanan utama.',
       },
     ];
 
@@ -366,7 +372,7 @@ class _AboutPageState extends State<AboutPage>
                   style: TextStyle(color: Colors.indigo),
                 ),
                 onPressed: () =>
-                    launchUrl(Uri.parse('mailto:frendydev1@gmail.com')),
+                    launchUrl(Uri.parse('mailto:frendyrikalgerung@gmail.com')),
               ),
             ],
           ),
