@@ -60,7 +60,7 @@ void main() {
       expect(find.byKey(const Key('btn_view_history')), findsOneWidget);
 
       expect(find.text('Simpan Hari Ini'), findsOneWidget);
-      expect(find.text('Reset Hari Baru'), findsOneWidget);
+      expect(find.text('Reset Hari Baru'), findsNothing);
       expect(find.text('Lihat History'), findsOneWidget);
     });
 

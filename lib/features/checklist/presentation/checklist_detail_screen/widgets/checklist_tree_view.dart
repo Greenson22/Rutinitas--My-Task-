@@ -2,8 +2,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:open_file/open_file.dart';
-import '../../../../core/services/storage_service.dart';
-import '../../../documents/data/services/document_file_service.dart';
+import 'package:rutinitasku/core/services/storage_service.dart';
+import 'package:rutinitasku/features/documents/data/services/document_file_service.dart';
 import '../../../data/models/daily_model.dart';
 
 class ChecklistTreeView extends StatelessWidget {

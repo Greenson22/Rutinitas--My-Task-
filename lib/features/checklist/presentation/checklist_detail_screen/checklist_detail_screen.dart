@@ -1076,48 +1076,9 @@ class _ChecklistDetailScreenState extends ChecklistDetailController {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Tooltip(
-                        message: 'Reset centang untuk hari baru',
-                        child: OutlinedButton(
-                          key: const Key('btn_reset_for_new_day'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.grey.shade700,
-                            side: BorderSide(color: Colors.grey.shade400, width: 1),
-                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                            minimumSize: const Size(0, 28),
-                            visualDensity: VisualDensity.compact,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                          ),
-                          onPressed: () async {
-                            await resetForNewDay(subject);
-                          },
-                          child: const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.refresh_rounded, size: 12),
-                              SizedBox(width: 3),
-                              Flexible(
-                                child: Text(
-                                  'Reset Hari Baru',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
                   ],
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
                 SizedBox(
                   width: double.infinity,
                   child: Tooltip(
