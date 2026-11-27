@@ -20,6 +20,7 @@ class BaseDetailListScreen<T> extends StatefulWidget {
   final Widget Function(T item)? itemIconBuilder;
 
   final Widget? additionalAction; // Digunakan saat mode normal (misal: Sorting)
+  final Widget? headerWidget;
 
   final VoidCallback? onAddPressed;
   final Function(T item)? onItemTap;
@@ -59,6 +60,7 @@ class BaseDetailListScreen<T> extends StatefulWidget {
     this.itemMenuBuilder,
     this.onItemMenuSelected,
     this.additionalAction,
+    this.headerWidget,
   });
 
   @override
@@ -284,6 +286,7 @@ class _BaseDetailListScreenState<T> extends State<BaseDetailListScreen<T>> {
       ),
       body: Column(
         children: [
+          if (widget.headerWidget != null) widget.headerWidget!,
           Expanded(
             child: filteredItems.isEmpty
                 ? const Center(

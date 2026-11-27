@@ -1291,14 +1291,18 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
                 adKey: 'document_detail_banner',
               ),
             )
-          : Column(
-              children: [
-                if (_currentFolderId != null) _buildBreadcrumbBar(),
-                if (_childFolders.isNotEmpty) _buildFolderSection(),
-                Expanded(
-                  child: BaseDetailListScreen<File>(
+          : BaseDetailListScreen<File>(
               pageTitle: pageTitleWithIcon,
               items: physicalFiles,
+              headerWidget: (_currentFolderId != null || _childFolders.isNotEmpty)
+                  ? Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (_currentFolderId != null) _buildBreadcrumbBar(),
+                        if (_childFolders.isNotEmpty) _buildFolderSection(),
+                      ],
+                    )
+                  : null,
               enableSearch: true,
               enableMultiSelect: true,
               enableAddButton: true,
@@ -1480,9 +1484,6 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
               onShareMassive: (selectedItems) async {
                 await _shareMassiveFiles(selectedItems);
               },
-            ),
-                ),
-              ],
             ),
       // MENGGUNAKAN WIDGET KUSTOM ADMOB YANG BARU DAN MODULAR PADA FOOTER LAYOUT DATA UTAMA
       bottomNavigationBar: const AdaptiveBannerAd(
