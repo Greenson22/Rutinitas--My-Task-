@@ -23,44 +23,74 @@ class ChecklistNoteView extends StatelessWidget {
     // MODE VIEW & MARKDOWN AKTIF: Tampilkan Render Teks Kaya (Markdown)
     // =========================================================================
     if (isViewMode && isMarkdownEnabled) {
+      final theme = Theme.of(context);
+      final primaryColor = theme.colorScheme.primary;
+
       return Container(
         color: Colors.white,
-        padding: const EdgeInsets.all(16.0),
         width: double.infinity,
         height: double.infinity,
         child: Markdown(
+          padding: const EdgeInsets.all(16.0),
           data: noteController.text.isEmpty
               ? '*Catatan kosong.*'
               : noteController.text,
           selectable: true,
-          styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
+          styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
             p: const TextStyle(
-              fontSize: 14,
+              fontSize: 14.5,
               color: Colors.black87,
-              height: 1.5,
+              height: 1.55,
             ),
-            h1: const TextStyle(
-              fontSize: 20,
+            h1: TextStyle(
+              fontSize: 21,
               fontWeight: FontWeight.bold,
-              color: Colors.teal,
+              color: primaryColor,
+              height: 1.4,
             ),
-            h2: const TextStyle(
+            h2: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Colors.teal,
+              color: primaryColor,
+              height: 1.4,
             ),
-            h3: const TextStyle(
+            h3: TextStyle(
               fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: primaryColor,
+              height: 1.4,
+            ),
+            listBullet: TextStyle(
+              fontSize: 14.5,
+              color: primaryColor,
               fontWeight: FontWeight.bold,
-              color: Colors.teal,
             ),
-            code: TextStyle(
-              backgroundColor: Colors.grey[200],
-              color: Colors.red[700],
+            code: const TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 13,
+              color: Color(0xFF24292F),
+              backgroundColor: Color(0xFFF3F4F6),
             ),
+            codeblockPadding: const EdgeInsets.all(14),
             codeblockDecoration: BoxDecoration(
-              color: Colors.grey[900],
+              color: const Color(0xFFF6F8FA),
               borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFD0D7DE)),
+            ),
+            blockquotePadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 8,
+            ),
+            blockquoteDecoration: BoxDecoration(
+              color: primaryColor.withValues(alpha: 0.06),
+              border: Border(
+                left: BorderSide(color: primaryColor, width: 4),
+              ),
+            ),
+            horizontalRuleDecoration: BoxDecoration(
+              border: Border(
+                top: BorderSide(color: Colors.grey.shade300, width: 1),
+              ),
             ),
           ),
         ),
