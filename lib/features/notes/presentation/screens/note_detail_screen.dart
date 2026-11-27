@@ -22,6 +22,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   late NoteDetailController _controller;
   // STATE BARU: Menyimpan jenis pengurutan aktif ('manual', 'az', 'za')
   String _currentSortType = 'manual';
+  bool _isLoadingFolders = true;
 
   @override
   void initState() {
@@ -33,7 +34,14 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         if (mounted) setState(() {});
       },
     );
-    _controller.loadChildFolders();
+    _loadFolders();
+  }
+
+  Future<void> _loadFolders() async {
+    await _controller.loadChildFolders();
+    if (mounted) {
+      setState(() => _isLoadingFolders = false);
+    }
   }
 
   void _showSubFolderDialog({NoteGroup? existingFolder}) {
@@ -657,6 +665,31 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoadingFolders) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF5F6FA),
+        appBar: AppBar(
+          title: Text(
+            _controller.currentGroup.groupName,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => Navigator.pop(context),
+          ),
+          backgroundColor: const Color(0xFF3F51B5),
+          elevation: 2,
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(color: Colors.indigo),
+        ),
+      );
+    }
+
     // ================= TANGANI KEADAAN AWAL KOSONG DI SINI =================
     if (_controller.currentGroup.notes.isEmpty &&
         _controller.childFolders.isEmpty) {
