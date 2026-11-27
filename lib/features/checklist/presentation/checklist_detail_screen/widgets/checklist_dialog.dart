@@ -497,7 +497,10 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
     return (sourceSubject: sourceSubject, item: sourceItem);
   }
 
-  void _showAddMonitorParentDialog({MonitorItemRef? existingParent}) {
+  void _showAddMonitorParentDialog({
+    MonitorItemRef? existingParent,
+    List<MonitorItemRef>? targetList,
+  }) {
     final controller = TextEditingController(
       text: existingParent?.parentTitle ?? '',
     );
@@ -529,7 +532,7 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                 if (existingParent != null) {
                   existingParent.parentTitle = title;
                 } else {
-                  widget.subject.monitorItems.add(
+                  (targetList ?? widget.subject.monitorItems).add(
                     MonitorItemRef(
                       isGroupParent: true,
                       parentTitle: title,
@@ -544,6 +547,164 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
           ),
         ],
       ),
+    );
+  }
+
+  void _showMonitorParentActions(
+    MonitorItemRef entry,
+    List<MonitorItemRef> containerList,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.folder_outlined, color: Colors.indigo),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      entry.parentTitle ?? 'Parent',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.add_circle_outline, color: Colors.teal),
+              title: const Text('Tambah Item Monitor'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _showAddMonitorItemDialog(targetParent: entry);
+              },
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.create_new_folder_outlined,
+                color: Colors.indigo,
+              ),
+              title: const Text('Tambah Sub-Parent'),
+              onTap: () {
+                Navigator.pop(ctx);
+                setState(() => entry.isExpanded = true);
+                _showAddMonitorParentDialog(targetList: entry.children);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined, color: Colors.blueGrey),
+              title: const Text('Ubah Nama Parent'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _showAddMonitorParentDialog(existingParent: entry);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: Colors.redAccent),
+              title: const Text(
+                'Hapus Parent',
+                style: TextStyle(color: Colors.redAccent),
+              ),
+              onTap: () {
+                Navigator.pop(ctx);
+                setState(() => containerList.remove(entry));
+                widget.onDataChanged();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMonitorParentNode(
+    MonitorItemRef entry,
+    List<MonitorItemRef> containerList,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: () {
+            setState(() => entry.isExpanded = !entry.isExpanded);
+            widget.onDataChanged();
+          },
+          onLongPress: () => _showMonitorParentActions(entry, containerList),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+            child: Row(
+              children: [
+                Icon(
+                  entry.isExpanded
+                      ? Icons.keyboard_arrow_down_rounded
+                      : Icons.keyboard_arrow_right_rounded,
+                  size: 20,
+                  color: Colors.indigo,
+                ),
+                const SizedBox(width: 4),
+                const Icon(
+                  Icons.folder_outlined,
+                  size: 18,
+                  color: Colors.indigo,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    entry.parentTitle ?? 'Parent',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: Colors.indigo,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (entry.isExpanded)
+          Padding(
+            padding: const EdgeInsets.only(left: 18.0),
+            child: entry.children.isEmpty
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                    child: Text(
+                      'Kosong — tahan parent untuk menambah item/sub-parent',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontStyle: FontStyle.italic,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  )
+                : Column(
+                    children: List.generate(entry.children.length, (cIdx) {
+                      final child = entry.children[cIdx];
+                      if (child.isGroupParent) {
+                        return _buildMonitorParentNode(child, entry.children);
+                      }
+                      return _buildMonitorShadowRow(
+                        child,
+                        entry.children,
+                        cIdx,
+                        entry.children.length,
+                      );
+                    }),
+                  ),
+          ),
+      ],
     );
   }
 
@@ -710,120 +871,7 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
               itemBuilder: (context, index) {
                 final entry = items[index];
                 if (entry.isGroupParent) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      InkWell(
-                        onTap: () {
-                          setState(() => entry.isExpanded = !entry.isExpanded);
-                          widget.onDataChanged();
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 6,
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                entry.isExpanded
-                                    ? Icons.keyboard_arrow_down_rounded
-                                    : Icons.keyboard_arrow_right_rounded,
-                                size: 20,
-                                color: Colors.indigo,
-                              ),
-                              const SizedBox(width: 4),
-                              const Icon(
-                                Icons.folder_outlined,
-                                size: 18,
-                                color: Colors.indigo,
-                              ),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  entry.parentTitle ?? 'Parent',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                    color: Colors.indigo,
-                                  ),
-                                ),
-                              ),
-                              IconButton(
-                                tooltip: 'Tambah Item ke Parent',
-                                icon: const Icon(
-                                  Icons.add_circle_outline,
-                                  size: 18,
-                                  color: Colors.teal,
-                                ),
-                                constraints: const BoxConstraints(),
-                                padding: const EdgeInsets.all(4),
-                                onPressed: () =>
-                                    _showAddMonitorItemDialog(targetParent: entry),
-                              ),
-                              IconButton(
-                                tooltip: 'Ubah Nama Parent',
-                                icon: const Icon(
-                                  Icons.edit_outlined,
-                                  size: 17,
-                                  color: Colors.blueGrey,
-                                ),
-                                constraints: const BoxConstraints(),
-                                padding: const EdgeInsets.all(4),
-                                onPressed: () => _showAddMonitorParentDialog(
-                                  existingParent: entry,
-                                ),
-                              ),
-                              IconButton(
-                                tooltip: 'Hapus Parent',
-                                icon: const Icon(
-                                  Icons.delete_outline,
-                                  size: 18,
-                                  color: Colors.redAccent,
-                                ),
-                                constraints: const BoxConstraints(),
-                                padding: const EdgeInsets.all(4),
-                                onPressed: () {
-                                  setState(() => items.remove(entry));
-                                  widget.onDataChanged();
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      if (entry.isExpanded)
-                        Padding(
-                          padding: const EdgeInsets.only(left: 18.0),
-                          child: entry.children.isEmpty
-                              ? const Padding(
-                                  padding: EdgeInsets.symmetric(
-                                    vertical: 4,
-                                    horizontal: 8,
-                                  ),
-                                  child: Text(
-                                    'Kosong — tekan + di parent untuk menambah item',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontStyle: FontStyle.italic,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                                )
-                              : Column(
-                                  children: List.generate(
-                                    entry.children.length,
-                                    (cIdx) => _buildMonitorShadowRow(
-                                      entry.children[cIdx],
-                                      entry.children,
-                                      cIdx,
-                                      entry.children.length,
-                                    ),
-                                  ),
-                                ),
-                        ),
-                    ],
-                  );
+                  return _buildMonitorParentNode(entry, items);
                 }
 
                 return _buildMonitorShadowRow(
