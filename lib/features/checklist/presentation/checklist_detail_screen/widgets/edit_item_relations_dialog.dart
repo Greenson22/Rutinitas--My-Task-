@@ -60,6 +60,7 @@ class _EditItemRelationsDialogState extends State<EditItemRelationsDialog> {
   String? _localExternalCardName;
   String? _localExternalItemId;
   String? _localExternalItemName;
+  String? _selectedExternalSection;
 
   String? _localDocGroupId;
   String? _localDocRelativePath;
@@ -250,16 +251,15 @@ class _EditItemRelationsDialogState extends State<EditItemRelationsDialog> {
               ),
             ),
             const SizedBox(height: 8),
-            DropdownButtonFormField<DailySubject>(
-              value: _selectedExternalCard,
+            DropdownButtonFormField<String?>(
+              value: _selectedExternalSection,
               decoration: const InputDecoration(
-                labelText: 'Pilih Card Checklist Target',
+                labelText: 'Kategori / Seksi Card Target',
                 border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.credit_card_rounded),
+                prefixIcon: Icon(Icons.folder_outlined),
               ),
-              hint: const Text('Pilih Card Luar (Opsional)'),
               items: [
-                const DropdownMenuItem<DailySubject>(
+                const DropdownMenuItem<String?>(
                   value: null,
                   child: Text('Tidak Dikaitkan Ke Card Lain'),
                 ),
@@ -268,41 +268,82 @@ class _EditItemRelationsDialogState extends State<EditItemRelationsDialog> {
                       (sub) =>
                           sub.subjectName != widget.currentSubject.subjectName,
                     )
-                    .map((sub) {
-                      String displaySection =
+                    .map(
+                      (sub) =>
                           (sub.section == 'focus' || sub.section.trim().isEmpty)
                           ? 'Seksi Utama'
-                          : sub.section;
-                      return DropdownMenuItem<DailySubject>(
-                        value: sub,
-                        child: Text(
-                          '${sub.icon} ${sub.subjectName} (${displaySection.toUpperCase()})',
-                        ),
-                      );
-                    }),
+                          : sub.section,
+                    )
+                    .toSet()
+                    .map(
+                      (sec) => DropdownMenuItem<String?>(
+                        value: sec,
+                        child: Text(sec.toUpperCase()),
+                      ),
+                    ),
               ],
-              onChanged: (DailySubject? targetCard) {
+              onChanged: (String? sec) {
                 setState(() {
-                  _selectedExternalCard = targetCard;
+                  _selectedExternalSection = sec;
+                  _selectedExternalCard = null;
                   _externalCardProgressItems.clear();
-                  _localExternalCardName = targetCard?.subjectName;
+                  _localExternalCardName = null;
+                  _localExternalItemId = null;
                   _localExternalItemName = null;
-                  if (targetCard != null) {
-                    widget.getAllItemsFlattened(
-                      targetCard.subMateri,
-                      _externalCardProgressItems,
-                    );
-                    _externalCardProgressItems = _externalCardProgressItems
-                        .where(
-                          (el) =>
-                              el.itemType == 'progress' ||
-                              el.itemType == 'countdown',
-                        )
-                        .toList();
-                  }
                 });
               },
             ),
+            if (_selectedExternalSection != null) ...[
+              const SizedBox(height: 10),
+              DropdownButtonFormField<DailySubject>(
+                value: _selectedExternalCard,
+                decoration: const InputDecoration(
+                  labelText: 'Pilih Card Checklist Target',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.credit_card_rounded),
+                ),
+                hint: const Text('Pilih Card Target'),
+                items: widget.allAvailableSubjects
+                    .where((sub) {
+                      if (sub.subjectName == widget.currentSubject.subjectName) {
+                        return false;
+                      }
+                      final sec =
+                          (sub.section == 'focus' || sub.section.trim().isEmpty)
+                          ? 'Seksi Utama'
+                          : sub.section;
+                      return sec == _selectedExternalSection;
+                    })
+                    .map(
+                      (sub) => DropdownMenuItem<DailySubject>(
+                        value: sub,
+                        child: Text('${sub.icon} ${sub.subjectName}'),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (DailySubject? targetCard) {
+                  setState(() {
+                    _selectedExternalCard = targetCard;
+                    _externalCardProgressItems.clear();
+                    _localExternalCardName = targetCard?.subjectName;
+                    _localExternalItemName = null;
+                    if (targetCard != null) {
+                      widget.getAllItemsFlattened(
+                        targetCard.subMateri,
+                        _externalCardProgressItems,
+                      );
+                      _externalCardProgressItems = _externalCardProgressItems
+                          .where(
+                            (el) =>
+                                el.itemType == 'progress' ||
+                                el.itemType == 'countdown',
+                          )
+                          .toList();
+                    }
+                  });
+                },
+              ),
+            ],
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
               value: _localExternalItemId ??
