@@ -423,7 +423,14 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
     );
 
     if (targetItem.subjectName.isEmpty) return null;
-    return '(${targetItem.currentValue}/${targetItem.targetValue})';
+    return '(${_formatNumber(targetItem.currentValue)}/${_formatNumber(targetItem.targetValue)})';
+  }
+
+  String _formatNumber(int number) {
+    return number.toString().replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (Match m) => '${m[1]}.',
+    );
   }
 
   @override
