@@ -45,6 +45,7 @@ class _EditItemRelationsDialogState extends State<EditItemRelationsDialog> {
   late final TextEditingController _editController;
   late final TextEditingController _currentValController;
   late final TextEditingController _targetValController;
+  late final TextEditingController _extIncrementController;
 
   ChecklistGroup? _selectedGroupTarget;
   List<DailySubject> _filteredCardTargets = [];
@@ -75,6 +76,9 @@ class _EditItemRelationsDialogState extends State<EditItemRelationsDialog> {
     );
     _targetValController = TextEditingController(
       text: widget.item.targetValue.toString(),
+    );
+    _extIncrementController = TextEditingController(
+      text: widget.item.externalIncrementAmount.toString(),
     );
 
     _localLinkedTargetId = widget.item.linkedSubjectId;
@@ -609,6 +613,11 @@ class _EditItemRelationsDialogState extends State<EditItemRelationsDialog> {
               widget.item.linkedDocumentGroupId = _localDocGroupId;
               widget.item.linkedDocumentRelativePath = _localDocRelativePath;
               widget.item.linkedDocumentName = _localDocName;
+              widget.item.externalIncrementAmount =
+                  (int.tryParse(_extIncrementController.text) ?? 1).clamp(
+                    1,
+                    999999999,
+                  );
 
               Navigator.pop(context);
               widget.onConfirm(

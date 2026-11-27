@@ -277,6 +277,58 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
     widget.onDataChanged();
   }
 
+  void _applyExternalAccumulation(
+    SubSubjectItem item,
+    int delta,
+    String todayStr,
+  ) {
+    final externalCard = widget.allAvailableSubjects.firstWhere(
+      (sub) => sub.subjectName == item.linkedExternalCardName,
+      orElse: () =>
+          DailySubject(subjectName: '', progress: 'belum', subMateri: []),
+    );
+    if (externalCard.subjectName.isEmpty) return;
+
+    final List<SubSubjectItem> extFlattened = [];
+    getAllItemsFlattened(externalCard.subMateri, extFlattened);
+    final extItemTarget = extFlattened.firstWhere(
+      (el) {
+        if (item.linkedExternalItemId != null &&
+            item.linkedExternalItemId!.isNotEmpty) {
+          return el.id == item.linkedExternalItemId;
+        }
+        return el.subjectName == item.linkedExternalItemName;
+      },
+      orElse: () => SubSubjectItem(subjectName: '', progress: 'belum'),
+    );
+    if (extItemTarget.subjectName.isEmpty) return;
+
+    if (extItemTarget.itemType == 'countdown') {
+      extItemTarget.currentValue =
+          (extItemTarget.currentValue - delta).clamp(0, 999999999);
+      if (extItemTarget.currentValue <= 0) {
+        extItemTarget.progress = 'selesai';
+        extItemTarget.finishedDate = todayStr;
+      } else {
+        extItemTarget.progress = 'belum';
+        extItemTarget.finishedDate = null;
+      }
+    } else {
+      extItemTarget.currentValue =
+          (extItemTarget.currentValue + delta).clamp(0, 999999999);
+      if (extItemTarget.itemType == 'progress' &&
+          extItemTarget.targetValue > 0) {
+        if (extItemTarget.currentValue >= extItemTarget.targetValue) {
+          extItemTarget.progress = 'selesai';
+          extItemTarget.finishedDate ??= todayStr;
+        } else {
+          extItemTarget.progress = 'belum';
+          extItemTarget.finishedDate = null;
+        }
+      }
+    }
+  }
+
   void handleCheckStatusChanged(SubSubjectItem target, bool? checked) {
     saveToHistory();
     setState(() {
@@ -307,8 +359,20 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
             item.finishedDate = null;
           }
         } else {
+          final bool wasDone = item.progress == 'selesai';
           item.progress = isDone ? 'selesai' : 'belum';
           item.finishedDate = isDone ? todayStr : null;
+          if (wasDone != isDone &&
+              item.linkedExternalCardName != null &&
+              ((item.linkedExternalItemId != null &&
+                      item.linkedExternalItemId!.isNotEmpty) ||
+                  (item.linkedExternalItemName != null &&
+                      item.linkedExternalItemName!.isNotEmpty))) {
+            final delta = isDone
+                ? item.externalIncrementAmount
+                : -item.externalIncrementAmount;
+            _applyExternalAccumulation(item, delta, todayStr);
+          }
         }
 
         for (var child in item.subMateri) toggleRecursive(child);
@@ -351,8 +415,20 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
             item.finishedDate = null;
           }
         } else {
+          final bool wasDone = item.progress == 'selesai';
           item.progress = isDone ? 'selesai' : 'belum';
           item.finishedDate = isDone ? todayStr : null;
+          if (wasDone != isDone &&
+              item.linkedExternalCardName != null &&
+              ((item.linkedExternalItemId != null &&
+                      item.linkedExternalItemId!.isNotEmpty) ||
+                  (item.linkedExternalItemName != null &&
+                      item.linkedExternalItemName!.isNotEmpty))) {
+            final delta = isDone
+                ? item.externalIncrementAmount
+                : -item.externalIncrementAmount;
+            _applyExternalAccumulation(item, delta, todayStr);
+          }
         }
 
         for (var child in item.subMateri) toggleRecursive(child);

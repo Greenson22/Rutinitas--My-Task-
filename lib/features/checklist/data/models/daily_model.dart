@@ -271,6 +271,7 @@ class SubSubjectItem {
   String? linkedExternalCardName;
   String? linkedExternalItemId;
   String? linkedExternalItemName;
+  int externalIncrementAmount;
 
   // Tautan berkas My Documents
   String? linkedDocumentGroupId;
@@ -310,6 +311,7 @@ class SubSubjectItem {
     this.linkedExternalCardName,
     this.linkedExternalItemId,
     this.linkedExternalItemName,
+    this.externalIncrementAmount = 1,
     this.linkedDocumentGroupId,
     this.linkedDocumentRelativePath,
     this.linkedDocumentName,
@@ -335,6 +337,7 @@ class SubSubjectItem {
       linkedExternalCardName: linkedExternalCardName,
       linkedExternalItemId: linkedExternalItemId,
       linkedExternalItemName: linkedExternalItemName,
+      externalIncrementAmount: externalIncrementAmount,
       linkedDocumentGroupId: linkedDocumentGroupId,
       linkedDocumentRelativePath: linkedDocumentRelativePath,
       linkedDocumentName: linkedDocumentName,
@@ -365,6 +368,7 @@ class SubSubjectItem {
       linkedExternalCardName: json['linkedExternalCardName'],
       linkedExternalItemId: json['linkedExternalItemId'],
       linkedExternalItemName: json['linkedExternalItemName'],
+      externalIncrementAmount: json['externalIncrementAmount'] ?? 1,
       linkedDocumentGroupId: json['linkedDocumentGroupId'],
       linkedDocumentRelativePath: json['linkedDocumentRelativePath'],
       linkedDocumentName: json['linkedDocumentName'],
@@ -390,6 +394,7 @@ class SubSubjectItem {
       'linkedExternalCardName': linkedExternalCardName,
       'linkedExternalItemId': linkedExternalItemId,
       'linkedExternalItemName': linkedExternalItemName,
+      'externalIncrementAmount': externalIncrementAmount,
       'linkedDocumentGroupId': linkedDocumentGroupId,
       'linkedDocumentRelativePath': linkedDocumentRelativePath,
       'linkedDocumentName': linkedDocumentName,
