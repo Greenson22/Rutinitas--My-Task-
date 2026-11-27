@@ -47,6 +47,7 @@ class _NoteEditDialogState extends State<NoteEditDialog>
   bool _isAscending = true;
   bool _isMarkdownEnabled = false;
   bool _isQrSelectMode = false;
+  bool _isCopyMode = false;
 
   late AnimationController _flipController;
   bool _isFrontSide = true;
@@ -849,6 +850,7 @@ class _NoteEditDialogState extends State<NoteEditDialog>
                     onPressed: () {
                       setState(() {
                         _isQrSelectMode = !_isQrSelectMode;
+                        if (_isQrSelectMode) _isCopyMode = false;
                       });
                       ScaffoldMessenger.of(context).clearSnackBars();
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -861,6 +863,27 @@ class _NoteEditDialogState extends State<NoteEditDialog>
                           duration: const Duration(seconds: 3),
                         ),
                       );
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    icon: Icon(
+                      Icons.content_copy_rounded,
+                      color: _isCopyMode
+                          ? Colors.amberAccent
+                          : Colors.tealAccent,
+                      size: 20,
+                    ),
+                    tooltip: _isCopyMode
+                        ? 'Matikan Mode Salin'
+                        : 'Mode Salin Cell',
+                    onPressed: () {
+                      setState(() {
+                        _isCopyMode = !_isCopyMode;
+                        if (_isCopyMode) _isQrSelectMode = false;
+                      });
                     },
                   ),
                   const SizedBox(width: 10),
@@ -1120,6 +1143,7 @@ class _NoteEditDialogState extends State<NoteEditDialog>
                 onChanged: _triggerChange,
                 isViewMode: true,
                 isQrSelectMode: _isQrSelectMode,
+                isCopyMode: _isCopyMode,
                 onCellTapForQr: (text) {
                   _showQrCodeDialog(text);
                   setState(() => _isQrSelectMode = false);
@@ -1167,6 +1191,7 @@ class _NoteEditDialogState extends State<NoteEditDialog>
                           onChanged: _triggerChange,
                           isViewMode: false,
                           isQrSelectMode: _isQrSelectMode,
+                isCopyMode: _isCopyMode,
                           onCellTapForQr: (text) {
                             _showQrCodeDialog(text);
                             setState(() => _isQrSelectMode = false);

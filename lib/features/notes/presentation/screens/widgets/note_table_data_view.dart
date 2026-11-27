@@ -17,6 +17,7 @@ class NoteTableDataView extends StatefulWidget {
 
   // FITUR BARU: Parameter penerima status mode QR dan fungsi callback eksekusi Tap
   final bool isQrSelectMode;
+  final bool isCopyMode;
   final Function(String)? onCellTapForQr;
 
   const NoteTableDataView({
@@ -32,6 +33,7 @@ class NoteTableDataView extends StatefulWidget {
     required this.onSortChanged,
     this.isViewMode = false,
     this.isQrSelectMode = false, // <--- BARU: Default mati
+    this.isCopyMode = false,
     this.onCellTapForQr, // <--- BARU
   });
 
@@ -48,7 +50,6 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
   String? _editingKey;
 
   bool _isManageModeGlobal = false;
-  bool _isCopyMode = false;
 
   // =========================================================================
   // STATE BARU: UNTUK FITUR PENCARIAN DATA TABEL
@@ -227,7 +228,7 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
               ? '*' * controller.text.length
               : controller.text);
 
-      if (_isCopyMode) {
+      if (widget.isCopyMode) {
         return InkWell(
           borderRadius: BorderRadius.circular(6),
           onTap: () => _copyCellValue(controller.text, type),
@@ -770,34 +771,6 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
               ),
             )
           else ...[
-            if (widget.isViewMode) ...[
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  FilterChip(
-                    avatar: Icon(
-                      Icons.content_copy_rounded,
-                      size: 16,
-                      color: _isCopyMode ? Colors.white : Colors.indigo,
-                    ),
-                    label: Text(
-                      _isCopyMode ? 'Mode Salin: Aktif' : 'Mode Salin',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: _isCopyMode ? Colors.white : Colors.indigo,
-                      ),
-                    ),
-                    selected: _isCopyMode,
-                    selectedColor: Colors.indigo,
-                    backgroundColor: Colors.indigo.withValues(alpha: 0.08),
-                    checkmarkColor: Colors.white,
-                    onSelected: (val) => setState(() => _isCopyMode = val),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-            ],
             if (!widget.isViewMode) ...[
               InkWell(
                 onTap: () => setState(() => _isFormVisible = !_isFormVisible),
