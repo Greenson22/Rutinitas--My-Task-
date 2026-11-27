@@ -14,7 +14,7 @@ void main() {
   late Directory tempDir;
 
   Future<void> writeDocumentGroup(DocumentGroup group) async {
-    final docsDir = Directory('${tempDir.path}/documents');
+    final docsDir = Directory('${tempDir.path}/my_documents');
     if (!await docsDir.exists()) {
       await docsDir.create(recursive: true);
     }

@@ -5,10 +5,10 @@ import 'package:file_picker/file_picker.dart';
 import 'package:open_file/open_file.dart'; // MENGGUNAKAN open_file biasa untuk mengatasi konflik duplikasi class
 import 'package:share_plus/share_plus.dart';
 import 'package:rutinitasku/core/presentation/widgets/adaptive_banner_ad.dart'; // <--- IMPORT WIDGET ADMOB BARU DARI CORE[cite: 2]
-import '../../../../core/services/storage_service.dart';
 import '../../../../core/presentation/widgets/universal_empty_state.dart';
 import '../../../../core/presentation/widgets/base_detail_list_screen.dart';
 import '../../data/models/document_model.dart';
+import '../../data/services/document_file_service.dart';
 import '../controllers/documents_controller.dart';
 
 class DocumentDetailScreen extends StatefulWidget {
@@ -26,9 +26,8 @@ class DocumentDetailScreen extends StatefulWidget {
 }
 
 class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
-  final StorageService storageService = StorageService();
   late DocumentsController _documentsController;
-  late Directory groupDirectory;
+  late DocumentFileService _fileService;
   List<File> physicalFiles = [];
   bool isLoading = false;
 
@@ -38,9 +37,7 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
   void initState() {
     super.initState();
     _documentsController = DocumentsController();
-    groupDirectory = Directory(
-      '${widget.baseDir}/my_documents/${widget.group.id}',
-    );
+    _fileService = DocumentFileService(baseDir: widget.baseDir);
     _loadPhysicalFiles();
   }
 
@@ -52,15 +49,9 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
   Future<void> _loadPhysicalFiles() async {
     setState(() => isLoading = true);
     try {
-      if (!await groupDirectory.exists()) {
-        await groupDirectory.create(recursive: true);
-      }
-      final List<FileSystemEntity> entities = groupDirectory.listSync();
+      final List<File> files = await _fileService.listFiles(widget.group.id);
       setState(() {
-        physicalFiles = entities
-            .whereType<File>()
-            .where((file) => !file.path.toLowerCase().endsWith('.json'))
-            .toList();
+        physicalFiles = files;
       });
 
       _handleSort(_currentSortType);
@@ -319,57 +310,36 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
         int successCount = 0;
 
         for (var pickedFile in result.files) {
-          if (pickedFile.path != null) {
-            File sourceFile = File(pickedFile.path!);
+          if (pickedFile.path == null) continue;
+          final File sourceFile = File(pickedFile.path!);
+          final String fileName = pickedFile.name;
 
-            // 1. Ambil waktu modifikasi asli dari file asal sebelum disalin
-            DateTime originalLastModified = await sourceFile.lastModified();
+          DocumentNameConflictPolicy policy =
+              DocumentNameConflictPolicy.keepBoth;
 
-            String fileName = pickedFile.name;
-            String targetPath = '${groupDirectory.path}/$fileName';
-            File targetFile = File(targetPath);
+          if (await _fileService.fileExistsInGroup(widget.group.id, fileName)) {
+            // Sembunyikan loading sejenak agar dialog terlihat jelas
+            setState(() => isLoading = false);
 
-            // LOGIKA KONFIRMASI JIKA FILE SUDAH ADA
-            if (await targetFile.exists()) {
-              // Sembunyikan loading sejenak agar dialog terlihat jelas
-              setState(() => isLoading = false);
+            final String? choice = await _showDuplicateConflictDialog(fileName);
+            setState(() => isLoading = true);
 
-              String? choice = await _showDuplicateConflictDialog(fileName);
-
-              setState(() => isLoading = true);
-
-              if (choice == 'cancel' || choice == null) {
-                continue; // Lewati file ini, lanjut ke file berikutnya jika ada
-              }
-
-              if (choice == 'copy') {
-                // Pemisahan Nama dan Ekstensi File untuk membuat format (1), (2), dst.
-                final int lastDotIndex = fileName.lastIndexOf('.');
-                final String nameWithoutExt = lastDotIndex != -1
-                    ? fileName.substring(0, lastDotIndex)
-                    : fileName;
-                final String extension = lastDotIndex != -1
-                    ? fileName.substring(lastDotIndex)
-                    : '';
-
-                int counter = 1;
-                while (await targetFile.exists()) {
-                  targetPath =
-                      '${groupDirectory.path}/$nameWithoutExt ($counter)$extension';
-                  targetFile = File(targetPath);
-                  counter++;
-                }
-              }
-              // Jika memilih 'overwrite', targetPath tetap sama dan langsung ditimpah
+            if (choice == 'cancel' || choice == null) {
+              continue; // Lewati file ini, lanjut ke file berikutnya jika ada
             }
 
-            // 2. Salin file ke direktori aplikasi (baik menimpah atau membuat salinan baru)
-            await sourceFile.copy(targetPath);
-
-            // 3. Setel ulang waktu modifikasi file baru agar sama dengan yang asli
-            await targetFile.setLastModified(originalLastModified);
-            successCount++;
+            policy = choice == 'overwrite'
+                ? DocumentNameConflictPolicy.overwrite
+                : DocumentNameConflictPolicy.keepBoth;
           }
+
+          final File? imported = await _fileService.importFile(
+            groupId: widget.group.id,
+            sourceFile: sourceFile,
+            fileName: fileName,
+            conflictPolicy: policy,
+          );
+          if (imported != null) successCount++;
         }
 
         await _loadPhysicalFiles();
@@ -599,16 +569,16 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
             onPressed: () async {
               if (!formKey.currentState!.validate()) return;
               final String newName = renameController.text.trim();
-              final String targetPath =
-                  '${groupDirectory.path}/$newName$extension';
 
               Navigator.pop(ctx);
               setState(() => isLoading = true);
               try {
-                if (!await File(targetPath).exists()) {
-                  await file.rename(targetPath);
-                  await _loadPhysicalFiles();
-                }
+                await _fileService.renameFile(
+                  groupId: widget.group.id,
+                  file: file,
+                  newFileName: '$newName$extension',
+                );
+                await _loadPhysicalFiles();
               } catch (e) {
                 debugPrint("Gagal ganti nama: $e");
               } finally {
@@ -671,15 +641,23 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
                   Navigator.pop(ctx);
                   setState(() => isLoading = true);
 
-                  final bool success = await _documentsController
-                      .movePhysicalFiles(
-                        filesToMove: filesToMove,
-                        currentGroupId: widget.group.id,
+                  bool success = filesToMove.isNotEmpty;
+                  try {
+                    for (final file in filesToMove) {
+                      final moved = await _fileService.moveFile(
+                        file: file,
                         targetGroupId: targetGroup.id,
                       );
+                      if (moved == null) success = false;
+                    }
+                  } catch (e) {
+                    debugPrint("Gagal memindahkan berkas: $e");
+                    success = false;
+                  }
 
                   if (success) {
                     await _loadPhysicalFiles();
+                    if (!mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(
@@ -689,6 +667,7 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
                       ),
                     );
                   } else {
+                    if (!mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('Gagal memindahkan beberapa berkas.'),
@@ -719,10 +698,8 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
       content: 'Apakah Anda yakin ingin menghapus "$fileName" selamanya?',
     );
     if (confirm) {
-      if (await file.exists()) {
-        await file.delete();
-        await _loadPhysicalFiles();
-      }
+      await _fileService.deleteFile(file);
+      await _loadPhysicalFiles();
     }
   }
 
@@ -735,9 +712,7 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
     );
     if (confirm) {
       setState(() => isLoading = true);
-      for (var file in selectedFiles) {
-        if (await file.exists()) await file.delete();
-      }
+      await _fileService.deleteFiles(selectedFiles);
       await _loadPhysicalFiles();
       setState(() => isLoading = false);
     }

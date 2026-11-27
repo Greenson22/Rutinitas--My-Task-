@@ -14,7 +14,7 @@ void main() {
   late Directory tempDir;
 
   Future<void> writeDocumentGroup(DocumentGroup group) async {
-    final docsDir = Directory('${tempDir.path}/documents');
+    final docsDir = Directory('${tempDir.path}/my_documents');
     if (!await docsDir.exists()) {
       await docsDir.create(recursive: true);
     }
@@ -104,7 +104,7 @@ void main() {
         final list = List<String>.from(jsonDecode(raw!));
         expect(list, contains('KERJA'));
 
-        final file = File('${tempDir.path}/documents/d1.json');
+        final file = File('${tempDir.path}/my_documents/d1.json');
         final decoded = DocumentGroup.fromJson(
           jsonDecode(await file.readAsString()),
         );

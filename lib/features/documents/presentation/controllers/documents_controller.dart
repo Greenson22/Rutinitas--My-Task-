@@ -6,9 +6,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/services/storage_service.dart';
 import '../../../../core/utils/atomic_write_helper.dart'; // <--- TAMBAHAN: Import Atomic Write Helper[cite: 1, 3]
 import '../../data/models/document_model.dart';
+import '../../data/services/document_file_service.dart';
 
 class DocumentsController extends ChangeNotifier {
   final StorageService storageService = StorageService();
+
+  DocumentFileService get _fileService =>
+      DocumentFileService(baseDir: selectedBaseDir);
 
   bool isLoading = false;
   bool isPageEditMode = false;
@@ -110,8 +114,9 @@ class DocumentsController extends ChangeNotifier {
       final rememberCollapse =
           prefs.getBool('sections_remember_collapse_state') ?? true;
       collapsedSections.clear();
-      final allSectionNames =
-          loadedGroups.map((g) => g.sectionCategory).toSet();
+      final allSectionNames = loadedGroups
+          .map((g) => g.sectionCategory)
+          .toSet();
       if (rememberCollapse) {
         final rawCollapsed = prefs.getString('docs_collapsed_sections');
         if (rawCollapsed != null) {
@@ -143,17 +148,7 @@ class DocumentsController extends ChangeNotifier {
   Future<void> _countPhysicalFiles() async {
     groupFileCounts.clear();
     for (var group in allGroupRaw) {
-      final dir = Directory('$selectedBaseDir/my_documents/${group.id}');
-      if (await dir.exists()) {
-        final files = dir
-            .listSync()
-            .whereType<File>()
-            .where((f) => !f.path.endsWith('.json'))
-            .toList();
-        groupFileCounts[group.id] = files.length;
-      } else {
-        groupFileCounts[group.id] = 0;
-      }
+      groupFileCounts[group.id] = await _fileService.countFiles(group.id);
     }
   }
 
@@ -173,10 +168,7 @@ class DocumentsController extends ChangeNotifier {
       // EKSEKUSI PENULISAN SECARA AMAN DENGAN ATOMIC WRITE[cite: 1, 3]
       await AtomicWriteHelper.writeSafe(targetFile: file, content: jsonStr);
 
-      final dir = Directory('$selectedBaseDir/my_documents/${group.id}');
-      if (!await dir.exists()) {
-        await dir.create(recursive: true);
-      }
+      await _fileService.ensureGroupDirectory(group.id);
     } catch (e) {
       debugPrint(
         "Gagal menyimpan Document Group dengan aman (Atomic Write): $e",
@@ -296,10 +288,7 @@ class DocumentsController extends ChangeNotifier {
     if (await targetFile.exists()) {
       await targetFile.delete();
     }
-    Directory groupDir = Directory('$selectedBaseDir/my_documents/${group.id}');
-    if (await groupDir.exists()) {
-      await groupDir.delete(recursive: true);
-    }
+    await _fileService.deleteGroupDirectory(group.id);
     await loadGroupsData();
   }
 
@@ -383,49 +372,5 @@ class DocumentsController extends ChangeNotifier {
 
   List<DocumentGroup> getAvailableTargetGroups(String currentGroupId) {
     return allGroupRaw.where((group) => group.id != currentGroupId).toList();
-  }
-
-  Future<bool> movePhysicalFiles({
-    required List<File> filesToMove,
-    required String currentGroupId,
-    required String targetGroupId,
-  }) async {
-    if (filesToMove.isEmpty) return false;
-    try {
-      final String baseDir = await storageService.getBaseDirSetting();
-      final Directory targetDir = Directory(
-        '$baseDir/my_documents/$targetGroupId',
-      );
-
-      if (!await targetDir.exists()) {
-        await targetDir.create(recursive: true);
-      }
-
-      for (var file in filesToMove) {
-        if (await file.exists()) {
-          final String fileName = file.path.split('/').last;
-          final String targetPath = '${targetDir.path}/$fileName';
-
-          String finalTargetPath = targetPath;
-          if (await File(targetPath).exists()) {
-            final int lastDot = fileName.lastIndexOf('.');
-            final String nameOnly = lastDot != -1
-                ? fileName.substring(0, lastDot)
-                : fileName;
-            final String ext = lastDot != -1 ? fileName.substring(lastDot) : '';
-            final String timestamp = DateTime.now().millisecondsSinceEpoch
-                .toString()
-                .substring(8);
-            finalTargetPath = '${targetDir.path}/${nameOnly}_$timestamp$ext';
-          }
-          await file.rename(finalTargetPath);
-        }
-      }
-      await loadGroupsData();
-      return true;
-    } catch (e) {
-      debugPrint("Gagal memindahkan berkas fisik antar-grup: $e");
-      return false;
-    }
   }
 }
