@@ -617,10 +617,35 @@ class _DailyChecklistDialogState extends ChecklistDialogController {
                 'Hapus Parent',
                 style: TextStyle(color: Colors.redAccent),
               ),
-              onTap: () {
+              onTap: () async {
                 Navigator.pop(ctx);
-                setState(() => containerList.remove(entry));
-                widget.onDataChanged();
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (dCtx) => AlertDialog(
+                    title: const Text('Hapus Parent Monitor?'),
+                    content: Text(
+                      'Hapus parent "${entry.parentTitle ?? 'Parent'}" beserta seluruh daftar bayangan di dalamnya?\n(Item asli di card sumber tidak akan terhapus.)',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(dCtx, false),
+                        child: const Text('Batal'),
+                      ),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.redAccent,
+                          foregroundColor: Colors.white,
+                        ),
+                        onPressed: () => Navigator.pop(dCtx, true),
+                        child: const Text('Hapus'),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirm == true) {
+                  setState(() => containerList.remove(entry));
+                  widget.onDataChanged();
+                }
               },
             ),
           ],
