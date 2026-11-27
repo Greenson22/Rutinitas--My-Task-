@@ -1098,14 +1098,97 @@ class _NoteEditDialogState extends State<NoteEditDialog>
       child: _currentType == 'text'
           ? Container(
               color: Colors.white,
-              padding: const EdgeInsets.all(16.0),
+              padding: _isViewMode && _isMarkdownEnabled
+                  ? EdgeInsets.zero
+                  : const EdgeInsets.all(16.0),
               child: _isViewMode
                   ? (_isMarkdownEnabled
                         ? Markdown(
+                            padding: const EdgeInsets.all(16.0),
                             data: _contentController.text.isEmpty
                                 ? '*Catatan kosong.*'
                                 : _contentController.text,
                             selectable: true,
+                            styleSheet:
+                                MarkdownStyleSheet.fromTheme(
+                                  Theme.of(context),
+                                ).copyWith(
+                                  p: const TextStyle(
+                                    fontSize: 14.5,
+                                    color: Colors.black87,
+                                    height: 1.55,
+                                  ),
+                                  h1: TextStyle(
+                                    fontSize: 21,
+                                    fontWeight: FontWeight.bold,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
+                                    height: 1.4,
+                                  ),
+                                  h2: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
+                                    height: 1.4,
+                                  ),
+                                  h3: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
+                                    height: 1.4,
+                                  ),
+                                  listBullet: TextStyle(
+                                    fontSize: 14.5,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  code: const TextStyle(
+                                    fontFamily: 'monospace',
+                                    fontSize: 13,
+                                    color: Color(0xFF24292F),
+                                    backgroundColor: Color(0xFFF3F4F6),
+                                  ),
+                                  codeblockPadding: const EdgeInsets.all(14),
+                                  codeblockDecoration: BoxDecoration(
+                                    color: const Color(0xFFF6F8FA),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: const Color(0xFFD0D7DE),
+                                    ),
+                                  ),
+                                  blockquotePadding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 8,
+                                  ),
+                                  blockquoteDecoration: BoxDecoration(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary.withValues(alpha: 0.06),
+                                    border: Border(
+                                      left: BorderSide(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.primary,
+                                        width: 4,
+                                      ),
+                                    ),
+                                  ),
+                                  horizontalRuleDecoration: BoxDecoration(
+                                    border: Border(
+                                      top: BorderSide(
+                                        color: Colors.grey.shade300,
+                                        width: 1,
+                                      ),
+                                    ),
+                                  ),
+                                ),
                           )
                         : TextField(
                             controller: _contentController,
