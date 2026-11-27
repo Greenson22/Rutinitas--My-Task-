@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import '../../../data/models/daily_model.dart';
 import 'document_file_picker_dialog.dart';
 
@@ -85,6 +86,89 @@ class _EditItemRelationsDialogState extends State<EditItemRelationsDialog> {
     0xFF6A1B9A, // Ungu
     0xFFAD1457, // Pink
   ];
+
+  Future<void> _showCustomColorPickerDialog() async {
+    Color tempColor = _selectedTextColor != null
+        ? Color(_selectedTextColor!)
+        : Colors.black87;
+    final hexController = TextEditingController(
+      text: tempColor.value
+          .toRadixString(16)
+          .padLeft(8, '0')
+          .substring(2)
+          .toUpperCase(),
+    );
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setPickerState) => AlertDialog(
+          title: const Text(
+            'Pilih Warna Teks',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ColorPicker(
+                  pickerColor: tempColor,
+                  onColorChanged: (color) {
+                    setPickerState(() {
+                      tempColor = color;
+                      hexController.text = color.value
+                          .toRadixString(16)
+                          .padLeft(8, '0')
+                          .substring(2)
+                          .toUpperCase();
+                    });
+                  },
+                  enableAlpha: false,
+                  displayThumbColor: true,
+                  pickerAreaHeightPercent: 0.7,
+                  hexInputBar: false,
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: hexController,
+                  decoration: const InputDecoration(
+                    labelText: 'Kode Hex (contoh: FF5722)',
+                    prefixText: '#',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  maxLength: 6,
+                  onChanged: (val) {
+                    final clean = val.replaceAll('#', '').trim();
+                    if (clean.length == 6) {
+                      final parsed = int.tryParse('FF$clean', radix: 16);
+                      if (parsed != null) {
+                        setPickerState(() => tempColor = Color(parsed));
+                      }
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                setState(() => _selectedTextColor = tempColor.value);
+                Navigator.pop(ctx);
+              },
+              child: const Text('Pilih'),
+            ),
+          ],
+        ),
+      ),
+    );
+    hexController.dispose();
+  }
 
   @override
   void initState() {
@@ -241,36 +325,82 @@ class _EditItemRelationsDialogState extends State<EditItemRelationsDialog> {
               child: Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: _presetTextColors.map((colorVal) {
-                  final bool isSelected = _selectedTextColor == colorVal;
-                  final Color displayColor = colorVal == null
-                      ? Colors.black87
-                      : Color(colorVal);
-                  return GestureDetector(
-                    onTap: () => setState(() => _selectedTextColor = colorVal),
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  ..._presetTextColors.map((colorVal) {
+                    final bool isSelected = _selectedTextColor == colorVal;
+                    final Color displayColor = colorVal == null
+                        ? Colors.black87
+                        : Color(colorVal);
+                    return GestureDetector(
+                      onTap: () =>
+                          setState(() => _selectedTextColor = colorVal),
+                      child: Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: displayColor,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isSelected
+                                ? Colors.amber.shade700
+                                : Colors.grey.shade300,
+                            width: isSelected ? 2.5 : 1,
+                          ),
+                        ),
+                        child: isSelected
+                            ? const Icon(
+                                Icons.check,
+                                size: 16,
+                                color: Colors.white,
+                              )
+                            : null,
+                      ),
+                    );
+                  }),
+                  GestureDetector(
+                    onTap: _showCustomColorPickerDialog,
                     child: Container(
                       width: 28,
                       height: 28,
                       decoration: BoxDecoration(
-                        color: displayColor,
                         shape: BoxShape.circle,
+                        gradient: const SweepGradient(
+                          colors: [
+                            Colors.red,
+                            Colors.yellow,
+                            Colors.green,
+                            Colors.cyan,
+                            Colors.blue,
+                            Colors.purple,
+                            Colors.red,
+                          ],
+                        ),
                         border: Border.all(
-                          color: isSelected
+                          color:
+                              _selectedTextColor != null &&
+                                  !_presetTextColors.contains(
+                                    _selectedTextColor,
+                                  )
                               ? Colors.amber.shade700
-                              : Colors.grey.shade300,
-                          width: isSelected ? 2.5 : 1,
+                              : Colors.grey.shade400,
+                          width:
+                              _selectedTextColor != null &&
+                                  !_presetTextColors.contains(
+                                    _selectedTextColor,
+                                  )
+                              ? 2.5
+                              : 1,
                         ),
                       ),
-                      child: isSelected
-                          ? const Icon(
-                              Icons.check,
-                              size: 16,
-                              color: Colors.white,
-                            )
-                          : null,
+                      child: const Icon(
+                        Icons.colorize_rounded,
+                        size: 15,
+                        color: Colors.white,
+                      ),
                     ),
-                  );
-                }).toList(),
+                  ),
+                ],
               ),
             ),
             if (widget.item.itemType == 'progress' ||
