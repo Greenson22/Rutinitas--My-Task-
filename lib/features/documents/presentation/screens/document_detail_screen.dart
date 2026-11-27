@@ -2,7 +2,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:open_file/open_file.dart'; // MENGGUNAKAN open_file biasa untuk mengatasi konflik duplikasi class
+import 'package:open_file/open_file.dart';
+import 'package:rutinitasku/features/multimedia/services/multimedia_opener_service.dart'; // MENGGUNAKAN open_file biasa untuk mengatasi konflik duplikasi class
 import 'package:share_plus/share_plus.dart';
 import 'package:rutinitasku/core/presentation/widgets/adaptive_banner_ad.dart'; // <--- IMPORT WIDGET ADMOB BARU DARI CORE[cite: 2]
 import '../../../../core/presentation/widgets/universal_empty_state.dart';
@@ -941,7 +942,9 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
           type: "application/vnd.android.package-archive",
         );
       } else {
-        await OpenFile.open(file.path);
+        if (mounted) {
+          await MultimediaOpenerService.openFile(context, file);
+        }
       }
     } catch (e) {
       debugPrint("Gagal membuka file: $e");
