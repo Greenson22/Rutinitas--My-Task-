@@ -48,6 +48,7 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
   String? _editingKey;
 
   bool _isManageModeGlobal = false;
+  bool _isCopyMode = false;
 
   // =========================================================================
   // STATE BARU: UNTUK FITUR PENCARIAN DATA TABEL
@@ -157,6 +158,59 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
     );
   }
 
+  Future<void> _copyCellValue(String value, String type) async {
+    if (value.isEmpty) return;
+
+    if (type == 'Password') {
+      final bool? confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.orange),
+              SizedBox(width: 8),
+              Text('Peringatan Keamanan', style: TextStyle(fontSize: 17)),
+            ],
+          ),
+          content: const Text(
+            'Anda akan menyalin nilai password ke clipboard. Pastikan tidak ada orang lain yang dapat melihat atau mengakses clipboard Anda.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Salin', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+      if (confirm != true) return;
+    }
+
+    await Clipboard.setData(ClipboardData(text: value));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          type == 'Password'
+              ? 'Password berhasil disalin ke clipboard'
+              : 'Berhasil disalin ke clipboard',
+        ),
+        duration: const Duration(seconds: 2),
+        backgroundColor: Colors.teal,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   Widget _buildInputField(
     String key,
     TextEditingController controller, {
@@ -172,6 +226,36 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
           : (type == 'Password'
               ? '*' * controller.text.length
               : controller.text);
+
+      if (_isCopyMode) {
+        return InkWell(
+          borderRadius: BorderRadius.circular(6),
+          onTap: () => _copyCellValue(controller.text, type),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    displayText,
+                    style: const TextStyle(fontSize: 13, color: Colors.black87),
+                  ),
+                ),
+                if (controller.text.isNotEmpty) ...[
+                  const SizedBox(width: 6),
+                  Icon(
+                    Icons.content_copy_rounded,
+                    size: 14,
+                    color: Colors.indigo.withValues(alpha: 0.7),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      }
+
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
         child: SelectableText(
@@ -686,6 +770,34 @@ class _NoteTableDataViewState extends State<NoteTableDataView> {
               ),
             )
           else ...[
+            if (widget.isViewMode) ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  FilterChip(
+                    avatar: Icon(
+                      Icons.content_copy_rounded,
+                      size: 16,
+                      color: _isCopyMode ? Colors.white : Colors.indigo,
+                    ),
+                    label: Text(
+                      _isCopyMode ? 'Mode Salin: Aktif' : 'Mode Salin',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: _isCopyMode ? Colors.white : Colors.indigo,
+                      ),
+                    ),
+                    selected: _isCopyMode,
+                    selectedColor: Colors.indigo,
+                    backgroundColor: Colors.indigo.withValues(alpha: 0.08),
+                    checkmarkColor: Colors.white,
+                    onSelected: (val) => setState(() => _isCopyMode = val),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+            ],
             if (!widget.isViewMode) ...[
               InkWell(
                 onTap: () => setState(() => _isFormVisible = !_isFormVisible),
