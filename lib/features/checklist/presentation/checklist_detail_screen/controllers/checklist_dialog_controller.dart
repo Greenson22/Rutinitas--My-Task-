@@ -181,12 +181,34 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
   // LOGIKA RIWAYAT (UNDO / REDO)
   // =========================================================================
 
+  final List<Map<String, List<SubSubjectItem>>> _externalUndoStack = [];
+  final List<Map<String, List<SubSubjectItem>>> _externalRedoStack = [];
+
+  Map<String, List<SubSubjectItem>> _captureExternalSnapshot() {
+    return {
+      for (final sub in widget.allAvailableSubjects)
+        if (sub.subjectName != widget.subject.subjectName)
+          sub.subjectName: sub.subMateri.map((e) => e.clone()).toList(),
+    };
+  }
+
+  void _restoreExternalSnapshot(Map<String, List<SubSubjectItem>> snapshot) {
+    for (final sub in widget.allAvailableSubjects) {
+      final saved = snapshot[sub.subjectName];
+      if (saved != null) {
+        sub.subMateri = saved.map((e) => e.clone()).toList();
+      }
+    }
+  }
+
   void saveToHistory() {
     final List<SubSubjectItem> currentSnapshot = widget.subject.subMateri
         .map((item) => item.clone())
         .toList();
     undoStack.add(currentSnapshot);
     redoStack.clear();
+    _externalUndoStack.add(_captureExternalSnapshot());
+    _externalRedoStack.clear();
   }
 
   void executeUndo() {
@@ -197,6 +219,10 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
           .toList();
       redoStack.add(currentSnapshot);
       widget.subject.subMateri = undoStack.removeLast();
+      if (_externalUndoStack.isNotEmpty) {
+        _externalRedoStack.add(_captureExternalSnapshot());
+        _restoreExternalSnapshot(_externalUndoStack.removeLast());
+      }
       updateSubjectOverallProgress();
     });
     widget.onDataChanged();
@@ -210,6 +236,10 @@ abstract class ChecklistDialogController extends State<DailyChecklistDialog> {
           .toList();
       undoStack.add(currentSnapshot);
       widget.subject.subMateri = redoStack.removeLast();
+      if (_externalRedoStack.isNotEmpty) {
+        _externalUndoStack.add(_captureExternalSnapshot());
+        _restoreExternalSnapshot(_externalRedoStack.removeLast());
+      }
       updateSubjectOverallProgress();
     });
     widget.onDataChanged();
