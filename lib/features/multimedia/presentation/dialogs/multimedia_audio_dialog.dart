@@ -45,7 +45,15 @@ class _MultimediaAudioDialogState extends State<MultimediaAudioDialog> {
   }
 
   Future<void> _playFromFile() async {
-    await _player.play(DeviceFileSource(widget.file.path));
+    try {
+      await _player.play(DeviceFileSource(widget.file.path));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal memutar audio: $e')),
+        );
+      }
+    }
   }
 
   @override
@@ -133,8 +141,10 @@ class _MultimediaAudioDialogState extends State<MultimediaAudioDialog> {
             onPressed: () async {
               if (isPlaying) {
                 await _player.pause();
-              } else {
+              } else if (_playerState == PlayerState.paused) {
                 await _player.resume();
+              } else {
+                await _playFromFile();
               }
             },
           ),
