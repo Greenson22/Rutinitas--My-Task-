@@ -8,6 +8,7 @@ import 'package:rutinitasku/core/presentation/widgets/adaptive_banner_ad.dart'; 
 import '../../../../core/presentation/widgets/universal_empty_state.dart';
 import '../../../../core/presentation/widgets/base_detail_list_screen.dart';
 import '../../data/models/document_model.dart';
+import '../../data/services/document_checklist_link_service.dart';
 import '../../data/services/document_file_service.dart';
 import '../controllers/documents_controller.dart';
 import '../widgets/document_emoji_picker.dart';
@@ -31,6 +32,8 @@ class DocumentDetailScreen extends StatefulWidget {
 class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
   late DocumentsController _documentsController;
   late DocumentFileService _fileService;
+  final DocumentChecklistLinkService _linkService =
+      DocumentChecklistLinkService();
   List<File> physicalFiles = [];
   List<DocumentFolder> _childFolders = [];
   Map<String, ({int folderCount, int fileCount})> _folderCounts = {};
@@ -620,7 +623,8 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
               Navigator.pop(ctx);
               setState(() => isLoading = true);
               try {
-                await _fileService.renameFile(
+                final oldRel = _fileService.relativePath(widget.group.id, file);
+                final renamed = await _fileService.renameFile(
                   groupId: widget.group.id,
                   file: file,
                   newFileName: '$newName$extension',
@@ -630,6 +634,18 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
                   ),
                   autoRenameOnConflict: true,
                 );
+                if (renamed != null) {
+                  final newRel = _fileService.relativePath(
+                    widget.group.id,
+                    renamed,
+                  );
+                  await _linkService.updateLinkPath(
+                    widget.group.id,
+                    oldRel,
+                    newRel,
+                    _fileService.fileName(renamed),
+                  );
+                }
                 await _loadPhysicalFiles();
               } catch (e) {
                 debugPrint("Gagal ganti nama: $e");
@@ -696,12 +712,30 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
                   bool success = filesToMove.isNotEmpty;
                   try {
                     for (final file in filesToMove) {
+                      final oldRel = _fileService.relativePath(
+                        widget.group.id,
+                        file,
+                      );
                       final moved = await _fileService.moveFile(
                         file: file,
                         targetGroupId: targetGroup.id,
                         autoRenameWithNumber: true,
                       );
-                      if (moved == null) success = false;
+                      if (moved == null) {
+                        success = false;
+                      } else {
+                        final newRel = _fileService.relativePath(
+                          targetGroup.id,
+                          moved,
+                        );
+                        await _linkService.updateLinkPath(
+                          widget.group.id,
+                          oldRel,
+                          newRel,
+                          _fileService.fileName(moved),
+                          newGroupId: targetGroup.id,
+                        );
+                      }
                     }
                   } catch (e) {
                     debugPrint("Gagal memindahkan berkas: $e");
@@ -751,8 +785,20 @@ class _DocumentDetailScreenState extends State<DocumentDetailScreen> {
       content: 'Apakah Anda yakin ingin menghapus "$fileName" selamanya?',
     );
     if (confirm) {
+      final relPath = _fileService.relativePath(widget.group.id, file);
       await _fileService.deleteFile(file);
+      final cleared = await _linkService.clearLinkForItem(
+        widget.group.id,
+        relPath,
+      );
       await _loadPhysicalFiles();
+      if (cleared > 0 && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Tautan checklist terkait telah dilepas'),
+          ),
+        );
+      }
     }
   }
 

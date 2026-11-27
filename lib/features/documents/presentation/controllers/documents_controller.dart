@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/services/storage_service.dart';
 import '../../../../core/utils/atomic_write_helper.dart'; // <--- TAMBAHAN: Import Atomic Write Helper[cite: 1, 3]
 import '../../data/models/document_model.dart';
+import '../../data/services/document_checklist_link_service.dart';
 import '../../data/services/document_file_service.dart';
 
 class DocumentsController extends ChangeNotifier {
@@ -13,6 +14,9 @@ class DocumentsController extends ChangeNotifier {
 
   DocumentFileService get _fileService =>
       DocumentFileService(baseDir: selectedBaseDir);
+
+  final DocumentChecklistLinkService _linkService =
+      DocumentChecklistLinkService();
 
   bool isLoading = false;
   bool isPageEditMode = false;
@@ -289,6 +293,7 @@ class DocumentsController extends ChangeNotifier {
       await targetFile.delete();
     }
     await _fileService.deleteGroupDirectory(group.id);
+    await _linkService.clearLinksForGroup(group.id);
     await loadGroupsData();
   }
 
@@ -473,6 +478,7 @@ class DocumentsController extends ChangeNotifier {
     final newPath = folderRelativePath(group, folderId);
     if (oldPath != newPath) {
       await _fileService.renameFolderDirectory(groupId, oldPath, newPath);
+      await _linkService.updateFolderLinkPrefix(groupId, oldPath, newPath);
     }
     await saveGroupDataToFile(group);
     await loadGroupsData();
@@ -513,6 +519,7 @@ class DocumentsController extends ChangeNotifier {
     final newPath = folderRelativePath(group, folderId);
     if (oldPath != newPath) {
       await _fileService.moveFolderDirectory(groupId, oldPath, newPath);
+      await _linkService.updateFolderLinkPrefix(groupId, oldPath, newPath);
     }
     await saveGroupDataToFile(group);
     await loadGroupsData();
@@ -544,6 +551,7 @@ class DocumentsController extends ChangeNotifier {
 
     group.folders.removeWhere((f) => toRemove.contains(f.id));
     await _fileService.deleteFolderDirectory(groupId, relPath);
+    await _linkService.clearLinksFor(groupId, relPath);
     await saveGroupDataToFile(group);
     await loadGroupsData();
     return true;
