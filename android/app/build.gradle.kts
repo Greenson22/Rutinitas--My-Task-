@@ -39,6 +39,20 @@ android {
         versionName = flutter.versionName
     }
 
+    flavorDimensions += "app"
+
+    productFlavors {
+        create("original") {
+            dimension = "app"
+            resValue("string", "app_name", "MyTasks")
+        }
+        create("frendy") {
+            dimension = "app"
+            applicationId = "com.rikalg22.mytasks_frendy"
+            resValue("string", "app_name", "MyTasksFrendy")
+        }
+    }
+
     // Tambahkan blok ini di dalam `android { ... }`
     signingConfigs {
         create("release") {
