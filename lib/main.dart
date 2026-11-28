@@ -2,6 +2,7 @@
 import 'dart:io'; // DITAMBAHKAN untuk melakukan pengecekan Platform.isAndroid
 import 'package:flutter/foundation.dart'; // DITAMBAHKAN untuk mendeteksi kIsWeb
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart'; // 1. Tambahkan import AdMob
 import 'core/presentation/widgets/task_master_entry.dart';
@@ -27,7 +28,8 @@ class TaskMasterApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: true,
-      title: 'My Tasks',
+      // Nama ini yang tampil di daftar aplikasi terakhir (recents) Android.
+      title: appFlavor == 'frendy' ? 'MyTasksFrendy' : 'My Tasks',
       theme: ThemeData(primarySwatch: Colors.indigo, useMaterial3: false),
 
       // Menggunakan properti builder untuk membungkus seluruh hierarki navigasi
